@@ -74,6 +74,41 @@ class BuildTest(unittest.TestCase):
         th = self.load({"theme.json": THEME, "core.json": CORE, "c.json": CAT_C, "d.json": bad})
         self.assertTrue(any("不屬於分類" in e for e in th["errors"]), th["errors"])
 
+    def test_trio_combines_three_materials_with_byproduct_choice(self):
+        core = dict(CORE, trios=[["b1", "b2", "c1", "c2", "c3"]])
+        th = self.load({"theme.json": THEME, "core.json": core, "c.json": CAT_C})
+        self.assertEqual(th["errors"], [])
+        tiers = {i["id"]: i["tier"] for i in th["items"]}
+        # c2/c3 原本靠 c.json 的配方分別是階段 2／3；trio（b1,b2,c1，max 階段 1）會再給它們一個階段 2 的來源，
+        # 但 tier 取所有配方的最小值，所以 c2 維持 2，c3 被 trio 的階段 2 蓋過，比原來的 3 低。
+        self.assertEqual(tiers["c2"], 2)
+        self.assertEqual(tiers["c3"], 2)
+        self.assertEqual(th["trios"][build.trio_key("b1", "b2", "c1")], ("c2", "c3"))
+
+    def test_trio_duplicate_combo_rejected(self):
+        core = dict(CORE, trios=[["b1", "b2", "c1", "c2", "c3"], ["c1", "b2", "b1", "c3", "c2"]])
+        th = self.load({"theme.json": THEME, "core.json": core, "c.json": CAT_C})
+        self.assertTrue(any("trio 組合" in e and "重複" in e for e in th["errors"]), th["errors"])
+
+    def test_trio_result_cannot_be_basic_or_junk(self):
+        core = dict(CORE, trios=[["b1", "b2", "c1", "z1", "c2"]])
+        th = self.load({"theme.json": THEME, "core.json": core, "c.json": CAT_C})
+        self.assertTrue(any("主產物／副產物不能是初始物體或廢料" in e for e in th["errors"]), th["errors"])
+
+    def test_trio_material_cannot_be_junk(self):
+        core = dict(CORE, trios=[["b1", "b2", "z1", "c2", "c3"]])
+        th = self.load({"theme.json": THEME, "core.json": core, "c.json": CAT_C})
+        self.assertTrue(any("trio 配方" in e and "廢料" in e for e in th["errors"]), th["errors"])
+
+    def test_render_js_includes_trios(self):
+        core = dict(CORE, trios=[["b1", "b2", "c1", "c2", "c3"]])
+        th = self.load({"theme.json": THEME, "core.json": core, "c.json": CAT_C})
+        js = build.render_js(th)
+        prefix = '(window.PriTestGouseiData = window.PriTestGouseiData || {})["fx"] = '
+        data = json.loads(js.split(prefix, 1)[1].rstrip().rstrip(";"))
+        self.assertEqual(data["trios"]["b1|b2|c1"], ["c2", "c3"])
+        self.assertFalse(data["allowTrio"])
+
     def test_duplicate_name(self):
         cat = dict(CAT_C, items=[{"id": "c2", "zh": "一", "ja": "二"}, {"id": "c3", "zh": "三", "ja": "三"}])
         th = self.load({"theme.json": THEME, "core.json": CORE, "c.json": cat})

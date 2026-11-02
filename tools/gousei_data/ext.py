@@ -92,6 +92,8 @@ def convert(theme: str) -> list[str]:
     parsed: list[tuple[str, list[dict], list[tuple[int, str, str, str]]]] = []
     new_names: dict[str, str] = {}
     alt_rows: list[tuple[int, str, str, str]] = []
+    trio_items: list[dict] = []
+    trio_rows: list[tuple[int, str, str, str, str, str]] = []
     for path in sorted(src_dir.glob("*.txt")):
         cat = path.stem
         if cat == "alt":
@@ -110,6 +112,47 @@ def convert(theme: str) -> list[str]:
                         errors.append(f"{path.name}:{no}: 配方格式錯誤 {part.strip()!r}")
                         continue
                     alt_rows.append((no, mats[0], mats[1], zh))
+            continue
+        if cat == "trio":
+            # 3 材料＋副產物（二選一，見 build.py 的 trios）：名稱左邊可用「分類:」覆寫預設分類 dish。
+            #   牛丼 = 牛肉 + 洋蔥 + 醬油 -> 洋蔥醬汁
+            for no, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                line = raw.split("#", 1)[0].strip()
+                if not line:
+                    continue
+                m = LINE_RE.match(line)
+                if not m:
+                    errors.append(f"{path.name}:{no}: 格式錯誤 {raw!r}")
+                    continue
+                left = m.group("names").strip()
+                item_cat = "dish"
+                if ":" in left:
+                    maybe_cat, rest = left.split(":", 1)
+                    if maybe_cat.strip() in cats:
+                        item_cat, left = maybe_cat.strip(), rest.strip()
+                names = [n.strip() for n in left.split("/")]
+                zh = names[0]
+                ja = names[1] if len(names) > 1 and names[1] else to_ja(zh)
+                if re.search(r"\s|[0-9０-９]", zh + ja) or re.fullmatch(r"[一二三四五六七八九十百千]+", zh):
+                    errors.append(f"{path.name}:{no}: 名稱不可含空白或數字（語音模式以數字指定池子編號）：{zh!r}")
+                    continue
+                if zh in existing or zh in new_names:
+                    errors.append(f"{path.name}:{no}: 名稱「{zh}」已存在")
+                    continue
+                rhs = m.group("recipes").strip()
+                if "->" not in rhs:
+                    errors.append(f"{path.name}:{no}: trio 配方缺少「-> 副產物」{raw!r}")
+                    continue
+                mats_part, byproduct = rhs.split("->", 1)
+                mats = [x.strip() for x in mats_part.split("+")]
+                byproduct = byproduct.strip()
+                if len(mats) != 3 or not all(mats) or not byproduct:
+                    errors.append(f"{path.name}:{no}: trio 配方格式錯誤 {raw!r}")
+                    continue
+                iid = make_id(zh, used_ids)
+                new_names[zh] = iid
+                trio_items.append({"id": iid, "zh": zh, "ja": ja, "cat": item_cat})
+                trio_rows.append((no, mats[0], mats[1], mats[2], zh, byproduct))
             continue
         if cat not in cats:
             errors.append(f"{path.name}: 未定義的分類 {cat!r}")
@@ -147,6 +190,21 @@ def convert(theme: str) -> list[str]:
     every = {**existing, **new_names}
     if alt_rows:
         parsed.append(("alt", [], alt_rows))
+    if trio_rows:
+        trios_out = []
+        for no, a, b, c, primary, byproduct in trio_rows:
+            missing = [x for x in (a, b, c, primary, byproduct) if x not in every]
+            if missing:
+                errors.append(f"trio.txt:{no}: 「{primary}」的材料或副產物不存在 {missing}")
+                continue
+            trios_out.append([every[a], every[b], every[c], every[primary], every[byproduct]])
+        out = theme_dir / "x_trio.json"
+        text = ("{\n  \"category\": \"core\",\n  \"open\": true,\n  \"items\": [\n"
+                + ",\n".join("    " + json.dumps(it, ensure_ascii=False) for it in trio_items)
+                + "\n  ],\n  \"trios\": [\n"
+                + ",\n".join("    " + json.dumps(tr, ensure_ascii=False) for tr in trios_out)
+                + "\n  ]\n}\n")
+        out.write_text(text, encoding="utf-8")
     for cat, items, rows in parsed:
         recipes = []
         for no, a, b, r in rows:

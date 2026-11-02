@@ -1,0 +1,32 @@
+{
+  "category": "drink",
+  "open": true,
+  "items": [
+    {"id": "x_doujiangyinpin", "zh": "豆漿飲品", "ja": "豆乳ドリンク"},
+    {"id": "x_xiancaocha", "zh": "仙草茶", "ja": "仙草茶"},
+    {"id": "x_suanmeitang", "zh": "酸梅湯", "ja": "台湾梅ドリンク"},
+    {"id": "x_qingcaocha", "zh": "青草茶", "ja": "台湾薬草茶"},
+    {"id": "x_ganzhezhi", "zh": "甘蔗汁", "ja": "サトウキビジュース"},
+    {"id": "x_ningmengshui", "zh": "檸檬水", "ja": "レモン水"},
+    {"id": "x_putaozhi", "zh": "葡萄汁", "ja": "ぶどうジュース"},
+    {"id": "x_xiguazhi", "zh": "西瓜汁", "ja": "スイカジュース"},
+    {"id": "x_hamiguaniunai", "zh": "哈密瓜牛奶", "ja": "メロンミルク"},
+    {"id": "x_dounaibingsha", "zh": "豆奶冰沙", "ja": "豆乳スムージー"},
+    {"id": "x_ribenqingjiutaocan", "zh": "日本清酒套餐", "ja": "日本酒セット"},
+    {"id": "x_meijiusuda", "zh": "梅酒蘇打", "ja": "梅酒ソーダ"}
+  ],
+  "recipes": [
+    ["x_doujiang", "x_yugang", "x_doujiangyinpin"],
+    ["x_caomi", "x_ganzaidian", "x_xiancaocha"],
+    ["x_meizi", "x_yugang", "x_suanmeitang"],
+    ["x_jiucai", "x_yugang", "x_qingcaocha"],
+    ["x_caomifan", "x_yugang", "x_ganzhezhi"],
+    ["x_ningmeng", "x_yugang", "x_ningmengshui"],
+    ["x_putao", "water", "x_putaozhi"],
+    ["x_xigua", "water", "x_xiguazhi"],
+    ["x_hamigua", "x_niunai", "x_hamiguaniunai"],
+    ["x_doujiang", "x_muchang", "x_dounaibingsha"],
+    ["x_qingjiu", "x_chaiyu", "x_ribenqingjiutaocan"],
+    ["x_meizi", "water", "x_meijiusuda"]
+  ]
+}

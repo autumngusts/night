@@ -1,0 +1,51 @@
+{
+  "id": "food",
+  "name": {"zh": "世界美食", "ja": "世界の美食"},
+  "allow_trio": true,
+  "basics": [
+    {"id": "water", "zh": "水", "ja": "水"},
+    {"id": "fire", "zh": "火", "ja": "火"},
+    {"id": "salt", "zh": "鹽", "ja": "塩"},
+    {"id": "rice", "zh": "米", "ja": "米"},
+    {"id": "oil", "zh": "油", "ja": "油"}
+  ],
+  "junk": [
+    {"id": "junk_burnt", "zh": "燒焦物", "ja": "焦げ物"},
+    {"id": "junk_spoiled", "zh": "餿水", "ja": "腐れ水"},
+    {"id": "junk_moldy_bread", "zh": "發霉麵包", "ja": "カビパン"},
+    {"id": "junk_rotten_fruit", "zh": "腐壞水果", "ja": "腐った果物"},
+    {"id": "junk_spilled_soup", "zh": "打翻的湯", "ja": "こぼれた汁"},
+    {"id": "junk_stale_bread", "zh": "硬掉的麵包", "ja": "固くなったパン"},
+    {"id": "junk_sour_milk", "zh": "酸掉的牛奶", "ja": "酸った牛乳"},
+    {"id": "junk_smelly_fish", "zh": "臭掉的魚", "ja": "臭った魚"},
+    {"id": "junk_leftover", "zh": "廚餘", "ja": "生ごみ"},
+    {"id": "junk_black_banana", "zh": "黑掉的香蕉", "ja": "黒ずんだバナナ"},
+    {"id": "junk_dried_veg", "zh": "乾枯的菜葉", "ja": "しおれた葉"},
+    {"id": "junk_oversalted", "zh": "過鹹的失敗料理", "ja": "塩辛い失敗料理"},
+    {"id": "junk_burnt_pot", "zh": "燒毀的鍋子", "ja": "焦げ付いた鍋"},
+    {"id": "junk_mystery_goo", "zh": "不明黏稠物", "ja": "謎の粘液"},
+    {"id": "junk_expired_can", "zh": "過期罐頭", "ja": "期限切れ缶詰"},
+    {"id": "junk_rancid_oil", "zh": "油耗味的油", "ja": "酸化した油"},
+    {"id": "junk_scorched_bottom", "zh": "燒糊的鍋底", "ja": "焦げた鍋底"},
+    {"id": "junk_burnt_crumbs", "zh": "焦炭屑", "ja": "炭くず"},
+    {"id": "junk_fishbone", "zh": "一堆魚骨", "ja": "魚の骨の山"},
+    {"id": "junk_nothing", "zh": "白忙一場", "ja": "骨折り損"}
+  ],
+  "categories": [
+    {"id": "ingredient", "zh": "食材", "ja": "食材"},
+    {"id": "season", "zh": "調味", "ja": "調味料"},
+    {"id": "prep", "zh": "半成品", "ja": "仕込み"},
+    {"id": "dish", "zh": "料理", "ja": "料理"},
+    {"id": "dessert", "zh": "甜點", "ja": "スイーツ"},
+    {"id": "drink", "zh": "飲品", "ja": "飲み物"},
+    {"id": "tool", "zh": "廚具", "ja": "調理道具"},
+    {"id": "place", "zh": "店家與產地", "ja": "店・産地"},
+    {"id": "person", "zh": "美食人物", "ja": "食の人物"},
+    {"id": "concept", "zh": "飲食文化", "ja": "食文化"},
+    {"id": "nature", "zh": "天然物產", "ja": "物産"},
+    {"id": "treasure", "zh": "夢幻逸品", "ja": "幻の味"}
+  ],
+  "min_items": 2300,
+  "min_mid": 200,
+  "min_high": 400
+}

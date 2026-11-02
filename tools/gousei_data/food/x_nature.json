@@ -1,0 +1,42 @@
+{
+  "category": "nature",
+  "open": true,
+  "items": [
+    {"id": "x_haishui", "zh": "海水", "ja": "海水"},
+    {"id": "x_dahai", "zh": "大海", "ja": "大海"},
+    {"id": "x_chishangmi", "zh": "池上米", "ja": "池上米"},
+    {"id": "x_guanshanmi", "zh": "關山米", "ja": "関山米"},
+    {"id": "x_madouwendan", "zh": "麻豆文旦", "ja": "麻豆文旦"},
+    {"id": "x_aiwenmangguo", "zh": "愛文芒果", "ja": "アーウィンマンゴー"},
+    {"id": "x_heizhenzhulianwu", "zh": "黑珍珠蓮霧", "ja": "黒真珠ワックスアップル"},
+    {"id": "x_dahucaomei", "zh": "大湖草莓", "ja": "大湖イチゴ"},
+    {"id": "x_alishancha", "zh": "阿里山茶", "ja": "阿里山茶"},
+    {"id": "x_riyuetanhongcha", "zh": "日月潭紅茶", "ja": "日月潭紅茶"},
+    {"id": "x_jinggangcha", "zh": "靜岡茶", "ja": "静岡茶"},
+    {"id": "x_xizhanghamigua", "zh": "夕張哈密瓜", "ja": "夕張メロン"},
+    {"id": "x_beihaidaomaoxie", "zh": "北海道毛蟹", "ja": "北海道の毛ガニ"},
+    {"id": "x_qingsenpingguo", "zh": "青森蘋果", "ja": "青森りんご"},
+    {"id": "x_dedaocuju", "zh": "德島酢橘", "ja": "徳島のすだち"},
+    {"id": "x_dajiayutou", "zh": "大甲芋頭", "ja": "大甲里芋"},
+    {"id": "x_guanmiaomian", "zh": "關廟麵", "ja": "関廟麺"}
+  ],
+  "recipes": [
+    ["water", "salt", "x_haishui"],
+    ["water", "water", "x_dahai"],
+    ["x_nongtian", "x_chao", "x_chishangmi"],
+    ["x_nongtian", "x_baifan", "x_guanshanmi"],
+    ["x_guoyuan", "x_youzi", "x_madouwendan"],
+    ["x_guoyuan", "x_mangguo", "x_aiwenmangguo"],
+    ["x_guoyuan", "x_lianwu", "x_heizhenzhulianwu"],
+    ["x_guoyuan", "x_caomei", "x_dahucaomei"],
+    ["x_nongtian", "x_zha", "x_alishancha"],
+    ["x_nongtian", "x_tang_a0b763", "x_riyuetanhongcha"],
+    ["x_nongtian", "x_lu", "x_jinggangcha"],
+    ["x_guoyuan", "x_hamigua", "x_xizhanghamigua"],
+    ["x_yugang", "x_xie", "x_beihaidaomaoxie"],
+    ["x_guoyuan", "x_pingguo", "x_qingsenpingguo"],
+    ["x_guoyuan", "x_youzihujiao", "x_dedaocuju"],
+    ["x_nongtian", "x_yutou", "x_dajiayutou"],
+    ["x_nongtian", "x_miantiao", "x_guanmiaomian"]
+  ]
+}

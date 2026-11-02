@@ -1,0 +1,36 @@
+{
+  "category": "tool",
+  "open": true,
+  "items": [
+    {"id": "x_chaoguo", "zh": "炒鍋", "ja": "中華鍋"},
+    {"id": "x_dianguo", "zh": "電鍋", "ja": "電気釜"},
+    {"id": "x_zhenglong", "zh": "蒸籠", "ja": "蒸し器"},
+    {"id": "x_kaoxiang", "zh": "烤箱", "ja": "オーブン"},
+    {"id": "x_zhangyushaokaopan", "zh": "章魚燒烤盤", "ja": "たこ焼き器"},
+    {"id": "x_shousimo", "zh": "壽司模", "ja": "寿司型"},
+    {"id": "x_zhimianji", "zh": "製麵機", "ja": "製麺機"},
+    {"id": "x_shijiu", "zh": "石臼", "ja": "石臼"},
+    {"id": "x_zhukuai", "zh": "竹筷", "ja": "竹箸"},
+    {"id": "x_taoguo", "zh": "陶鍋", "ja": "土鍋"},
+    {"id": "x_kaowang", "zh": "烤網", "ja": "焼き網"},
+    {"id": "x_dapaoqi", "zh": "打泡器", "ja": "ホイッパー"},
+    {"id": "x_baobingji", "zh": "刨冰機", "ja": "かき氷機"},
+    {"id": "x_zhimianbaoji", "zh": "製麵包機", "ja": "ホームベーカリー"}
+  ],
+  "recipes": [
+    ["x_tanhuo", "x_zhuyou", "x_chaoguo"],
+    ["x_zhengqi", "x_baifan", "x_dianguo"],
+    ["x_zhengqi", "x_ganzaidian", "x_zhenglong"],
+    ["x_tanhuo", "x_qisi", "x_kaoxiang"],
+    ["x_zhangyu", "x_yugang", "x_zhangyushaokaopan"],
+    ["x_baifan", "x_yugang", "x_shousimo"],
+    ["x_mianfen", "x_yugang", "x_zhimianji"],
+    ["x_nuomi", "x_yugang", "x_shijiu"],
+    ["x_zhusun", "x_yugang", "x_zhukuai"],
+    ["x_caomi", "x_tanhuo", "x_taoguo"],
+    ["x_tanhuo", "x_chufang", "x_kaowang"],
+    ["x_xiannaiyou", "x_yugang", "x_dapaoqi"],
+    ["water", "x_tanhuo", "x_baobingji"],
+    ["x_mianfen", "x_muchang", "x_zhimianbaoji"]
+  ]
+}

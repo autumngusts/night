@@ -55,12 +55,30 @@
     concept: [["m", "M50 14 A36 36 0 0 1 50 86 A18 18 0 0 1 50 50 A18 18 0 0 0 50 14 Z"], ["l", "M50 14 A36 36 0 0 0 50 86"], ["d", "M50 28 A5 5 0 1 1 49.9 28 Z"], ["a", "M50 66 A5 5 0 1 1 49.9 66 Z"]],
     faith: [["m", "M12 26 Q50 16 88 26 L86 34 Q50 26 14 34 Z"], ["m", "M18 40 H82 V46 H18 Z"], ["m", "M28 34 H36 V88 H28 Z M64 34 H72 V88 H64 Z"], ["a", "M46 46 H54 V56 H46 Z"]],
     basic: [["m", "M50 18 A32 32 0 1 1 49.9 18 Z"]],
-    junk: [["d", "M14 82 C20 66 30 62 40 66 C46 54 60 54 66 64 C76 60 86 70 86 82 Z"], ["a", "M30 52 L36 44 L40 52 Z M60 44 L66 38 L68 48 Z"], ["l", "M44 40 L48 30 M54 36 L58 26"]]
+    junk: [["d", "M14 82 C20 66 30 62 40 66 C46 54 60 54 66 64 C76 60 86 70 86 82 Z"], ["a", "M30 52 L36 44 L40 52 Z M60 44 L66 38 L68 48 Z"], ["l", "M44 40 L48 30 M54 36 L58 26"]],
+    // 世界美食（food）主題：食材、調味、半成品、甜點、飲品的專屬圖案；dish／place／person／concept／
+    // nature／treasure／tool 沿用武俠／和風已有的同名圖案（見下面 CAT_ALIAS、MOTIF 本身已有同名 key）。
+    ingredient: [["d", "M50 30 C40 20 30 10 46 8 C50 16 50 24 50 30 Z M50 30 C60 20 70 10 54 8 C50 16 50 24 50 30 Z"],
+      ["m", "M50 30 L62 80 L50 92 L38 80 Z"], ["l", "M46 50 H54 M44 62 H56 M46 74 H54"]],
+    season: [["m", "M38 40 H62 V82 A6 6 0 0 1 56 88 H44 A6 6 0 0 1 38 82 Z"], ["a", "M42 24 H58 V40 H42 Z"],
+      ["d", "M40 55 H60 V68 H40 Z"], ["l", "M44 24 V16 H56 V24"]],
+    prep: [["m", "M22 50 A28 20 0 0 0 78 50 L72 70 A22 14 0 0 1 28 70 Z"], ["a", "M70 20 L82 8 L86 12 L74 24 Z"],
+      ["d", "M66 24 A6 6 0 1 1 65.9 24 Z"], ["l", "M22 50 H78"]],
+    dessert: [["a", "M30 56 C30 40 70 40 70 56 C70 44 50 36 50 48 C50 36 30 44 30 56 Z"], ["m", "M30 56 L36 90 H64 L70 56 Z"],
+      ["d", "M50 30 A5 5 0 1 1 49.9 30 Z"], ["l", "M36 62 L40 86 M50 62 V86 M64 62 L60 86"]],
+    drink: [["m", "M34 46 L40 90 H60 L66 46 Z"], ["a", "M34 46 A16 6 0 1 0 66 46 A16 6 0 1 0 34 46 Z"],
+      ["d", "M58 20 L66 46 L60 48 L52 22 Z"], ["l", "M40 56 H60 M42 70 H58"]],
+    salt: [["m", "M50 15 L65 50 L50 85 L35 50 Z"], ["a", "M50 35 L58 50 L50 65 L42 50 Z"]],
+    rice: [["m", "M25 55 A25 18 0 0 0 75 55 L70 72 A20 12 0 0 1 30 72 Z"],
+      ["a", "M40 45 A3 2 0 1 1 39.9 45 Z M50 40 A3 2 0 1 1 49.9 40 Z M60 45 A3 2 0 1 1 59.9 45 Z"]],
+    oil: [["m", "M50 15 C65 40 72 55 72 65 A22 22 0 0 1 28 65 C28 55 35 40 50 15 Z"],
+      ["a", "M50 40 C58 52 62 58 62 64 A12 12 0 0 1 38 64 C38 58 42 52 50 40 Z"]]
   };
-  // 和風的分類對到同一組圖案
-  var CAT_ALIAS = { food: "food" };
+  // 和風的分類、世界美食的 dish 都對到同一組「碗＋菜」圖案
+  var CAT_ALIAS = { food: "food", dish: "food" };
   // 初始物體有自己的圖案
-  var BASIC = { metal: "metal", wood: "wood", water: "water", fire: "fire", earth: "earth", thunder: "thunder", wind: "wind" };
+  var BASIC = { metal: "metal", wood: "wood", water: "water", fire: "fire", earth: "earth", thunder: "thunder", wind: "wind",
+    salt: "salt", rice: "rice", oil: "oil" };
   function motifOf(item) {
     if (item.cat === "basic" || item.cat === "junk") return MOTIF[BASIC[item.id] || item.cat] || MOTIF.basic;
     return MOTIF[CAT_ALIAS[item.cat] || item.cat] || MOTIF.concept;

@@ -18,7 +18,7 @@
   var CLIENT_KEY = "pritest-gousei-client";
   var ROOM_RE = /^g[0-9a-f]{32}$/;
   var Storage = window.PriTestGameStorage;
-  var THEMES = ["wuxia", "wafu"];
+  var THEMES = ["wuxia", "wafu", "food"];
   var MODES = ["shared", "split"];
   var POOL_LIMIT = 300;
   var LOG_LIMIT = 30;
@@ -28,11 +28,20 @@
   var themes = {}; // themeId -> Core.indexTheme 結果
   var state = null;
   var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false, online: false };
-  var ui = { revealedFor: null, revealed: false, slots: [null, null], lastEntry: null, search: "", cat: "all",
+  var ui = { revealedFor: null, revealed: false, slots: [null, null], trioChoice: null, lastEntry: null, search: "", cat: "all",
     qrFor: null, confirmNew: false, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
   var join = null;
   // 連線同步的房間：{ id, hostId, me: 手機的玩家編號（主機為 null）, loaded, missing, unsubscribe }
   var room = null;
+
+  // 工作台槽數：theme.data.allowTrio（目前只有世界美食）時可以選 3 種材料，否則固定 2 種。
+  function emptySlots() {
+    var theme = state && themes[state.themeId];
+    var n = theme && theme.data.allowTrio ? 3 : 2;
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(null);
+    return out;
+  }
 
   function t(key, params) { return window.I18N.t(key, params); }
 
@@ -311,16 +320,23 @@
     state = next;
     if (before && next.log.length > before.log.length) {
       ui.lastEntry = next.log[next.log.length - 1];
-      ui.slots = [null, null];
+      ui.slots = emptySlots();
+      ui.trioChoice = null;
       ui.junkWarn = null;
       ui.revealedFor = null;
       ui.playError = "";
     } else if (before && next.log.length < before.log.length) {
       resetTurnUi();
+    } else if (!before) {
+      ui.slots = emptySlots(); // 剛進房間：先用目前已知的槽數，theme 載入完成後下面還會再修正一次
     }
     ui.slots = ui.slots.map(function (id) { return id && next.pool.indexOf(id) >= 0 ? id : null; });
     if (!themes[next.themeId]) {
-      loadTheme(next.themeId, function (err) { if (err) ui.error = t("gs_load_failed"); render(); });
+      loadTheme(next.themeId, function (err) {
+        if (err) ui.error = t("gs_load_failed");
+        else ui.slots = emptySlots();
+        render();
+      });
       return;
     }
     render();
@@ -372,7 +388,8 @@
 
   function resetTurnUi() {
     ui.revealedFor = null;
-    ui.slots = [null, null];
+    ui.slots = emptySlots();
+    ui.trioChoice = null;
     ui.lastEntry = null;
     ui.confirmNew = false;
     ui.junkWarn = null;
@@ -445,11 +462,13 @@
     var p = playerById(e.playerId);
     var it = theme.byId[e.result];
     var status = theme.junkSet[e.result] ? t("gs_result_junk") : (e.isNew ? t("gs_result_new") : t("gs_result_old"));
+    var formula = itemName(theme, e.a) + " ＋ " + itemName(theme, e.b) + (e.c ? " ＋ " + itemName(theme, e.c) : "") + " →";
     return el("div", { id: "gs-result", class: "gs-panel gs-result" + (e.achieved ? " gs-achieved" : "") }, [
       el("h2", { text: t("gs_result_heading", { name: p.name }) }),
-      el("p", { class: "gs-formula", text: itemName(theme, e.a) + " ＋ " + itemName(theme, e.b) + " →" }),
+      el("p", { class: "gs-formula", text: formula }),
       el("p", { class: "gs-big gs-result-item", "data-result": e.result }, [artNode(theme, e.result, 120), el("span", { text: itemName(theme, e.result) })]),
       el("p", { class: "gs-muted", text: (theme.junkSet[e.result] ? t("gs_junk_meta") : t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier })) + "　" + status }),
+      e.otherOption ? el("p", { class: "gs-muted", text: t("gs_trio_other_option", { name: itemName(theme, e.otherOption) }) }) : null,
       e.achieved ? el("p", { class: "gs-big", text: t("gs_achieved", { done: p.done.length, total: p.targets.length }) }) : null,
       state.winner ? null : el("div", { class: "gs-actions" }, [
         el("button", { id: "gs-next", type: "button", class: "gs-primary", text: t("gs_next"), onclick: nextTurn })
@@ -462,51 +481,89 @@
     render();
   }
 
+  // allowTrio 的主題（目前只有世界美食）：工作台有 3 槽，填 2 槽＝一般 2 材料合成，填滿 3 槽才走
+  // 3 材料合成（Core.combineTrio）；配方剛好有主產物＋副產物時，先讓玩家二選一（ui.trioChoice）才真正送出。
   function renderSlots(theme) {
+    var maxSlots = theme.data.allowTrio ? 3 : 2;
     function slot(i) {
       var id = ui.slots[i];
       return el("button", { id: "gs-slot-" + i, type: "button", class: "gs-slot" + (id ? " gs-filled" : ""),
-        onclick: function () { ui.slots[i] = null; ui.junkWarn = null; render(); } }, id ? [artNode(theme, id, 40), itemName(theme, id)] : [t("gs_slot_empty")]);
+        onclick: function () { ui.slots[i] = null; ui.junkWarn = null; ui.trioChoice = null; render(); } },
+        id ? [artNode(theme, id, 40), itemName(theme, id)] : [t("gs_slot_empty")]);
     }
-    var ready = ui.slots[0] && ui.slots[1];
-    var w = ui.junkWarn;
-    var actions = w ? el("div", { id: "gs-junk-warn", class: "gs-junk-warn" }, [
-      el("p", { text: w.junkMaterial ? t("gs_junk_warn_material")
-        : t("gs_junk_warn_seen", { r: itemName(theme, w.result) }) }),
-      el("div", { class: "gs-actions" }, [
-        el("button", { id: "gs-combine-anyway", type: "button", text: t("gs_junk_warn_go"), onclick: function () { doCombine(true); } }),
-        el("button", { id: "gs-junk-warn-cancel", type: "button", class: "gs-primary", text: t("gs_junk_warn_change"),
-          onclick: function () { ui.slots = [null, null]; ui.junkWarn = null; render(); } })
-      ])
-    ]) : el("div", { class: "gs-actions" }, [
-      el("button", { id: "gs-combine", type: "button", class: "gs-primary", disabled: !ready || ui.busy, text: t("gs_combine"), onclick: function () { doCombine(false); } }),
-      el("button", { id: "gs-clear", type: "button", text: t("gs_clear"), onclick: function () { ui.slots = [null, null]; render(); } })
-    ]);
+    var filled = ui.slots.filter(function (id) { return id; });
+    var ready = filled.length >= 2;
+    var slotEls = [];
+    for (var i = 0; i < maxSlots; i++) {
+      if (i > 0) slotEls.push(el("span", { class: "gs-plus", text: "＋" }));
+      slotEls.push(slot(i));
+    }
+    var actions;
+    if (ui.trioChoice) {
+      actions = el("div", { id: "gs-trio-choice", class: "gs-junk-warn" }, [
+        el("p", { text: t("gs_trio_choose") }),
+        el("div", { class: "gs-actions" }, ui.trioChoice.options.map(function (id) {
+          return el("button", { type: "button", class: "gs-primary", onclick: function () { doCombine(true, id); } },
+            [artNode(theme, id, 40), itemName(theme, id)]);
+        }).concat([
+          el("button", { id: "gs-trio-choice-cancel", type: "button", text: t("gs_clear"),
+            onclick: function () { ui.trioChoice = null; render(); } })
+        ]))
+      ]);
+    } else if (ui.junkWarn) {
+      var w = ui.junkWarn;
+      actions = el("div", { id: "gs-junk-warn", class: "gs-junk-warn" }, [
+        el("p", { text: w.junkMaterial ? t("gs_junk_warn_material")
+          : t("gs_junk_warn_seen", { r: itemName(theme, w.result) }) }),
+        el("div", { class: "gs-actions" }, [
+          el("button", { id: "gs-combine-anyway", type: "button", text: t("gs_junk_warn_go"), onclick: function () { doCombine(true); } }),
+          el("button", { id: "gs-junk-warn-cancel", type: "button", class: "gs-primary", text: t("gs_junk_warn_change"),
+            onclick: function () { ui.slots = emptySlots(); ui.junkWarn = null; render(); } })
+        ])
+      ]);
+    } else {
+      actions = el("div", { class: "gs-actions" }, [
+        el("button", { id: "gs-combine", type: "button", class: "gs-primary", disabled: !ready || ui.busy, text: t("gs_combine"), onclick: function () { doCombine(false); } }),
+        el("button", { id: "gs-clear", type: "button", text: t("gs_clear"), onclick: function () { ui.slots = emptySlots(); render(); } })
+      ]);
+    }
     return el("div", { class: "gs-panel gs-workbench" }, [
-      el("div", { class: "gs-slots" }, [slot(0), el("span", { class: "gs-plus", text: "＋" }), slot(1)]),
+      el("div", { class: "gs-slots" }, slotEls),
       actions,
       ui.playError ? el("p", { id: "gs-play-error", class: "gs-error", text: ui.playError }) : null
     ]);
   }
 
-  // force＝false 時，已知會合出廢料的組合先提示（見 Core.knownJunk）；語音模式一律直接合成
-  function doCombine(force) {
+  // force＝false 時，已知會合出廢料的組合先提示（見 Core.knownJunk／knownJunkTrio）；語音模式一律直接合成。
+  // chosen：3 材料合成剛好有主產物＋副產物時，玩家在 ui.trioChoice 選定的結果；其餘情況不需要。
+  function doCombine(force, chosen) {
     var theme = themes[state.themeId];
     ui.confirmNew = false;
+    var filled = ui.slots.filter(function (id) { return id; });
+    var isTrio = filled.length === 3;
     if (!force) {
-      var known = Core.knownJunk(theme, state, ui.slots[0], ui.slots[1]);
+      var known = isTrio ? Core.knownJunkTrio(theme, state, filled[0], filled[1], filled[2])
+        : Core.knownJunk(theme, state, filled[0], filled[1]);
       if (known) { ui.junkWarn = known; render(); return; }
     }
     ui.junkWarn = null;
-    var a = ui.slots[0], b = ui.slots[1], logLen = state.log.length, me = room ? room.me : null;
+    if (isTrio && chosen == null) {
+      var options = Core.combineTrio(theme, filled[0], filled[1], filled[2]).options;
+      if (options.length > 1) { ui.trioChoice = { options: options }; render(); return; }
+      chosen = options[0];
+    }
+    ui.trioChoice = null;
+    var logLen = state.log.length, me = room ? room.me : null;
     mutate(function (s) {
       // 按下之後別台先合成了（紀錄變了）就作廢，請玩家看過新畫面再操作
       if (s.log.length !== logLen) throw new Error("gs_err_stale");
       if (me !== null && s.turn !== me) throw new Error("gs_err_turn");
-      return Core.applyCombine(theme, s, a, b);
+      return isTrio ? Core.applyCombineTrio(theme, s, filled[0], filled[1], filled[2], chosen)
+        : Core.applyCombine(theme, s, filled[0], filled[1]);
     }, function (res) {
       ui.lastEntry = res.entry;
-      ui.slots = [null, null];
+      ui.slots = emptySlots();
+      ui.trioChoice = null;
       ui.revealedFor = null;
       render();
     });
@@ -516,8 +573,9 @@
     if (ui.lastEntry || state.winner || !canAct()) return;
     ui.confirmNew = false;
     ui.junkWarn = null;
-    if (!ui.slots[0]) ui.slots[0] = id;
-    else ui.slots[1] = id;
+    ui.trioChoice = null;
+    var idx = ui.slots.indexOf(null);
+    if (idx >= 0) ui.slots[idx] = id;
     render();
   }
 
@@ -531,7 +589,7 @@
       return it.zh.toLowerCase().indexOf(q) >= 0 || it.ja.toLowerCase().indexOf(q) >= 0;
     });
     matched.slice(0, POOL_LIMIT).forEach(function (id) {
-      var picked = ui.slots[0] === id || ui.slots[1] === id;
+      var picked = ui.slots.indexOf(id) >= 0;
       // 編號＝池子順序（1 起算），語音可以說「3 加 7」
       list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : ""), "data-item": id,
         onclick: function () { pickItem(id); } }, [
@@ -560,9 +618,11 @@
           onclick: function () {
             mutate(function (s) { return { state: Core.clearJunk(theme, s) }; }, function () {
               ui.junkWarn = null;
-              if (theme.junkSet[ui.slots[0]]) ui.slots[0] = null;
-              if (theme.junkSet[ui.slots[1]]) ui.slots[1] = null;
-              if (!ui.slots[0] && ui.slots[1]) ui.slots = [ui.slots[1], null];
+              ui.trioChoice = null;
+              var n = ui.slots.length;
+              var kept = ui.slots.filter(function (id) { return id && !theme.junkSet[id]; });
+              while (kept.length < n) kept.push(null);
+              ui.slots = kept;
               render();
             });
           } }) : null
@@ -1261,6 +1321,7 @@
     if (state) {
       loadTheme(state.themeId, function (err) {
         if (err) ui.error = t("gs_load_failed");
+        else ui.slots = emptySlots(); // 重新整理：theme 才剛載入，槽數（2 或 3）要重算
         render();
       });
     }
