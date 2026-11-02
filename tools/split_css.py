@@ -33,6 +33,7 @@ GAMES: dict[str, tuple[str, ...]] = {
     "utau": ("ut-",),
     "starv": ("sv-",),
     "saigo": ("sg-",),
+    "wanren": ("wr-",),
     "reiwa": ("rw-",),
 }
 

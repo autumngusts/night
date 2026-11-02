@@ -109,4 +109,63 @@ console.log("3. 跑法平衡 OK");
   });
 })();
 console.log("4. 賠率校準 OK");
+
+// 5. 真賽狗（2026-11-02 第二版：關卡賽的地圖＋搶道）
+//    出賽表用關卡地圖、8 隻都跑完、關卡裡同一位置不重疊、三種跑線平均名次接近、賠率校準
+(function () {
+  var races = 120, lineRank = { rail: [0, 0], mid: [0, 0], wide: [0, 0] }, overlaps = 0, stationSteps = 0, boxed = 0, bumps = 0;
+  for (var s = 0; s < races; s++) {
+    var cd = Core.makeCard((s * 2246822519 + 7) >>> 0, [], { mode: "real", cls: ["rookie", "open", "stakes"][s % 3] });
+    assert.ok(cd.course && cd.course.parts.length >= 5, "真賽狗用關卡賽的地圖");
+    assert.strictEqual(cd.dogs.length, 8, "真賽狗 8 隻");
+    var res = Core.simulate(cd, true);
+    assert.ok(res.real && res.crowd && res.frames[0].length === 32, "frames 每隻 4 格");
+    assert.ok(res.times.every(function (x) { return x !== null; }), "8 隻都跑完：" + cd.seed);
+    res.events.forEach(function (e) { if (e.k === "boxed") boxed++; if (e.k === "bump") bumps++; });
+    // 關卡裡（非直道／彎道）同一位置的兩隻狗不能重疊
+    for (var k = 0; k < res.frames.length; k += 4) {
+      var f = res.frames[k];
+      for (var a = 0; a < 8; a++) {
+        var pa = Core.partAt(cd.course, Math.min(f[a * 4], cd.course.length - 0.01));
+        if (pa.type === "straight" || pa.type === "curve" || f[a * 4] >= cd.course.length) continue;
+        stationSteps++;
+        for (var b = 0; b < 8; b++) {
+          if (b === a || f[b * 4] >= cd.course.length) continue;
+          var ds = f[a * 4] - f[b * 4], dx = f[a * 4 + 1] - f[b * 4 + 1];
+          if (ds > -0.9 && ds < 0.9 && dx > -0.6 && dx < 0.6) { overlaps++; break; }
+        }
+      }
+    }
+  }
+  console.log("   每場：卡位 " + (boxed / races).toFixed(1) + " 次、碰撞 " + (bumps / races).toFixed(1) + " 次；關卡內重疊 " + overlaps + "／" + stationSteps);
+  assert.ok(boxed > 0 && bumps > 0, "有搶道（卡位、碰撞）");
+  assert.ok(overlaps / Math.max(1, stationSteps) < 0.005, "關卡裡同一位置不重疊");
+  // 跑線平衡：樣本少時誤差大（120 場相差可達 0.4），用 600 場不記錄畫面的試跑
+  for (var s2 = 0; s2 < 600; s2++) {
+    var lc = Core.makeCard((s2 * 2654435761 + 99) >>> 0, [], { mode: "real", cls: ["rookie", "open", "stakes"][s2 % 3] });
+    Core.simulate(lc, false).order.forEach(function (d, rk) { var l = lc.dogs[d].line; lineRank[l][0] += rk + 1; lineRank[l][1]++; });
+  }
+  var lr = Object.keys(lineRank).map(function (l) { return lineRank[l][0] / lineRank[l][1]; });
+  console.log("   跑線平均名次（內欄／中間／外側）：" + lr.map(function (x) { return x.toFixed(2); }).join(" / "));
+  assert.ok(Math.max.apply(null, lr) - Math.min.apply(null, lr) < 0.35, "三種跑線平均名次接近");
+
+  var C = 8, T = 300, acc = {};
+  D.BET_TYPES.forEach(function (bt) { acc[bt.id] = { ev: 0, n: 0 }; });
+  for (var r = 0; r < C; r++) {
+    var rc2 = Core.makeCard((r * 2654435761 + 23) >>> 0, [], { mode: "real", cls: ["rookie", "open", "stakes"][r % 3] });
+    var o = Core.odds(rc2), cnt = {};
+    D.BET_TYPES.forEach(function (bt) { cnt[bt.id] = {}; });
+    for (var m = 0; m < T; m++) {
+      var ord = Core.simulate(rc2, false, (rc2.seed * 31 + 104729 * (m + 1)) >>> 0).order;
+      D.BET_TYPES.forEach(function (bt) { Object.keys(o[bt.id]).forEach(function (c) { if (Bet.hit(bt.id, c, ord)) cnt[bt.id][c] = (cnt[bt.id][c] || 0) + 1; }); });
+    }
+    D.BET_TYPES.forEach(function (bt) { Object.keys(o[bt.id]).forEach(function (c) { acc[bt.id].ev += o[bt.id][c] * (cnt[bt.id][c] || 0) / T; acc[bt.id].n++; }); });
+  }
+  D.BET_TYPES.forEach(function (bt) {
+    var ev = acc[bt.id].ev / acc[bt.id].n;
+    console.log("   真賽狗 " + bt.id + "：期望回收率 " + ev.toFixed(3) + "（扣除後 " + bt.take + "）");
+    assert.ok(ev < 0.98 && Math.abs(ev - bt.take) < 0.15, "真賽狗 " + bt.id + " 回收率偏離：" + ev);
+  });
+})();
+console.log("5. 真賽狗（關卡地圖＋搶道）OK");
 console.log("saigo core_check OK");

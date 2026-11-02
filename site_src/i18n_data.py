@@ -21,6 +21,7 @@ from site_src.i18n_fist_raid import FIST_RAID_EN, FIST_RAID_JA, FIST_RAID_ZH
 from site_src.i18n_dejavu import DEJAVU_EN, DEJAVU_JA, DEJAVU_ZH
 from site_src.i18n_starv import STARV_EN, STARV_JA, STARV_ZH
 from site_src.i18n_saigo import SAIGO_EN, SAIGO_JA, SAIGO_ZH
+from site_src.i18n_wanren import WANREN_EN, WANREN_JA, WANREN_ZH
 from site_src.i18n_reiwa import REIWA_EN, REIWA_JA, REIWA_ZH
 
 # 首頁卡片（project_saigo_* 不以 sg_ 開頭，留在共用 i18n.js）
@@ -30,9 +31,16 @@ SAIGO_PROJECT: dict[str, dict[str, str]] = {
     "en": {"project_saigo_name": "Saigo Saigo", "project_saigo_desc": "Raise your own dog from 47 breeds, then bet on 6-dog obstacle races (hurdles, tunnels, frisbee, pool…) with a 3D broadcast synced across devices"},
 }
 
+# 首頁卡片（project_wanren_* 不以 wr_ 開頭，留在共用 i18n.js）
+WANREN_PROJECT: dict[str, dict[str, str]] = {
+    "zh": {"project_wanren_name": "萬人迷", "project_wanren_desc": "從大一開始的三年大學生活：15 位個性不同的她（同級生、學姐、老師、家長），好感、任務、約會、告白與修羅場；每天都有新的迷妹。3D 校園自由走動，每學年中間報告、三年後總報告"},
+    "ja": {"project_wanren_name": "万人迷", "project_wanren_desc": "大学 1 年生からの三年間。同級生・先輩・先生・保護者の 15 人と好感度、頼みごと、デート、告白、修羅場。毎日新しいファンも現れる。3D キャンパスを歩き回り、学年ごとと三年後にレポート"},
+    "en": {"project_wanren_name": "Heartthrob", "project_wanren_desc": "Three years of university life from freshman year: 15 heroines, quests, dates, confessions and jealousy, plus new admirers every day — on a walkable 3D campus, with yearly and final reports"},
+}
+
 # 神前鍛刀對決・黃牌・鐵拳教育・DÉJÀ VU 的字串較多，獨立放在 i18n_katana.py／i18n_yellow.py／i18n_fist.py／i18n_dejavu.py 再合併
 STRINGS: dict[str, dict[str, str]] = {
-    "zh": {**STRINGS_ZH, **KATANA_ZH, **YELLOW_ZH, **FIST_ZH, **FIST_RAID_ZH, **DEJAVU_ZH, **STARV_ZH, **SAIGO_ZH, **SAIGO_PROJECT["zh"], **REIWA_ZH},
-    "ja": {**STRINGS_JA, **KATANA_JA, **YELLOW_JA, **FIST_JA, **FIST_RAID_JA, **DEJAVU_JA, **STARV_JA, **SAIGO_JA, **SAIGO_PROJECT["ja"], **REIWA_JA},
-    "en": {**STRINGS_EN, **KATANA_EN, **YELLOW_EN, **FIST_EN, **FIST_RAID_EN, **DEJAVU_EN, **STARV_EN, **SAIGO_EN, **SAIGO_PROJECT["en"], **REIWA_EN},
+    "zh": {**STRINGS_ZH, **KATANA_ZH, **YELLOW_ZH, **FIST_ZH, **FIST_RAID_ZH, **DEJAVU_ZH, **STARV_ZH, **SAIGO_ZH, **SAIGO_PROJECT["zh"], **WANREN_ZH, **WANREN_PROJECT["zh"], **REIWA_ZH},
+    "ja": {**STRINGS_JA, **KATANA_JA, **YELLOW_JA, **FIST_JA, **FIST_RAID_JA, **DEJAVU_JA, **STARV_JA, **SAIGO_JA, **SAIGO_PROJECT["ja"], **WANREN_JA, **WANREN_PROJECT["ja"], **REIWA_JA},
+    "en": {**STRINGS_EN, **KATANA_EN, **YELLOW_EN, **FIST_EN, **FIST_RAID_EN, **DEJAVU_EN, **STARV_EN, **SAIGO_EN, **SAIGO_PROJECT["en"], **WANREN_EN, **WANREN_PROJECT["en"], **REIWA_EN},
 }

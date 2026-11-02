@@ -142,11 +142,12 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   var check = await page.evaluate(function () {
     var ui = window.PriTestSaigo.ui, Bet = window.PriTestSaigoBet;
     var sum = Bet.settle(ui.tickets, ui.result.order);
-    return { won: sum.won, settled: ui.lastSettle.won, prize: ui.dogRewards.reduce(function (a, x) { return a + x.r.prize; }, 0) };
+    return { won: sum.won, settled: ui.lastSettle.won, prize: ui.dogRewards.reduce(function (a, x) { return a + x.r.prize; }, 0), jp: ui.jpWin ? ui.jpWin.pay : 0 };
   });
   var coins1 = (await kennel(page)).coins;
   assert.strictEqual(check.won, check.settled);
-  assert.strictEqual(coins1, coins0 - 800 + check.won + check.prize, "錢包＝原本 − 下注 + 派彩 + 獎金");
+  // 累積彩金（v2.1.0 起）：單機中了三連單時彩金也會進錢包——舊的期望值沒算這筆，中彩金時會誤判失敗
+  assert.strictEqual(coins1, coins0 - 800 + check.won + check.prize + check.jp, "錢包＝原本 − 下注 + 派彩 + 獎金 + 累積彩金");
   await page.screenshot({ path: path.join(SHOT_DIR, "result.png"), fullPage: true });
 
   // 重播不再結算

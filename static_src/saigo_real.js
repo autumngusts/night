@@ -1,5 +1,9 @@
-// 賽狗賽狗（saigo）：真賽狗模式（2026-11-02 使用者指定）——8 隻、橢圓沙地跑道、起跑後不分跑道，要搶位置。
-// 出賽表＋確定性模擬（只用四則運算與 Math.sqrt，多裝置一致；圓周率是常數）。畫面在 saigo_real3d.js。
+// 賽狗賽狗（saigo）：真賽狗模式（2026-11-02 使用者指定）——8 隻、起跑後不分跑道，要搶位置。
+//
+// 2026-11-02 第二版（使用者指定「地圖依照原本許多障礙賽方式，但是會搶道的方式進行」）：
+//   出賽表改用關卡賽的隨機地圖（Core.makeCourse：地形、天氣、距離、32 種關卡），模擬在 saigo_core.js 的
+//   Core.simulate（關卡規則＋搶道層），畫面用 saigo_3d.js。這裡負責出賽表、喊聲指令與共用的狀態內插。
+// 下面的橢圓跑道（第一版）只保留給沒有 course 的舊出賽表播放用（模擬 simulate、畫面 saigo_real3d.js）。
 //
 // 跑道：兩條直道（LS m）＋兩個半圓彎道（內欄半徑 R m），一圈 LAP m；終點在主直道 FINISH m 處，
 //   起點＝終點往回推比賽距離（三種距離的起點都落在直道上）。
@@ -39,15 +43,18 @@
   }
 
   // ---------------- 出賽表 ----------------
-  // entries 同關卡賽（可以有同一個玩家的好幾隻）；opts：{ cls, weather?, dist? }
+  // entries 同關卡賽（可以有同一個玩家的好幾隻）；opts：{ cls, terrain?, weather?, dist?, ground? }（沒指定＝依 seed 隨機）
   function makeCard(seed, entries, opts) {
     opts = opts || {};
     var r = rng((seed ^ 0x9ea1) >>> 0);
     var cls = D.CLASSES.filter(function (c) { return c.id === opts.cls; })[0] || D.CLASSES[1];
-    var weather = D.WEATHERS[opts.weather] ? opts.weather : weighted(r, WEATHER_W);
-    var dist = DISTS[opts.dist] ? opts.dist : weighted(r, { sprint: DISTS.sprint.w, middle: DISTS.middle.w, long: DISTS.long.w });
+    var terrain = D.TERRAINS[opts.terrain] ? opts.terrain : weighted(r, { park: 30, forest: 20, snowmtn: 17, desert: 16, beach: 17 });
+    var TR = D.TERRAINS[terrain];
+    var weather = D.WEATHERS[opts.weather] ? opts.weather : weighted(r, TR.weathers);
+    var dist = D.DISTANCES[opts.dist] ? opts.dist : weighted(r, { sprint: D.DISTANCES.sprint.w, middle: D.DISTANCES.middle.w, long: D.DISTANCES.long.w });
     var wet = weather === "rain" || weather === "typhoon", cold = weather === "snow" || weather === "blizzard";
-    var ground = opts.ground || (weather === "typhoon" ? pick(r, ["soft", "heavy"]) : wet ? pick(r, ["good", "soft", "heavy"]) : cold ? pick(r, ["good", "soft"]) : weighted(r, { firm: 65, good: 35 }));
+    var ground = opts.ground || (weather === "typhoon" ? pick(r, ["soft", "heavy", "heavy"]) : wet ? pick(r, ["good", "soft", "heavy"]) : cold ? pick(r, ["good", "soft"]) : weather === "hot" || weather === "sandstorm" ? "firm" : weighted(r, { firm: 70, good: 30 }));
+    var course = Core.makeCourse(r, terrain, dist);
     var dogs = [];
     (entries || []).slice(0, FIELD).forEach(function (e) {
       var m = clamp(e.mood === undefined ? 2 : e.mood | 0, 0, 4), f = e.fatigue || 0;
@@ -85,10 +92,9 @@
       if (D.STYLE_IDS.indexOf(d.best) < 0) d.best = d.cpu ? D.rollBestStyle(bs, sr) : bs;
       if (D.STYLE_IDS.indexOf(d.style) < 0) d.style = d.best;
       if (d.cpu) d.skills = SK.npcSkills(cls.id, kr);
-      d.eff = Core.effStats(d, weather, ground, "park");
+      d.eff = Core.effStats(d, weather, ground, terrain);
     });
-    var L = DISTS[dist].m;
-    return { v: 1, mode: "real", seed: seed >>> 0, cls: cls.id, dist: dist, weather: weather, ground: ground, terrain: "park", length: L, start: ((FINISH - L) % LAP + LAP) % LAP, dogs: dogs };
+    return { v: 2, mode: "real", seed: seed >>> 0, cls: cls.id, terrain: terrain, dist: dist, weather: weather, ground: ground, course: course, length: course.length, dogs: dogs };
   }
 
   // ---------------- 指令 ----------------
@@ -338,6 +344,6 @@
     FIELD: FIELD, LS: LS, R: R, BEND: BEND, LAP: LAP, FINISH: FINISH, W: W, DISTS: DISTS, WEATHER_W: WEATHER_W,
     SHOUT_MAX: SHOUT_MAX, SHOUT_GAP: SHOUT_GAP, SHOUT_P: SHOUT_P, SHOUT_HEAL: SHOUT_HEAL,
     makeCard: makeCard, simulate: simulate, stateAt: stateAt, rankAt: rankAt, trapX: trapX, sectAt: sectAt, trackPos: trackPos,
-    trackXY: trackXY, posAt: posAt, shoutHits: shoutHits
+    trackXY: trackXY, posAt: posAt, shoutHits: shoutHits, cmdIndex: cmdIndex
   };
 })();
