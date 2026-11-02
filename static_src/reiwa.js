@@ -7,8 +7,9 @@
 
   var D = window.PriTestReiwaData;
   var Core = window.PriTestReiwaCore;
+  var Art = window.PriTestReiwaArt;
   var app = document.getElementById("rw-app");
-  if (!app || !D || !Core) return;
+  if (!app || !D || !Core || !Art) return;
 
   var state = Core.load();
 
@@ -190,43 +191,81 @@
 
   // ---------------- 地圖 ----------------
 
-  function mapPanel() {
-    var svg = svgEl("svg", { viewBox: "0 0 360 470", class: "rw-map" });
-    D.EDGES.forEach(function (e) {
-      var a = D.nodeById(e[0]);
-      var b = D.nodeById(e[1]);
-      svg.appendChild(svgEl("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "rw-edge" }));
+  function factionColor(fid) {
+    var f = D.FACTIONS[fid];
+    return f ? f.color : "#888888";
+  }
+
+  function mapLabels() {
+    return {
+      seaJapan: t("rw_map_sea_japan"),
+      seaPacific: t("rw_map_sea_pacific"),
+      strait: t("rw_map_strait"),
+      mutsuBay: t("rw_map_mutsu_bay"),
+      mutsu: t("rw_map_mutsu"),
+      dewa: t("rw_map_dewa"),
+      echigo: t("rw_map_echigo"),
+      north: t("rw_map_north"),
+      cartouche: t("rw_map_cartouche"),
+    };
+  }
+
+  // 選取城池時，標出可以伐掠的目標（選自己的城）或可以出兵的來源（選別人的城）
+  function mapTargets() {
+    var targets = {};
+    if (!ui.selected) return targets;
+    var selNode = state.nodes[ui.selected];
+    var selMine = selNode.owner === state.playerFaction;
+    D.neighborsOf(ui.selected).forEach(function (nid) {
+      var n = state.nodes[nid];
+      if (selMine) {
+        if (n.owner !== state.playerFaction && !Core.isAllied(state, state.playerFaction, n.owner)) targets[nid] = true;
+      } else if (n.owner === state.playerFaction && !Core.isAllied(state, state.playerFaction, selNode.owner)) {
+        targets[nid] = true;
+      }
     });
-    D.NODES.forEach(function (nodeDef) {
-      var node = state.nodes[nodeDef.id];
-      var owner = D.FACTIONS[node.owner];
-      var classes = "rw-node";
-      if (nodeDef.id === ui.selected) classes += " rw-node-selected";
-      if (node.owner === state.playerFaction) classes += " rw-node-mine";
-      var g = svgEl("g", {
-        class: classes,
-        onclick: function () {
-          ui.selected = nodeDef.id;
-          ui.tab = "node";
-          render();
-        },
-      });
-      var title = svgEl("title", {});
-      title.appendChild(document.createTextNode(L(nodeDef.name)));
-      g.appendChild(title);
-      var circle = svgEl("circle", { cx: nodeDef.x, cy: nodeDef.y, r: 8, fill: owner.color });
-      g.appendChild(circle);
-      g.appendChild(
-        svgEl("text", { x: nodeDef.x, y: nodeDef.y + 17, class: "rw-node-label", "text-anchor": "middle" }, [
-          document.createTextNode(L(nodeDef.name)),
+    return targets;
+  }
+
+  function mapLegend() {
+    var row = el("div", { class: "rw-map-legend" });
+    D.FACTION_ORDER.forEach(function (fid) {
+      if (!state.factions[fid].alive) return;
+      var count = D.NODES.filter(function (n) {
+        return state.nodes[n.id].owner === fid;
+      }).length;
+      row.appendChild(
+        el("span", { class: "rw-legend-item" + (fid === state.playerFaction ? " rw-legend-mine" : "") }, [
+          el("span", { class: "rw-faction-dot", style: "background:" + factionColor(fid) }),
+          el("span", { text: factionName(fid) }),
+          el("b", { text: count }),
         ])
       );
-      svg.appendChild(g);
+    });
+    return row;
+  }
+
+  function mapPanel() {
+    var svg = Art.renderMap({
+      state: state,
+      selected: ui.selected,
+      playerFaction: state.playerFaction,
+      targets: mapTargets(),
+      nodeName: nodeName,
+      factionName: factionName,
+      factionColor: factionColor,
+      labels: mapLabels(),
+      onSelect: function (id) {
+        ui.selected = id;
+        ui.tab = "node";
+        render();
+      },
     });
     return el("div", { class: "rw-panel rw-map-wrap" }, [
       el("h3", { text: t("rw_map_title") }),
       el("div", { class: "rw-muted rw-small", text: t("rw_map_hint") }),
-      svg,
+      el("div", { class: "rw-map-frame-box" }, [svg]),
+      mapLegend(),
     ]);
   }
 
@@ -262,49 +301,16 @@
     return el("div", {}, [grid, el("div", { class: "rw-muted rw-small", text: t("rw_node_troops_total", { n: Core.totalTroops(troops), max: maxTroops }) })]);
   }
 
-  // 城池建模：依石高層數疊天守、依築城等級畫城牆圈，駐軍前兩多的兵種插旗
-  var CASTLE_TIERS = [
-    { rectX: 35, rectY: 92, rectW: 50, rectH: 26, roof: "35,92 85,92 60,78" },
-    { rectX: 42, rectY: 70, rectW: 36, rectH: 22, roof: "42,70 78,70 60,56" },
-    { rectX: 47, rectY: 50, rectW: 26, rectH: 20, roof: "47,50 73,50 60,38" },
-    { rectX: 51, rectY: 32, rectW: 18, rectH: 18, roof: "51,32 69,32 60,22" },
-  ];
-  var CASTLE_WALLS = [
-    { x: 14, y: 96, w: 92, h: 22 },
-    { x: 8, y: 90, w: 104, h: 30 },
-    { x: 2, y: 84, w: 116, h: 38 },
-  ];
-
-  function castleSvg(node) {
-    var tiers = Math.max(1, Math.min(CASTLE_TIERS.length, Math.floor(node.kokudaka / 25)));
-    var wallLevel = Math.min(node.defenseLevel, CASTLE_WALLS.length);
-    var svg = svgEl("svg", { viewBox: "0 0 120 130", class: "rw-castle-svg" });
-    svg.appendChild(svgEl("rect", { x: 5, y: 118, width: 110, height: 4, class: "rw-castle-ground" }));
-    for (var w = 0; w < wallLevel; w++) {
-      var ring = CASTLE_WALLS[w];
-      svg.appendChild(svgEl("rect", { x: ring.x, y: ring.y, width: ring.w, height: ring.h, class: "rw-castle-wall" }));
-    }
-    for (var i = 0; i < tiers; i++) {
-      var tier = CASTLE_TIERS[i];
-      svg.appendChild(svgEl("rect", { x: tier.rectX, y: tier.rectY, width: tier.rectW, height: tier.rectH, class: "rw-castle-tier" }));
-      svg.appendChild(svgEl("polygon", { points: tier.roof, class: "rw-castle-roof" }));
-    }
-    var topTier = CASTLE_TIERS[tiers - 1];
-    var flagY = topTier.rectY - 14;
-    var topTypes = D.TROOP_ORDER.slice()
-      .sort(function (a, b) {
-        return (node.troops[b] || 0) - (node.troops[a] || 0);
-      })
-      .slice(0, 2)
-      .filter(function (tid) {
-        return (node.troops[tid] || 0) > 0;
-      });
-    topTypes.forEach(function (tid, idx) {
-      svg.appendChild(
-        svgEl("text", { x: 60 + (idx === 0 ? -14 : 14), y: flagY, class: "rw-castle-flag" }, [document.createTextNode(D.troopType(tid).icon)])
-      );
+  // 城池 3D 模型：天守層數依石高（每 25 一層，最多 5 層）、城郭依築城等級（木柵 → 白牆城門 → 角櫓石垣 → 護城河），
+  // 地形依城池 profile（平原水田／山城土丘／沿海海灣／本城城下町），旗幟為城主勢力色
+  function castleStage(nodeDef, node) {
+    return Art.castleStage({
+      tiers: Math.max(1, Math.min(5, Math.floor(node.kokudaka / 25))),
+      defense: node.defenseLevel,
+      profile: nodeDef.profile,
+      color: factionColor(node.owner),
+      seed: nodeDef.id,
     });
-    return svg;
   }
 
   function nodePanel() {
@@ -318,17 +324,15 @@
     var maxTroops = Core.getNodeMaxTroops(node);
 
     var box = el("div", { class: "rw-panel" }, [
-      el("h3", { text: L(nodeDef.name) }),
-      el("div", { class: "rw-castle-box" }, [
-        castleSvg(node),
-        el("div", {}, [
-          el("div", {}, [
-            el("span", { class: "rw-faction-dot rw-dot-inline", style: "background:" + ownerDef.color }),
-            el("b", { text: L(ownerDef.name) }),
-          ]),
-          el("div", { class: "rw-muted", text: t("rw_node_kokudaka", { n: node.kokudaka }) }),
-          el("div", { class: "rw-muted", text: t("rw_node_defense", { n: node.defenseLevel, max: Core.constants.DEFENSE_LEVEL_MAX }) }),
+      el("h3", { class: "rw-node-title", style: "--rw-fc:" + ownerDef.color, text: L(nodeDef.name) }),
+      el("div", { class: "rw-castle-box" }, [castleStage(nodeDef, node), el("div", { class: "rw-castle-hint", text: t("rw_castle_drag_hint") })]),
+      el("div", { class: "rw-castle-info" }, [
+        el("span", { class: "rw-pill" }, [
+          el("span", { class: "rw-faction-dot rw-dot-inline", style: "background:" + ownerDef.color }),
+          el("b", { text: L(ownerDef.name) }),
         ]),
+        el("span", { class: "rw-pill", text: t("rw_node_kokudaka", { n: node.kokudaka }) }),
+        el("span", { class: "rw-pill", text: t("rw_node_defense", { n: node.defenseLevel, max: Core.constants.DEFENSE_LEVEL_MAX }) }),
       ]),
       el("h4", { text: t("rw_node_troops_title") }),
       troopGrid(node.troops, maxTroops),
@@ -627,6 +631,15 @@
     );
   }
 
+  // 出陣前的對陣旗幟：攻方在左、守方在右
+  function vsBanner(attackerFid, defenderFid) {
+    return el("div", { class: "rw-vs", style: "--rw-atk:" + factionColor(attackerFid) + ";--rw-def:" + factionColor(defenderFid) }, [
+      el("span", { class: "rw-vs-side rw-vs-atk", text: factionName(attackerFid) }),
+      el("span", { class: "rw-vs-mark", text: "VS" }),
+      el("span", { class: "rw-vs-side rw-vs-def", text: factionName(defenderFid) }),
+    ]);
+  }
+
   function openInvadeModal(sourceId, targetId) {
     ui.modal = { type: "invade", sourceNodeId: sourceId, targetNodeId: targetId };
     render();
@@ -648,6 +661,7 @@
     var general = generalPicker(state.playerFaction, "rw-battle");
 
     var body = el("div", { class: "rw-modal" }, [
+      vsBanner(state.playerFaction, tgtNode.owner),
       el("h3", { text: t("rw_battle_title", { attacker: factionName(state.playerFaction), defender: factionName(tgtNode.owner), node: L(tgtDef.name) }) }),
       editor.el,
       el("div", { class: "rw-action-row" }, [el("span", { text: t("rw_battle_general") + ":" }), general]),
@@ -685,6 +699,7 @@
     var general = generalPicker(state.playerFaction, "rw-defense");
 
     return el("div", { class: "rw-modal" }, [
+      vsBanner(pending.attackerFaction, state.playerFaction),
       el("h3", { text: t("rw_battle_defense_title", { attacker: factionName(pending.attackerFaction), node: L(tgtDef.name) }) }),
       el("p", { class: "rw-muted rw-small", text: t("rw_battle_defense_intro") }),
       editor.el,
@@ -725,25 +740,69 @@
     ]);
   }
 
+  function sumRounds(rounds, key) {
+    return rounds.reduce(function (acc, r) {
+      return acc + (r[key] || 0);
+    }, 0);
+  }
+
+  // 合戰場景：step 0 兩軍對陣 → step 1..N 逐張翻牌（兩軍衝鋒交鋒）→ step N+1 終局（攻陷／擊退）
+  function battleSceneFor(report, step) {
+    var total = report.rounds.length;
+    var phase = step === 0 ? "intro" : step <= total ? "round" : "final";
+    var playerWon = (report.attackerFaction === state.playerFaction) === !!report.captured;
+    return Art.battleScene({
+      phase: phase,
+      round: phase === "round" ? report.rounds[step - 1] : null,
+      rounds: report.rounds,
+      captured: report.captured,
+      playerWon: playerWon,
+      attackerColor: factionColor(report.attackerFaction),
+      defenderColor: factionColor(report.defenderFaction),
+      attackerName: factionName(report.attackerFaction),
+      defenderName: factionName(report.defenderFaction),
+      nodeName: nodeName(report.targetNodeId),
+      attackerTotal: phase === "final" ? report.attackerRemainingTotal : sumRounds(report.rounds, "attackerAmount"),
+      defenderTotal: phase === "final" ? report.defenderNodeRemainingTotal : sumRounds(report.rounds, "defenderAmount"),
+      typeName: troopName,
+      typeIcon: function (tid) {
+        var tt = D.troopType(tid);
+        return tt ? tt.icon : "";
+      },
+      labels: {
+        advantage: t("rw_battle_advantage"),
+        stampCaptured: t("rw_battle_stamp_captured"),
+        stampRepelled: t("rw_battle_stamp_repelled"),
+        deployed: t("rw_battle_deployed"),
+        troops: t("rw_battle_troops"),
+        round: phase === "round" ? t("rw_battle_round_label", { n: step }) : "",
+      },
+    });
+  }
+
   function renderResultModal(modal) {
     var report = modal.report;
     var total = report.rounds.length;
     var step = modal.step || 0;
-    var done = step >= total;
+    var done = step > total;
 
     var row = el("div", { class: "rw-clash-row" });
     report.rounds.forEach(function (r, idx) {
       row.appendChild(clashCard(r, idx < step, idx === step - 1));
     });
 
-    var body = el("div", { class: "rw-modal" }, [el("h3", { text: t("rw_battle_result_title") }), row]);
+    var body = el("div", { class: "rw-modal rw-modal-battle" }, [
+      el("h3", { text: t("rw_battle_result_title") }),
+      el("div", { class: "rw-bt-wrap" }, [battleSceneFor(report, step)]),
+      row,
+    ]);
 
     if (!done) {
       body.appendChild(
         el("div", { class: "rw-action-row" }, [
           el("button", {
             class: "rw-primary",
-            text: t("rw_battle_next_card"),
+            text: step >= total ? t("rw_battle_show_result") : t("rw_battle_next_card"),
             onclick: function () {
               modal.step = step + 1;
               render();
@@ -753,7 +812,7 @@
             class: "rw-link",
             text: t("rw_battle_reveal_all"),
             onclick: function () {
-              modal.step = total;
+              modal.step = total + 1;
               render();
             },
           }),

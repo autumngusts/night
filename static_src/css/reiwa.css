@@ -55,19 +55,9 @@
 .rw-pill { padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--rw-line); font-size: 0.88em; background: var(--rw-chip); }
 
 .rw-main-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
-.rw-map-wrap { flex: 1 1 22rem; min-width: 20rem; }
-.rw-map { width: 100%; height: auto; max-height: 34rem; }
-.rw-edge { stroke: var(--rw-line); stroke-width: 1.2; }
-.rw-node circle { stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; cursor: pointer; }
-.rw-node text.rw-node-label { font-size: 7px; fill: currentColor; pointer-events: none; }
-.rw-node-mine circle { stroke: #ffd24a; stroke-width: 2; }
-.rw-node-selected circle { stroke: #fff; stroke-width: 2.5; }
-@media (prefers-color-scheme: dark) {
-  .rw-node circle { stroke: rgba(255, 255, 255, 0.55); }
-  .rw-node-selected circle { stroke: #222; }
-}
+.rw-map-wrap { flex: 1.35 1 24rem; min-width: 18rem; }
 
-.rw-sidebar { flex: 1 1 22rem; min-width: 20rem; }
+.rw-sidebar { flex: 1 1 22rem; min-width: 18rem; }
 .rw-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 .rw-tab { padding: 0.4rem 0.9rem; border: 1px solid var(--rw-line); border-radius: 999px; background: var(--rw-chip); color: inherit; }
 .rw-tab.rw-tab-on { background: var(--rw-accent); color: #fff; border-color: var(--rw-accent); font-weight: bold; }
@@ -99,19 +89,6 @@
 .rw-log-item { padding: 0.15rem 0; font-size: 0.92em; border-bottom: 1px solid var(--rw-line); }
 .rw-log-item:last-child { border-bottom: 0; }
 
-/* 城池建模（內政面板）：依石高層數疊天守、依築城等級畫城牆圈 */
-.rw-castle-box { display: flex; align-items: flex-end; gap: 0.8rem; margin: 0.4rem 0 0.6rem; }
-.rw-castle-svg { width: 7.5rem; height: 8rem; flex: none; }
-.rw-castle-wall { fill: none; stroke: var(--rw-line); stroke-width: 1.4; stroke-dasharray: 3 2; }
-.rw-castle-ground { fill: var(--rw-line); opacity: 0.5; }
-.rw-castle-tier { fill: var(--rw-chip); stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
-.rw-castle-roof { fill: var(--rw-accent); stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
-.rw-castle-flag { font-size: 10px; text-anchor: middle; }
-@media (prefers-color-scheme: dark) {
-  .rw-castle-tier { stroke: rgba(255, 255, 255, 0.5); }
-  .rw-castle-roof { stroke: rgba(255, 255, 255, 0.5); }
-}
-
 /* 伐掠翻牌對戰：兩個兵種「模組」互相衝向中間 */
 .rw-clash-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.8rem 0; }
 .rw-clash-card { position: relative; flex: 1 1 8rem; min-width: 7rem; display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; padding: 0.5rem 0.4rem; border: 1px solid var(--rw-line); border-radius: 8px; background: var(--rw-chip); overflow: hidden; }
@@ -128,3 +105,188 @@
 @keyframes rw-lunge-def { 0% { transform: translateX(0); } 45% { transform: translateX(-10px) scale(1.2); } 100% { transform: translateX(0); } }
 @keyframes rw-flash { 0% { opacity: 0.3; } 45% { opacity: 1; transform: scale(1.4); } 100% { opacity: 0.6; transform: scale(1); } }
 @keyframes rw-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 50% { transform: translateX(3px); } 75% { transform: translateX(-2px); } }
+
+/* ===================== 東北勢力圖（reiwa_art.js renderMap） ===================== */
+.rw-map-frame-box { margin-top: 0.5rem; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 22px rgba(40, 28, 12, 0.28); line-height: 0; }
+.rw-map {
+  --rw-map-sea: #b4cfdc; --rw-map-wave: #8fb4c6;
+  --rw-map-land1: #f3e8c9; --rw-map-land2: #eadbb3; --rw-map-land3: #dfcb9b;
+  --rw-map-out: #d9d0b8; --rw-map-coast: #6d5636; --rw-map-shallow: #d6e8ef;
+  --rw-map-mtn: #a9b680; --rw-map-mtn-shade: #6f8150; --rw-map-mtn-line: #4d5b35;
+  --rw-map-river: #6d9fbe; --rw-map-ink: #5a4528; --rw-map-plate: #fbf5e6;
+  width: 100%; height: auto; display: block; max-height: 48rem;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif TC", "Songti TC", serif;
+}
+@media (prefers-color-scheme: dark) {
+  .rw-map {
+    --rw-map-sea: #1d3443; --rw-map-wave: #2b4c60;
+    --rw-map-land1: #5b5139; --rw-map-land2: #4e4631; --rw-map-land3: #423b29;
+    --rw-map-out: #37332a; --rw-map-coast: #d6c193; --rw-map-shallow: #2d5266;
+    --rw-map-mtn: #6c7a4b; --rw-map-mtn-shade: #4a5634; --rw-map-mtn-line: #a3b07a;
+    --rw-map-river: #5a9ac0; --rw-map-ink: #ecdcb6; --rw-map-plate: #2f2a22;
+  }
+}
+.rw-map-sea { fill: var(--rw-map-sea); }
+.rw-map-wave-fill { fill: var(--rw-map-sea); }
+.rw-map-wave-line { fill: none; stroke: var(--rw-map-wave); stroke-width: 0.7; }
+.rw-map-land-s1 { stop-color: var(--rw-map-land1); }
+.rw-map-land-s2 { stop-color: var(--rw-map-land2); }
+.rw-map-land-s3 { stop-color: var(--rw-map-land3); }
+.rw-map-shallow { fill: none; stroke: var(--rw-map-shallow); stroke-width: 7; stroke-linejoin: round; opacity: 0.85; }
+.rw-map-shallow-thin { stroke-width: 3; }
+.rw-map-land-out { fill: var(--rw-map-out); stroke: var(--rw-map-out); stroke-width: 1; }
+.rw-map-island { fill: var(--rw-map-land2); stroke: var(--rw-map-coast); stroke-width: 0.6; }
+.rw-map-terr { opacity: 0.36; }
+.rw-map-terr-mine { opacity: 0.46; }
+@media (prefers-color-scheme: dark) { .rw-map-terr { opacity: 0.32; } .rw-map-terr-mine { opacity: 0.42; } }
+.rw-map-province { font-size: 30px; font-weight: bold; letter-spacing: 6px; fill: var(--rw-map-ink); opacity: 0.16; }
+.rw-map-region-out { font-size: 11px; letter-spacing: 3px; fill: var(--rw-map-ink); opacity: 0.4; }
+.rw-map-river { fill: none; stroke: var(--rw-map-river); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.rw-map-river-hi { fill: none; stroke: #e2f0f6; stroke-width: 0.45; stroke-linecap: round; opacity: 0.7; }
+.rw-map-lake { fill: var(--rw-map-river); stroke: var(--rw-map-coast); stroke-width: 0.5; }
+.rw-map-mtn { fill: var(--rw-map-mtn); stroke: var(--rw-map-mtn-line); stroke-width: 0.55; }
+.rw-map-mtn-shade { fill: var(--rw-map-mtn-shade); opacity: 0.65; }
+.rw-map-mtn-snow { fill: #fbfaf5; opacity: 0.95; }
+.rw-map-coast { fill: none; stroke: var(--rw-map-coast); stroke-width: 1.1; stroke-linejoin: round; }
+.rw-map-coast-out { opacity: 0.45; }
+.rw-map-region-border { fill: none; stroke: var(--rw-map-coast); stroke-width: 1.1; stroke-dasharray: 4 2 1 2; opacity: 0.7; }
+.rw-map-gun-border { fill: none; stroke: var(--rw-map-ink); stroke-width: 0.4; stroke-dasharray: 1 1.6; opacity: 0.35; }
+.rw-map-fac-border-glow { fill: none; stroke: #fff8e6; stroke-width: 2.6; opacity: 0.45; stroke-linecap: round; }
+.rw-map-fac-border { fill: none; stroke: #4a2f1a; stroke-width: 1.15; opacity: 0.85; stroke-linecap: round; }
+@media (prefers-color-scheme: dark) { .rw-map-fac-border-glow { stroke: #000; } .rw-map-fac-border { stroke: #f1ddb0; } }
+.rw-map-road-under { fill: none; stroke: var(--rw-map-plate); stroke-width: 2.2; opacity: 0.55; stroke-linecap: round; }
+.rw-map-road { fill: none; stroke: #8b6a3f; stroke-width: 0.9; stroke-dasharray: 2.6 1.8; opacity: 0.85; stroke-linecap: round; }
+.rw-map-road-hot-under { stroke: #fff2c2; stroke-width: 3.4; opacity: 0.85; }
+.rw-map-road-hot { stroke: #c0392b; stroke-width: 1.4; animation: rw-map-march 1s linear infinite; }
+@keyframes rw-map-march { to { stroke-dashoffset: -8.8; } }
+.rw-map-sea-label { fill: #3f6a80; font-size: 11px; letter-spacing: 1px; opacity: 0.85; }
+.rw-map-sea-small { font-size: 7.5px; }
+.rw-map-sea-tiny { font-size: 5.5px; }
+@media (prefers-color-scheme: dark) { .rw-map-sea-label { fill: #9cc4d8; } }
+.rw-map-compass-ring { fill: var(--rw-map-plate); stroke: var(--rw-map-coast); stroke-width: 0.7; opacity: 0.9; }
+.rw-map-compass-star { fill: #d8c79c; stroke: var(--rw-map-coast); stroke-width: 0.5; }
+.rw-map-compass-n { fill: #b23c2f; }
+.rw-map-compass-label { font-size: 7px; font-weight: bold; fill: #b23c2f; }
+.rw-map-cart-box { fill: var(--rw-map-plate); stroke: #b23c2f; stroke-width: 1.4; }
+.rw-map-cart-inner { fill: none; stroke: #b23c2f; stroke-width: 0.5; }
+.rw-map-cart-text { fill: var(--rw-map-ink); font-weight: bold; }
+.rw-map-frame { fill: none; stroke: #4b3620; stroke-width: 3; }
+.rw-map-frame-inner { fill: none; stroke: #4b3620; stroke-width: 0.6; opacity: 0.7; }
+@media (prefers-color-scheme: dark) { .rw-map-frame, .rw-map-frame-inner { stroke: #c9b080; } }
+
+/* 地圖上的城池 */
+.rw-mnode { cursor: pointer; }
+.rw-mnode-hit { fill: transparent; }
+.rw-mnode-disc { stroke: rgba(30, 20, 10, 0.7); stroke-width: 0.6; }
+.rw-mnode-mine-ring { fill: none; stroke: #f2c443; stroke-width: 1.2; }
+.rw-mnode-pulse { fill: none; stroke: #fff; stroke-width: 1.6; transform-box: fill-box; transform-origin: center; animation: rw-map-pulse 1.4s ease-out infinite; }
+.rw-mnode-target-ring { fill: none; stroke: #c0392b; stroke-width: 1.2; stroke-dasharray: 2 1.5; animation: rw-map-march 1.2s linear infinite; }
+@keyframes rw-map-pulse { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+.rw-mnode-castle { transition: transform 0.15s; }
+.rw-mnode:hover .rw-mnode-castle, .rw-mnode-sel .rw-mnode-castle { transform: translateY(-1.5px) scale(1.12); }
+.rw-g-stone { fill: #9a9284; stroke: #4b443a; stroke-width: 0.45; }
+.rw-g-wall { fill: #fbf8f0; stroke: #4b443a; stroke-width: 0.4; }
+.rw-g-win { fill: #3a2f27; }
+.rw-g-roof { fill: #38424d; stroke: #1d232a; stroke-width: 0.35; }
+.rw-g-gold { fill: #e2b23a; }
+.rw-mnode-pole { stroke: #3b2d20; stroke-width: 0.6; }
+.rw-mnode-flag { stroke: rgba(20, 12, 6, 0.65); stroke-width: 0.4; }
+.rw-mnode-plate { fill: var(--rw-map-plate); stroke: var(--rw-map-coast); stroke-width: 0.45; opacity: 0.92; }
+.rw-mnode-label { font-size: 6.4px; fill: var(--rw-map-ink); font-weight: bold; pointer-events: none; }
+.rw-mnode-sel .rw-mnode-plate { fill: #b23c2f; stroke: #7a2018; opacity: 1; }
+.rw-mnode-sel .rw-mnode-label { fill: #fff; }
+.rw-mnode-mine .rw-mnode-plate { stroke: #c99a1e; stroke-width: 0.8; }
+
+.rw-map-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; margin-top: 0.6rem; font-size: 0.85em; }
+.rw-legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+.rw-legend-item b { opacity: 0.7; font-weight: normal; }
+.rw-legend-mine { font-weight: bold; text-decoration: underline; text-decoration-color: #f2c443; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+/* ===================== 城池 3D（reiwa_art.js castleStage） ===================== */
+.rw-node-title { display: flex; align-items: center; gap: 0.5rem; }
+.rw-node-title::before { content: ""; width: 0.35rem; height: 1.1em; border-radius: 2px; background: var(--rw-fc); }
+.rw-castle-box { position: relative; margin: 0.4rem 0 0.6rem; }
+.rw-c3 { display: block; width: 100%; height: auto; max-height: 17rem; border-radius: 8px; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; box-shadow: inset 0 0 0 1px var(--rw-line); }
+.rw-c3:active { cursor: grabbing; }
+.rw-c3-sky1 { stop-color: #8fc3e6; }
+.rw-c3-sky2 { stop-color: #d8ecf5; }
+.rw-c3-sky3 { stop-color: #f4ead2; }
+.rw-c3-sun { fill: #fff3c4; opacity: 0.9; }
+.rw-c3-cloud { fill: #fff; opacity: 0.75; animation: rw-c3-drift 26s linear infinite alternate; }
+.rw-c3-far { fill: #9db5c6; opacity: 0.8; }
+.rw-c3-near { fill: #86a68a; opacity: 0.75; }
+@keyframes rw-c3-drift { from { transform: translateX(-14px); } to { transform: translateX(22px); } }
+@media (prefers-color-scheme: dark) {
+  .rw-c3-sky1 { stop-color: #0f1a33; }
+  .rw-c3-sky2 { stop-color: #2b3557; }
+  .rw-c3-sky3 { stop-color: #5d4b5a; }
+  .rw-c3-sun { fill: #f2efd8; opacity: 0.85; }
+  .rw-c3-cloud { opacity: 0.18; }
+  .rw-c3-far { fill: #2f3b55; }
+  .rw-c3-near { fill: #2c3d3a; }
+  .rw-c3-scene { filter: brightness(0.78) saturate(0.9); }
+}
+.rw-castle-hint { position: absolute; left: 0.6rem; top: 0.45rem; right: 0.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.72em; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); pointer-events: none; opacity: 0.85; }
+.rw-castle-info { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.4rem; }
+
+/* ===================== 對陣旗幟（出陣視窗） ===================== */
+.rw-vs { display: flex; align-items: stretch; margin: -0.2rem 0 0.6rem; border-radius: 8px; overflow: hidden; font-weight: bold; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.rw-vs-side { flex: 1; padding: 0.55rem 0.8rem; }
+.rw-vs-atk { background: linear-gradient(100deg, var(--rw-atk), color-mix(in srgb, var(--rw-atk) 60%, #000)); }
+.rw-vs-def { text-align: right; background: linear-gradient(260deg, var(--rw-def), color-mix(in srgb, var(--rw-def) 60%, #000)); }
+.rw-vs-mark { display: flex; align-items: center; padding: 0 0.6rem; background: #1d1712; color: #f2c443; font-style: italic; letter-spacing: 1px; }
+
+/* ===================== 伐掠合戰場景（reiwa_art.js battleScene） ===================== */
+.rw-modal-battle { max-width: 46rem; }
+.rw-bt-wrap { border-radius: 10px; overflow: hidden; line-height: 0; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+.rw-bt { display: block; width: 100%; height: auto; font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif TC", serif; }
+.rw-bt-hill { fill: #4c4a2b; }
+.rw-bt-plate-bg { fill: rgba(16, 12, 10, 0.62); }
+.rw-bt-plate-title { fill: #fff; font-size: 10px; font-weight: bold; }
+.rw-bt-plate-line { fill: #f2dfb4; font-size: 9px; }
+.rw-bt-round-label { fill: #fff; font-size: 13px; font-weight: bold; letter-spacing: 2px; paint-order: stroke; stroke: rgba(0, 0, 0, 0.55); stroke-width: 2.5px; }
+.rw-bt-loss { fill: #ff6b5b; font-size: 16px; font-weight: bold; paint-order: stroke; stroke: #2a0d08; stroke-width: 3px; animation: rw-bt-rise 0.6s ease-out 0.95s both; }
+.rw-bt-stamp rect { fill: rgba(255, 250, 240, 0.08); stroke: #c0392b; stroke-width: 2.4; }
+.rw-bt-stamp text { fill: #d63a2a; font-weight: bold; paint-order: stroke; stroke: rgba(255, 245, 230, 0.85); stroke-width: 1.2px; }
+.rw-bt-stamp { transform-box: fill-box; transform-origin: center; animation: rw-bt-stamp 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) 0.25s both; }
+.rw-bt-stamp-adv { animation-delay: 0.3s; }
+.rw-bt-stamp-intro rect { stroke: #f2c443; }
+.rw-bt-stamp-intro text { fill: #f2c443; stroke: rgba(30, 20, 10, 0.75); }
+.rw-bt-stamp-lose rect { stroke: #7f8c9a; }
+.rw-bt-stamp-lose text { fill: #5d6d7e; }
+.rw-bt-adv-atk { animation: rw-bt-adv-atk 0.75s cubic-bezier(0.25, 0.7, 0.35, 1) both; }
+.rw-bt-adv-def { animation: rw-bt-adv-def 0.75s cubic-bezier(0.25, 0.7, 0.35, 1) both; }
+.rw-bt-fig { transform-box: fill-box; transform-origin: 50% 100%; }
+.rw-bt-bob { animation: rw-bt-bob 0.19s ease-in-out 0s 4 alternate; }
+.rw-bt-fallen { animation: rw-bt-bob 0.19s ease-in-out 0s 4 alternate, rw-bt-fall 0.45s ease-in 0.85s both; }
+.rw-bt-cheer { transform-box: fill-box; transform-origin: 50% 100%; animation: rw-bt-cheer 0.5s ease-in-out 0.4s 3 alternate; }
+.rw-bt-flash { transform-box: fill-box; transform-origin: center; animation: rw-bt-flash 0.6s ease-out 0.68s both; }
+.rw-bt-dust circle { fill: #c9b48a; }
+.rw-bt-dust { transform-box: fill-box; transform-origin: center bottom; animation: rw-bt-dust 0.9s ease-out 0.7s both; }
+.rw-bt-shot-atk { animation: rw-bt-shot-atk 0.4s ease-in 0.3s both; }
+.rw-bt-shot-def { animation: rw-bt-shot-def 0.4s ease-in 0.3s both; }
+.rw-bt-smoke-puff circle { fill: #e9e4da; }
+.rw-bt-smoke-puff { transform-box: fill-box; transform-origin: center; animation: rw-bt-puff 0.9s ease-out 0.28s both; }
+.rw-bt-banner { transform-box: fill-box; transform-origin: 0 0; animation: rw-bt-wave 1.6s ease-in-out infinite alternate; }
+.rw-bt-fire { transform-box: fill-box; transform-origin: center bottom; animation: rw-bt-flicker 0.35s ease-in-out infinite alternate; }
+.rw-bt-smoke circle { fill: #3b3640; opacity: 0.55; }
+.rw-bt-smoke { animation: rw-bt-smoke-rise 3s ease-out infinite; }
+@keyframes rw-bt-adv-atk { from { transform: translateX(-130px); } to { transform: translateX(0); } }
+@keyframes rw-bt-adv-def { from { transform: translateX(130px); } to { transform: translateX(0); } }
+@keyframes rw-bt-bob { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
+@keyframes rw-bt-fall { from { transform: rotate(0); opacity: 1; } to { transform: rotate(-78deg) translateX(-3px); opacity: 0.35; } }
+@keyframes rw-bt-cheer { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@keyframes rw-bt-flash { 0% { transform: scale(0.1); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes rw-bt-dust { 0% { transform: scale(0.2); opacity: 0; } 30% { opacity: 0.8; } 100% { transform: scale(2.2, 1.4); opacity: 0; } }
+@keyframes rw-bt-shot-atk { from { transform: translateX(0); opacity: 1; } to { transform: translateX(60px); opacity: 0; } }
+@keyframes rw-bt-shot-def { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-60px); opacity: 0; } }
+@keyframes rw-bt-puff { 0% { transform: scale(0.2); opacity: 0; } 25% { opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes rw-bt-rise { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes rw-bt-stamp { from { transform: scale(2.4) rotate(-12deg); opacity: 0; } to { transform: scale(1) rotate(-6deg); opacity: 1; } }
+@keyframes rw-bt-wave { from { transform: skewY(0deg); } to { transform: skewY(5deg); } }
+@keyframes rw-bt-flicker { from { transform: scaleY(0.85); opacity: 0.85; } to { transform: scaleY(1.15); opacity: 1; } }
+@keyframes rw-bt-smoke-rise { from { transform: translateY(6px); opacity: 0.4; } to { transform: translateY(-10px); opacity: 0.9; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-wrap *, .rw-modal-backdrop * { animation-duration: 0.01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+}
