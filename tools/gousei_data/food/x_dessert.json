@@ -29,16 +29,16 @@
     ["x_putao", "x_mianfen", "x_putaota"],
     ["x_pingguo", "x_mianfen", "x_pingguopai"],
     ["x_xiangjiao", "x_xiannaiyou", "x_xiangjiaochuan"],
-    ["x_baixiangguo", "x_yugang", "x_baixiangguoxuelao"],
+    ["x_baixiangguo", "x_chao", "x_baixiangguoxuelao"],
     ["x_lizhi", "water", "x_lizhibingsha"],
-    ["x_longyan", "x_yugang", "x_longyantiantang"],
-    ["x_youzi", "x_yugang", "x_youzifengmichatiandian"],
+    ["x_longyan", "x_chao", "x_longyantiantang"],
+    ["x_youzi", "x_chao", "x_youzifengmichatiandian"],
     ["x_caomei", "x_nuomi", "x_caomeidafu"],
-    ["x_yutou", "x_yugang", "x_yutoutiantang"],
-    ["x_digua", "x_yugang", "x_diguatiantang"],
+    ["x_yutou", "x_lu", "x_yutoutiantang"],
+    ["x_digua", "x_lu", "x_diguatiantang"],
     ["x_nangua", "x_jidan", "x_nanguabuding"],
     ["x_qisi", "x_jidan", "x_qisidangao"],
-    ["x_youge", "x_yugang", "x_yougebingqilin"],
+    ["x_youge", "x_chao", "x_yougebingqilin"],
     ["x_qiyiguo", "x_mianfen", "x_qiyiguota"]
   ]
 }

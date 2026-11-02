@@ -14,14 +14,14 @@
     {"id": "x_chuanshuozhongdeshipu", "zh": "傳說中的食譜", "ja": "伝説のレシピ"}
   ],
   "recipes": [
-    ["x_muer", "x_yanzifang", "x_songlu"],
-    ["x_niurou", "x_yugang", "x_menghuanheniu"],
-    ["x_xie", "x_muchang", "x_diwangxie"],
-    ["x_weiyu", "x_muchang", "x_heiweiyuzhongduan"],
-    ["x_yarou", "x_muchang", "x_egan"],
-    ["x_diaoyu", "x_yugang", "x_yuchi"],
-    ["x_muli", "x_yugang", "x_baoyu"],
-    ["x_ganbei", "x_yugang", "x_dingjiganbei"],
+    ["x_muer", "x_haishui", "x_songlu"],
+    ["x_niurou", "x_tangzi", "x_menghuanheniu"],
+    ["x_xie", "x_lu", "x_diwangxie"],
+    ["x_weiyu", "x_dahai", "x_heiweiyuzhongduan"],
+    ["x_yarou", "x_liangban", "x_egan"],
+    ["x_diaoyu", "x_dahai", "x_yuchi"],
+    ["x_muli", "x_dahai", "x_baoyu"],
+    ["x_ganbei", "x_dahai", "x_dingjiganbei"],
     ["x_miqilinzhuchu", "x_huaishiliaoli", "x_renjianjipinliaoli"],
     ["x_menghuanheniu", "x_diwangxie", "x_chuanshuozhongdeshipu"]
   ]

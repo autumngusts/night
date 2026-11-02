@@ -16,16 +16,16 @@
     {"id": "x_meijiusuda", "zh": "梅酒蘇打", "ja": "梅酒ソーダ"}
   ],
   "recipes": [
-    ["x_doujiang", "x_yugang", "x_doujiangyinpin"],
-    ["x_caomi", "x_ganzaidian", "x_xiancaocha"],
-    ["x_meizi", "x_yugang", "x_suanmeitang"],
-    ["x_jiucai", "x_yugang", "x_qingcaocha"],
-    ["x_caomifan", "x_yugang", "x_ganzhezhi"],
-    ["x_ningmeng", "x_yugang", "x_ningmengshui"],
+    ["x_doujiang", "x_yan", "x_doujiangyinpin"],
+    ["x_caomi", "x_chao", "x_xiancaocha"],
+    ["x_meizi", "x_chao", "x_suanmeitang"],
+    ["x_jiucai", "x_lu", "x_qingcaocha"],
+    ["x_caomifan", "x_lu", "x_ganzhezhi"],
+    ["x_ningmeng", "x_chao", "x_ningmengshui"],
     ["x_putao", "water", "x_putaozhi"],
     ["x_xigua", "water", "x_xiguazhi"],
     ["x_hamigua", "x_niunai", "x_hamiguaniunai"],
-    ["x_doujiang", "x_muchang", "x_dounaibingsha"],
+    ["x_doujiang", "x_tangzi", "x_dounaibingsha"],
     ["x_qingjiu", "x_chaiyu", "x_ribenqingjiutaocan"],
     ["x_meizi", "water", "x_meijiusuda"]
   ]
