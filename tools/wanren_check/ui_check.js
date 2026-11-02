@@ -83,7 +83,9 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   s = await st(page);
   assert.strictEqual(s.phase, "free");
   assert.strictEqual(s.ap, s.apMax);
-  assert.ok(s.ap === 6 || s.ap === 7, "入學典禮的行動點：" + s.ap);
+  // 期望值從狀態推算：基本 6、入學典禮固定晴天的假日 +1，再加上迷妹選項的增減（「陪她去吃冰」會 −2）
+  var apBonus = await page.evaluate(function () { return window.PriTestWanren.state.today.apBonus; });
+  assert.strictEqual(s.ap, Math.max(1, 7 + apBonus), "入學典禮的行動點：" + s.ap + "（apBonus " + apBonus + "）");
   assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.club; }), "sports", "社團招募選了運動社團");
   var ap0 = s.ap;
   await clearEvents(page);
@@ -99,7 +101,8 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
     return { loc: ls[0].id, name: window.PriTestWanrenData.L(ls[0].name), hid: W.core.heroinesAt(S, ls[0].id)[0] };
   });
   await clickText(page, target.name, true);
-  await page.waitForTimeout(600);
+  // 所在地點是 3D 的畫面迴圈更新的：軟體算圖很慢，等到更新為止（不要用固定時間）
+  await page.waitForFunction(function (l) { return window.PriTestWanren.view()._debug().loc === l; }, target.loc, { timeout: 20000 });
   dbg = await page.evaluate(function () { return window.PriTestWanren.view()._debug(); });
   assert.strictEqual(dbg.loc, target.loc, "快速前往後應該在 " + target.loc);
   assert.ok(await page.locator(".wr-hcard").count() >= 1, "地點面板應顯示女主角");
@@ -120,7 +123,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.ok(await page.evaluate(function () { return !!window.PriTestWanren.core.loadMeta().ach.meet1; }), "應該解鎖「初次見面」");
   // 學生餐廳的購買部
   await clickText(page, "學生餐廳", true);
-  await page.waitForTimeout(400);
+  await page.waitForFunction(function () { return window.PriTestWanren.ui.loc === "cafeteria"; }, null, { timeout: 20000 });
   await clickText(page, "購買部", true);
   var money0 = (await st(page)).stats.money;
   await page.locator(".wr-shop-item button").first().click();
