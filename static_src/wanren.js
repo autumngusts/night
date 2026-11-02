@@ -6,6 +6,7 @@
   var D = window.PriTestWanrenData;
   var C = window.PriTestWanrenCore;
   var V3 = window.PriTestWanren3D;
+  var NET = window.PriTestWanrenNet;
   var app = document.getElementById("wr-app");
   if (!app || !D || !C) return;
 
@@ -37,7 +38,7 @@
   function money(n) { return "¥" + Math.round(n).toLocaleString(); }
   function hex(c) { return "#" + ("000000" + c.toString(16)).slice(-6); }
   function hname(hid) { return L(D.HEROINE_BY_ID[hid].name); }
-  var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a" };
+  var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a", kouhai: "#4fb0a0" };
 
   var S = null;   // 遊戲狀態
   var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "full", name: "" };
@@ -68,8 +69,17 @@
             if (ui.loc === loc) return;
             ui.loc = loc;
             ui.topicFor = null; ui.giftFor = null; ui.shop = false;
-            if (S && S.phase === "free") render();
+            if (S && S.phase === "free") {
+              var r = C.arrive(S, loc);   // 約定見面
+              if (r) { say(r); save(); }
+              render();
+            }
             else renderHud();
+          },
+          // 在校園走了一段路：機率觸發隨機遭遇（第 9 項）
+          onWalk: function () {
+            if (!S || S.phase !== "free" || ui.msg || ui.modal) return;
+            if (Math.random() < 0.35 && C.encounter(S, ui.loc)) { save(); render(); }
           }
         });
         view3dState = "ready";
@@ -89,8 +99,22 @@
   function act(fn) {
     var out = fn();
     if (out) say(out);
+    achievementToast();
     save();
     render();
+  }
+  // 成就解鎖的提示（第 8 項）
+  var toastEl = el("div", { class: "wr-toasts" });
+  app.appendChild(toastEl);
+  function achievementToast() {
+    if (!S) return;
+    C.checkAchievements(S).forEach(function (id) {
+      var a = D.ACHIEVEMENTS.filter(function (x) { return x.id === id; })[0];
+      if (!a) return;
+      var tEl = el("div", { class: "wr-toast" }, [el("b", {}, [a.icon + " " + t("wr_ach_unlocked")]), " ", a.name]);
+      toastEl.appendChild(tEl);
+      setTimeout(function () { if (tEl.parentNode) tEl.parentNode.removeChild(tEl); }, 4200);
+    });
   }
 
   // ---------------- 3D 同步 ----------------
@@ -110,6 +134,9 @@
     }
     var sig = JSON.stringify(list);
     if (sync3d.sig !== sig) { view.setHeroines(list); sync3d.sig = sig; }
+    // 季節與天氣（第 11 項）
+    var sea = S && S.today ? C.season(S) + "|" + S.today.weather : "spring|sunny";
+    if (sync3d.sea !== sea) { view.setSeason(sea.split("|")[0], sea.split("|")[1]); sync3d.sea = sea; }
     view.setEnabled(!!S && S.phase === "free" && ui.screen === "game");
   }
 
@@ -127,6 +154,8 @@
         el("b", {}, [C.dateLabel(S, S.day)]), " ",
         el("span", { class: "wr-muted" }, [t("wr_day_of", { d: S.day + 1, n: S.length })]),
         badge ? el("span", { class: "wr-badge wr-badge-" + kind }, [badge]) : null,
+        el("span", { class: "wr-weather", title: L(C.WEATHER_INFO[S.today.weather].name) }, [C.WEATHER_INFO[S.today.weather].icon]),
+        S.today.examWeek ? el("span", { class: "wr-badge wr-badge-midterm" }, ["📚 " + t("wr_exam_week")]) : null,
         el("span", { class: "wr-phase" }, [t("wr_phase_" + S.phase)])
       ]));
     }
@@ -141,7 +170,10 @@
     stats.appendChild(el("span", { class: "wr-stat wr-stat-fans", title: t("wr_fans") }, ["📣 ", el("small", {}, [t("wr_fans")]), " ", el("b", {}, [S.fans])]));
     topEl.appendChild(stats);
     topEl.appendChild(el("div", { class: "wr-topbtns" }, [
+      btn("🧑‍🎓 " + t("wr_me"), function () { ui.modal = { type: "me" }; renderModal(); }, "wr-btn wr-btn-ghost"),
       btn("👭 " + t("wr_people"), function () { ui.modal = { type: "people" }; renderModal(); }, "wr-btn wr-btn-ghost"),
+      btn("📔 " + t("wr_album"), function () { ui.modal = { type: "album", tab: "ach" }; renderModal(); }, "wr-btn wr-btn-ghost"),
+      btn((ui.net ? "🟢 " : "🌐 ") + t("wr_online"), function () { ui.modal = { type: "net" }; renderModal(); }, "wr-btn wr-btn-ghost"),
       btn("🎒 " + t("wr_bag"), function () { ui.modal = { type: "bag" }; renderModal(); }, "wr-btn wr-btn-ghost"),
       btn("🏠 " + t("wr_to_title"), function () { save(); ui.screen = "title"; render(); }, "wr-btn wr-btn-ghost")
     ]));
@@ -217,22 +249,32 @@
     var lenSel = el("div", { class: "wr-seg" }, C.LENGTHS.map(function (l) {
       return btn(L(l.name) + "・" + t("wr_hours", { n: l.hours }), function () { ui.lengthId = l.id; render(); }, "wr-seg-btn" + (ui.lengthId === l.id ? " on" : ""));
     }));
+    var meta = C.loadMeta();
+    var ngBox = null;
+    if (meta.clears > 0) {
+      var cb = el("input", { type: "checkbox", checked: ui.inherit ? true : null });
+      cb.addEventListener("change", function () { ui.inherit = cb.checked; });
+      ngBox = el("label", { class: "wr-field wr-ng" }, [cb, el("span", {}, ["🔁 " + t("wr_ng", { n: meta.clears })]), el("small", { class: "wr-muted" }, [t("wr_ng_note")])]);
+    }
     panelEl.appendChild(section(null, [
       el("p", { class: "wr-intro" }, [t("wr_intro")]),
       el("ul", { class: "wr-rules" }, [1, 2, 3, 4, 5].map(function (i) { return el("li", {}, [t("wr_rule" + i)]); })),
       el("label", { class: "wr-field" }, [el("span", {}, [t("wr_name")]), nameIn]),
       el("div", { class: "wr-field" }, [el("span", {}, [t("wr_length")]), lenSel]),
+      ngBox,
       el("div", { class: "wr-row" }, [
         btn("✨ " + t("wr_new_game"), function () {
           if (saved && saved.phase !== "report" && !window.confirm(t("wr_overwrite"))) return;
-          S = C.newGame({ name: (ui.name || "").trim() || t("wr_default_name"), length: ui.lengthId });
+          S = C.newGame({ name: (ui.name || "").trim() || t("wr_default_name"), length: ui.lengthId, inherit: !!ui.inherit });
           ui.screen = "game"; ui.msg = [t("wr_open_1"), t("wr_open_2", { name: S.name })]; save();
           if (view) view.teleport("gate");
           render();
         }, "wr-btn wr-btn-main"),
         saved ? btn("▶ " + t("wr_continue") + "（" + C.termName(saved, Math.min(saved.day, saved.length - 1)) + " " + C.dateLabel(saved, Math.min(saved.day, saved.length - 1)) + "・" + saved.name + "）", function () {
           S = saved; ui.screen = "game"; ui.msg = null; if (view) view.teleport("gate"); render();
-        }, "wr-btn") : null
+        }, "wr-btn") : null,
+        btn("📔 " + t("wr_album"), function () { ui.modal = { type: "album", tab: "ach" }; renderModal(); }, "wr-btn wr-btn-ghost"),
+        btn((ui.net ? "🟢 " : "🌐 ") + t("wr_online"), function () { ui.modal = { type: "net" }; renderModal(); }, "wr-btn wr-btn-ghost")
       ])
     ], "wr-title-sec"));
     // 女主角介紹
@@ -241,7 +283,8 @@
       cast.appendChild(el("h3", { style: "color:" + GROUP_COLOR[g.id] }, [L(g.name)]));
       var row = el("div", { class: "wr-cast-row" });
       D.HEROINES.filter(function (hd) { return hd.group === g.id; }).forEach(function (hd) {
-        row.appendChild(el("div", { class: "wr-cast-card" }, [face(hd, 44), el("div", {}, [el("b", {}, [L(hd.name)]), el("div", { class: "wr-small wr-muted" }, [L(hd.title)])])]));
+        var secret = hd.hidden && !meta.ach.hiyori;   // 隱藏女主角：解鎖前只顯示剪影
+        row.appendChild(el("div", { class: "wr-cast-card" + (secret ? " secret" : "") }, [face(hd, 44), el("div", {}, [el("b", {}, [secret ? "？？？" : L(hd.name)]), el("div", { class: "wr-small wr-muted" }, [secret ? t("wr_hidden_hint") : L(hd.title)])])]));
       });
       cast.appendChild(row);
     });
@@ -291,9 +334,11 @@
     var list = el("div", { class: "wr-admirers" });
     S.today.admirers.forEach(function (a, i) {
       var ap = C.approachOf(a.ap);
-      var lk = { hair: a.hair, skin: 0xf6dcc8, top: 0x2a3358, style: ["long", "twin", "ponytail", "bob", "bun"][a.name.length % 5] };
-      var card = el("div", { class: "wr-adm" + (a.choice !== null ? " done" : "") }, [
+      var lk = a.special ? D.HEROINE_BY_ID[a.special].look : { hair: a.hair, skin: 0xf6dcc8, top: 0x2a3358, style: ["long", "twin", "ponytail", "bob", "bun"][a.name.length % 5] };
+      var ty = D.ADMIRER_TYPES.filter(function (x) { return x.id === (a.type || "pure"); })[0];
+      var card = el("div", { class: "wr-adm" + (a.choice !== null ? " done" : "") + (a.special ? " special" : "") }, [
         el("div", { class: "wr-adm-head" }, [face(null, 40, lk), el("div", {}, [el("b", {}, [a.name]), " ", el("span", { class: "wr-small wr-muted" }, [a.role]),
+          a.special ? el("span", { class: "wr-badge wr-badge-festival" }, ["🌙 " + t("wr_adm_special", { n: S.flags.hiyoriN || 0 })]) : el("span", { class: "wr-badge wr-adm-type wr-adm-" + ty.id, title: t("wr_adm_type_note") }, [ty.icon + " " + L(ty.name)]),
           a.ret ? el("span", { class: "wr-badge" }, [a.ret === "fan" ? t("wr_adm_fan") : t("wr_adm_again")]) : null])]),
         el("p", { class: "wr-adm-text" }, [ap.icon + " ", a.ret ? D.RETURN_TEXT[a.ret] + " " : "", ap.text]),
         a.choice !== null ? el("div", { class: "wr-adm-res" }, ["→ " + ap.opts[a.choice].label]) :
@@ -345,6 +390,12 @@
       S.today.date ? el("span", { class: "wr-badge wr-badge-date" }, ["💌 " + t("wr_date_tonight", { n: hname(S.today.date) })]) : null
     ]);
     panelEl.appendChild(head);
+    // 約好見面的提醒（第 10 項）
+    var mu = S.today.meetup;
+    if (mu && !mu.done) {
+      var used = S.today.apMax - S.today.ap;
+      panelEl.appendChild(el("div", { class: "wr-special wr-meetup" + (used > mu.by ? " late" : "") }, ["⏰ " + t(used > mu.by ? "wr_meetup_late" : "wr_meetup", { n: hname(mu.hid), l: L(D.LOC_BY_ID[mu.loc].name), k: Math.max(0, mu.by - used) })]));
+    }
     if (!loc) {
       panelEl.appendChild(el("p", { class: "wr-small wr-muted" }, [view ? t("wr_free_hint3d") : t("wr_free_hint")]));
     } else {
@@ -359,14 +410,14 @@
         return el("i", { class: "wr-dot" + (h.met ? "" : " unknown") + (h.dating ? " lover" : ""), title: h.met ? hname(hid) : "？", style: "background:" + (h.met ? GROUP_COLOR[D.HEROINE_BY_ID[hid].group] : "#bbb") });
       }))]), function () {
         if (view) view.teleport(l.id);
-        else { ui.loc = l.id; ui.topicFor = null; ui.giftFor = null; ui.shop = false; render(); }
+        else { ui.loc = l.id; ui.topicFor = null; ui.giftFor = null; ui.shop = false; var r = C.arrive(S, l.id); if (r) { say(r); save(); } render(); }
       }, "wr-btn wr-btn-go" + (ui.loc === l.id ? " on" : ""));
       go.appendChild(b);
     });
     panelEl.appendChild(section(t("wr_goto"), [go, el("p", { class: "wr-small wr-muted" }, [t("wr_goto_note")])], "wr-sec-go"));
     panelEl.appendChild(el("div", { class: "wr-row wr-endrow" }, [btn("🌆 " + t("wr_end_free") + (ap ? "（" + t("wr_ap_left", { n: ap }) + "）" : ""), function () {
       if (ap > 0 && !window.confirm(t("wr_end_free_confirm", { n: ap }))) return;
-      act(function () { C.endFree(S); if (view) view.teleport("plaza"); return null; });
+      act(function () { var r = C.endFree(S); if (view) view.teleport("plaza"); return r; });
     }, "wr-btn wr-btn-main")]));
   }
   function renderLocation(loc) {
@@ -376,6 +427,15 @@
       act(function () { var r = C.locAction(S, loc.id); if (S.phase !== "free" && view) view.teleport("plaza"); return r; });
     }, "wr-btn wr-btn-card", { disabled: a.ap > S.today.ap }));
     if (loc.shop) acts.appendChild(btn(el("span", {}, [el("b", {}, ["🛒 " + t("wr_shop")]), el("small", {}, [t("wr_shop_note")])]), function () { ui.modal = { type: "shop" }; renderModal(); }, "wr-btn wr-btn-card"));
+    // 社團（第 5 項）：活動日在社團的地點可以參加；社團大樓可以加入／更換
+    var club = S.club && D.CLUB_BY_ID[S.club];
+    if (club && club.loc === loc.id) {
+      var can = C.canClubAction(S, loc.id);
+      acts.appendChild(btn(el("span", {}, [el("b", {}, [club.icon + " " + t("wr_club_act")]), el("small", {}, [can ? t("wr_club_act_note") : S.today.clubDone ? t("wr_club_done") : t("wr_club_days")])]), function () {
+        act(function () { return C.clubAction(S, loc.id); });
+      }, "wr-btn wr-btn-card wr-btn-club", { disabled: !can || S.today.ap < 1 }));
+    }
+    if (loc.id === "club") acts.appendChild(btn(el("span", {}, [el("b", {}, ["🎪 " + t(S.club ? "wr_club_change" : "wr_club_join")]), el("small", {}, [club ? club.icon + " " + L(club.name) : t("wr_club_none")])]), function () { ui.modal = { type: "club" }; renderModal(); }, "wr-btn wr-btn-card"));
     panelEl.appendChild(acts);
     // 地點型任務
     C.locQuests(S, loc.id).forEach(function (hid) {
@@ -419,6 +479,16 @@
       card.appendChild(el("div", { class: "wr-row" }, [btn("👋 " + t("wr_meet"), function () { act(function () { return C.meet(S, hid); }); }, "wr-btn wr-btn-pink", { disabled: noAp })]));
       return card;
     }
+    // 連擊與隱藏對話的提示（第 2 項）、交往階段（第 7 項）
+    var combo = S.day - (h.comboDay === undefined ? -99 : h.comboDay) <= 3 ? (h.combo || 0) : 0;
+    var ht = D.HIDDEN_TALKS[hid];
+    var tags = el("div", { class: "wr-row wr-tags" }, [
+      h.dating ? el("span", { class: "wr-badge wr-badge-date" }, ["💞 " + L(D.REL_STAGES[h.rel || 1].name)]) : null,
+      combo >= 1 ? el("span", { class: "wr-badge wr-combo" }, ["🔥 " + t("wr_combo", { n: combo })]) : null,
+      combo >= 2 && ht && !h.hiddenSeen && (!ht.needMet || S.h[ht.needMet].met) ? el("span", { class: "wr-small wr-hidden-hint" }, ["✨ " + t("wr_hidden_talk_hint")]) : null,
+      S.club && D.CLUB_BY_ID[S.club].members.indexOf(hid) >= 0 ? el("span", { class: "wr-badge" }, [D.CLUB_BY_ID[S.club].icon + " " + t("wr_club_mate")]) : null
+    ]);
+    if (tags.childNodes.length) card.appendChild(tags);
     var row = el("div", { class: "wr-row" });
     row.appendChild(btn("💬 " + t("wr_talk") + ((S.today.talked[hid] || 0) ? " ×" + S.today.talked[hid] : ""), function () { ui.topicFor = ui.topicFor === hid ? null : hid; ui.giftFor = null; render(); }, "wr-btn wr-btn-sm" + (ui.topicFor === hid ? " on" : ""), { disabled: noAp }));
     row.appendChild(btn("🎁 " + t("wr_gift"), function () { ui.giftFor = ui.giftFor === hid ? null : hid; ui.topicFor = null; render(); }, "wr-btn wr-btn-sm" + (ui.giftFor === hid ? " on" : ""), { disabled: noAp || S.today.gifted[hid] }));
@@ -474,13 +544,19 @@
     if (td.date) {
       var hid = td.date, hd = D.HEROINE_BY_ID[hid], h = S.h[hid];
       if (td.dateRun && !td.dateRun.done) {
-        var m = D.DATE_MOMENTS[td.dateRun.moment], sp = D.DATE_BY_ID[td.dateRun.spot];
+        // 約會：依地點出 2〜3 題，她當天的心情會影響喜歡的回答（第 1 項）
+        var run = td.dateRun, m = C.dateMoment(S), sp = D.DATE_BY_ID[run.spot];
+        var mood = D.MOODS.filter(function (x) { return x.id === run.mood; })[0];
+        var sk = C.skillAnswer(S);
+        var opts = ["romantic", "funny", "earnest"].map(function (k) {
+          return btn(m.opts[k], function () { act(function () { return C.answerDate(S, k); }); }, "wr-btn wr-btn-opt");
+        });
+        if (sk) opts.push(btn("🌟 " + t("wr_date_skill", { s: L(D.SKILL_BY_ID[sk].name) }), function () { act(function () { return C.answerDate(S, "skill"); }); }, "wr-btn wr-btn-opt wr-btn-skill"));
         panelEl.appendChild(section("💕 " + t("wr_date_with", { n: hname(hid) }) + "・" + sp.icon + " " + L(sp.name), [
           el("div", { class: "wr-ev-face" }, [face(hd, 72)]),
+          el("div", { class: "wr-row wr-date-meta" }, [el("span", { class: "wr-badge" }, [t("wr_date_step", { i: run.step + 1, n: run.list.length })]), el("span", { class: "wr-small wr-muted" }, [mood.icon + " " + mood.hint])]),
           el("p", { class: "wr-ev-text" }, [m.text]),
-          el("div", { class: "wr-col" }, ["romantic", "funny", "earnest"].map(function (k) {
-            return btn(m.opts[k], function () { act(function () { return C.finishDate(S, k); }); }, "wr-btn wr-btn-opt");
-          }))
+          el("div", { class: "wr-col" }, opts)
         ], "wr-event"));
         return;
       }
@@ -528,6 +604,14 @@
           if (o.id === "message") { ui.eveningPick = "message"; render(); return; }
           act(function () { return C.doEvening(S, o.id); });
         }, "wr-btn wr-btn-card", { disabled: dis });
+      })),
+      // 練專長（第 6 項）
+      el("h3", {}, ["🎓 " + t("wr_skill_practice")]),
+      el("div", { class: "wr-grid2" }, D.SKILL_EVENINGS.map(function (o) {
+        var dis = o.eff.money < 0 && S.stats.money < -o.eff.money;
+        return btn(el("span", {}, [el("b", {}, [o.icon + " " + L(o.name)]), el("small", {}, [o.note + "（" + Math.round(S.skills[o.skill]) + "）"])]), function () {
+          act(function () { return C.doEvening(S, o.id); });
+        }, "wr-btn wr-btn-card", { disabled: dis });
       }))
     ]));
   }
@@ -549,6 +633,7 @@
   // year＝null 是最後的總報告；數字是該學年的中間報告
   function renderReport(year) {
     var r = C.report(S, year);
+    setTimeout(achievementToast, 0);
     var head = el("div", { class: "wr-rep-head" }, [
       el("div", { class: "wr-rep-rank wr-rank-" + r.rank }, [r.rank]),
       el("div", {}, [el("div", { class: "wr-small wr-muted" }, [t("wr_rep_title_label")]), el("div", { class: "wr-rep-title" }, ["「" + r.title + "」"]), el("p", { class: "wr-small" }, [r.titleComment])])
@@ -569,7 +654,7 @@
       rows.appendChild(el("div", { class: "wr-rep-row" + (row.dating ? " lover" : "") + (!row.met ? " none" : ""), style: "--wr-g:" + GROUP_COLOR[hd.group] }, [
         face(hd, 44),
         el("div", { class: "wr-rep-row-main" }, [
-          el("div", {}, [el("b", {}, [row.met ? row.name : "？？？"]), " ", el("span", { class: "wr-badge" }, [row.stage]), row.dates ? el("span", { class: "wr-small wr-muted" }, [" " + t("wr_rep_dates", { n: row.dates })]) : null]),
+          el("div", {}, [el("b", {}, [row.met ? row.name : "？？？"]), " ", el("span", { class: "wr-badge" }, [row.stage]), row.relName && row.rel >= 2 ? el("span", { class: "wr-badge wr-badge-date" }, ["💞 " + row.relName]) : null, row.dates ? el("span", { class: "wr-small wr-muted" }, [" " + t("wr_rep_dates", { n: row.dates })]) : null]),
           row.met ? affBar(row.id) : null,
           row.line ? el("p", { class: "wr-rep-line" }, [row.line]) : el("p", { class: "wr-small wr-muted" }, [t("wr_rep_notmet")])
         ])
@@ -581,7 +666,10 @@
       el("div", { class: "wr-rep-comment" }, [el("h3", {}, ["💘 " + t("wr_rep_love")])].concat(r.love.map(function (l) { return el("p", {}, [l]); }))),
       el("div", { class: "wr-rep-comment wr-rep-sum" }, [el("h3", {}, ["📝 " + t("wr_rep_summary")]), el("p", {}, [r.summary])]),
       chart(),
+      el("div", { class: "wr-rep-comment" }, [el("h3", {}, ["🎓 " + t("wr_rep_skills")]), skillBars(r.skills),
+        el("p", { class: "wr-small" }, [r.club ? D.CLUB_BY_ID[r.club].icon + " " + L(D.CLUB_BY_ID[r.club].name) + (r.clubWins ? "・" + t("wr_rep_clubwins", { n: r.clubWins }) : "") : t("wr_club_none")])]),
       el("h3", {}, [t("wr_rep_each")]), rows,
+      el("div", { class: "wr-row" }, [btn("🖼 " + t("wr_share"), function () { shareReport(r); }, "wr-btn")]),
       el("div", { class: "wr-row" }, [r.interim ?
         btn("🌸 " + t("wr_next_year"), function () { C.nextYear(S); ui.msg = null; if (view) view.teleport("gate"); save(); render(); }, "wr-btn wr-btn-main") :
         btn("🔁 " + t("wr_again"), function () { C.clearSave(); S = null; ui.screen = "title"; render(); }, "wr-btn wr-btn-main")])
@@ -612,23 +700,173 @@
   // ---------------- 視窗：人物、背包、購買部 ----------------
   function renderModal() {
     modalEl.innerHTML = "";
-    if (!ui.modal || !S) return;
+    if (!ui.modal || (!S && ["album", "net"].indexOf(ui.modal.type) < 0)) return;
     var m = ui.modal, body;
     function close() { ui.modal = null; renderModal(); }
     if (m.type === "people") body = peopleView();
     else if (m.type === "bag") body = bagView();
     else if (m.type === "shop") body = shopView();
     else if (m.type === "profile") body = profileView(m.hid);
+    else if (m.type === "me") body = meView();
+    else if (m.type === "album") body = albumView(m.tab || "ach");
+    else if (m.type === "club") body = clubView();
+    else if (m.type === "net") body = netView();
     var box = el("div", { class: "wr-modal" }, [el("button", { class: "wr-modal-x", type: "button", onclick: close, "aria-label": t("wr_close") }, ["✕"]), body]);
     var back = el("div", { class: "wr-modal-back", onclick: function (e) { if (e.target === back) close(); } }, [box]);
     modalEl.appendChild(back);
+  }
+  function skillBars(sk) {
+    return el("div", { class: "wr-skills" }, D.SKILLS.map(function (k) {
+      var v = Math.round(sk[k.id] || 0);
+      return el("div", { class: "wr-skill" }, [el("span", {}, [k.icon + " " + L(k.name)]), el("div", { class: "wr-aff" }, [el("i", { class: "wr-aff-fill wr-skill-fill", style: "width:" + v + "%" }), el("span", {}, [v])])]);
+    }));
+  }
+  // 我的狀態：專長、社團、交往中的人（第 5、6、7 項）
+  function meView() {
+    var club = S.club && D.CLUB_BY_ID[S.club];
+    var lovers = C.loversOf(S);
+    return el("div", {}, [el("h2", {}, ["🧑‍🎓 " + S.name]),
+      el("p", { class: "wr-small wr-muted" }, [C.termName(S) + (S.ng ? "・🔁 " + t("wr_ng_badge", { n: S.ng }) : "")]),
+      el("h3", {}, [t("wr_rep_skills")]), skillBars(S.skills),
+      el("p", { class: "wr-small wr-muted" }, [t("wr_skill_note")]),
+      el("h3", {}, [t("wr_club")]),
+      el("p", {}, [club ? club.icon + " " + L(club.name) + "・" + t("wr_club_info", { d: S.clubDays, w: S.clubWins }) : t("wr_club_none")]),
+      el("p", { class: "wr-small wr-muted" }, [t("wr_club_note")]),
+      el("h3", {}, ["💞 " + t("wr_lovers")]),
+      lovers.length ? el("ul", { class: "wr-bag" }, lovers.map(function (hid) {
+        var h = S.h[hid];
+        return el("li", {}, [hname(hid) + "：" + L(D.REL_STAGES[h.rel || 1].name) + "（" + t("wr_since", { n: Math.max(0, S.day - h.since) }) + "）"]);
+      })) : el("p", { class: "wr-muted" }, [t("wr_no_lovers")]),
+      el("p", { class: "wr-small wr-muted" }, [t("wr_rel_note")])
+    ]);
+  }
+  function clubView() {
+    return el("div", {}, [el("h2", {}, ["🎪 " + t("wr_club")]),
+      el("p", { class: "wr-small" }, [t("wr_club_note")]),
+      el("div", { class: "wr-col" }, D.CLUBS.map(function (c) {
+        var mates = c.members.filter(function (m) { return C.available(S, m); }).map(function (m) { return S.h[m].met ? hname(m) : "？？？"; }).join("、");
+        return btn(el("span", {}, [el("b", {}, [c.icon + " " + L(c.name) + (S.club === c.id ? "（" + t("wr_club_current") + "）" : "")]),
+          el("small", {}, [t("wr_club_skills") + "：" + Object.keys(c.skills).map(function (k) { return L(D.SKILL_BY_ID[k].name); }).join("・") + "／" + t("wr_club_members") + "：" + mates + "／" + L(D.LOC_BY_ID[c.loc].name)])]), function () {
+          act(function () { ui.modal = null; return C.joinClub(S, c.id); });
+        }, "wr-btn wr-btn-card", { disabled: S.club === c.id });
+      }).concat(S.club ? [btn(t("wr_club_leave"), function () { act(function () { ui.modal = null; return C.joinClub(S, null); }); }, "wr-btn wr-btn-ghost")] : []))
+    ]);
+  }
+  // 回憶錄：成就、回憶、結局、稱號（第 8 項；跨存檔）
+  function albumView(tab) {
+    var meta = C.loadMeta();
+    var tabs = el("div", { class: "wr-seg" }, [["ach", "wr_album_ach"], ["mem", "wr_album_mem"], ["end", "wr_album_end"], ["title", "wr_album_title"]].map(function (x) {
+      return btn(t(x[1]), function () { ui.modal = { type: "album", tab: x[0] }; renderModal(); }, "wr-seg-btn" + (tab === x[0] ? " on" : ""));
+    }));
+    var body;
+    if (tab === "ach") {
+      var got = D.ACHIEVEMENTS.filter(function (a) { return meta.ach[a.id]; }).length;
+      body = el("div", {}, [el("p", {}, [t("wr_album_progress", { a: got, b: D.ACHIEVEMENTS.length })]),
+        el("div", { class: "wr-ach" }, D.ACHIEVEMENTS.map(function (a) {
+          var on = !!meta.ach[a.id];
+          return el("div", { class: "wr-ach-item" + (on ? " on" : "") }, [el("span", { class: "wr-ach-icon" }, [on ? a.icon : "🔒"]), el("span", {}, [el("b", {}, [a.name]), el("small", {}, [a.desc])])]);
+        }))]);
+    } else if (tab === "mem") {
+      var ids = Object.keys(meta.mem).sort(function (a, b) { return meta.mem[b].at - meta.mem[a].at; });
+      body = ids.length ? el("div", { class: "wr-mem" }, ids.map(function (id) {
+        var m = meta.mem[id], hd = m.hid && D.HEROINE_BY_ID[m.hid];
+        return el("div", { class: "wr-mem-card", style: hd ? "--wr-g:" + GROUP_COLOR[hd.group] : "" }, [hd ? face(hd, 40) : el("span", { class: "wr-ach-icon" }, ["📷"]), el("div", {}, [el("b", {}, [m.title]), el("p", { class: "wr-small" }, [m.text])])]);
+      })) : el("p", { class: "wr-muted" }, [t("wr_album_empty")]);
+    } else if (tab === "end") {
+      var names = { lover4: t("wr_end_lover4"), lover: t("wr_end_lover"), high: t("wr_end_high"), mid: t("wr_end_mid") };
+      body = el("div", { class: "wr-people" }, D.HEROINES.map(function (hd) {
+        var e = meta.endings[hd.id], secret = hd.hidden && !meta.ach.hiyori;
+        return el("div", { class: "wr-person" + (e === "lover4" || e === "lover" ? " lover" : "") + (secret ? " secret" : "") }, [face(hd, 40), el("span", {}, [el("b", {}, [secret ? "？？？" : L(hd.name)]), el("small", {}, [e ? names[e] : t("wr_end_none")])])]);
+      }));
+    } else {
+      body = el("div", {}, D.TITLES.map(function (ti) {
+        var n = meta.titles[ti.name] || 0;
+        return el("div", { class: "wr-ach-item" + (n ? " on" : "") }, [el("span", { class: "wr-ach-icon" }, [n ? "🏅" : "🔒"]), el("span", {}, [el("b", {}, [n ? ti.name : "？？？"]), el("small", {}, [n ? t("wr_title_count", { n: n }) + "・" + ti.comment : t("wr_title_locked")])])]);
+      }));
+    }
+    return el("div", {}, [el("h2", {}, ["📔 " + t("wr_album")]), el("p", { class: "wr-small wr-muted" }, [t("wr_album_note", { n: meta.clears })]), tabs, body]);
+  }
+  // 分享報告：畫成一張圖（第 13 項）
+  function shareReport(r) {
+    var c = document.createElement("canvas"); c.width = 1080; c.height = 1350;
+    var g = c.getContext("2d");
+    var grd = g.createLinearGradient(0, 0, 1080, 1350); grd.addColorStop(0, "#ffe3ef"); grd.addColorStop(1, "#e6dcff");
+    g.fillStyle = grd; g.fillRect(0, 0, 1080, 1350);
+    g.fillStyle = "#3a2a3a"; g.textAlign = "center";
+    g.font = "bold 72px 'Noto Sans TC',sans-serif"; g.fillText("💘 萬人迷", 540, 130);
+    g.font = "36px 'Noto Sans TC',sans-serif"; g.fillText("私立音夣學園大學・" + r.name + (r.interim ? "・" + r.yearName : ""), 540, 200);
+    g.font = "bold 220px sans-serif"; g.fillStyle = "#e76f9a"; g.fillText(r.rank, 540, 460);
+    g.font = "bold 64px 'Noto Sans TC',sans-serif"; g.fillStyle = "#8a6ad0"; g.fillText("「" + r.title + "」", 540, 580);
+    g.font = "40px 'Noto Sans TC',sans-serif"; g.fillStyle = "#3a2a3a";
+    var lines = [t("wr_rep_grade") + " " + r.letter + "　" + t("wr_rep_score") + " " + r.score,
+      "💕 " + t("wr_rep_lovers") + " " + r.lovers + "　📣 " + t("wr_fans") + " " + r.fans + "　⚡ " + t("wr_rep_shura") + " " + r.shura];
+    lines.forEach(function (ln, i) { g.fillText(ln, 540, 680 + i * 64); });
+    var lovers = r.rows.filter(function (x) { return x.dating; }).map(function (x) { return x.name + (x.rel >= 2 ? "（" + x.relName + "）" : ""); });
+    g.font = "34px 'Noto Sans TC',sans-serif";
+    (lovers.length ? lovers : [t("wr_no_lovers")]).slice(0, 8).forEach(function (ln, i) { g.fillText(ln, 540, 860 + i * 52); });
+    g.font = "28px sans-serif"; g.fillStyle = "#8a7a88"; g.fillText(location.host + location.pathname, 540, 1300);
+    c.toBlob(function (blob) {
+      if (!blob) return;
+      var file = null;
+      try { file = new File([blob], "wanren_report.png", { type: "image/png" }); } catch (e) { file = null; }
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: "萬人迷" }).catch(function () { /* 取消 */ }); return; }
+      var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "wanren_report.png";
+      document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }, "image/png");
+  }
+  // 同一個校園（第 13 項）：只同步位置與打招呼
+  var net = null, netTimer = null;
+  function myTitle() { return S ? C.termName(S) : ""; }
+  function joinNet(roomId) {
+    if (!NET || net) return;
+    net = NET.open({ roomId: roomId, name: (S && S.name) || ui.name || t("wr_default_name"), title: myTitle(), onChange: function (others) {
+      if (view) view.setOthers(others);
+      if (ui.modal && ui.modal.type === "net") renderModal();
+    } });
+    if (!net) return;
+    ui.net = net.id;
+    try { history.replaceState(null, "", location.pathname + "?room=" + net.id); } catch (e) { /* ignore */ }
+    netTimer = setInterval(function () { if (view && net) net.pose(view.getPose(), ui.loc); }, 400);
+    render();
+  }
+  function leaveNet() {
+    if (!net) return;
+    net.close(); net = null; ui.net = null;
+    clearInterval(netTimer);
+    if (view) view.setOthers([]);
+    try { history.replaceState(null, "", location.pathname); } catch (e) { /* ignore */ }
+    render();
+  }
+  function netView() {
+    if (!NET) return el("p", {}, [t("wr_net_unavailable")]);
+    var wrap = el("div", {}, [el("h2", {}, ["🌐 " + t("wr_online")]), el("p", { class: "wr-small" }, [t("wr_net_note")])]);
+    if (!net) {
+      var input = el("input", { class: "wr-input", type: "text", placeholder: t("wr_net_room_ph") });
+      wrap.appendChild(el("div", { class: "wr-row" }, [btn("✨ " + t("wr_net_create"), function () { joinNet(null); }, "wr-btn wr-btn-main")]));
+      wrap.appendChild(el("div", { class: "wr-row" }, [input, btn(t("wr_net_join"), function () {
+        var v = (input.value || "").trim(), m = v.match(/g[0-9a-f]{32}/);
+        if (!m) { window.alert(t("wr_net_bad")); return; }
+        joinNet(m[0]);
+      }, "wr-btn")]));
+      return wrap;
+    }
+    var link = location.origin + location.pathname + "?room=" + net.id;
+    var others = net.others();
+    wrap.appendChild(el("p", {}, [t("wr_net_in", { n: others.length + 1 })]));
+    wrap.appendChild(el("div", { class: "wr-row" }, [el("input", { class: "wr-input wr-net-link", type: "text", readonly: true, value: link }),
+      btn("📋 " + t("wr_net_copy"), function () { try { navigator.clipboard.writeText(link); } catch (e) { /* ignore */ } }, "wr-btn")]));
+    wrap.appendChild(el("ul", { class: "wr-bag" }, others.map(function (o) { return el("li", {}, ["🎓 " + o.name + (o.loc && D.LOC_BY_ID[o.loc] ? "・" + L(D.LOC_BY_ID[o.loc].name) : "")]); })));
+    wrap.appendChild(el("div", { class: "wr-row" }, ["👋", "💕", "😂", "📚", "🎉"].map(function (e) {
+      return btn(e, function () { net.emote(e); }, "wr-btn wr-btn-sm");
+    }).concat([btn(t("wr_net_leave"), leaveNet, "wr-btn wr-btn-ghost")])));
+    return wrap;
   }
   function peopleView() {
     var wrap = el("div", {}, [el("h2", {}, ["👭 " + t("wr_people")])]);
     D.GROUPS.forEach(function (g) {
       wrap.appendChild(el("h3", { style: "color:" + GROUP_COLOR[g.id] }, [L(g.name)]));
       var row = el("div", { class: "wr-people" });
-      D.HEROINES.filter(function (hd) { return hd.group === g.id; }).forEach(function (hd) {
+      D.HEROINES.filter(function (hd) { return hd.group === g.id && C.available(S, hd.id); }).forEach(function (hd) {
         var h = S.h[hd.id], where = S.today ? C.whereIs(S, hd.id) : null;
         row.appendChild(el("button", { type: "button", class: "wr-person" + (h.dating ? " lover" : ""), onclick: function () { ui.modal = { type: "profile", hid: hd.id }; renderModal(); } }, [
           face(hd, 44),
@@ -698,4 +936,6 @@
 
   render();
   init3d();
+  var roomParam = (location.search.match(/[?&]room=(g[0-9a-f]{32})/) || [])[1];
+  if (roomParam && NET) setTimeout(function () { joinNet(roomParam); }, 0);
 })();

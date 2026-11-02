@@ -12,7 +12,11 @@ from site_src.layout import asset_url, page_shell
 
 WANREN_SCRIPTS: tuple[str, ...] = (
     "wanren_data.js",
+    "wanren_data2.js",
     "wanren_core.js",
+    "firebase_config.js",
+    "game_storage.js",
+    "wanren_net.js",
     "wanren_3d.js",
     "wanren.js",
 )

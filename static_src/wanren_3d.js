@@ -707,13 +707,14 @@
         var n = perLoc[it.loc] = (perLoc[it.loc] || 0);
         perLoc[it.loc]++;
         var z = nodes[it.loc], sl = SLOTS[n % SLOTS.length];
+        var first = !hv.obj.visible || !hv.home;
         hv.loc = it.loc;
-        hv.obj.position.set(z.x + sl[0], 0, z.z + sl[1]);
         hv.home = { x: z.x + sl[0], z: z.z + sl[1] };
-        hv.obj.rotation.y = Math.atan2(z.x - hv.home.x, z.z + 4 - hv.home.z);
+        // 第一次出現直接放好；之後換地點時用走的（第 10 項：依時段移動）
+        if (first) { hv.obj.position.set(hv.home.x, 0, hv.home.z); hv.obj.rotation.y = Math.atan2(z.x - hv.home.x, z.z + 4 - hv.home.z); }
         hv.obj.visible = true;
       });
-      Object.keys(heroines).forEach(function (hid) { if (!keep[hid]) heroines[hid].obj.visible = false; });
+      Object.keys(heroines).forEach(function (hid) { if (!keep[hid]) { heroines[hid].obj.visible = false; heroines[hid].home = null; } });
     }
 
     // ---------------- 玩家 ----------------
@@ -723,13 +724,14 @@
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; player.add(ring);
     var marker = new T.Mesh(track(new T.RingGeometry(0.3, 0.5, 24)), track(new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })));
     marker.rotation.x = -Math.PI / 2; marker.visible = false; world.add(marker);
-    var pState = { tx: null, tz: null, speed: 7.5, t: 0, follow: null };
+    var pState = { tx: null, tz: null, speed: 7.5, t: 0, follow: null, walked: 0, lx: 0, lz: 0 };
     var cam = { yaw: 0, pitch: 0.5, dist: 14, cx: 0, cz: 0 };
     function teleport(locId) {
       var z = nodes[locId] || nodes.gate;
       player.position.set(z.x, 0, z.z + (locId === "gate" ? -5 : 3));
       pState.tx = null; pState.follow = null; marker.visible = false;
       cam.cx = player.position.x; cam.cz = player.position.z;
+      pState.lx = player.position.x; pState.lz = player.position.z;
       curLoc = undefined;
     }
     function collide(p) {
@@ -868,6 +870,107 @@
     }
     applyLight();
 
+    // ---------------- 季節與天氣（第 11 項） ----------------
+    var SEASON_LEAF = {
+      spring: [[0x5c9a48, 0x6bab50, 0x4e8a40], [0xf7b6cc, 0xfac8d8, 0xf29fbd]],
+      summer: [[0x3f8a3a, 0x4a9a3e, 0x2f7a32], [0x4f9a44, 0x5aa84a, 0x3f8a3a]],
+      autumn: [[0xd8862e, 0xc8582a, 0xe0b040], [0xe07a3a, 0xd05a32, 0xe8a048]],
+      winter: [[0x9aa89a, 0xe8eef2, 0x7a8a80], [0xf2f4f8, 0xe4e8f0, 0xffffff]]
+    };
+    var snowTex = canvasTex(256, 256, function (g, w, h) {
+      g.fillStyle = "#eef3f8"; g.fillRect(0, 0, w, h);
+      for (var i = 0; i < 1600; i++) { g.fillStyle = "rgba(" + (200 + Math.floor(R() * 40)) + "," + (215 + Math.floor(R() * 30)) + ",240,0.5)"; g.fillRect(R() * w, R() * h, 3, 2); }
+    });
+    snowTex.wrapS = snowTex.wrapT = T.RepeatWrapping; snowTex.repeat.set(26, 26);
+    var WX = lowEnd ? 600 : 1400;
+    var wxPos = new Float32Array(WX * 3);
+    for (var wi = 0; wi < WX; wi++) { wxPos[wi * 3] = (R() - 0.5) * 70; wxPos[wi * 3 + 1] = R() * 30; wxPos[wi * 3 + 2] = (R() - 0.5) * 70; }
+    var wxGeo = track(new T.BufferGeometry());
+    wxGeo.setAttribute("position", new T.BufferAttribute(wxPos, 3));
+    var wxMat = track(new T.PointsMaterial({ size: 0.12, color: 0xa8c8f0, transparent: true, opacity: 0.7, depthWrite: false }));
+    var wx = new T.Points(wxGeo, wxMat);
+    wx.visible = false; wx.frustumCulled = false;
+    scene.add(wx);
+    var curWeather = "sunny", curSeason = "spring";
+    function setSeason(season, w) {
+      season = SEASON_LEAF[season] ? season : "spring";
+      curSeason = season; curWeather = w || "sunny";
+      var pal = SEASON_LEAF[season];
+      leafMs.forEach(function (m, i) { m.color.setHex(pal[0][i]); });
+      sakuraMs.forEach(function (m, i) { m.color.setHex(pal[1][i]); });
+      groundMat.map = season === "winter" ? snowTex : grassTex; groundMat.needsUpdate = true;
+      petals.visible = season === "spring" || season === "autumn";
+      petals.material.color.setHex(season === "autumn" ? 0xffa050 : 0xffffff);
+      wx.visible = curWeather === "rain" || curWeather === "snow";
+      wxMat.size = curWeather === "snow" ? 0.32 : 0.12;
+      wxMat.color.setHex(curWeather === "snow" ? 0xffffff : 0xa8c8f0);
+      scene.fog.near = wx.visible ? 35 : 70; scene.fog.far = wx.visible ? 120 : 190;
+    }
+    function stepWeather(dt) {
+      if (!wx.visible) return;
+      var a = wxGeo.attributes.position.array, sp = curWeather === "snow" ? 2.2 : 26;
+      for (var i = 0; i < WX; i++) {
+        a[i * 3 + 1] -= sp * dt * (0.8 + (i % 5) * 0.08);
+        if (curWeather === "snow") a[i * 3] += Math.sin(tAll + i) * dt * 0.6;
+        if (a[i * 3 + 1] < 0) { a[i * 3 + 1] = 28 + Math.random() * 4; }
+      }
+      wxGeo.attributes.position.needsUpdate = true;
+      wx.position.set(player.position.x, 0, player.position.z);   // 粒子跟著玩家
+    }
+
+    // ---------------- 同一個校園的其他玩家（第 13 項） ----------------
+    var others = {};
+    var OTHER_TOPS = [0x23305a, 0x5a2330, 0x2f5a3a, 0x5a4a23, 0x3a2a5a, 0x2a4a5a];
+    function setOthers(list) {
+      var keep = {};
+      (list || []).forEach(function (o) {
+        keep[o.id] = true;
+        var ov = others[o.id];
+        if (!ov) {
+          var hsh = 0; for (var i = 0; i < o.id.length; i++) hsh = (hsh * 31 + o.id.charCodeAt(i)) | 0;
+          var obj = person({ hair: [0x221a16, 0x5a3b26, 0x1c1d2b, 0x9a6a3a][Math.abs(hsh) % 4], style: "boy", skin: 0xf2d0b4, top: OTHER_TOPS[Math.abs(hsh >> 3) % OTHER_TOPS.length], bottom: 0x2b2f45, outfit: "boy", ribbon: 0x40a0c0, h: 1.06 });
+          obj.position.set(o.x, 0, o.z);
+          world.add(obj);
+          ov = others[o.id] = { obj: obj, t: 0, sig: "", label: null, bubble: null, emoteAt: 0 };
+        }
+        ov.tx = o.x; ov.tz = o.z; ov.ry = o.ry || 0;
+        var sig = o.name + "|" + (o.title || "");
+        if (ov.sig !== sig) {
+          if (ov.label) { ov.obj.remove(ov.label); ov.label.material.map.dispose(); ov.label.material.dispose(); }
+          ov.label = heroLabel("🎓 " + o.name, o.title || "", "#3f8fd0");
+          ov.label.position.y = 2.4;
+          ov.obj.add(ov.label);
+          ov.sig = sig;
+        }
+        if (o.emote && o.emoteAt && o.emoteAt !== ov.emoteAt) {
+          ov.emoteAt = o.emoteAt;
+          if (ov.bubble) { ov.obj.remove(ov.bubble); ov.bubble.material.map.dispose(); ov.bubble.material.dispose(); }
+          ov.bubble = heroLabel(o.emote, null, "#e76f9a");
+          ov.bubble.scale.set(2.2, 0.7, 1);
+          ov.bubble.position.y = 3.2;
+          ov.bubble.userData.until = tAll + 4;
+          ov.obj.add(ov.bubble);
+        }
+      });
+      Object.keys(others).forEach(function (id) {
+        if (keep[id]) return;
+        world.remove(others[id].obj);
+        delete others[id];
+      });
+    }
+    function stepOthers(dt) {
+      Object.keys(others).forEach(function (id) {
+        var ov = others[id];
+        ov.t += dt;
+        var dx = ov.tx - ov.obj.position.x, dz = ov.tz - ov.obj.position.z, d = Math.sqrt(dx * dx + dz * dz);
+        var moving = d > 0.2;
+        if (d > 25) { ov.obj.position.set(ov.tx, 0, ov.tz); moving = false; }
+        else if (moving) { var st = Math.min(d, 8 * dt); ov.obj.position.x += dx / d * st; ov.obj.position.z += dz / d * st; ov.obj.rotation.y = Math.atan2(dx, dz); }
+        animate(ov.obj, ov.t, moving, 2.2);
+        if (ov.bubble && tAll > ov.bubble.userData.until) { ov.obj.remove(ov.bubble); ov.bubble.material.map.dispose(); ov.bubble.material.dispose(); ov.bubble = null; }
+      });
+    }
+
     // ---------------- 主迴圈 ----------------
     var curLoc;
     var clock3 = new T.Clock();
@@ -915,6 +1018,12 @@
         }
       }
       collide(player.position);
+      if (moving) {
+        var wdx = player.position.x - pState.lx, wdz = player.position.z - pState.lz;
+        pState.walked += Math.min(2, Math.sqrt(wdx * wdx + wdz * wdz));
+        if (pState.walked >= 40) { pState.walked = 0; if (opts.onWalk) opts.onWalk(); }
+      }
+      pState.lx = player.position.x; pState.lz = player.position.z;
       pState.t += dt;
       animate(player, pState.t, moving, 2.2);
       marker.rotation.z += dt * 2;
@@ -928,6 +1037,14 @@
         var hv = heroines[hid];
         if (!hv.obj.visible) return;
         hv.t += dt;
+        var hx = hv.home.x - hv.obj.position.x, hz2 = hv.home.z - hv.obj.position.z, hd2 = Math.sqrt(hx * hx + hz2 * hz2);
+        if (hd2 > 0.15) {
+          var hstep = Math.min(hd2, 3.2 * dt);
+          hv.obj.position.x += hx / hd2 * hstep; hv.obj.position.z += hz2 / hd2 * hstep;
+          hv.obj.rotation.y = Math.atan2(hx, hz2);
+          animate(hv.obj, hv.t, true, 1.6);
+          return;
+        }
         var px = player.position.x - hv.obj.position.x, pz = player.position.z - hv.obj.position.z, pd = Math.sqrt(px * px + pz * pz);
         if (pd < 7) {
           var want = Math.atan2(px, pz), cur = hv.obj.rotation.y;
@@ -944,8 +1061,10 @@
       jet.scale.set(1 + Math.sin(tAll * 6) * 0.08, 1 + Math.sin(tAll * 4.3) * 0.12, 1);
       water.rotation.y += dt * 0.2;
       clouds.forEach(function (c, i) { c.position.x += dt * (0.6 + i * 0.07); if (c.position.x > 130) c.position.x = -130; });
+      stepWeather(dt);
+      stepOthers(dt);
       var pa = petGeo.attributes.position.array;
-      for (var i = 0; i < PET; i++) {
+      for (var i = 0; i < (petals.visible ? PET : 0); i++) {
         pa[i * 3 + 1] -= petVel[i] * dt;
         pa[i * 3] += Math.sin(tAll * 0.8 + i) * dt * 0.6 + dt * 0.3;
         pa[i * 3 + 2] += Math.cos(tAll * 0.6 + i * 1.7) * dt * 0.4;
@@ -979,6 +1098,9 @@
 
     return {
       setPhase: setPhase,
+      setSeason: setSeason,
+      setOthers: setOthers,
+      getPose: function () { return { x: Math.round(player.position.x * 10) / 10, z: Math.round(player.position.z * 10) / 10, ry: Math.round(player.rotation.y * 100) / 100 }; },
       setHeroines: setHeroines,
       teleport: teleport,
       walkTo: function (locId) { var z = nodes[locId]; if (!z) return; pState.tx = z.x; pState.tz = z.z + 1.5; pState.follow = null; marker.position.set(pState.tx, 0.07, pState.tz); marker.visible = true; },
@@ -986,7 +1108,7 @@
       setEnabled: function (on) { enabled = !!on; if (!on) { keys = {}; pState.tx = null; marker.visible = false; } },
       resize: resize,
       // 測試用
-      _debug: function () { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, player: { x: player.position.x, z: player.position.z }, loc: curLoc, heroines: Object.keys(heroines).filter(function (k) { return heroines[k].obj.visible; }), students: students.length, sky: "#" + light.cur.sky.getHexString() }; },
+      _debug: function () { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, player: { x: player.position.x, z: player.position.z }, loc: curLoc, heroines: Object.keys(heroines).filter(function (k) { return heroines[k].obj.visible; }), students: students.length, sky: "#" + light.cur.sky.getHexString(), season: curSeason, weather: curWeather, others: Object.keys(others).length, heroinePos: Object.keys(heroines).filter(function (k) { return heroines[k].obj.visible; }).map(function (k) { return { id: k, x: heroines[k].obj.position.x, z: heroines[k].obj.position.z, loc: heroines[k].loc }; }) }; },
       dispose: function () {
         alive = false;
         cancelAnimationFrame(raf);

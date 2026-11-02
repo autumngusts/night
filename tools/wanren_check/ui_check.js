@@ -31,7 +31,7 @@ async function clickText(page, label, partial) {
   assert.ok(ok, "找不到按鈕：" + label);
   await page.waitForTimeout(120);
 }
-function st(page) { return page.evaluate(function () { var s = window.PriTestWanren.state; return s && { day: s.day, phase: s.phase, stats: s.stats, ap: s.today && s.today.ap }; }); }
+function st(page) { return page.evaluate(function () { var s = window.PriTestWanren.state; return s && { day: s.day, phase: s.phase, stats: s.stats, ap: s.today && s.today.ap, apMax: s.today && s.today.apMax }; }); }
 // 隨機事件（每天早上有機率）會先蓋在畫面上：有的話選第一個選項
 async function clearEvents(page) {
   for (var i = 0; i < 5; i++) {
@@ -77,12 +77,15 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.ok(s.stats.charm > charm0, "回應迷妹魅力應上升");
   await closeMsg(page);
   await page.screenshot({ path: path.join(SHOT_DIR, "02_morning.png") });
-  // 入學典禮沒有課，直接進入自由時間（行動點 6）
+  // 入學典禮沒有課，直接進入自由時間（行動點 6，晴天的假日 +1）；早上的社團招募選第一個（運動社團）
   await clickText(page, "去學校逛逛", true);
   await clearEvents(page);
   s = await st(page);
   assert.strictEqual(s.phase, "free");
-  assert.strictEqual(s.ap, 6);
+  assert.strictEqual(s.ap, s.apMax);
+  assert.ok(s.ap === 6 || s.ap === 7, "入學典禮的行動點：" + s.ap);
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.club; }), "sports", "社團招募選了運動社團");
+  var ap0 = s.ap;
   await clearEvents(page);
 
   // 3D：學生、女主角
@@ -111,8 +114,10 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await page.locator(".wr-btn-topic").first().click();
   await page.waitForTimeout(100);
   s = await st(page);
-  assert.strictEqual(s.ap, 4);
+  assert.strictEqual(s.ap, ap0 - 2);
   await closeMsg(page);
+  // 成就：第一次見面
+  assert.ok(await page.evaluate(function () { return !!window.PriTestWanren.core.loadMeta().ach.meet1; }), "應該解鎖「初次見面」");
   // 學生餐廳的購買部
   await clickText(page, "學生餐廳", true);
   await page.waitForTimeout(400);
@@ -147,7 +152,34 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await clickText(page, "認真聽講", true);
   s = await st(page);
   assert.strictEqual(s.phase, "free");
-  assert.strictEqual(s.ap, 4);
+  assert.strictEqual(s.ap, s.apMax);
+  assert.ok(s.ap >= 2 && s.ap <= 4, "平日的行動點（天氣、考試週會減少）：" + s.ap);
+  // 3D 的季節：大一春天
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.view()._debug().season; }), "spring");
+  // 校園遭遇（走路觸發的事件，這裡直接呼叫）
+  await clearEvents(page);   // encounter() 在有排隊事件時不會觸發
+  var encOk = await page.evaluate(function () { var W = window.PriTestWanren; var ok = W.core.encounter(W.state, null); W.render(); return ok; });
+  assert.ok(encOk, "encounter 應該成功");
+  assert.strictEqual(await page.locator(".wr-event").count(), 1, "遭遇事件應該出現");
+  await page.locator(".wr-event .wr-btn-opt").first().click();
+  await closeMsg(page);
+  // 約會：多題（直接安排今晚的約會，從晚上開始）
+  var dateHid = await page.evaluate(function () {
+    var W = window.PriTestWanren, S = W.state, C = W.core;
+    var hid = window.PriTestWanrenData.HEROINES.filter(function (h) { return S.h[h.id].met; })[0].id;
+    S.today.date = hid; C.endFree(S); W.render();
+    return hid;
+  });
+  await page.locator(".wr-grid2 .wr-btn-card").first().click();
+  await page.waitForTimeout(100);
+  var nq = await page.evaluate(function () { return window.PriTestWanren.state.today.dateRun.list.length; });
+  assert.ok(nq >= 2, "約會應該有 2 題以上：" + nq);
+  await page.screenshot({ path: path.join(SHOT_DIR, "05b_date.png") });
+  for (var q = 0; q < nq; q++) { await page.locator(".wr-event .wr-btn-opt").first().click(); await page.waitForTimeout(80); await closeMsg(page); }
+  s = await st(page);
+  assert.strictEqual(s.phase, "night", "答完約會應該進入深夜");
+  await clickText(page, "睡覺", true);
+  await clearEvents(page);
 
   // 用 core 快轉到學期末（跟 tools 的模擬同一種策略）
   await page.evaluate(function () {
@@ -176,7 +208,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
         C.endFree(S); continue;
       }
       if (S.phase === "evening") {
-        if (S.today.date) { var r = C.startDate(S, "library"); if (r && r.moment) C.finishDate(S, D.HEROINE_BY_ID[S.today.date].moment); else C.cancelDate(S); }
+        if (S.today.date) { var r = C.startDate(S, "library"); if (r && r.moment) { while (C.dateMoment(S)) C.answerDate(S, D.HEROINE_BY_ID[S.today.date].moment); } else C.cancelDate(S); }
         if (S.phase === "evening") C.doEvening(S, S.stats.money < 3000 ? "work" : "rest");
       }
       if (S.phase === "night" || S.phase === "evening") C.endDay(S);
@@ -229,6 +261,15 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.deepStrictEqual([ny.phase, ny.kind, ny.year], ["morning", "newyear", 1]);
   assert.ok(ny.ev.indexOf("newyear") >= 0, "新學年應該有事件");
   await page.screenshot({ path: path.join(SHOT_DIR, "10_new_year.png") });
+
+  // 回憶錄（成就／回憶／結局／稱號）
+  await clickText(page, "回憶錄", true);
+  assert.ok(await page.locator(".wr-ach-item.on").count() >= 3, "應該已解鎖幾個成就");
+  await clickText(page, "結局", true);
+  await page.screenshot({ path: path.join(SHOT_DIR, "07b_album.png") });
+  await clickText(page, "稱號", true);
+  assert.ok(await page.locator(".wr-ach-item.on").count() >= 1, "畢業後應該有稱號");
+  await page.click(".wr-modal-x");
 
   // 日文：沒有漏翻的 wr_ 鍵
   await page.evaluate(function () { window.I18N.setLang("ja"); });
