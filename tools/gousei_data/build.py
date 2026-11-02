@@ -145,6 +145,10 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
                 if foreign:
                     errors.append(f"{src}: 配方 {row} 的材料 {foreign} 只能來自本檔、core.json 或初始物體")
                     continue
+            if r in (a, b):
+                # 使用者指定（2026-11-03）：組合的結果不能是材料之一（空轉），合不出新東西就交給廢料規則
+                errors.append(f"{src}: 配方 {row} 的結果與材料相同")
+                continue
             key = pair_key(a, b)
             if key in recipes:
                 errors.append(f"{src}: 組合 {key} 重複（已在 {recipe_src[key]} 定義為 {recipes[key]}）")
@@ -165,6 +169,9 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
                 continue
             if primary == byproduct:
                 errors.append(f"{src}: trio 配方 {row} 的主產物與副產物不能相同")
+                continue
+            if primary in (a, b, c) or byproduct in (a, b, c):
+                errors.append(f"{src}: trio 配方 {row} 的主產物／副產物與材料相同")
                 continue
             bad_result = [x for x in (primary, byproduct) if items[x]["cat"] in ("basic", "junk")]
             if bad_result:
