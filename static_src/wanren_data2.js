@@ -32,12 +32,12 @@
   // ---------------- 社團（第 5 項） ----------------
   // members：同社團的女主角（聊天好感 ×1.3、社團活動時一起加好感）；skills：社團活動提升的專長
   var CLUBS = [
-    { id: "sports", icon: "🥋", name: { zh: "運動社團（劍道・田徑）", ja: "運動系（剣道・陸上）" }, loc: "gym", skills: { sport: 3 }, members: ["akane", "konatsu", "kaoru"] },
-    { id: "lit", icon: "📝", name: { zh: "文藝美術社", ja: "文芸美術部" }, loc: "club", skills: { art: 2, talk: 1 }, members: ["shiori", "aoi"] },
-    { id: "music", icon: "🎤", name: { zh: "音樂社", ja: "音楽部" }, loc: "club", skills: { music: 3 }, members: ["kotone", "rion"] },
-    { id: "esports", icon: "🎮", name: { zh: "電競社", ja: "eスポーツ部" }, loc: "club", skills: { art: 1, talk: 2 }, members: ["mashiro"] },
-    { id: "council", icon: "📋", name: { zh: "學生會", ja: "生徒会" }, loc: "classroom", skills: { talk: 3 }, members: ["reika", "yukina", "rinko"] },
-    { id: "cooking", icon: "🍰", name: { zh: "料理研究社", ja: "料理研究会" }, loc: "cafeteria", skills: { cook: 3 }, members: ["miki", "yoko"] }
+    { id: "sports", icon: "🥋", name: { zh: "運動社團（劍道・田徑）", ja: "運動系（剣道・陸上）" }, loc: "gym", skills: { sport: 2 }, members: ["akane", "konatsu", "kaoru"] },
+    { id: "lit", icon: "📝", name: { zh: "文藝美術社", ja: "文芸美術部" }, loc: "club", skills: { art: 1.5, talk: 0.5 }, members: ["shiori", "aoi"] },
+    { id: "music", icon: "🎤", name: { zh: "音樂社", ja: "音楽部" }, loc: "club", skills: { music: 2 }, members: ["kotone", "rion"] },
+    { id: "esports", icon: "🎮", name: { zh: "電競社", ja: "eスポーツ部" }, loc: "club", skills: { art: 0.5, talk: 1.5 }, members: ["mashiro"] },
+    { id: "council", icon: "📋", name: { zh: "學生會", ja: "生徒会" }, loc: "classroom", skills: { talk: 2 }, members: ["reika", "yukina", "rinko"] },
+    { id: "cooking", icon: "🍰", name: { zh: "料理研究社", ja: "料理研究会" }, loc: "cafeteria", skills: { cook: 2 }, members: ["miki", "yoko"] }
   ];
   var CLUB_BY_ID = {};
   CLUBS.forEach(function (c) { CLUB_BY_ID[c.id] = c; });

@@ -181,7 +181,8 @@
   function addSkill(s, k, v, out) {
     if (!s.skills || s.skills[k] === undefined || !v) return 0;
     var before = s.skills[k];
-    var g = v > 0 ? v * clamp(1.1 - before / 100, 0.2, 1) * Math.sqrt(pace(s)) : v;
+    // 越高越難練（沒有下限）
+    var g = v > 0 ? v * Math.pow(Math.max(0, 1 - before / 100), 1.2) * pace(s) : v;
     s.skills[k] = clamp(Math.round((before + g) * 10) / 10, 0, 100);
     var real = Math.round((s.skills[k] - before) * 10) / 10;
     if (out && real) out.push("（" + D.L(D.SKILL_BY_ID[k].name) + (real > 0 ? " +" : " ") + real + "）");
@@ -312,7 +313,9 @@
       var before = s.stats[k];
       // 學業與魅力越高越難成長（遞減）
       // 長的模式成長比較慢（pace）
-      if ((k === "study" || k === "charm") && v > 0) v = v * clamp(1.1 - before / 95, 0.04, 1) * pace(s);
+      if (k === "study" && v > 0) v = v * clamp(1.1 - before / 95, 0.04, 1) * pace(s);
+      // 魅力（2026-11-02 使用者要求加難）：越接近 100 越難漲，沒有下限
+      else if (k === "charm" && v > 0) v = v * Math.pow(Math.max(0, 1 - before / 100), 1.4) * pace(s);
       else if ((k === "study" || k === "charm") && v < 0) v = v * pace(s);
       if (k === "money") s.stats.money = Math.max(0, Math.round(before + v));
       else if (k === "rep") s.stats.rep = clamp(Math.round((before + v) * 10) / 10, -100, 100);
@@ -451,7 +454,14 @@
     var out = [o.res];
     a.choice = optIdx;
     s.admirersTotal++;
-    applyEff(s, o.eff, out);
+    // 同一天回應很多迷妹：第 2 個起魅力收益依序減半（只有第一次心動最有效）
+    var eff = {};
+    Object.keys(o.eff).forEach(function (k) { eff[k] = o.eff[k]; });
+    if (eff.charm > 0) {
+      eff.charm = eff.charm * Math.pow(0.5, s.today.charmFans || 0);
+      if (optIdx === 0) s.today.charmFans = (s.today.charmFans || 0) + 1;
+    }
+    applyEff(s, eff, out);
     if (o.money) { var m = ri(s, o.money[0], o.money[1]); applyEff(s, { money: m }, out); }
     if (o.fans) s.fans += o.fans;
     if (o.flirt) s.today.flirt += o.flirt;
@@ -848,6 +858,8 @@
     applyEff(s, { rep: 1, stamina: -6 }, out);
     s.today.clubDone = true;
     s.clubDays++;
+    var cy = s.clubYear || (s.clubYear = {}), yy = cal(s).year;
+    cy[yy] = (cy[yy] || 0) + 1;
     checkFaint(s, out);
     return out;
   }
@@ -1063,6 +1075,8 @@
     var out = [];
     // 睡覺回復
     applyEff(s, { stamina: 20 }, null);
+    // 魅力 50 以上會慢慢下降，要靠打扮、健身等維持（每天最多 −0.25）
+    if (s.stats.charm > 50) s.stats.charm = Math.round((s.stats.charm - 0.25 * (s.stats.charm - 50) / 50) * 100) / 100;
     var lovers = loversOf(s);
     // 跟太多迷妹曖昧：女友吃醋
     if (lovers.length && s.today.flirt >= 3) {
@@ -1250,14 +1264,18 @@
     } else if (ev.type === "clubcup") {
       var c2 = D.CLUB_BY_ID[s.club];
       var lv = Object.keys(c2.skills).reduce(function (a, k) { return a + s.skills[k]; }, 0) / Object.keys(c2.skills).length;
-      var score = lv + Math.min(s.clubDays, 40) * 0.6 + (idx === 0 ? 8 : 0) + rand(s) * 30;
+      // 2026-11-02 使用者要求加難：只看這一學年的出席，對手每年變強
+      var yr = cal(s).year, att = (s.clubYear && s.clubYear[yr]) || 0;
+      var score = lv * 0.5 + Math.min(att, 40) * 0.5 + (idx === 0 ? 6 : 0) + rand(s) * 20;
+      var rival = 58 + yr * 13 + rand(s) * 15;
       if (idx === 0) applyEff(s, { stamina: -15 }, null);
-      var place = score >= 85 ? 1 : score >= 60 ? 2 : 3;
+      var place = score >= rival ? 1 : score >= rival - 12 ? 2 : 3;
+      out.push("（我方 " + Math.round(score) + "　對手 " + Math.round(rival) + "）");
       out.push(place === 1 ? "🏆 優勝！全場起立鼓掌。" : place === 2 ? "🥈 準優勝！只差一點點。" : "這次沒有得名，但大家都很盡力。");
       if (place === 1) s.clubWins++;
       applyEff(s, { rep: place === 1 ? 6 : place === 2 ? 3 : 1, charm: place === 1 ? 3 : 1 }, out);
       c2.members.forEach(function (m) { if (s.h[m].met) { addAff(s, m, place === 1 ? 8 : place === 2 ? 5 : 3, out); s.h[m].lastSeen = s.day; } });
-      memory(s, "clubcup_" + s.day, D.L(c2.name) + "・社團大會", out[0], null);
+      memory(s, "clubcup_" + s.day, D.L(c2.name) + "・社團大會", out[1] + out[0], null);
     } else if (ev.type === "meetup") {
       s.today.meetup = { hid: hid, loc: ev.loc, by: 2, done: false };
       out.push("（記得在自由時間前往「" + D.L(D.LOC_BY_ID[ev.loc].name) + "」）");
