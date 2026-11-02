@@ -1,7 +1,7 @@
 // ============================================================================
 // 賽狗賽狗（saigo）2026-11-02 追加功能的 Playwright 檢查：
 //   犬舍：16 種訓練 → 訓練後出現 20 個技能（金 4／罕見 8／一般 8）→ 學習（欄位上限：金 1）→ 技能池 30 分鐘後消失
-//   真賽狗（單機）：選模式 → 派 2 隻自己的狗、各自選跑法 → 出走表 8 隻、複勝前 3 名 → 比賽（3D、應援列切換 2 隻、喊「賽狗」指令、沒有改跑法）
+//   真賽狗（單機）：選模式 → 派 2 隻自己的狗、各自選跑法 → 出走表 8 隻、複勝前 3 名 → 比賽（3D、應援列切換 2 隻、喊「賽狗」指令、沒有改跑法、技能廣播）
 //   → 結果：派彩與錢包一致、2 隻狗都有獎金與經驗；日文沒有漏翻
 // 前置：py -3 generate.py；py -3 -m http.server 8947 --directory dist
 // 執行：node tools/saigo_check/real_check.js
@@ -154,7 +154,15 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
     return { ok: ok, styleBtns: document.querySelectorAll(".sg-race-style .sg-style-nige").length, dogs: u.result.cmds.map(function (c) { return c.d; }).filter(function (d, i, a) { return a.indexOf(d) === i; }).length };
   });
   assert.deepStrictEqual(second, { ok: true, styleBtns: 0, dogs: 2 }, "第二隻也能喊、沒有改跑法按鈕");
-  await page.waitForTimeout(2500);
+  // 技能發動：左上廣播出現該技能的名稱（2026-11-02）
+  var skEv = await page.evaluate(function () {
+    var u = window.PriTestSaigo.ui, e = u.result.events.filter(function (x) { return x.k === "skill" && x.t > u.raceT + 0.3; })[0];
+    return e ? { t: e.t, name: window.PriTestSaigoSkills.BY_ID[e.x].name.zh } : null;
+  });
+  assert.ok(skEv, "這場有技能發動");
+  await page.waitForFunction(function (t) { return window.PriTestSaigo.ui.raceT > t + 0.3; }, skEv.t, { timeout: 60000 });
+  var bannerTxt = await page.evaluate(function () { return Array.prototype.map.call(document.querySelectorAll(".sg-skill-banner"), function (b) { return b.textContent; }).join(" / "); });
+  assert.ok(bannerTxt.indexOf(skEv.name) >= 0, "左上廣播「" + skEv.name + "」：" + bannerTxt);
   await page.screenshot({ path: path.join(SHOT_DIR, "real_race.png") });
   await page.evaluate(function () { window.PriTestSaigo.ui.speed = 4; });
   await page.waitForTimeout(3000);

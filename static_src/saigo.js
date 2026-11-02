@@ -839,7 +839,8 @@
     var count = el("div", { class: "sg-count" });
     var shot = el("div", { class: "sg-shot" });
     var mm = el("canvas", { class: "sg-hud-map", width: 180, height: 120 });
-    hud.appendChild(info); hud.appendChild(rankBox); hud.appendChild(ticker); hud.appendChild(count); hud.appendChild(shot); hud.appendChild(mm);
+    var bannerBox = el("div", { class: "sg-skill-banners" });
+    hud.appendChild(info); hud.appendChild(bannerBox); hud.appendChild(rankBox); hud.appendChild(ticker); hud.appendChild(count); hud.appendChild(shot); hud.appendChild(mm);
     stage.appendChild(hud);
     var camBar = el("div", { class: "sg-cams" });
     var spdBar = el("div", { class: "sg-cams" });
@@ -935,6 +936,23 @@
     start3d();
 
     var last = performance.now(), lastEv = -1, ended = false, tickLines = [], resVer = ui.resVer;
+    // 左上的技能廣播：發動後顯示約 2.6 秒（比賽時間），最多 3 條
+    var banners = [], bannerSig = "";
+    function drawBanners(tt) {
+      banners = banners.filter(function (b) { return tt < b.until && tt >= b.e.t - 0.05; }).slice(0, 3);
+      var sig = banners.map(function (b) { return b.e.t + ":" + b.e.d + ":" + b.e.x; }).join("|");
+      if (sig === bannerSig) return;
+      bannerSig = sig;
+      bannerBox.innerHTML = "";
+      banners.forEach(function (b) {
+        var sk = SK.BY_ID[b.e.x], d = card.dogs[b.e.d];
+        if (!sk || !d) return;
+        bannerBox.appendChild(el("div", { class: "sg-skill-banner sg-banner-" + sk.tier + (isMine(d) ? " sg-banner-mine" : "") }, [
+          el("small", null, [t("sg_skill_fired") + "・" + L(SK.TIERS[sk.tier].name)]),
+          el("div", null, [gateBadge(b.e.d), " " + d.name + " ", el("b", null, ["「" + sk.icon + " " + L(sk.name) + "」"])])
+        ]));
+      });
+    }
     function liveEvents() { return (res.events || []).filter(function (e) { return e.k !== "enter" && e.k !== "start" && e.k !== "stayGood" && e.k !== "go"; }); }
     var evs = liveEvents();
     function loop(now) {
@@ -974,10 +992,12 @@
       // 實況
       while (lastEv + 1 < evs.length && evs[lastEv + 1].t <= tt) {
         lastEv++;
+        if (evs[lastEv].k === "skill" && tt - evs[lastEv].t < 2.6) banners.unshift({ e: evs[lastEv], until: evs[lastEv].t + 2.6 });
         var line = eventText(card, evs[lastEv]);
         if (line) { tickLines.unshift(line); if (tickLines.length > 4) tickLines.length = 4; }
       }
       if (tt < 0.1 && tickLines.length && lastEv < 0) tickLines = [];
+      drawBanners(tt);
       ticker.innerHTML = "";
       tickLines.forEach(function (s2, n) { ticker.appendChild(el("div", { style: "opacity:" + (1 - n * 0.22) }, [s2])); });
       if (!ended && tt > res.duration + 3) { ended = true; finishRace(); return; }

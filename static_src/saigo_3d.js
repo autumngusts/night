@@ -999,9 +999,11 @@
       }
       return m;
     });
-    // 由模擬結果推出的畫面資料；比賽中改跑法重新模擬後呼叫 derive() 重算
+    // 由模擬結果推出的畫面資料；重新模擬後呼叫 derive() 重算
     var spans, knocks, knocked, failed, finV;
+    var fx = skillFx(T, scene, n);
     function derive() {
+    fx.set(skillFxEvents(result, n, window.PriTestSaigoSkills ? window.PriTestSaigoSkills.SCALE_CLASSIC : 1));
     (knocks || []).forEach(function (k) { k.bar.mesh.position.y = k.bar.h; k.bar.mesh.rotation.z = 0; });
     spans = buildSpans(result, n);
     // 碰倒的欄：哪隻狗、哪一根、什麼時候（畫面上欄杆會掉下來，那一根也不做跳躍弧線）
@@ -1264,6 +1266,7 @@
         pa.needsUpdate = true;
         particles.position.set(cam.pos.x, 0, cam.pos.z);
       }
+      fx.update(t, ps, dogs.map(function (d) { return d.S; }));
       updateCamera(t, dt, rank, ps);
       lastT = t;
       renderer.render(scene, camera);
@@ -1293,6 +1296,87 @@
         });
         renderer.dispose();
         if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
+    };
+  }
+
+  // ---------------- 技能發動特效（關卡賽與真賽狗共用） ----------------
+  // 依技能種類：加速（spd）＝背後的速度線＋光暈；爆發（acc）＝腳下擴散的衝擊波＋速度線；
+  // 回復（heal）＝往上飄的綠色光點；金技能另外有金色光暈。顏色依階（一般藍／罕見綠／金）。
+  var FX_TIER = { n: 0x80d8ff, r: 0x69f0ae, g: 0xffd54f };
+  // 結果裡的技能事件 → 特效時間表 [[{ t0, t1, spd, acc, heal, tier }]]（每隻一個陣列）；scale＝持續時間倍率
+  function skillFxEvents(result, n, scale) {
+    var out = [], SKL = window.PriTestSaigoSkills;
+    for (var i = 0; i < n; i++) out.push([]);
+    (result.events || []).forEach(function (e) {
+      if (e.k !== "skill" || e.d < 0 || !out[e.d]) return;
+      var s = SKL && SKL.BY_ID[e.x];
+      if (!s) return;
+      var ef = s.eff, dur = Math.max(1.6, (ef.dur || 0) * (scale || 1));
+      out[e.d].push({ t0: e.t, t1: e.t + dur, spd: !!ef.spd, acc: !!ef.acc, heal: !!ef.heal, tier: s.tier });
+    });
+    return out;
+  }
+  function skillFx(T, scene, n) {
+    function add(m) { m.visible = false; m.renderOrder = 5; scene.add(m); return m; }
+    function glowMat(c, o) { return new T.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, blending: T.AdditiveBlending }); }
+    var pool = [];
+    for (var i = 0; i < n; i++) {
+      var f = { aura: add(new T.Mesh(new T.SphereGeometry(1, 16, 12), glowMat(0xffffff, 0.25))), gold: add(new T.Mesh(new T.SphereGeometry(1, 16, 12), glowMat(0xffd54f, 0.3))),
+        ring: add(new T.Mesh(new T.TorusGeometry(1, 0.06, 6, 28), glowMat(0xffffff, 0.8))), streaks: [], sparks: [] };
+      f.ring.rotation.x = Math.PI / 2;
+      for (var k = 0; k < 7; k++) f.streaks.push(add(new T.Mesh(new T.BoxGeometry(1, 0.06, 0.06), glowMat(0xffffff, 0.8))));
+      for (var q = 0; q < 14; q++) f.sparks.push(add(new T.Mesh(new T.OctahedronGeometry(0.11, 0), glowMat(0x69f0ae, 0.95))));
+      pool.push(f);
+    }
+    var sched = [];
+    function hideAll(f) { f.aura.visible = f.gold.visible = f.ring.visible = false; f.streaks.forEach(function (m) { m.visible = false; }); f.sparks.forEach(function (m) { m.visible = false; }); }
+    return {
+      set: function (list) { sched = list || []; },
+      // ps[i]＝{ x, z, h, y }，S[i]＝狗的大小
+      update: function (t, ps, S) {
+        for (var i = 0; i < n; i++) {
+          var f = pool[i], p = ps[i], ev = null;
+          hideAll(f);
+          if (!p) continue;
+          (sched[i] || []).forEach(function (e) { if (t >= e.t0 && t < e.t1 && (!ev || e.t0 > ev.t0)) ev = e; });
+          if (!ev) continue;
+          var sz = Math.max(0.6, S[i] || 1), fade = Math.min(1, (ev.t1 - t) / 0.4, (t - ev.t0) / 0.15);
+          var col = FX_TIER[ev.tier] || FX_TIER.n, y0 = (p.y || 0), cy = y0 + 0.55 * sz, ch = Math.cos(p.h), sh = Math.sin(p.h);
+          var healing = ev.heal && t - ev.t0 < 1.8;
+          if (ev.spd || ev.acc || ev.tier === "g" || healing) {
+            f.aura.visible = true; f.aura.material.color.setHex(healing && !ev.spd && !ev.acc ? 0x69f0ae : col);
+            f.aura.material.opacity = 0.3 * fade * (0.8 + 0.2 * Math.sin(t * 14));
+            f.aura.position.set(p.x, cy, p.z); f.aura.scale.set(0.95 * sz, 0.6 * sz, 0.6 * sz); f.aura.rotation.set(0, -p.h, 0);
+          }
+          if (ev.tier === "g") {
+            f.gold.visible = true; f.gold.material.opacity = 0.18 * fade * (0.7 + 0.3 * Math.sin(t * 6));
+            var gs = (1.25 + 0.1 * Math.sin(t * 6)) * sz;
+            f.gold.position.set(p.x, cy, p.z); f.gold.scale.set(gs * 1.3, gs, gs);
+          }
+          if (ev.spd || ev.acc) {
+            f.streaks.forEach(function (m, k) {
+              var ph = (t * 2.6 + k / 7) % 1, back = (0.6 + ph * 2.2) * sz, side = ((k % 3) - 1) * 0.28 * sz, hgt = cy + ((k * 37) % 5 - 2) * 0.09 * sz;
+              m.visible = true; m.material.color.setHex(col); m.material.opacity = 0.75 * (1 - ph) * fade;
+              m.position.set(p.x - ch * back - sh * side, hgt, p.z - sh * back + ch * side);
+              m.rotation.set(0, -p.h, 0); m.scale.set((0.6 + 0.8 * (1 - ph)) * sz, 1, 1);
+            });
+          }
+          if (ev.acc && t - ev.t0 < 0.7) {
+            var ru = (t - ev.t0) / 0.7;
+            f.ring.visible = true; f.ring.material.color.setHex(col); f.ring.material.opacity = 0.9 * (1 - ru);
+            f.ring.position.set(p.x, y0 + 0.06, p.z); f.ring.scale.setScalar((0.4 + ru * 1.8) * sz);
+          }
+          if (healing) {
+            var hu = (t - ev.t0) / 1.8;
+            f.sparks.forEach(function (m, k) {
+              var a = k / 14 * Math.PI * 2 + t * 2, r = (0.45 + 0.3 * ((k * 7) % 3) / 2) * sz, rise = ((hu * 1.5 + k * 0.07) % 1);
+              m.visible = true; m.material.opacity = 0.95 * (1 - rise) * Math.min(1, (1 - hu) * 3);
+              m.position.set(p.x + Math.cos(a) * r, y0 + 0.2 * sz + rise * 1.3 * sz, p.z + Math.sin(a) * r);
+              m.rotation.set(t * 3, t * 4, 0); m.scale.setScalar(sz);
+            });
+          }
+        }
       }
     };
   }
@@ -1338,6 +1422,6 @@
   window.PriTestSaigo3D = {
     available: available, load: load, create: create, preview: preview, sizeScale: sizeScale,
     // 真賽狗的畫面（saigo_real3d.js）共用的建模工具
-    kit: { mat: mat, mesh: mesh, numberTex: numberTex, buildDog: buildDog, animateDog: animateDog, weatherLook: weatherLook, person: person, instanced: instanced }
+    kit: { mat: mat, mesh: mesh, numberTex: numberTex, buildDog: buildDog, animateDog: animateDog, weatherLook: weatherLook, person: person, instanced: instanced, skillFx: skillFx, skillFxEvents: skillFxEvents }
   };
 })();

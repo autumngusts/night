@@ -217,3 +217,16 @@
 .sg-mic { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
 .sg-mic-on #sg-mic-btn { animation: sg-pend 0.8s ease-in-out infinite alternate; }
 .sg-entry-style { margin: 0.4rem 0; }
+
+/* 技能發動廣播（比賽畫面左上） */
+.sg-skill-banners { position: absolute; top: 3.9rem; left: 0.6rem; display: flex; flex-direction: column; gap: 0.3rem; max-width: 55%; }
+.sg-skill-banner { padding: 0.25rem 0.75rem 0.3rem 0.6rem; border-left: 5px solid #80d8ff; border-radius: 4px 10px 10px 4px; background: linear-gradient(90deg, rgba(10, 30, 60, 0.85), rgba(10, 30, 60, 0.35)); animation: sg-banner-in 0.35s ease-out; }
+.sg-skill-banner small { display: block; font-size: 0.72em; letter-spacing: 0.08em; opacity: 0.85; }
+.sg-skill-banner b { color: #b3e5fc; }
+.sg-banner-r { border-left-color: #69f0ae; background: linear-gradient(90deg, rgba(10, 60, 35, 0.85), rgba(10, 60, 35, 0.35)); }
+.sg-banner-r b { color: #b9f6ca; }
+.sg-banner-g { border-left-color: #ffd54f; background: linear-gradient(90deg, rgba(90, 60, 0, 0.9), rgba(120, 80, 0, 0.4)); box-shadow: 0 0 12px rgba(255, 213, 79, 0.55); }
+.sg-banner-g b { color: #ffe082; }
+.sg-banner-mine { outline: 2px solid rgba(255, 255, 255, 0.7); }
+@keyframes sg-banner-in { from { transform: translateX(-120%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 640px) { .sg-skill-banners { top: 3.4rem; font-size: 0.82em; max-width: 62%; } }

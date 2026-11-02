@@ -8,11 +8,9 @@
   var D = window.PriTestSaigoData;
   var Core = window.PriTestSaigoCore;
   var Real = window.PriTestSaigoReal;
-  var SK = window.PriTestSaigoSkills;
   var M = Core.MODE;
   function V3() { return window.PriTestSaigo3D; }
   function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
-  var TIER_COLOR = { n: 0x9be7ff, r: 0x82ffa4, g: 0xffd54f };
 
   function sandColor(card) {
     var wet = { firm: 0, good: 0.12, soft: 0.25, heavy: 0.38 }[card.ground] || 0;
@@ -165,8 +163,9 @@
     });
 
     // 由結果推出的畫面資料（改跑法／喊聲重新模擬後 refresh 重算）
-    var finV, skillEv;
+    var finV, skillEv, fx = K.skillFx(T, scene, n);
     function derive() {
+      fx.set(K.skillFxEvents(result, n, 1));
       finV = card.dogs.map(function (d, i) {
         var tf = result.times[i];
         if (tf === null) return 0;
@@ -176,7 +175,6 @@
       skillEv = [];
       for (var i = 0; i < n; i++) skillEv.push([]);
       (result.events || []).forEach(function (e) {
-        if (e.k === "skill" && e.d >= 0) { var s = SK.BY_ID[e.x]; skillEv[e.d].push({ t: e.t, c: TIER_COLOR[s ? s.tier : "n"] }); }
         if (e.k === "shoutHeal" && e.d >= 0) skillEv[e.d].push({ t: e.t, c: 0xff80ab });
       });
     }
@@ -257,7 +255,7 @@
         d.root.visible = !(cam.mode === "pov" && cam.dog === i);
         d.tag.visible = cam.mode !== "pov" && !(cam.mode === "chase" && cam.dog === i);
         d.tag.position.set(p.x, d.S * 1.45 + 0.45, p.z);
-        // 技能發動／喊聲成功：腳下亮一圈（金＝金色、罕見＝綠、一般＝藍、喊聲＝粉紅）
+        // 喊聲成功：腳下亮一圈粉紅（技能的特效在 fx）
         var gl = null;
         skillEv[i].forEach(function (e) { if (t >= e.t && t < e.t + 1.2) gl = e; });
         d.glow.visible = !!gl;
@@ -286,6 +284,7 @@
         pa.needsUpdate = true;
         particles.position.set(cam.pos.x, 0, cam.pos.z);
       }
+      fx.update(t, ps, dogs.map(function (d) { return d.S; }));
       updateCamera(t, dt, rank, ps);
       lastT = t;
       renderer.render(scene, camera);
