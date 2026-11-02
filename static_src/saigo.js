@@ -55,13 +55,14 @@
   }
   function gateBadge(g) { return el("span", { class: "sg-gate", style: "background:" + D.GATE_COLORS[g] + ";color:" + D.GATE_TEXT[g] }, [String(g + 1)]); }
   function breedOf(d) { return D.BREED_BY_ID[d.breed] || D.BREEDS[0]; }
-  // 真賽狗模式（8 隻、橢圓跑道）
+  // 真賽狗模式（8 隻、搶道）。2026-11-02 起用關卡賽的地圖；沒有 course 的是舊版橢圓跑道的出賽表（只剩播放用）
   function isReal(card) { return !!card && card.mode === "real"; }
-  function cardLen(card) { return isReal(card) ? card.length : card.course.length; }
-  // 小地圖上的位置：關卡賽＝里程＋跑道；真賽狗＝沿內欄距離＋橫向位置
+  function isOval(card) { return isReal(card) && !card.course; }
+  function cardLen(card) { return isOval(card) ? card.length : card.course.length; }
+  // 小地圖上的位置：關卡賽＝里程＋自己的跑道；真賽狗＝里程＋橫向位置（舊版橢圓：沿內欄距離＋橫向位置）
   function mapPos(card, st, i) {
-    if (isReal(card)) { var q = Real.posAt(card, Math.min(st.s, card.length), st.x || 0); return { x: q.x, z: q.y }; }
-    var p = Core.pointAt(card.course, Math.min(st.s, card.course.length), Core.laneOff(i));
+    if (isOval(card)) { var q = Real.posAt(card, Math.min(st.s, card.length), st.x || 0); return { x: q.x, z: q.y }; }
+    var p = Core.pointAt(card.course, Math.min(st.s, card.course.length), isReal(card) ? st.x || 0 : Core.laneOff(i));
     return { x: p.x, z: p.y };
   }
   // 技能小標籤
@@ -420,18 +421,6 @@
       el("p", { class: "sg-small sg-muted" }, [t(ui.mode === "real" ? "sg_mode_real_note" : "sg_mode_classic_note")])
     ]);
   }
-  // 真賽狗的設定：天氣／距離
-  function realMapPicker(onPick, disabled) {
-    function seg(field, keys, nameOf, label) {
-      return el("div", null, [el("h3", null, [label]), el("div", { class: "sg-seg" }, [""].concat(keys).map(function (k) {
-        return btn(k ? nameOf(k) : "🎲 " + t("sg_random"), function () { ui.rmap[field] = k; setPref({ rmap: ui.rmap }); if (onPick) onPick(); else rerenderKeep(); }, "sg-seg-btn" + ((ui.rmap[field] || "") === k ? " sg-on" : ""), { disabled: disabled });
-      }))]);
-    }
-    return el("div", null, [
-      seg("dist", Object.keys(Real.DISTS), function (k) { return L(Real.DISTS[k].name); }, t("sg_distance")),
-      seg("weather", Object.keys(Real.WEATHER_W), function (k) { return D.WEATHERS[k].icon + " " + L(D.WEATHERS[k].name); }, t("sg_weather"))
-    ]);
-  }
   // 真賽狗：可以派好幾隻（勾選）
   var ENTRY_MAX_SOLO = 6, ENTRY_MAX_NET = 4;
   function multiEntryPicker(max, onPick) {
@@ -470,7 +459,7 @@
       el("h3", null, [t("sg_mode")]), modePicker(render),
       el("h3", null, [t("sg_class")]), classPicker(),
       el("p", { class: "sg-small sg-muted" }, [t("sg_class_note")]),
-      real ? realMapPicker() : mapPicker(),
+      mapPicker(),
       el("h3", null, [t("sg_entry")]), real ? multiEntryPicker(ENTRY_MAX_SOLO) : entryPicker(rerenderKeep),
       real ? entryStylePickers() : dogStylePicker(ui.entryDog),
       el("div", { class: "sg-actions" }, [btn(t("sg_make_card"), function () { startSolo(false, ui.entryDog); }, "sg-btn sg-primary")])
@@ -481,7 +470,9 @@
     if (!practice && ui.mode === "real") {
       ui.practice = false;
       ui.entryDogs.forEach(function (id) { var e1 = K.entry(id, "me", ""); if (e1) entries.push(e1); });
-      ui.card = Core.makeCard(Core.newSeed(), entries.slice(0, ENTRY_MAX_SOLO), { mode: "real", cls: ui.cls, weather: ui.rmap.weather || null, dist: ui.rmap.dist || null });
+      var ro = mapOpts();
+      ro.mode = "real"; ro.cls = ui.cls;
+      ui.card = Core.makeCard(Core.newSeed(), entries.slice(0, ENTRY_MAX_SOLO), ro);
       ui.result = null; ui.tickets = []; ui.openDog = -1;
       ui.slip = { type: "win", method: "normal", picks: [], key: null, stake: ui.slip.stake || 100 };
       go("card");
@@ -529,7 +520,7 @@
     });
   }
   function drawMinimap(c, card, positions) {
-    if (isReal(card)) { drawOval(c, card, positions); return; }
+    if (isOval(card)) { drawOval(c, card, positions); return; }
     var g = c.getContext("2d"), geo = Core.geometry(card.course), box = geo.box;
     var W = c.width, H = c.height, pad = 10;
     var sc = Math.min((W - pad * 2) / Math.max(1, box[2] - box[0]), (H - pad * 2) / Math.max(1, box[3] - box[1]));
@@ -566,7 +557,8 @@
   function raceTitle(card) {
     var cls = D.CLASSES.filter(function (c) { return c.id === card.cls; })[0];
     var TR = D.TERRAINS[card.terrain] || D.TERRAINS.park;
-    if (isReal(card)) return "🏟 " + t("sg_mode_real") + "・" + L(cls.name) + "・" + card.length + "m";
+    if (isOval(card)) return "🏟 " + t("sg_mode_real") + "・" + L(cls.name) + "・" + card.length + "m";
+    if (isReal(card)) return "🏟 " + t("sg_mode_real") + "・" + L(cls.name) + "・" + L(TR.name) + "・" + card.course.length + "m";
     return (ui.practice ? t("sg_practice") : L(cls.name)) + "・" + L(TR.name) + "・" + card.course.length + "m";
   }
   function canBet() {
@@ -578,7 +570,7 @@
     var card = ui.card;
     if (!card) { go(ui.room ? "lobby" : "home"); return; }
     var od = curOdds(card), pop = popOf(od), W = D.WEATHERS[card.weather], G = D.GROUNDS[card.ground], pk = Core.paceKind(card);
-    if (isReal(card)) {
+    if (isOval(card)) {
       app.appendChild(panel(raceTitle(card), [
         el("div", { class: "sg-card-head" }, [
           minimap(card, 260, 150),
@@ -603,6 +595,7 @@
         minimap(card, 260, 170),
         el("div", null, [
           el("p", { class: "sg-cond" }, [
+            isReal(card) ? el("span", { class: "sg-chip sg-real-chip" }, ["🏟 " + t("sg_real_crowd_chip")]) : null,
             el("span", { class: "sg-chip" }, [(D.TERRAINS[card.terrain] || D.TERRAINS.park).icon + " " + L((D.TERRAINS[card.terrain] || D.TERRAINS.park).name) + "（" + L(D.SURFACES[(D.TERRAINS[card.terrain] || D.TERRAINS.park).surf].name) + "）"]),
             el("span", { class: "sg-chip" }, [W.icon + " " + L(W.name)]),
             el("span", { class: "sg-chip" }, [L((D.DISTANCES[card.dist] || D.DISTANCES.middle).name)]),
@@ -614,6 +607,7 @@
             poolMode(card) ? el("span", { class: "sg-chip sg-pool" }, [t("sg_pool_chip", { n: money(Bet.poolTotal(ui.room.livePool())) })]) : null
           ]),
           partChips(card),
+          isReal(card) ? el("p", { class: "sg-small sg-muted" }, [t("sg_real_note")]) : null,
           el("p", { class: "sg-small sg-muted" }, [t("sg_terrain_note_" + (card.terrain || "park"))]),
           el("p", { class: "sg-small sg-muted" }, [t("sg_weather_note_" + card.weather)])
         ])
@@ -927,7 +921,7 @@
       V3.load().then(function () {
         if (ui.screen !== "race" || !stage.isConnected) return;
         stage.classList.remove("sg-loading");
-        ui.view = (isReal(card) ? window.PriTestSaigoReal3D : V3).create(stage, card, res, { quality: pref().quality || "high" });
+        ui.view = (isOval(card) ? window.PriTestSaigoReal3D : V3).create(stage, card, res, { quality: pref().quality || "high" });
         var cv = stage.querySelector(".sg-canvas");
         if (cv) stage.insertBefore(cv, hud);
         ui.view.setCam(camMode, camDog);
@@ -978,7 +972,7 @@
       // HUD
       var lead = rank[0], ls = st[lead] ? st[lead].s : 0;
       var where;
-      if (isReal(card)) where = t("sg_sect_" + Real.sectAt(Real.trackPos(card, Math.min(ls, card.length))));
+      if (isOval(card)) where = t("sg_sect_" + Real.sectAt(Real.trackPos(card, Math.min(ls, card.length))));
       else { var part = Core.partAt(card.course, Math.min(ls, card.course.length - 0.01)); where = D.PARTS[part.type].icon + " " + D.partName(part); }
       info.textContent = (tt < 0 ? "" : fmtTime(Math.max(0, tt)) + "  ") + t("sg_hud_left", { n: Math.max(0, Math.round(cardLen(card) - ls)) }) + "  " + where;
       rankBox.innerHTML = "";
@@ -1168,7 +1162,7 @@
         return (p.entries && p.entries.length ? p.entries : p.entry ? [p.entry] : []).slice(0, ENTRY_MAX_NET).map(function (e) { e.owner = p.cid; e.ownerName = p.name; return e; });
       }), picked = [];
       for (var round = 0; round < ENTRY_MAX_NET && picked.length < Real.FIELD; round++) lists.forEach(function (l) { if (l[round] && picked.length < Real.FIELD) picked.push(l[round]); });
-      card = Core.makeCard(Core.newSeed(), picked, { mode: "real", cls: cfg.cls || ui.cls, weather: cfg.rweather || null, dist: cfg.rdist || null });
+      card = Core.makeCard(Core.newSeed(), picked, { mode: "real", cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
     } else {
       var entries = room.list().filter(function (p) { return p.entry; }).map(function (p) { var e = p.entry; e.owner = p.cid; e.ownerName = p.name; return e; });
       card = Core.makeCard(Core.newSeed(), entries.slice(0, D.FIELD), { cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
@@ -1366,7 +1360,7 @@
       modePicker(function () { if (host) room.setCfg(netCfg()); syncEntry(); render(); }, !host),
       el("h3", null, [t("sg_class")]),
       classPicker(function () { if (host) room.setCfg(netCfg()); render(); }, !host),
-      realRoom ? realMapPicker(function () { if (host) room.setCfg(netCfg()); rerenderKeep(); }, !host) : mapPicker(function () { if (host) room.setCfg(netCfg()); rerenderKeep(); }, !host),
+      mapPicker(function () { if (host) room.setCfg(netCfg()); rerenderKeep(); }, !host),
       el("h3", null, [t("sg_odds_mode")]),
       el("div", { class: "sg-seg" }, [[true, "sg_odds_pool"], [false, "sg_odds_fixed"]].map(function (o) {
         return btn(t(o[1]), function () { ui.pool = o[0]; setPref({ pool: o[0] }); room.setCfg(netCfg()); rerenderKeep(); }, "sg-seg-btn" + (ui.pool === o[0] ? " sg-on" : ""), { disabled: !host });

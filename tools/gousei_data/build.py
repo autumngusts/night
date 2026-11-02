@@ -31,9 +31,14 @@ def pair_key(a: str, b: str) -> str:
     return f"{a}|{b}" if a <= b else f"{b}|{a}"
 
 
-def compute_tiers(basics: list[str], recipes: dict[str, str]) -> dict[str, int]:
+def trio_key(a: str, b: str, c: str) -> str:
+    return "|".join(sorted((a, b, c)))
+
+
+def compute_tiers(basics: list[str], recipes: dict[str, str], trios: dict[str, tuple[str, str]] | None = None) -> dict[str, int]:
     tiers = {b: 0 for b in basics}
     pairs = [(key.split("|"), res) for key, res in recipes.items()]
+    trios_list = [(key.split("|"), outs) for key, outs in (trios or {}).items()]
     changed = True
     while changed:
         changed = False
@@ -43,6 +48,13 @@ def compute_tiers(basics: list[str], recipes: dict[str, str]) -> dict[str, int]:
                 if res not in tiers or t < tiers[res]:
                     tiers[res] = t
                     changed = True
+        for (a, b, c), outs in trios_list:
+            if a in tiers and b in tiers and c in tiers:
+                t = max(tiers[a], tiers[b], tiers[c]) + 1
+                for res in outs:
+                    if res not in tiers or t < tiers[res]:
+                        tiers[res] = t
+                        changed = True
     return tiers
 
 
@@ -90,7 +102,7 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
                 errors.append(f"{path.name}: {it.get('id')} 必須屬於分類 {own}")
                 continue
             add_item(it, cat, path.name)
-        chunks.append((path.name, own, chunk.get("recipes", []), bool(chunk.get("open"))))
+        chunks.append((path.name, own, chunk.get("recipes", []), chunk.get("trios", []), bool(chunk.get("open"))))
 
     for lang in ("zh", "ja"):
         seen: dict[str, str] = {}
@@ -103,7 +115,9 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
 
     recipes: dict[str, str] = {}
     recipe_src: dict[str, str] = {}
-    for src, own, rows, is_open in chunks:
+    trios: dict[str, tuple[str, str]] = {}
+    trio_src: dict[str, str] = {}
+    for src, own, rows, trio_rows, is_open in chunks:
         for row in rows:
             if not (isinstance(row, list) and len(row) == 3):
                 errors.append(f"{src}: 配方格式錯誤 {row!r}")
@@ -137,9 +151,39 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
                 continue
             recipes[key] = r
             recipe_src[key] = src
+        for row in trio_rows:
+            if not (isinstance(row, list) and len(row) == 5):
+                errors.append(f"{src}: trio 配方格式錯誤 {row!r}")
+                continue
+            a, b, c, primary, byproduct = row
+            missing = [x for x in (a, b, c, primary, byproduct) if x not in items]
+            if missing:
+                errors.append(f"{src}: trio 配方 {row} 引用不存在的物體 {missing}")
+                continue
+            if items[a]["cat"] == "junk" or items[b]["cat"] == "junk" or items[c]["cat"] == "junk":
+                errors.append(f"{src}: trio 配方 {row} 的材料不能是廢料")
+                continue
+            if primary == byproduct:
+                errors.append(f"{src}: trio 配方 {row} 的主產物與副產物不能相同")
+                continue
+            bad_result = [x for x in (primary, byproduct) if items[x]["cat"] in ("basic", "junk")]
+            if bad_result:
+                errors.append(f"{src}: trio 配方 {row} 的主產物／副產物不能是初始物體或廢料（{bad_result}）")
+                continue
+            if own != "core":
+                bad_cat = [x for x in (primary, byproduct) if items[x]["cat"] != own]
+                if bad_cat:
+                    errors.append(f"{src}: trio 配方 {row} 的主產物／副產物不屬於分類 {own}（{bad_cat}）")
+                    continue
+            tkey = trio_key(a, b, c)
+            if tkey in trios:
+                errors.append(f"{src}: trio 組合 {tkey} 重複（已在 {trio_src[tkey]} 定義）")
+                continue
+            trios[tkey] = (primary, byproduct)
+            trio_src[tkey] = src
 
     basics = [b["id"] for b in meta["basics"]]
-    tiers = compute_tiers(basics, recipes)
+    tiers = compute_tiers(basics, recipes, trios)
     for iid in order:
         it = items[iid]
         if it["cat"] == "junk":
@@ -163,9 +207,11 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
             errors.append(f"階段 5〜7 的物體 {high} 種，少於 {meta.get('min_high', MIN_HIGH)}")
 
     per_file = Counter(i["src"] for i in normal)
-    stats = {"items": len(normal), "recipes": len(recipes), "mid": mid, "high": high,
+    stats = {"items": len(normal), "recipes": len(recipes), "trios": len(trios),
+             "combos": len(recipes) + len(trios), "mid": mid, "high": high,
              "tiers": dict(sorted(hist.items())), "per_file": dict(sorted(per_file.items()))}
-    return {"meta": meta, "items": [items[i] for i in order], "recipes": recipes, "errors": errors, "stats": stats}
+    return {"meta": meta, "items": [items[i] for i in order], "recipes": recipes, "trios": trios,
+            "errors": errors, "stats": stats}
 
 
 def render_js(theme: dict) -> str:
@@ -178,6 +224,8 @@ def render_js(theme: dict) -> str:
         "categories": meta["categories"],
         "items": [[i["id"], i["zh"], i["ja"], i["cat"], i["tier"]] for i in theme["items"]],
         "recipes": dict(sorted(theme["recipes"].items())),
+        "allowTrio": bool(meta.get("allow_trio")),
+        "trios": {k: list(v) for k, v in sorted(theme["trios"].items())},
     }
     body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     return (

@@ -17,6 +17,7 @@
   var STA_K = 0.0245, DAY = 0.14, CPU_BW = 7, CPU_ADJ = 0.75;
   // 跑法在出賽表產生時決定、下注前可改，開跑後不得調整（使用者指定 2026-11-02，取代同日稍早的「比賽中改跑法」）
   var DT = 0.05;            // 模擬步長（秒）
+  var CROWD_APPROACH = 14;  // 真賽狗：進關卡前幾公尺開始搶位置
   var MAX_T = 240;          // 最長秒數（超過算未完走）
   var LANE_W = 1.6;         // 每條跑道寬（m）
   var MODE = { run: 0, jump: 1, crawl: 2, swim: 3, catch: 4, eat: 5, sit: 6, weave: 7, stun: 8, climb: 9, mud: 10, fin: 11, wade: 12, dive: 13, wait: 14, loop: 15, slide: 16, ride: 17 };
@@ -266,7 +267,7 @@
 
   // record＝是否記錄每一步（畫面用）；seedOverride 給賠率試算用；cmds＝比賽中的指令（只有真賽狗的喊聲，關卡賽沒有）
   function simulate(card, record, seedOverride, cmds) {
-    if (card.mode === "real") return Real().simulate(card, record, seedOverride, cmds);
+    if (card.mode === "real" && !card.course) return Real().simulate(card, record, seedOverride, cmds);   // 舊版橢圓跑道的出賽表
     var course = card.course, L = course.length;
     var g0 = D.GROUNDS[card.ground] || D.GROUNDS.firm;
     var sf = D.SURFACES[(D.TERRAINS[card.terrain] || D.TERRAINS.park).surf] || D.SURFACES.dirt;
@@ -300,14 +301,109 @@
     function ev(k, d, x) { if (events) events.push({ t: Math.round(t * 100) / 100, k: k, d: d, x: x === undefined ? null : x }); }
     if (events) ev("start", -1);
 
+    // ---- 真賽狗（2026-11-02 使用者指定）：關卡賽的地圖＋起跑後不分跑道、要搶道 ----
+    // 直道／彎道：橫向位置 x 自由（左正），被前面的狗擋住只能跟跑，同時找左右空檔切出去；擠在一起會碰撞。
+    //   彎道跑內側距離短（沿中心線的前進＝實際移動 × Rc ÷ (Rc − x)），但過彎限速也比較低。
+    // 關卡：每個關卡有 n 個位置（＝畫面上的 n 組道具），進關卡前 CROWD_APPROACH m 要搶到一個空位；
+    //   進了關卡就不能換道，前面同一位置的狗停下來（吃零食、接飛盤、摔倒…）就只能等。
+    var crowd = card.mode === "real", n = dogs.length;
+    var HW = n * LANE_W / 2, XMAX = HW - 0.35, DOG_W = 0.72, DOG_L = 1.05, LOOK = 2.6;
+    var cmdAt = crowd ? Real().cmdIndex(cmds, n) : null, applied = [], bumpAt = {}, S0 = [], X0 = [], V0 = [];
+    function slotX(k) { return ((n - 1) / 2 - k) * LANE_W; }
+    function isOpen(pt) { return pt.type === "straight" || pt.type === "curve"; }
+    // 橫向 cx 附近（±0.8 m）、里程差在 (from, to) 之間有沒有別的狗（用這一步開始時的位置，與處理順序無關）
+    function laneFree(o, cx, from, to) {
+      for (var q = 0; q < n; q++) {
+        var z = dogs[q];
+        if (z === o || z.done) continue;
+        var dp = S0[q] - o.s, dx = X0[q] - cx;
+        if (dp > from && dp < to && dx < 0.8 && dx > -0.8) return false;
+      }
+      return true;
+    }
+    if (crowd) dogs.forEach(function (o, i) {
+      var d = card.dogs[i], e = o.e, r2 = rng((base ^ 0x6a7e5 ^ Math.imul(i + 3, 0x27d4eb2f)) >>> 0), ln = D.LINES[d.line] || D.LINES.mid;
+      o.x = slotX(i); o.xt = o.x; o.lat = 0; o.slot = i;
+      o.slow = r2() < clamp(0.12 - e.agi * 0.0008, 0.02, 0.12);
+      o.react = 0.08 + (100 - Math.min(e.foc, 100)) * 0.0022 + r2() * 0.12 + (o.slow ? 0.35 : 0);
+      o.lineId = D.LINES[d.line] ? d.line : "mid"; o.lineB = ln.bend * 2.5;   // 關卡賽地圖的彎道比較急，外側加成放大 2.5 倍，三種跑線平均名次才接近（實測 1200 場：4.57／4.38／4.56）
+      o.started = false; o.shoutN = 0; o.lastShout = -1e9; o.blockEv = -9;
+    });
+    // 決定目標橫向位置 o.xt、橫移速度 o.lat，回傳被擋住後的目標速度
+    function crowdSteer(o, di, pi, p, vt) {
+      var xt = o.x, lat = 2.2 + o.e.agi * 0.01, nx = course.parts[pi + 1], toward = 0;
+      var approach = isOpen(p) && nx && !isOpen(nx) && nx.s0 - o.s < CROWD_APPROACH;
+      if (!isOpen(p)) { xt = slotX(o.slot); lat = 1.2; }
+      else if (approach) {
+        // 搶關卡的位置：離自己最近、從自己前後到關卡入口後 6 m 都沒有狗的空位
+        var best = o.slot, bc = 1e9;
+        for (var k = 0; k < n; k++) {
+          var cx = slotX(k), dd = cx - o.x;
+          if (dd < 0) dd = -dd;
+          var cost = dd + (laneFree(o, cx, -1.2, nx.s0 - o.s + 6) ? 0 : 50) - (k === o.slot ? 0.3 : 0);
+          if (cost < bc) { bc = cost; best = k; }
+        }
+        o.slot = best; xt = slotX(best);
+      } else if (p.type === "curve") {
+        // 彎道：依跑線偏好靠內／中間／外側（彎道內側＝turn 的正負決定）
+        var sg = p.turn > 0 ? 1 : -1;
+        xt = o.lineId === "rail" ? sg * (XMAX - 0.3) : o.lineId === "wide" ? -sg * 1.6 : sg * 1.0;
+        toward = xt - o.x;
+      }
+      // 前方有沒有狗：擋住（貼得很近）或想超車（比前面快）
+      var ahead = -1, gap = 99;
+      for (var q = 0; q < n; q++) {
+        var z = dogs[q];
+        if (q === di || z.done) continue;
+        var dp = S0[q] - o.s, dx = X0[q] - o.x;
+        if (dp > 0 && dp < 5 && dx < DOG_W + 0.12 && dx > -DOG_W - 0.12 && dp < gap) { gap = dp; ahead = q; }
+      }
+      if (ahead >= 0) {
+        var av = V0[ahead], boxed = false;
+        if (isOpen(p) && !approach && (gap < LOOK || vt > av + 0.3)) {
+          // 找空檔：往自己想去的那一側優先
+          var c1 = o.x + (toward > 0 ? 1 : -1) * 0.95, c2 = o.x - (toward > 0 ? 1 : -1) * 0.95;
+          if (c1 > -XMAX && c1 < XMAX && laneFree(o, c1, -1.6, 1.6)) xt = c1;
+          else if (c2 > -XMAX && c2 < XMAX && laneFree(o, c2, -1.6, 1.6)) xt = c2;
+          else boxed = gap < LOOK;
+        } else boxed = gap < LOOK;
+        if (boxed) {
+          vt = Math.min(vt, av + (gap - 1.2) * 2.5);
+          if (events && t - o.blockEv > 3) { o.blockEv = t; ev("boxed", di, ahead); }
+        }
+        if (gap < 1.15) vt = Math.min(vt, av - 0.3);
+      }
+      o.xt = clamp(xt, -XMAX, XMAX); o.lat = lat;
+      return Math.max(0, vt);
+    }
+
     while (t < MAX_T) {
       var alive = 0;
       rankInto(dogs, ranks);
+      if (crowd) {
+        for (var z0 = 0; z0 < n; z0++) { S0[z0] = dogs[z0].s; X0[z0] = dogs[z0].x; V0[z0] = dogs[z0].v; }
+        // 比賽中的指令：喊「賽狗」（每場每隻 SHOUT_MAX 次、間隔 SHOUT_GAP 步，成功機率 SHOUT_P）
+        var RL = Real(), cl = cmdAt[step];
+        if (cl) for (var ci = 0; ci < cl.length; ci++) {
+          var cm = cl[ci], co = dogs[cm.d];
+          if (co.done || co.shoutN >= RL.SHOUT_MAX || step - co.lastShout < RL.SHOUT_GAP || t < co.react) continue;
+          co.shoutN++; co.lastShout = step;
+          var hit = RL.shoutHits(card, step, cm.d);
+          if (hit) co.sta = Math.min(1, co.sta + RL.SHOUT_HEAL);
+          applied.push({ k: step, d: cm.d, a: "shout", ok: hit ? 1 : 0 });
+          ev(hit ? "shoutHeal" : "shout", cm.d);
+        }
+      }
       for (var di = 0; di < dogs.length; di++) {
         var o = dogs[di];
         if (o.done) continue;
         alive++;
         var e = o.e, r = o.r;
+        if (crowd) {
+          // 閘門反應（專注越高越快），偶爾出閘慢
+          if (t < o.react) { o.mode = MODE.wait; continue; }
+          if (!o.started) { o.started = true; ev(o.slow ? "slowStart" : o.react < 0.16 ? "goodBreak" : "go", di); }
+        }
         // 每秒換一次隨機起伏（陣風越強越大）
         o.jitT -= DT;
         if (!o.day) o.day = 1 - DAY / 2 + r() * DAY;   // 當天狀態（每場一次，±7%）
@@ -336,7 +432,11 @@
         } else if (p.type === "curve") {
           var R = p.len / (Math.abs(p.turn) * Math.PI / 180);
           var grip = (0.7 + e.agi * 0.006) * g.grip * (1.06 - o.size * 0.03);
-          vt = Math.min(vt, Math.sqrt(R * 9.8 * grip));
+          if (crowd) {
+            // 實際半徑依橫向位置；跑外側的狗習慣大弧度過彎、不太減速（抵銷多跑的距離）
+            var Rx = Math.max(4, R - o.x * (p.turn > 0 ? 1 : -1));
+            vt = Math.min(vt * (1 + o.lineB), Math.sqrt(Rx * 9.8 * grip) * (1 + o.lineB));
+          } else vt = Math.min(vt, Math.sqrt(R * 9.8 * grip));
         } else if (p.type === "hurdle") {
           var gap = p.len / (p.bars + 1), next = Math.floor(local / gap);   // 下一根欄在 (next+1)*gap
           vt = Math.min(vt, o.vmax * (0.8 + e.jmp * 0.002));
@@ -612,6 +712,7 @@
           }
         }
 
+        if (crowd) vt = crowdSteer(o, di, pi, p, vt);
         // 加減速
         if (o.v < vt) o.v = Math.min(vt, o.v + o.acc * (o.boost ? 1 + o.boost.acc : 1) * DT);
         else o.v = Math.max(vt, o.v - 9 * DT);
@@ -621,20 +722,58 @@
         o.sta -= ratio * ratio * ratio * ratio * STA_K * drain * g.stam * heat * DT / (0.5 + e.sta * 0.01);
         if (o.v < 0.5) o.sta += 0.03 * DT;
         o.sta = clamp(o.sta, 0, 1);
-        var prev = o.s;
-        o.s += o.v * DT;
+        var prev = o.s, fac = 1;
+        if (crowd) {
+          var lm = o.lat * DT;
+          o.x = clamp(o.x + clamp(o.xt - o.x, -lm, lm), -XMAX, XMAX);
+          if (p.type === "curve") { var Rc = p.len / (Math.abs(p.turn) * Math.PI / 180); fac = Rc / Math.max(4, Rc - o.x * (p.turn > 0 ? 1 : -1)); }
+        }
+        o.s += o.v * DT * fac;
         o.mode = mode;
         if (o.s >= L) {
           o.done = true;
-          o.time = Math.round((t + (o.v > 0 ? (L - prev) / o.v : DT)) * 1000) / 1000;
+          o.time = Math.round((t + (o.v > 0 ? (L - prev) / (o.v * fac) : DT)) * 1000) / 1000;
           o.s = L; o.mode = MODE.fin;
           ev("finish", di, o.time);
         }
       }
+      if (crowd) {
+        // 碰撞（搶道）：直道／彎道上互相推開、都掉速度（體型大的掉得少）；關卡裡同一位置不能重疊，後面的狗被擋在後面
+        for (var a = 0; a < n; a++) {
+          var PA = dogs[a];
+          if (PA.done || t < PA.react) continue;
+          for (var b = a + 1; b < n; b++) {
+            var QB = dogs[b];
+            if (QB.done || t < QB.react) continue;
+            var ddp = PA.s - QB.s, ddx = PA.x - QB.x;
+            if (!(ddp > -DOG_L && ddp < DOG_L && ddx > -DOG_W && ddx < DOG_W)) continue;
+            if (isOpen(partAt(course, PA.s)) && isOpen(partAt(course, QB.s))) {
+              var sg2 = ddx > 0 || (ddx === 0 && a > b) ? 1 : -1, push = (DOG_W - (ddx < 0 ? -ddx : ddx)) / 2 + 0.02;
+              PA.x = clamp(PA.x + sg2 * push, -XMAX, XMAX); QB.x = clamp(QB.x - sg2 * push, -XMAX, XMAX);
+              var key = a * 16 + b;
+              if (!(bumpAt[key] > t - 1.2)) {
+                bumpAt[key] = t;
+                PA.v *= 1 - clamp(0.035 + 0.01 * (QB.size - PA.size), 0.01, 0.06);
+                QB.v *= 1 - clamp(0.035 + 0.01 * (PA.size - QB.size), 0.01, 0.06);
+                PA.sta = Math.max(0, PA.sta - 0.01); QB.sta = Math.max(0, QB.sta - 0.01);
+                ev("bump", a, b);
+              }
+            } else {
+              var fr2 = ddp >= 0 ? PA : QB, rr = fr2 === PA ? QB : PA;
+              rr.s = Math.max(S0[rr.i], Math.min(rr.s, fr2.s - DOG_L));
+              rr.v = Math.min(rr.v, fr2.v);
+            }
+          }
+        }
+      }
       t += DT; step++;
       if (frames) {
-        var f = new Float32Array(dogs.length * 3);
-        for (var k = 0; k < dogs.length; k++) { f[k * 3] = dogs[k].s; f[k * 3 + 1] = dogs[k].v; f[k * 3 + 2] = dogs[k].mode + (dogs[k].sta * 0.99); }
+        var FS = crowd ? 4 : 3, f = new Float32Array(dogs.length * FS);
+        for (var k = 0; k < dogs.length; k++) {
+          var Zk = dogs[k], mk = Zk.mode + (Zk.sta * 0.99);
+          if (crowd) { f[k * 4] = Zk.s; f[k * 4 + 1] = Zk.x; f[k * 4 + 2] = Zk.v; f[k * 4 + 3] = mk; }
+          else { f[k * 3] = Zk.s; f[k * 3 + 1] = Zk.v; f[k * 3 + 2] = mk; }
+        }
         frames.push(f);
       }
       if (events && step % 10 === 0) {
@@ -651,12 +790,15 @@
       if (b.time !== null) return 1;
       return b.s - a.s || a.i - b.i;
     }).map(function (o) { return o.i; });
-    return {
+    var out = {
       order: order,
       times: dogs.map(function (o) { return o.time; }),
-      frames: frames, events: events, dt: DT, cmds: [],
+      frames: frames, events: events, dt: DT, cmds: crowd ? applied : [],
       duration: Math.min(t, MAX_T)
     };
+    // 真賽狗：frames 每隻 4 格 [里程, 橫向, 速度, 模式+體力]，和舊版橢圓跑道同格式（stateAt／rankAt 共用 saigo_real.js）
+    if (crowd) { out.real = true; out.crowd = true; }
+    return out;
   }
 
   // 目前名次（1 起）：已完走的依時間在前，其餘依里程
@@ -711,9 +853,10 @@
   // 下限 1.0＝JRA 的「元返し」；賠率以 0.1 為單位無條件捨去（JRA 派彩以 10 円為單位捨去）
   var ODDS_MIN = 1.0, ODDS_MAX = 9999.9;
   function oddsValue(v) { return clamp(Math.floor(v * 10 + 1e-9) / 10, ODDS_MIN, ODDS_MAX); }
-  // 真賽狗（8 隻、搶道）比較隨機：試跑 300 場、平滑 1.0，冷門狗的賠率才不會開太高
+  // 真賽狗（8 隻、搶道）比較隨機：平滑 1.0，冷門狗的賠率才不會開太高。
+  // 舊版橢圓跑道試跑 300 場；關卡地圖版一場比較長，試跑 200 場（和關卡賽相同，出賽表約 1 秒）
   function placeProbs(card) {
-    var real = card.mode === "real", SIMS = real ? 300 : SIMS_CLASSIC, SMOOTH = real ? 1.0 : SMOOTH_CLASSIC;
+    var real = card.mode === "real", SIMS = real ? (card.course ? SIMS_CLASSIC : 300) : SIMS_CLASSIC, SMOOTH = real ? 1.0 : SMOOTH_CLASSIC;
     var n = card.dogs.length, c1 = [], c2 = [], c3 = [], i, j, k, it;
     for (i = 0; i < n; i++) { c1.push(0); c2.push(0); c3.push(0); }
     for (var m = 0; m < SIMS; m++) {
@@ -805,7 +948,7 @@
     rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp, weighted: weighted, between: between, pick: pick,
     fieldPace: fieldPace, PACE: PACE, STA_K: STA_K, DAY: DAY, CPU_BW: CPU_BW, CPU_ADJ: CPU_ADJ, placeK: placeK,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
-    geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff,
+    geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff, makeCourse: makeCourse, CROWD_APPROACH: CROWD_APPROACH,
     odds: odds, oddsValue: oddsValue, ODDS_MIN: ODDS_MIN, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind
   };
 })();

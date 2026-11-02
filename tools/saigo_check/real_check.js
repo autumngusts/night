@@ -132,7 +132,8 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   await page.screenshot({ path: path.join(SHOT_DIR, "real_card.png"), fullPage: true });
   await clickText(page, "開跑！");
   await page.waitForSelector(".sg-stage canvas", { timeout: 15000 });
-  await page.waitForFunction(function () { return window.PriTestSaigo.ui.raceT > 2; }, null, { timeout: 15000 });
+  // 真賽狗改用關卡賽地圖（8 組道具＋8 隻）後畫面較重，無 GPU 的 headless 約 10 fps、比賽時間走得慢，等久一點
+  await page.waitForFunction(function () { return window.PriTestSaigo.ui.raceT > 2; }, null, { timeout: 30000 });
   assert.strictEqual(await page.$$eval(".sg-ctl-tabs button", function (x) { return x.length; }), 2, "應援列可切換 2 隻");
   assert.ok(await page.$("#sg-mic-btn"), "麥克風按鈕");
   // 喊「賽狗」：送出指令 → 重新模擬 → 指令被套用

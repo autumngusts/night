@@ -1,0 +1,28 @@
+{
+  "category": "treasure",
+  "open": true,
+  "items": [
+    {"id": "x_songlu", "zh": "松露", "ja": "トリュフ"},
+    {"id": "x_menghuanheniu", "zh": "夢幻和牛", "ja": "幻の和牛"},
+    {"id": "x_diwangxie", "zh": "帝王蟹", "ja": "タラバガニ"},
+    {"id": "x_heiweiyuzhongduan", "zh": "黑鮪魚中段", "ja": "本マグロの中トロ"},
+    {"id": "x_egan", "zh": "鵝肝", "ja": "フォアグラ"},
+    {"id": "x_yuchi", "zh": "魚翅", "ja": "フカのひれ"},
+    {"id": "x_baoyu", "zh": "鮑魚", "ja": "アワビ"},
+    {"id": "x_dingjiganbei", "zh": "頂級干貝", "ja": "極上ホタテ"},
+    {"id": "x_renjianjipinliaoli", "zh": "人間極品料理", "ja": "人間至高の料理"},
+    {"id": "x_chuanshuozhongdeshipu", "zh": "傳說中的食譜", "ja": "伝説のレシピ"}
+  ],
+  "recipes": [
+    ["x_muer", "x_haishui", "x_songlu"],
+    ["x_niurou", "x_tangzi", "x_menghuanheniu"],
+    ["x_xie", "x_lu", "x_diwangxie"],
+    ["x_weiyu", "x_dahai", "x_heiweiyuzhongduan"],
+    ["x_yarou", "x_liangban", "x_egan"],
+    ["x_diaoyu", "x_dahai", "x_yuchi"],
+    ["x_muli", "x_dahai", "x_baoyu"],
+    ["x_ganbei", "x_dahai", "x_dingjiganbei"],
+    ["x_miqilinzhuchu", "x_huaishiliaoli", "x_renjianjipinliaoli"],
+    ["x_menghuanheniu", "x_diwangxie", "x_chuanshuozhongdeshipu"]
+  ]
+}

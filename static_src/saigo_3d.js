@@ -9,7 +9,18 @@
   var Core = window.PriTestSaigoCore;
   var M = Core.MODE;
   var SIZE_SCALE = [0, 0.42, 0.55, 0.72, 0.9, 1.08];
+  // 跑道條數與半寬：關卡賽 6 條；真賽狗（搶道）依出走頭數（8 條）。create() 依出賽表設定（同時只會有一個比賽畫面）
+  var NL = 6, CROWD = false;
   var HALF_W = 3 * Core.LANE_W + 1.2;   // 跑道半寬
+  function setLanes(card) {
+    CROWD = !!(card && card.mode === "real" && card.course);
+    NL = CROWD ? card.dogs.length : 6;
+    HALF_W = (NL / 2) * Core.LANE_W + 1.2;
+  }
+  // 第 k 條跑道（＝關卡道具的第 k 組）的橫向位置；6 條時與 Core.laneOff 相同
+  function laneOff(k) { return ((NL - 1) / 2 - k) * Core.LANE_W; }
+  // 狗目前用的是第幾組道具：關卡賽＝自己的枠；真賽狗＝依橫向位置最近的那一組
+  function laneKeyOf(i, off) { return CROWD ? clamp(Math.round((NL - 1) / 2 - (off || 0) / Core.LANE_W), 0, NL - 1) : i; }
   var WATER_TOP = 0.32;                 // 游泳池水面高度
   var loading = null;
 
@@ -332,8 +343,8 @@
 
     // 跑道分隔線（虛線）
     var lp = [];
-    for (var ln = 0; ln <= 6; ln++) {
-      var off = (ln - 3) * Core.LANE_W;
+    for (var ln = 0; ln <= NL; ln++) {
+      var off = (ln - NL / 2) * Core.LANE_W;
       for (s = 0; s < L; s += 2) {
         var pt = Core.partAt(course, s).type;
         if (pt === "pool" || pt === "bridge" || pt === "conveyor" || pt === "ditch" || pt === "surf" || pt === "ski") continue;
@@ -380,7 +391,9 @@
   // 每個關卡在各跑道上的道具（關卡都在直線段上，方向固定）
   function buildObstacles(T, scene, card, props) {
     var course = card.course;
-    var sizes = card.dogs.map(function (d) { return sizeScale(d.breed); });
+    // 每組道具的尺寸依該枠的狗（關卡賽）；真賽狗任何狗都可能用任何一組，一律用中型犬的尺寸
+    var sizes = [];
+    for (var sk = 0; sk < NL; sk++) sizes.push(CROWD ? SIZE_SCALE[3] : sizeScale(card.dogs[sk].breed));
     var red = mat(T, "#e53935"), wht = mat(T, "#f5f5f5"), blue = mat(T, "#1e88e5"), yel = mat(T, "#fdd835"), grn = mat(T, "#43a047");
     var wood = mat(T, "#8d5a32"), rock = mat(T, "#8a8a85"), snowM = mat(T, "#f5f8fa");
     function place(obj, s, off, y) { var p = P(course, s, off); obj.position.set(p.x, y || 0, p.z); obj.rotation.y = -p.h; scene.add(obj); return obj; }
@@ -398,7 +411,7 @@
             place(grp1(big), p.s0 + gap * j, 0);
             continue;
           }
-          for (lane = 0; lane < 6; lane++) {
+          for (lane = 0; lane < NL; lane++) {
             var S = sizes[lane], h = 0.22 + 0.45 * S, grp = new T.Group();
             if (hk === "hay") {
               var bale = mesh(T, new T.CylinderGeometry(h / 2 + 0.05, h / 2 + 0.05, 1.3, 10), mat(T, "#d9b25f"), true);
@@ -412,33 +425,33 @@
               var bar = mesh(T, new T.CylinderGeometry(0.035, 0.035, 1.4, 6), (j + lane) % 2 ? red : blue, true); bar.rotation.x = Math.PI / 2; bar.position.y = h; grp.add(bar);
               props.bars[lane + ":" + p.s0 + ":" + j] = { mesh: bar, h: h };
             }
-            place(grp, p.s0 + gap * j, Core.laneOff(lane));
+            place(grp, p.s0 + gap * j, laneOff(lane));
           }
         }
       } else if (p.type === "tunnel") {
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           var r = Math.min(0.72, 0.22 + 0.55 * sizes[lane]);
           var tg = new T.CylinderGeometry(r, r, p.len, 14, 1, true, 0, Math.PI);
           // 半透明，鑽在裡面的狗看得到；雪山是冰洞色
-          var tcol = card.terrain === "snowmtn" ? (lane % 2 ? "#e1f5fe" : "#b3e5fc") : ["#e53935", "#1e88e5", "#fdd835", "#43a047", "#8e24aa", "#fb8c00"][lane];
+          var tcol = card.terrain === "snowmtn" ? (lane % 2 ? "#e1f5fe" : "#b3e5fc") : ["#e53935", "#1e88e5", "#fdd835", "#43a047", "#8e24aa", "#fb8c00"][lane % 6];
           var tube = mesh(T, tg, mat(T, tcol, { side: T.DoubleSide, transparent: true, opacity: 0.55, depthWrite: false }), false);
           // 圓柱軸轉到跑道方向（局部 +X），θ∈[0,π] 那一半朝上＝拱形隧道
           tube.rotation.z = Math.PI / 2;
-          place(grp1(tube), p.s0 + p.len / 2, Core.laneOff(lane));
+          place(grp1(tube), p.s0 + p.len / 2, laneOff(lane));
         }
       } else if (p.type === "frisbee") {
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           var ring = mesh(T, new T.RingGeometry(0.6, 0.75, 20), yel); ring.rotation.x = -Math.PI / 2;
-          place(grp1(ring), p.s0 + p.len * 0.5, Core.laneOff(lane), 0.03);
-          var man = person(T, ["#3949ab", "#00897b", "#c62828", "#6d4c41", "#5e35b1", "#f57c00"][lane]);
-          place(man, p.s0 + p.len * 0.5 + 6, Core.laneOff(lane) + 0.8);
-          props.throwers[lane + ":" + p.s0] = P(course, p.s0 + p.len * 0.5 + 6, Core.laneOff(lane) + 0.8);
+          place(grp1(ring), p.s0 + p.len * 0.5, laneOff(lane), 0.03);
+          var man = person(T, ["#3949ab", "#00897b", "#c62828", "#6d4c41", "#5e35b1", "#f57c00"][lane % 6]);
+          place(man, p.s0 + p.len * 0.5 + 6, laneOff(lane) + 0.8);
+          props.throwers[lane + ":" + p.s0] = P(course, p.s0 + p.len * 0.5 + 6, laneOff(lane) + 0.8);
         }
       } else if (p.type === "weave") {
-        for (lane = 0; lane < 6; lane++) for (var w = 1; w < p.len - 0.5; w += 2) {
+        for (lane = 0; lane < NL; lane++) for (var w = 1; w < p.len - 0.5; w += 2) {
           var pole = mesh(T, new T.CylinderGeometry(0.03, 0.03, 0.5 + 0.8 * sizes[lane], 5), (w % 4 === 1) ? red : wht, true);
           pole.position.y = (0.5 + 0.8 * sizes[lane]) / 2;
-          place(grp1(pole), p.s0 + w, Core.laneOff(lane));
+          place(grp1(pole), p.s0 + w, laneOff(lane));
         }
       } else if (p.type === "pool") {
         var pk = p.kind || "std", top = waterTop(pk), w0 = pk === "dock" ? Core.DOCK_RUN : 0, wl = p.len - w0;
@@ -472,39 +485,39 @@
           place(grp1(lump), p.s0 + ((q * 53) % (p.len * 10)) / 10, (((q * 71) % 100) / 100 - 0.5) * HALF_W * 1.8, 0);
         }
       } else if (p.type === "aframe") {
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           var H = 0.4 + 1.1 * sizes[lane], half = p.len / 2, slope = Math.atan2(H, half), plen = Math.hypot(H, half);
           var ag = new T.Group();
           [-1, 1].forEach(function (sd) {
             var board = mesh(T, new T.BoxGeometry(plen, 0.06, 1.0), sd < 0 ? yel : mat(T, "#5d4037"), true);
             board.position.set(sd * half / 2, H / 2, 0); board.rotation.z = -sd * slope; ag.add(board);
           });
-          place(ag, p.s0 + half, Core.laneOff(lane));
+          place(ag, p.s0 + half, laneOff(lane));
         }
       } else if (p.type === "treat") {
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           var bowl = mesh(T, new T.CylinderGeometry(0.22, 0.15, 0.12, 10), mat(T, "#c62828")); bowl.position.y = 0.06;
           var meat = mesh(T, new T.SphereGeometry(0.13, 6, 4), mat(T, "#8d4b2a")); meat.position.y = 0.14; meat.scale.y = 0.5;
           var bg = new T.Group(); bg.add(bowl); bg.add(meat);
-          place(bg, p.s0 + p.len * 0.3 + 1.2, Core.laneOff(lane) - 0.55);
+          place(bg, p.s0 + p.len * 0.3 + 1.2, laneOff(lane) - 0.55);
         }
       } else if (p.type === "stay") {
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           var mt = mesh(T, new T.BoxGeometry(1.4, 0.04, 1.4), lane % 2 ? grn : blue); mt.position.y = 0.02;
-          place(grp1(mt), p.s0 + p.len * 0.5 + 0.3, Core.laneOff(lane));
+          place(grp1(mt), p.s0 + p.len * 0.5 + 0.3, laneOff(lane));
         }
       } else if (p.type === "bridge") {
         // 河流（橫跨整個畫面）＋每條跑道一座吊橋
         place(grp1(new T.Mesh(new T.BoxGeometry(p.len + 4, 0.04, 140), new T.MeshStandardMaterial({ color: 0x2a6f99, roughness: 0.2 }))), p.s0 + p.len / 2, 0, 0.02);
         var rope = mat(T, "#c8a46e");
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           var bgp = new T.Group();
           var deck = mesh(T, new T.BoxGeometry(p.len, 0.08, 1.05), wood, true); deck.position.y = BRIDGE_Y - 0.04; bgp.add(deck);
           [-1, 1].forEach(function (sd) {
             var rp = mesh(T, new T.CylinderGeometry(0.025, 0.025, p.len, 4), rope); rp.rotation.z = Math.PI / 2; rp.position.set(0, BRIDGE_Y + 0.75, sd * 0.55); bgp.add(rp);
             for (var e2 = 0; e2 <= p.len; e2 += 3) { var ps = mesh(T, new T.CylinderGeometry(0.04, 0.04, 0.8, 4), wood); ps.position.set(e2 - p.len / 2, BRIDGE_Y + 0.35, sd * 0.55); bgp.add(ps); }
           });
-          place(bgp, p.s0 + p.len / 2, Core.laneOff(lane));
+          place(bgp, p.s0 + p.len / 2, laneOff(lane));
         }
       }
     });
@@ -528,7 +541,7 @@
       if (p.type === "hurdlerace") {
         // 田徑跨欄：低欄、黑白條紋橫桿、L 型底座
         var gap = p.len / (p.bars + 1), stripe = new T.MeshStandardMaterial({ map: stripeTex(T, "#111111", "#ffffff"), roughness: 0.6 });
-        for (j = 1; j <= p.bars; j++) for (lane = 0; lane < 6; lane++) {
+        for (j = 1; j <= p.bars; j++) for (lane = 0; lane < NL; lane++) {
           var h = hurdleH(p, sizes[lane]); g = new T.Group();
           [-1, 1].forEach(function (sd) {
             post(g, 0, sd * 0.62, h, wht, 0.03);
@@ -536,12 +549,12 @@
           });
           var bar = mesh(T, new T.BoxGeometry(0.04, 0.1, 1.3), stripe, true); bar.position.y = h; g.add(bar);
           props.bars[lane + ":" + p.s0 + ":" + j] = { mesh: bar, h: h };
-          place(g, p.s0 + gap * j, Core.laneOff(lane));
+          place(g, p.s0 + gap * j, laneOff(lane));
         }
       } else if (p.type === "firewheel") {
         // 風火輪：立在支架上的火圈，周圍一圈會閃動的火焰
         var fg = p.len / (p.rings + 1), fire = mat(T, "#ff6d00", { emissive: "#ff3d00", emissiveIntensity: 0.9 }), flame = mat(T, "#ffd54f", { emissive: "#ffab00", emissiveIntensity: 1.0 });
-        for (j = 1; j <= p.rings; j++) for (lane = 0; lane < 6; lane++) {
+        for (j = 1; j <= p.rings; j++) for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; var R = 0.35 + 0.4 * S, cy = 0.55 + 0.75 * S; g = new T.Group();
           var ring = mesh(T, new T.TorusGeometry(R, 0.06, 6, 20), fire, true); ring.rotation.y = Math.PI / 2; ring.position.y = cy; g.add(ring);
           [-1, 1].forEach(function (sd) { post(g, 0, sd * (R + 0.12), cy, dark, 0.035); });
@@ -550,11 +563,11 @@
             fl.position.set(0, cy + Math.sin(a) * (R + 0.08), Math.cos(a) * (R + 0.08)); fl.rotation.x = -a + Math.PI / 2;
             g.add(fl); props.flames.push({ m: fl, k: q + lane * 3 + j });
           }
-          place(g, p.s0 + fg * j, Core.laneOff(lane));
+          place(g, p.s0 + fg * j, laneOff(lane));
         }
       } else if (p.type === "looptube") {
         // 圓形通道：沿著一整圈路線的透明管（每條跑道一條），下方有兩個支架
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; var rt = 0.3 + 0.4 * S, pts = [];
           for (q = 0; q <= 72; q++) {
             var th = q / 72 * Math.PI * 2, L0 = loopAt(th), nl = Math.hypot(L0.du, L0.dy) || 1;
@@ -562,20 +575,20 @@
           }
           pts.unshift(new T.Vector3(-1.2, rt, -0.3)); pts.push(new T.Vector3(Core.LOOP_C + 1.2, rt, 0.3));
           var tube = mesh(T, new T.TubeGeometry(new T.CatmullRomCurve3(pts), 160, rt, 12, false),
-            mat(T, LC[lane], { transparent: true, opacity: 0.38, side: T.DoubleSide, depthWrite: false }), false);
+            mat(T, LC[lane % LC.length], { transparent: true, opacity: 0.38, side: T.DoubleSide, depthWrite: false }), false);
           g = new T.Group(); g.add(tube);
           var rimM = mat(T, "#eceff1");
           [0, Math.PI].forEach(function (th2) { var L1 = loopAt(th2); var rim = mesh(T, new T.TorusGeometry(rt + 0.02, 0.04, 5, 16), rimM); rim.position.set(L1.u, L1.y + (th2 ? -rt : rt), (th2 / (Math.PI * 2) - 0.5) * 0.6); rim.rotation.y = Math.PI / 2; g.add(rim); });
           var top = loopAt(Math.PI);
           post(g, top.u, 0.9, top.y + 2 * rt, rimM, 0.07); post(g, top.u, -0.9, top.y + 2 * rt, rimM, 0.07);
-          place(g, p.s0 + Core.LOOP_IN, Core.laneOff(lane));
+          place(g, p.s0 + Core.LOOP_IN, laneOff(lane));
         }
       } else if (p.type === "climbwall") {
         // 爬高牆：陡峭的彩色攀岩板（上面有岩點）＋頂端平台＋下坡板
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; H = elevH(p, S); g = new T.Group();
           var L = p.len, x0 = -L / 2;
-          board(g, x0, 0, x0 + L * 0.35, H, 1.1, 0.1, mat(T, LC[lane]));
+          board(g, x0, 0, x0 + L * 0.35, H, 1.1, 0.1, mat(T, LC[lane % LC.length]));
           board(g, x0 + L * 0.35, H, x0 + L * 0.65, H, 1.1, 0.12, wood);
           board(g, x0 + L * 0.65, H, x0 + L, 0, 1.1, 0.08, wood);
           for (q = 0; q < 9; q++) {
@@ -583,12 +596,12 @@
             hold.position.set(x0 + L * 0.35 * f, H * f + 0.03, ((q * 37) % 7 / 7 - 0.5) * 0.8); g.add(hold);
           }
           [-1, 1].forEach(function (sd) { post(g, x0 + L * 0.35, sd * 0.5, H, wood, 0.06); post(g, x0 + L * 0.65, sd * 0.5, H, wood, 0.06); });
-          place(g, p.s0 + L / 2, Core.laneOff(lane));
+          place(g, p.s0 + L / 2, laneOff(lane));
         }
       } else if (p.type === "wallkick") {
         // 蹬牆連跳：左右交錯的高牆板＋最後的平台
         var kz = p.len * 0.8, kg = kz / p.kicks;
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; H = elevH(p, S); g = new T.Group();
           for (j = 1; j <= p.kicks; j++) {
             var wall = mesh(T, new T.BoxGeometry(kg * 0.9, H + 0.6, 0.1), j % 2 ? mat(T, "#90a4ae") : mat(T, "#b0bec5"), true);
@@ -597,11 +610,11 @@
           }
           var plat = mesh(T, new T.BoxGeometry(0.9, 0.12, 1.2), wood, true); plat.position.set(kz, H - 0.06, 0); g.add(plat);
           [-1, 1].forEach(function (sd) { post(g, kz, sd * 0.5, H - 0.1, wood, 0.05); });
-          place(g, p.s0, Core.laneOff(lane));
+          place(g, p.s0, laneOff(lane));
         }
       } else if (p.type === "seesaw") {
         // 蹺蹺板：板子的傾斜在 frame() 依每隻狗的位置更新
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           g = new T.Group();
           var piv = mesh(T, new T.ConeGeometry(0.28, SEESAW_HP, 4), dark, true); piv.position.y = SEESAW_HP / 2; g.add(piv);
           var arm = new T.Group(); arm.position.y = SEESAW_HP; g.add(arm);
@@ -609,25 +622,25 @@
           [-1, 1].forEach(function (sd) { var tip = mesh(T, new T.BoxGeometry(0.6, 0.085, 0.92), red); tip.position.set(sd * 1.8, 0.045, 0); arm.add(tip); });
           arm.rotation.z = SEESAW_A;
           props.seesaws[lane + ":" + p.s0] = arm;
-          place(g, p.s0 + p.len / 2, Core.laneOff(lane));
+          place(g, p.s0 + p.len / 2, laneOff(lane));
         }
       } else if (p.type === "dogwalk") {
         // 平衡木：上坡板、窄的高架木板、下坡板；兩端黃色的接觸區
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; H = elevH(p, S); g = new T.Group();
           var L2 = p.len, a0 = -L2 / 2;
           board(g, a0, 0, a0 + L2 * 0.25, H, 0.32, 0.06, yel);
           board(g, a0 + L2 * 0.25, H, a0 + L2 * 0.75, H, 0.3, 0.07, mat(T, "#6d4c41"));
           board(g, a0 + L2 * 0.75, H, a0 + L2, 0, 0.32, 0.06, yel);
           for (q = 0; q <= 2; q++) { var xx = a0 + L2 * (0.25 + 0.25 * q); post(g, xx, 0.12, H, dark, 0.03); post(g, xx, -0.12, H, dark, 0.03); }
-          place(g, p.s0 + L2 / 2, Core.laneOff(lane));
+          place(g, p.s0 + L2 / 2, laneOff(lane));
         }
       } else if (p.type === "tirerun") {
         // 輪胎陣：每 1 m 一對平放的輪胎
         var tireM = mat(T, "#212121"), tg = new T.TorusGeometry(0.24, 0.08, 6, 14);
-        for (lane = 0; lane < 6; lane++) for (q = 0.5; q < p.len; q += 1) [-1, 1].forEach(function (sd) {
+        for (lane = 0; lane < NL; lane++) for (q = 0.5; q < p.len; q += 1) [-1, 1].forEach(function (sd) {
           var tr = mesh(T, tg, tireM, true); tr.rotation.x = Math.PI / 2;
-          place(grp1(tr), p.s0 + q + (sd > 0 ? 0.5 : 0), Core.laneOff(lane) + sd * 0.27, 0.08);
+          place(grp1(tr), p.s0 + q + (sd > 0 ? 0.5 : 0), laneOff(lane) + sd * 0.27, 0.08);
         });
       } else if (p.type === "ballpit") {
         // 球池：整排跑道的矮圍框＋彩色球（instanced）
@@ -660,38 +673,38 @@
         [-1, 1].forEach(function (sd) { place(grp1(mesh(T, new T.BoxGeometry(p.len, 0.25, 0.12), yel, true)), p.s0 + p.len / 2, sd * (HALF_W + 0.05), 0.2); });
       } else if (p.type === "slide") {
         // 溜滑梯：梯子（兩根直桿＋橫檔）、頂台、有側板的滑道
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; H = elevH(p, S); g = new T.Group();
           var L3 = p.len, b0 = -L3 / 2, ladX = b0 + L3 * 0.3;
           board(g, b0, 0, ladX, H, 0.12, 0.05, dark).position.z = 0.42;
           board(g, b0, 0, ladX, H, 0.12, 0.05, dark).position.z = -0.42;
           for (q = 1; q < 8; q++) { var rung = mesh(T, new T.CylinderGeometry(0.025, 0.025, 0.84, 5), wht); rung.rotation.x = Math.PI / 2; rung.position.set(b0 + (ladX - b0) * q / 8, H * q / 8, 0); g.add(rung); }
           var deck = mesh(T, new T.BoxGeometry(0.6, 0.08, 1.0), orange, true); deck.position.set(ladX, H - 0.04, 0); g.add(deck);
-          var chute = mat(T, LC[lane]);
+          var chute = mat(T, LC[lane % LC.length]);
           board(g, ladX, H, b0 + L3, 0, 0.8, 0.06, chute);
           [-1, 1].forEach(function (sd) { board(g, ladX, H + 0.2, b0 + L3, 0.2, 0.05, 0.25, chute).position.z = sd * 0.42; });
           post(g, ladX, 0.4, H, dark, 0.05); post(g, ladX, -0.4, H, dark, 0.05);
-          place(g, p.s0 + L3 / 2, Core.laneOff(lane));
+          place(g, p.s0 + L3 / 2, laneOff(lane));
         }
       } else if (p.type === "trampoline") {
         // 彈跳床：圓框＋黑色彈跳布＋腳
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; var tr2 = 0.6 + 0.25 * S; g = new T.Group();
           var rim2 = mesh(T, new T.TorusGeometry(tr2, 0.05, 6, 22), blue, true); rim2.rotation.x = Math.PI / 2; rim2.position.y = 0.3; g.add(rim2);
           var matM = mesh(T, new T.CircleGeometry(tr2 - 0.03, 22), dark); matM.rotation.x = -Math.PI / 2; matM.position.y = 0.29; g.add(matM);
           for (q = 0; q < 4; q++) { var la = q / 4 * Math.PI * 2 + 0.4; post(g, Math.cos(la) * tr2, Math.sin(la) * tr2, 0.3, dark, 0.03); }
-          place(g, p.s0 + p.len * 0.4 + 0.3, Core.laneOff(lane));
+          place(g, p.s0 + p.len * 0.4 + 0.3, laneOff(lane));
         }
       } else if (p.type === "windmill") {
         // 風車門：門框＋沿跑道方向轉動的四片葉片
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; var gh = 0.9 + 1.0 * S; g = new T.Group();
           [-1, 1].forEach(function (sd) { post(g, 0, sd * 0.7, gh + 0.4, wht, 0.05); });
           var beam = mesh(T, new T.BoxGeometry(0.1, 0.1, 1.5), wht); beam.position.y = gh + 0.4; g.add(beam);
           var hub = new T.Group(); hub.position.set(-0.15, gh * 0.55, 0); g.add(hub);
           for (q = 0; q < 4; q++) { var blade = mesh(T, new T.BoxGeometry(0.04, gh * 0.5, 0.18), q % 2 ? red : wht, true); blade.position.y = gh * 0.25; var bh = new T.Group(); bh.rotation.x = q * Math.PI / 2; bh.add(blade); hub.add(bh); }
           props.spin.push({ m: hub, axis: "x", w: 2.2 + lane * 0.15 });
-          place(g, p.s0 + 3.2, Core.laneOff(lane));
+          place(g, p.s0 + 3.2, laneOff(lane));
         }
       } else if (p.type === "catzone") {
         // 貓咪誘惑區：跑道兩側木箱上坐著貓（尾巴會擺）
@@ -710,7 +723,7 @@
         }
       } else if (p.type === "sled") {
         // 拖輪胎：起點擺著一排輪胎，拖曳中的輪胎在 frame() 跟著狗
-        for (lane = 0; lane < 6; lane++) { var st2 = mesh(T, new T.TorusGeometry(0.28, 0.1, 6, 14), mat(T, "#212121"), true); st2.rotation.x = Math.PI / 2; place(grp1(st2), p.s0 - 1.2, Core.laneOff(lane), 0.1); }
+        for (lane = 0; lane < NL; lane++) { var st2 = mesh(T, new T.TorusGeometry(0.28, 0.1, 6, 14), mat(T, "#212121"), true); st2.rotation.x = Math.PI / 2; place(grp1(st2), p.s0 - 1.2, laneOff(lane), 0.1); }
         var flag = mesh(T, new T.BoxGeometry(0.05, 0.4, 0.6), orange); flag.position.y = 1.0;
         [-1, 1].forEach(function (sd) { var fgp = new T.Group(); post(fgp, 0, 0, 1.2, wht, 0.03); fgp.add(flag.clone()); place(fgp, p.s0 + p.len, sd * (HALF_W + 0.3)); });
       } else if (p.type === "ditch") {
@@ -732,9 +745,9 @@
         for (q = 0; q <= p.len; q += 5) [-1, 1].forEach(function (sd) { place(grp1(mesh(T, new T.SphereGeometry(0.2, 8, 6), q % 10 ? yel : red, true)), p.s0 + q, sd * (HALF_W + 0.8), 0.15); });
       } else if (p.type === "skateboard") {
         // 滑板：灰色水泥路面上的三角筒與兩側的 U 型半管
-        for (q = 3; q < p.len - 1; q += 4) for (lane = 0; lane < 6; lane++) {
+        for (q = 3; q < p.len - 1; q += 4) for (lane = 0; lane < NL; lane++) {
           var cone = mesh(T, new T.ConeGeometry(0.12, 0.35, 8), orange, true); cone.position.y = 0.175;
-          place(grp1(cone), p.s0 + q, Core.laneOff(lane) + (Math.floor(q / 4) % 2 ? 0.45 : -0.45));
+          place(grp1(cone), p.s0 + q, laneOff(lane) + (Math.floor(q / 4) % 2 ? 0.45 : -0.45));
         }
         [-1, 1].forEach(function (sd) {
           var pipe = mesh(T, new T.CylinderGeometry(1.4, 1.4, p.len, 16, 1, true, 0, Math.PI / 2), mat(T, "#b0bec5", { side: T.DoubleSide }), true);
@@ -753,21 +766,21 @@
         var sg2 = new T.BufferGeometry(); sg2.setAttribute("position", new T.Float32BufferAttribute(bp2, 3)); sg2.setIndex(bi2); sg2.computeVertexNormals();
         var slope = new T.Mesh(sg2, snowW); slope.material.side = T.DoubleSide; slope.receiveShadow = true; scene.add(slope);
         var tower = mesh(T, new T.BoxGeometry(2, Hs, HALF_W * 2 + 3), mat(T, "#cfd8dc"), true); place(grp1(tower), p.s0 - 1, 0, Hs / 2);
-        for (q = 5; q < p.len - 2; q += 5) for (lane = 0; lane < 6; lane++) {
+        for (q = 5; q < p.len - 2; q += 5) for (lane = 0; lane < NL; lane++) {
           var gate = new T.Group(), fm = Math.floor(q / 5) % 2 ? red : blue, gx = (Math.floor(q / 5) % 2 ? 0.55 : -0.55);
           post(gate, 0, gx, 0.9, fm, 0.02);
           var flg = mesh(T, new T.BoxGeometry(0.02, 0.3, 0.35), fm); flg.position.set(0, 0.75, gx + 0.18); gate.add(flg);
-          place(gate, p.s0 + q, Core.laneOff(lane), elevY(p, q, 1));
+          place(gate, p.s0 + q, laneOff(lane), elevY(p, q, 1));
         }
         for (q = 0; q < p.len; q += 3) [-1, 1].forEach(function (sd) { var mound = mesh(T, new T.SphereGeometry(0.6, 8, 5), snowW); mound.scale.y = 0.5; place(grp1(mound), p.s0 + q, sd * (HALF_W + 2), elevY(p, q, 1)); });
       } else if (p.type === "stairs") {
         // 階梯：實心台階＋頂台＋下坡板
-        for (lane = 0; lane < 6; lane++) {
+        for (lane = 0; lane < NL; lane++) {
           S = sizes[lane]; H = elevH(p, S); g = new T.Group();
           var L4 = p.len, up = L4 * 0.55, n = Math.max(3, Math.round(up / 0.55)), sw = up / n, c0 = -L4 / 2, stM = mat(T, lane % 2 ? "#bcaaa4" : "#d7ccc8");
           for (q = 1; q <= n; q++) { var sh = H * q / n, step = mesh(T, new T.BoxGeometry(sw, sh, 1.1), stM, true); step.position.set(c0 + (q - 0.5) * sw, sh / 2, 0); g.add(step); }
           board(g, c0 + up, H, c0 + L4, 0, 1.1, 0.08, wood);
-          place(g, p.s0 + L4 / 2, Core.laneOff(lane));
+          place(g, p.s0 + L4 / 2, laneOff(lane));
         }
       }
     });
@@ -799,9 +812,9 @@
     var terrain = card.terrain || "park";
     // 起跑閘門
     var gate = new T.Group(), steel = mat(T, "#cfd8dc"), green = mat(T, "#2e7d32");
-    for (var i = 0; i <= 6; i++) { var pp = mesh(T, new T.BoxGeometry(0.9, 1.6, 0.08), steel, true); pp.position.set(-0.45, 0.8, (i - 3) * Core.LANE_W); gate.add(pp); }
+    for (var i = 0; i <= NL; i++) { var pp = mesh(T, new T.BoxGeometry(0.9, 1.6, 0.08), steel, true); pp.position.set(-0.45, 0.8, (i - NL / 2) * Core.LANE_W); gate.add(pp); }
     var top = mesh(T, new T.BoxGeometry(1.2, 0.25, HALF_W * 2), green, true); top.position.set(-0.45, 1.8, 0); gate.add(top);
-    for (i = 0; i < 6; i++) { var nb = new T.Mesh(new T.PlaneGeometry(0.4, 0.4), new T.MeshBasicMaterial({ map: numberTex(T, i, true), transparent: true })); nb.position.set(0.16, 1.8, Core.laneOff(i)); nb.rotation.y = Math.PI / 2; gate.add(nb); }
+    for (i = 0; i < NL; i++) { var nb = new T.Mesh(new T.PlaneGeometry(0.4, 0.4), new T.MeshBasicMaterial({ map: numberTex(T, i, true), transparent: true })); nb.position.set(0.16, 1.8, laneOff(i)); nb.rotation.y = Math.PI / 2; gate.add(nb); }
     var p0 = P(course, 0, 0); gate.position.set(p0.x, 0, p0.z); gate.rotation.y = -p0.h; scene.add(gate);
     // 終點拱門＋終點線
     var arch = new T.Group(), ck = document.createElement("canvas"); ck.width = 128; ck.height = 16;
@@ -921,7 +934,7 @@
     for (d = 0; d < n; d++) {
       var cur = null;
       for (k = 0; k < fr.length; k++) {
-        var m = Math.floor(fr[k][d * 3 + 2]), cutEv = cuts[d][k];
+        var FS = result.crowd ? 4 : 3, m = Math.floor(fr[k][d * FS + FS - 1]), cutEv = cuts[d][k];
         if (!cur || cur.m !== m || cutEv) {
           if (cur) cur.t1 = (k + 1) * dt;
           cur = { m: m, t0: (k + 1) * dt, t1: (k + 1) * dt, ev: cutEv || (cur && cur.m === m ? cur.ev : null) };
@@ -942,9 +955,20 @@
 
   // ---------------- 轉播畫面 ----------------
   // opts：{ quality: "high" | "low" }
+  // 真賽狗的裝備：枠色背心（兩側號碼）＋口罩（和 saigo_real3d.js 的橢圓跑道版相同）
+  function dressRacer(T, m, i) {
+    var coat = mesh(T, new T.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), new T.MeshStandardMaterial({ color: D.GATE_COLORS[i], roughness: 0.8 }), true);
+    coat.scale.set(0.34, 0.24, 0.215); coat.position.set(-0.02, 0.0, 0); m.body.add(coat);
+    var numM = new T.MeshStandardMaterial({ map: numberTex(T, i, true), transparent: true, roughness: 0.8 });
+    [-1, 1].forEach(function (s2) { var num = new T.Mesh(new T.CircleGeometry(0.1, 16), numM); num.position.set(-0.04, 0.03, 0.217 * s2); if (s2 < 0) num.rotation.y = Math.PI; m.body.add(num); });
+    var muz = mesh(T, new T.CylinderGeometry(0.075, 0.06, 0.2, 6, 1, true), new T.MeshStandardMaterial({ color: 0x212121, wireframe: true }));
+    muz.rotation.z = Math.PI / 2; muz.position.set(0.22, -0.03, 0); m.head.add(muz);
+  }
+
   function create(container, card, result, opts) {
     var T = window.THREE;
     opts = opts || {};
+    setLanes(card);
     var hi = opts.quality !== "low";
     var renderer = new T.WebGLRenderer({ antialias: hi });
     renderer.setPixelRatio(hi ? Math.min(window.devicePixelRatio || 1, 2) : 1);
@@ -972,16 +996,22 @@
     var n = card.dogs.length;
     var dogs = card.dogs.map(function (d, i) {
       var m = buildDog(T, d.breed, i);
+      if (CROWD) {
+        dressRacer(T, m, i);
+        // 喊「賽狗」成功：腳下亮一圈粉紅
+        var glow = new T.Mesh(new T.TorusGeometry(0.75, 0.06, 6, 24), new T.MeshBasicMaterial({ color: 0xff80ab, transparent: true, opacity: 0.8 }));
+        glow.rotation.x = Math.PI / 2; glow.visible = false; scene.add(glow); m.glow = glow;
+      }
       scene.add(m.root);
       // 號碼牌固定螢幕大小（sizeAttenuation:false），近距離不會變巨大
       var tag = new T.Sprite(new T.SpriteMaterial({ map: numberTex(T, i, true), depthTest: false, transparent: true, sizeAttenuation: false }));
       tag.scale.set(0.035, 0.035, 1); tag.renderOrder = 10; scene.add(tag); m.tag = tag;
-      var disc = mesh(T, new T.CylinderGeometry(0.13, 0.13, 0.025, 12), mat(T, ["#ff5252", "#448aff", "#ffd740", "#69f0ae", "#e040fb", "#ffab40"][i]));
+      var disc = mesh(T, new T.CylinderGeometry(0.13, 0.13, 0.025, 12), mat(T, ["#ff5252", "#448aff", "#ffd740", "#69f0ae", "#e040fb", "#ffab40"][i % 6]));
       disc.visible = false; scene.add(disc); m.disc = disc;
       var has = {};
       card.course.parts.forEach(function (pp) { has[pp.type] = 1; });
       m.gear = {};
-      if (has.surf) { var sb = mesh(T, new T.CylinderGeometry(0.5, 0.5, 0.05, 16), mat(T, ["#ff7043", "#29b6f6", "#ffee58", "#66bb6a", "#ab47bc", "#ffa726"][i]), true); sb.scale.set(1.6, 1, 0.5); m.gear.surf = sb; }
+      if (has.surf) { var sb = mesh(T, new T.CylinderGeometry(0.5, 0.5, 0.05, 16), mat(T, ["#ff7043", "#29b6f6", "#ffee58", "#66bb6a", "#ab47bc", "#ffa726"][i % 6]), true); sb.scale.set(1.6, 1, 0.5); m.gear.surf = sb; }
       if (has.skateboard) {
         var sk = new T.Group(), dk = mesh(T, new T.BoxGeometry(1.0, 0.04, 0.3), mat(T, "#5d4037"), true); dk.position.y = 0.1; sk.add(dk);
         [-0.35, 0.35].forEach(function (wx) { [-0.11, 0.11].forEach(function (wz) { var wh = mesh(T, new T.CylinderGeometry(0.05, 0.05, 0.05, 8), mat(T, "#fdd835")); wh.rotation.x = Math.PI / 2; wh.position.set(wx, 0.05, wz); sk.add(wh); }); });
@@ -1000,12 +1030,15 @@
       return m;
     });
     // 由模擬結果推出的畫面資料；重新模擬後呼叫 derive() 重算
-    var spans, knocks, knocked, failed, finV;
+    var spans, knocks, knocked, failed, finV, shoutEv;
     var fx = skillFx(T, scene, n);
     function derive() {
     fx.set(skillFxEvents(result, n, window.PriTestSaigoSkills ? window.PriTestSaigoSkills.SCALE_CLASSIC : 1));
     (knocks || []).forEach(function (k) { k.bar.mesh.position.y = k.bar.h; k.bar.mesh.rotation.z = 0; });
     spans = buildSpans(result, n);
+    shoutEv = [];
+    for (var se = 0; se < n; se++) shoutEv.push([]);
+    (result.events || []).forEach(function (e) { if (e.k === "shoutHeal" && e.d >= 0 && shoutEv[e.d]) shoutEv[e.d].push(e.t); });
     // 碰倒的欄：哪隻狗、哪一根、什麼時候（畫面上欄杆會掉下來，那一根也不做跳躍弧線）
     knocks = []; knocked = {};
     failed = {};   // 跳失敗（風火輪撞圈、彈跳床摔、跳溝掉水）：那一跳不畫弧線
@@ -1017,19 +1050,20 @@
         return;
       }
       if (e.k !== "knock" && e.k !== "clip") return;
-      var s = Core.stateAt(result, e.t + result.dt)[e.d].s, part = Core.partAt(card.course, s);
+      var stK = Core.stateAt(result, e.t + result.dt)[e.d], s = stK.s, part = Core.partAt(card.course, s);
       if (!HURDLE_LIKE[part.type]) return;
       var j = e.k === "clip" && e.x ? e.x : Math.floor((s - part.s0) / (part.len / (part.bars + 1)));
-      var key = e.d + ":" + part.s0 + ":" + j;
+      var key = e.d + ":" + part.s0 + ":" + j, barKey = laneKeyOf(e.d, stK.x) + ":" + part.s0 + ":" + j;
       knocked[key] = e.t;
-      if (props.bars[key]) knocks.push({ bar: props.bars[key], t: e.t });
+      if (props.bars[barKey]) knocks.push({ bar: props.bars[barKey], t: e.t });
     });
     // 完走時的速度（衝過終點後減速用）
     finV = card.dogs.map(function (d, i) {
       var tf = result.times[i];
       if (tf === null) return 0;
       var k = clamp(Math.round(tf / result.dt) - 2, 0, result.frames.length - 1);
-      return result.frames[k][i * 3 + 1];
+      var FS2 = result.crowd ? 4 : 3;
+      return result.frames[k][i * FS2 + FS2 - 2];
     });
     }
     derive();
@@ -1059,7 +1093,8 @@
     function dogPos(i, t, st) {
       var s = st.s, tf = result.times[i];
       if (tf !== null && t > tf) { var dtf = t - tf, v0 = finV[i], stopT = v0 / 3; var e = Math.min(dtf, stopT); s = course().length + v0 * e - 1.5 * e * e; }
-      var off = Core.laneOff(i), sp = spanAt(spans[i], t), y = 0, part = Core.partAt(card.course, Math.min(s, card.course.length - 0.01));
+      var off = CROWD ? (st.x || 0) : Core.laneOff(i), sp = spanAt(spans[i], t), y = 0, part = Core.partAt(card.course, Math.min(s, card.course.length - 0.01));
+      var off0 = off;
       var local = s - part.s0;
       if (part.type === "weave" && s < card.course.length) off += Math.sin(local / 2 * Math.PI) * 0.45 * dogs[i].S;
       var jumpP = -1;
@@ -1130,7 +1165,7 @@
         else if (sp && sp.m === M.dive) y = (1 - sp.p) * DOCK_H + sp.p * (WATER_TOP - 0.3) + Math.sin(Math.PI * sp.p) * 0.9;
       }
       var p = P(card.course, s, off);
-      return { x: p.x, z: p.z, h: p.h, y: y, s: s, sp: sp, pitch: pitch, part: part, local: local, jumpP: jumpP, seesawAng: seesawAng };
+      return { x: p.x, z: p.z, h: p.h, y: y, s: s, sp: sp, pitch: pitch, part: part, local: local, jumpP: jumpP, seesawAng: seesawAng, off: off0 };
     }
     function course() { return card.course; }
 
@@ -1158,16 +1193,16 @@
         else if (sh.type === "side") { var sd = P(card.course, pack + 2, HALF_W + 11); pos = [sd.x, 3.2, sd.z]; var c2 = P(card.course, pack, 0); tgt = [c2.x, 0.6, c2.z]; fov = 45; }
         else if (sh.type === "heli") { var hp = P(card.course, pack - 22, -HALF_W - 6); pos = [hp.x, 18, hp.z]; var c3 = P(card.course, pack + 5, 0); tgt = [c3.x, 0, c3.z]; fov = 50; }
         else if (sh.type === "front") { var fp = P(card.course, ps[lead].s + 14, 2); pos = [fp.x, 1.6, fp.z]; var c4 = P(card.course, pack - 3, 0); tgt = [c4.x, 0.5, c4.z]; fov = 45; }
-        else { var me = ps[lead], cp = P(card.course, me.s - 6, Core.laneOff(lead) * 0.6); pos = [cp.x, 2.6, cp.z]; tgt = [me.x, 0.6, me.z]; fov = 55; }
+        else { var me = ps[lead], cp = P(card.course, me.s - 6, me.off * 0.6); pos = [cp.x, 2.6, cp.z]; tgt = [me.x, 0.6, me.z]; fov = 55; }
       } else if (cam.mode === "chase") {
-        var i = cam.dog, d = ps[i], S = dogs[i].S, back = P(card.course, d.s - (3 + 3 * S), Core.laneOff(i));
-        pos = [back.x, d.y + 1.0 + 1.4 * S, back.z]; var ah = P(card.course, d.s + 6, Core.laneOff(i)); tgt = [ah.x, 0.4 * S + d.y * 0.5, ah.z]; fov = 60;
+        var i = cam.dog, d = ps[i], S = dogs[i].S, back = P(card.course, d.s - (3 + 3 * S), d.off);
+        pos = [back.x, d.y + 1.0 + 1.4 * S, back.z]; var ah = P(card.course, d.s + 6, d.off); tgt = [ah.x, 0.4 * S + d.y * 0.5, ah.z]; fov = 60;
       } else if (cam.mode === "pov") {
         var j = cam.dog, dj = ps[j], Sj = dogs[j].S, hy = (dogs[j].bodyY + 0.3) * Sj + dj.y;
         var bodyEl = dogs[j].body.position.y * Sj;
         hy = bodyEl + 0.3 * Sj + (dj.y || 0);
-        var eye = P(card.course, dj.s + 0.55 * Sj, Core.laneOff(j));
-        pos = [eye.x, hy, eye.z]; var fw = P(card.course, dj.s + 12, Core.laneOff(j)); tgt = [fw.x, hy * 0.7, fw.z]; fov = 78;
+        var eye = P(card.course, dj.s + 0.55 * Sj, dj.off);
+        pos = [eye.x, hy, eye.z]; var fw = P(card.course, dj.s + 12, dj.off); tgt = [fw.x, hy * 0.7, fw.z]; fov = 78;
         if (dj.sp && dj.sp.m === M.catch) tgt[1] = hy + 3 * Math.sin(Math.PI * dj.sp.p);
         if (dj.sp && dj.sp.m === M.eat) tgt[1] = 0;
       } else {
@@ -1201,8 +1236,8 @@
         if (p.jumpP >= 0) { mode = M.jump; p.sp = { p: p.jumpP }; }
         var sp0 = p.sp;
         d.wt = p.part.type === "pool" ? waterTop(p.part.kind) : p.part.type === "ditch" ? -0.12 : p.part.type === "surf" ? 0.12 : WATER_TOP;
-        if (p.seesawAng !== null) { var ssw = props.seesaws[i + ":" + p.part.s0]; if (ssw) ssw.rotation.z = p.seesawAng; }
-        else card.course.parts.forEach(function (pp) { if (pp.type === "seesaw") { var sw2 = props.seesaws[i + ":" + pp.s0]; if (sw2) sw2.rotation.z = p.s > pp.s0 + pp.len / 2 ? -SEESAW_A : SEESAW_A; } });
+        if (p.seesawAng !== null) { var ssw = props.seesaws[laneKeyOf(i, p.off) + ":" + p.part.s0]; if (ssw) ssw.rotation.z = p.seesawAng; }
+        else if (!CROWD) card.course.parts.forEach(function (pp) { if (pp.type === "seesaw") { var sw2 = props.seesaws[i + ":" + pp.s0]; if (sw2) sw2.rotation.z = p.s > pp.s0 + pp.len / 2 ? -SEESAW_A : SEESAW_A; } });
         // 乘具（衝浪板、滑板、雪橇）：在該關卡內跟著狗、依體型縮放
         Object.keys(d.gear).forEach(function (k) {
           var gm = d.gear[k], on = p.part.type === k && p.local >= 0 && p.local <= p.part.len && !(sp0 && (sp0.m === M.swim || sp0.m === M.stun));
@@ -1213,7 +1248,7 @@
         if (d.sled) {
           var inSled = p.part.type === "sled" && p.local >= 0 && p.local <= p.part.len;
           d.sled.visible = inSled;
-          if (inSled) { var bk = P(card.course, p.s - 0.9 - 0.9 * d.S, Core.laneOff(i)); d.sled.position.set(bk.x, 0.1, bk.z); }
+          if (inSled) { var bk = P(card.course, p.s - 0.9 - 0.9 * d.S, p.off); d.sled.position.set(bk.x, 0.1, bk.z); }
         }
         var swimY = 0;
         d.root.position.set(p.x, p.y + swimY, p.z);
@@ -1224,11 +1259,21 @@
         d.root.visible = !(cam.mode === "pov" && cam.dog === i);
         d.tag.visible = cam.mode !== "pov" && !(cam.mode === "chase" && cam.dog === i);
         d.tag.position.set(p.x, p.y + d.S * 1.45 + 0.45, p.z);
+        if (d.glow) {
+          var gt = null;
+          shoutEv[i].forEach(function (et) { if (t >= et && t < et + 1.2) gt = et; });
+          d.glow.visible = gt !== null;
+          if (gt !== null) {
+            var gu = (t - gt) / 1.2;
+            d.glow.material.opacity = 0.9 * (1 - gu);
+            d.glow.position.set(p.x, p.y + 0.08 + gu * 0.6, p.z); d.glow.scale.setScalar((0.7 + gu * 0.8) * Math.max(0.7, d.S));
+          }
+        }
         // 飛盤：從丟盤的人飛到狗的頭上（失敗時飛過頭）
         var disc = d.disc, sp = p.sp;
         disc.visible = false;
         if (sp && sp.m === M.catch) {
-          var th = props.throwers[i + ":" + p.part.s0];
+          var th = props.throwers[laneKeyOf(i, p.off) + ":" + p.part.s0];
           if (th) {
             var miss = sp.ev === "catchMiss", u = clamp(sp.p / 0.6, 0, 1);
             var hx = p.x + Math.cos(p.h) * 0.4 * d.S, hz = p.z + Math.sin(p.h) * 0.4 * d.S, hy = (d.bodyY + 0.45) * d.S;

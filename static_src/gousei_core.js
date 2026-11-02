@@ -55,6 +55,9 @@
 
   function pairKey(a, b) { return a <= b ? a + "|" + b : b + "|" + a; }
 
+  // 3 材料的組合 key（排序後用 "|" 接起來），只用於支援 trio 的主題（見 tripleKey 的呼叫端）。
+  function tripleKey(a, b, c) { return [a, b, c].sort().join("|"); }
+
   function indexTheme(data) {
     var byId = {};
     var items = data.items.map(function (row) {
@@ -67,7 +70,8 @@
     var catById = {};
     data.categories.forEach(function (c) { catById[c.id] = c; });
     return { id: data.id, data: data, items: items, byId: byId, basics: data.basics.slice(),
-      junk: data.junk.slice(), junkSet: junkSet, recipes: data.recipes, catById: catById };
+      junk: data.junk.slice(), junkSet: junkSet, recipes: data.recipes, catById: catById,
+      trios: data.trios || {}, allowTrio: !!data.allowTrio };
   }
 
   function combine(theme, a, b) {
@@ -75,6 +79,18 @@
     var junkPick = theme.junk[hashStr(key) % theme.junk.length];
     if (theme.junkSet[a] || theme.junkSet[b]) return junkPick;
     return theme.recipes[key] || junkPick;
+  }
+
+  // 3 材料合成（只有 theme.allowTrio 的主題才會用到）：
+  //   有配方 → { options: [主產物, 副產物] }，由呼叫端讓玩家二選一；
+  //   任一材料是廢料，或沒有配方 → { options: [廢料] }（和 2 材料一樣，廢料沒有選擇的意義）。
+  function combineTrio(theme, a, b, c) {
+    var key = tripleKey(a, b, c);
+    var junkPick = theme.junk[hashStr(key) % theme.junk.length];
+    if (theme.junkSet[a] || theme.junkSet[b] || theme.junkSet[c]) return { options: [junkPick] };
+    var trio = theme.trios[key];
+    if (trio) return { options: [trio[0], trio[1]] };
+    return { options: [junkPick] };
   }
 
   function inRange(tier, range) { return tier >= range[0] && tier <= range[1]; }
@@ -139,6 +155,38 @@
     return { state: next, entry: entry };
   }
 
+  // 3 材料合成（見 combineTrio）：chosen 必須是 combineTrio 回傳的 options 之一；
+  //   有主產物／副產物可選時，entry.otherOption 記下沒選中的那個，供結果畫面提示。
+  function applyCombineTrio(theme, state, a, b, c, chosen) {
+    if (state.winner) throw new Error("game-over");
+    [a, b, c].forEach(function (id) {
+      if (state.pool.indexOf(id) < 0) throw new Error("not-in-pool");
+    });
+    var snap = clone(state);
+    snap.prev = null; // 只保留一層復原
+    var next = clone(snap);
+    next.prev = snap;
+    var options = combineTrio(theme, a, b, c).options;
+    if (options.indexOf(chosen) < 0) throw new Error("invalid-choice");
+    var other = options.length > 1 ? options.filter(function (o) { return o !== chosen; })[0] : null;
+    var result = chosen;
+    var isNew = next.pool.indexOf(result) < 0;
+    if (isNew) next.pool.push(result);
+    var p = next.players[next.turn];
+    var achieved = p.targets.indexOf(result) >= 0 && p.done.indexOf(result) < 0;
+    if (achieved) p.done.push(result);
+    var entry = { round: next.round, playerId: p.id, a: a, b: b, c: c, result: result,
+      otherOption: other, isNew: isNew, achieved: achieved };
+    next.log.push(entry);
+    if (p.done.length >= p.targets.length) {
+      next.winner = p.id;
+    } else {
+      next.turn += 1;
+      if (next.turn >= next.players.length) { next.turn = 0; next.round += 1; }
+    }
+    return { state: next, entry: entry };
+  }
+
   function undo(state) { return state && state.prev ? state.prev : null; }
 
   // 已知會合出廢料的組合：材料本身是廢料，或遊戲紀錄中同一組合（不分順序）合出過廢料。
@@ -149,7 +197,18 @@
     var key = pairKey(a, b);
     for (var i = state.log.length - 1; i >= 0; i--) {
       var e = state.log[i];
-      if (theme.junkSet[e.result] && pairKey(e.a, e.b) === key) return { result: e.result, junkMaterial: false };
+      if (theme.junkSet[e.result] && !e.c && pairKey(e.a, e.b) === key) return { result: e.result, junkMaterial: false };
+    }
+    return null;
+  }
+
+  // 3 材料版的 knownJunk（見上）：只看 state.log 中同樣帶 c 的紀錄，判斷依據同上。
+  function knownJunkTrio(theme, state, a, b, c) {
+    if (theme.junkSet[a] || theme.junkSet[b] || theme.junkSet[c]) return { result: null, junkMaterial: true };
+    var key = tripleKey(a, b, c);
+    for (var i = state.log.length - 1; i >= 0; i--) {
+      var e = state.log[i];
+      if (theme.junkSet[e.result] && e.c && tripleKey(e.a, e.b, e.c) === key) return { result: e.result, junkMaterial: false };
     }
     return null;
   }
@@ -487,14 +546,18 @@
     makeRng: makeRng,
     newSeed: newSeed,
     pairKey: pairKey,
+    tripleKey: tripleKey,
     indexTheme: indexTheme,
     combine: combine,
+    combineTrio: combineTrio,
     dealTargets: dealTargets,
     newGame: newGame,
     currentPlayer: currentPlayer,
     applyCombine: applyCombine,
+    applyCombineTrio: applyCombineTrio,
     undo: undo,
     knownJunk: knownJunk,
+    knownJunkTrio: knownJunkTrio,
     clearJunk: clearJunk,
     joinParam: joinParam,
     parseJoin: parseJoin,
