@@ -316,8 +316,7 @@
     Object.keys(o.eff).forEach(function (k) { eff[k] = o.eff[k]; });
     if (eff.study > 0 && s.stats.stamina < 25) { eff.study = eff.study / 2; out.push("太累了，上課內容一半都沒進到腦子裡。"); }
     applyEff(s, eff, out);
-    s.att.total++;
-    if (o.att) s.att.ok++;
+    attend(s, !!o.att);
     if (o.teacher && s.h.rinko.met) {
       addAff(s, "rinko", o.teacher, out);
       if (o.teacher < 0) out.push("柊老師的紅筆在你名字旁邊停了一下。");
@@ -335,7 +334,7 @@
     var score = Math.round(clamp(s.stats.study * 0.85 + 12 + bonus + (rand(s) * 16 - 8) - (s.stats.stamina < 20 ? 10 : 0), 0, 100));
     applyEff(s, { stamina: effort ? -15 : -6 }, null);
     s.exams.push({ kind: isFinal ? "final" : "midterm", score: score, day: s.day, year: cal(s).year, term: cal(s).termName });
-    s.att.total++; s.att.ok++;
+    attend(s, true);
     out.push((isFinal ? "期末考" : "期中考") + "結束了。你的分數是 " + score + " 分。");
     if (score >= 90) { out.push("全學年前段班！柊老師難得對你點了點頭。"); if (s.h.rinko.met) addAff(s, "rinko", 4, out); applyEff(s, { rep: 3 }, out); }
     else if (score < 50) { out.push("……不及格邊緣。柊老師的眼神好可怕。"); applyEff(s, { rep: -2 }, out); }
@@ -343,6 +342,14 @@
     setAp(s, 3);
     checkFaint(s, out);
     return out;
+  }
+  // 出席：總計＋各學年（學年報告只算當年）
+  function attend(s, ok) {
+    var y = cal(s).year;
+    s.att.total++; if (ok) s.att.ok++;
+    var by = s.att.byYear || (s.att.byYear = {});
+    var a = by[y] || (by[y] = { ok: 0, total: 0 });
+    a.total++; if (ok) a.ok++;
   }
   function checkFaint(s, out) {
     if (s.stats.stamina > 0) return false;
@@ -621,6 +628,9 @@
     if (key === hd.moment) { gain += 7; out.push(name(hid) + "的臉紅了，靜靜地靠近了你。"); }
     else { gain += 1; out.push(name(hid) + "笑了笑。"); }
     if (h.dating) { gain += 2; out.push(name(hid) + "：" + lineOf(s, hd.lines.lover)); }
+    // 後夜祭、聖誕夜等特殊日的晚上有約：約會對象就是共度的人
+    var spEv = specialEvening(s);
+    if (spEv) { out.push(fmt(spEv.act, { n: name(hid) })); gain += 4; s.today.festDance = hid; }
     addAff(s, hid, gain, out);
     if (sp.eff) applyEff(s, sp.eff, out);
     applyEff(s, { stamina: -6 }, out);
@@ -690,7 +700,7 @@
       D.HEROINES.forEach(function (hd) {
         var h = s.h[hd.id];
         if (!h.met || h.aff < 55 || (h.story || 0) >= c.year || !hd.story) return;
-        if (hash(s.seed, s.day, hd.id, "story") < 0.03) s.events.push({ type: "story", hid: hd.id, idx: c.year - 1 });
+        if (hash(s.seed, s.day, hd.id, "story") < 0.03) s.events.push({ type: "story", hid: hd.id, idx: h.story || 0 });
       });
     }
   }
@@ -756,7 +766,7 @@
   function nextYear(s) {
     if (s.phase !== "yearreport") return;
     s.yearReport = null;
-    // 新學年：體力回滿、出席重新計算
+    // 新學年：體力至少回到 80（出席率在學年報告中按學年分開計算）
     s.stats.stamina = Math.max(s.stats.stamina, 80);
     startDay(s);
   }
@@ -917,7 +927,8 @@
     var interim = year !== undefined && year !== null;
     var exams = s.exams.filter(function (e) { return !interim || (e.year || 0) === year; });
     var examAvg = exams.length ? exams.reduce(function (a, e) { return a + e.score; }, 0) / exams.length : s.stats.study;
-    var attRate = s.att.total ? s.att.ok / s.att.total : 1;
+    var att = interim ? (s.att.byYear && s.att.byYear[year]) || { ok: 0, total: 0 } : s.att;
+    var attRate = att.total ? att.ok / att.total : 1;
     var grade = Math.round(clamp(examAvg * 0.6 + attRate * 25 + s.stats.study * 0.15, 0, 100));
     var letter = grade >= 90 ? "S（秀）" : grade >= 80 ? "A（優）" : grade >= 70 ? "B（良）" : grade >= 60 ? "C（可）" : "F（不可）";
     var rows = D.HEROINES.map(function (hd) {
@@ -932,12 +943,12 @@
       lovers: lovers.length, friends: rows.filter(function (x) { return x.met && x.aff >= 20; }).length,
       maxAff: rows.reduce(function (a, x) { return Math.max(a, x.aff); }, 0), met: rows.filter(function (x) { return x.met; }).length,
       fans: s.fans, admirers: s.admirersTotal, ignored: s.ignored, rejected: s.rejected, shura: s.shura, breakups: s.breakups, dates: s.dates,
-      rep: s.stats.rep, charm: s.stats.charm, study: s.stats.study, money: s.stats.money, rows: rows, name: s.name, days: s.length
+      rep: s.stats.rep, charm: s.stats.charm, study: s.stats.study, money: s.stats.money, rows: rows, name: s.name, days: Math.max(1, Math.min(s.day, s.length))
     };
     var title = D.TITLES.filter(function (t) { return t.cond(r); })[0];
     r.title = title.name; r.titleComment = title.comment;
     var sumAff = rows.reduce(function (a, x) { return a + x.aff; }, 0);
-    r.fansPerDay = r.fans / Math.max(1, s.day);
+    r.fansPerDay = r.fans / r.days;
     r.score = Math.round(r.charm * 1.5 + Math.min(r.fansPerDay, 6) * 12 + sumAff / 6 + r.lovers * 25 + r.rep * 0.5 + grade * 0.5);
     r.rank = r.score >= 480 ? "SS" : r.score >= 380 ? "S" : r.score >= 280 ? "A" : r.score >= 190 ? "B" : r.score >= 110 ? "C" : "D";
     // 導師評語

@@ -495,6 +495,7 @@
       panelEl.appendChild(section("💌 " + t("wr_date_with", { n: hname(hid) }), [
         el("div", { class: "wr-hcard-head" }, [face(hd, 52), el("div", {}, [el("b", {}, [L(hd.name)]), affBar(hid)])]),
         el("p", { class: "wr-small wr-muted" }, [t("wr_date_pick")]),
+        C.specialEvening(S) ? el("p", { class: "wr-small wr-special" }, [t("wr_date_special", { e: C.specialEvening(S).title })]) : null,
         spots,
         el("div", { class: "wr-row" }, [btn("🙇 " + t("wr_date_cancel"), function () { if (window.confirm(t("wr_date_cancel_confirm"))) act(function () { return C.cancelDate(S); }); }, "wr-btn wr-btn-ghost")])
       ]));
@@ -531,7 +532,8 @@
     ]));
   }
   function renderNight() {
-    var next = S.day + 1 >= S.length ? t("wr_to_report") : t("wr_sleep");
+    var yearEnd = S.day + 1 < S.length && C.cal(S, S.day + 1).year !== C.cal(S).year;
+    var next = S.day + 1 >= S.length ? t("wr_to_report") : yearEnd ? t("wr_to_year_report") : t("wr_sleep");
     panelEl.appendChild(section("🌃 " + t("wr_night_title"), [
       el("p", { class: "wr-small wr-muted" }, [t("wr_night_note")]),
       el("div", { class: "wr-row" }, [btn("😴 " + next, function () {

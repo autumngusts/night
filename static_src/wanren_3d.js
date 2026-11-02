@@ -59,7 +59,8 @@
     renderer.outputEncoding = T.sRGBEncoding;
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.9;
-    renderer.shadowMap.enabled = true;
+    // 低階裝置（手機等）關掉陰影：人物很多，陰影會讓 draw call 加倍
+    renderer.shadowMap.enabled = !lowEnd;
     renderer.shadowMap.type = T.PCFSoftShadowMap;
     renderer.domElement.className = "wr-canvas";
     container.appendChild(renderer.domElement);
@@ -513,7 +514,7 @@
     var skinM = {};
     function sm(c) { return mat(c, { roughness: 0.7 }); }
     function hairBall(g, m, x, y, z, sx, sy, sz) {
-      var b = new T.Mesh(geo.ball, m); b.position.set(x, y, z); b.scale.set(sx, sy, sz); b.castShadow = true; g.add(b); return b;
+      var b = new T.Mesh(geo.ball, m); b.position.set(x, y, z); b.scale.set(sx, sy, sz); b.castShadow = sx > 0.1; g.add(b); return b;
     }
     function person(look) {
       var root = new T.Group();
@@ -985,7 +986,7 @@
       setEnabled: function (on) { enabled = !!on; if (!on) { keys = {}; pState.tx = null; marker.visible = false; } },
       resize: resize,
       // 測試用
-      _debug: function () { return { player: { x: player.position.x, z: player.position.z }, loc: curLoc, heroines: Object.keys(heroines).filter(function (k) { return heroines[k].obj.visible; }), students: students.length, sky: "#" + light.cur.sky.getHexString() }; },
+      _debug: function () { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, player: { x: player.position.x, z: player.position.z }, loc: curLoc, heroines: Object.keys(heroines).filter(function (k) { return heroines[k].obj.visible; }), students: students.length, sky: "#" + light.cur.sky.getHexString() }; },
       dispose: function () {
         alive = false;
         cancelAnimationFrame(raf);
