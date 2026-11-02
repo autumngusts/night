@@ -74,4 +74,10 @@ PROJECTS = [
         "name_key": "project_saigo_name",
         "desc_key": "project_saigo_desc",
     },
+    {
+        "id": "reiwa",
+        "href": "reiwa/index.html",
+        "name_key": "project_reiwa_name",
+        "desc_key": "project_reiwa_desc",
+    },
 ]

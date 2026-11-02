@@ -27,6 +27,7 @@ from site_src.fist_page import FIST_SCRIPTS, build_fist_html
 from site_src.dejavu_page import DEJAVU_SCRIPTS, build_dejavu_html
 from site_src.starv_page import STARV_SCRIPTS, build_starv_html
 from site_src.saigo_page import SAIGO_SCRIPTS, build_saigo_html
+from site_src.reiwa_page import REIWA_SCRIPTS, build_reiwa_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -44,6 +45,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "toushou": ("ts_",),
     "utau": ("ut_",),
     "gousei": ("gs_",),
+    "reiwa": ("rw_",),
 }
 
 
@@ -135,6 +137,7 @@ def build_static_assets() -> None:
         *DEJAVU_SCRIPTS,
         *STARV_SCRIPTS,
         *SAIGO_SCRIPTS,
+        *REIWA_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -232,9 +235,13 @@ def build_pages() -> None:
     saigo_dir.mkdir(parents=True, exist_ok=True)
     (saigo_dir / "index.html").write_text(build_saigo_html(), encoding="utf-8")
 
+    reiwa_dir = DIST_DIR / "reiwa"
+    reiwa_dir.mkdir(parents=True, exist_ok=True)
+    (reiwa_dir / "index.html").write_text(build_reiwa_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "reiwa", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)

@@ -1,0 +1,100 @@
+/* reiwa（令和之野望）的樣式。遵循「每個遊戲分開 CSS」的慣例，不要把這裡的樣式加進 style.css。 */
+/* ===================== 令和之野望（reiwa） ===================== */
+.rw-wrap {
+  --rw-line: rgba(127, 127, 127, 0.35);
+  --rw-accent: #b23c2f;
+  --rw-accent-soft: rgba(178, 60, 47, 0.14);
+  --rw-good: #2e7d4f;
+  --rw-bad: #c0392b;
+  --rw-chip: #f4f1ec;
+  --rw-panel-bg: rgba(127, 127, 127, 0.04);
+  max-width: 76rem;
+  margin: 0 auto;
+}
+@media (prefers-color-scheme: dark) {
+  .rw-wrap {
+    --rw-accent: #e06a57;
+    --rw-accent-soft: rgba(224, 106, 87, 0.18);
+    --rw-good: #6fcf97;
+    --rw-bad: #ff7b6b;
+    --rw-chip: #2a2826;
+    --rw-panel-bg: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.rw-wrap button { cursor: pointer; font: inherit; }
+.rw-wrap button:disabled { cursor: default; opacity: 0.4; }
+.rw-wrap select, .rw-wrap input[type="number"] { font: inherit; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid var(--rw-line); background: var(--rw-chip); color: inherit; }
+.rw-wrap input[type="number"] { width: 4.5rem; }
+
+.rw-intro { line-height: 1.65; }
+.rw-muted { opacity: 0.72; }
+.rw-small { font-size: 0.85em; }
+.rw-good { color: var(--rw-good); font-weight: bold; }
+.rw-bad { color: var(--rw-bad); font-weight: bold; }
+
+.rw-primary { font-weight: bold; padding: 0.5rem 1.2rem; background: var(--rw-accent); color: #fff; border: 0; border-radius: 6px; }
+.rw-primary:disabled { opacity: 0.4; }
+.rw-secondary { padding: 0.35rem 0.8rem; border: 1px solid var(--rw-line); border-radius: 6px; background: var(--rw-chip); color: inherit; }
+.rw-link { background: none; border: 0; color: var(--rw-accent); text-decoration: underline; padding: 0 0.25rem; }
+
+.rw-panel { border: 1px solid var(--rw-line); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; background: var(--rw-panel-bg); }
+.rw-panel h3 { margin: 0 0 0.5rem; font-size: 1.1em; }
+.rw-panel h4 { margin: 0.8rem 0 0.4rem; font-size: 1em; }
+
+.rw-faction-dot { display: inline-block; width: 1em; height: 1em; border-radius: 50%; vertical-align: -0.1em; border: 1px solid rgba(0, 0, 0, 0.35); flex: none; }
+.rw-dot-inline { margin-right: 0.3em; }
+
+.rw-faction-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.8rem; margin: 1rem 0; }
+.rw-faction-card { border: 1px solid var(--rw-line); border-radius: 10px; padding: 0.9rem; display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-start; background: var(--rw-panel-bg); }
+.rw-faction-card h3 { margin: 0.2rem 0; }
+.rw-faction-card .rw-primary { margin-top: 0.5rem; align-self: stretch; }
+
+.rw-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 1rem; padding: 0.6rem 0.8rem; border: 1px solid var(--rw-line); border-radius: 10px; }
+.rw-spacer { flex: 1; }
+.rw-pill { padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--rw-line); font-size: 0.88em; background: var(--rw-chip); }
+
+.rw-main-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.rw-map-wrap { flex: 1 1 22rem; min-width: 20rem; }
+.rw-map { width: 100%; height: auto; max-height: 34rem; }
+.rw-edge { stroke: var(--rw-line); stroke-width: 1.2; }
+.rw-node circle { stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; cursor: pointer; }
+.rw-node text.rw-node-label { font-size: 7px; fill: currentColor; pointer-events: none; }
+.rw-node-mine circle { stroke: #ffd24a; stroke-width: 2; }
+.rw-node-selected circle { stroke: #fff; stroke-width: 2.5; }
+@media (prefers-color-scheme: dark) {
+  .rw-node circle { stroke: rgba(255, 255, 255, 0.55); }
+  .rw-node-selected circle { stroke: #222; }
+}
+
+.rw-sidebar { flex: 1 1 22rem; min-width: 20rem; }
+.rw-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
+.rw-tab { padding: 0.4rem 0.9rem; border: 1px solid var(--rw-line); border-radius: 999px; background: var(--rw-chip); color: inherit; }
+.rw-tab.rw-tab-on { background: var(--rw-accent); color: #fff; border-color: var(--rw-accent); font-weight: bold; }
+
+.rw-troop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.4rem; }
+.rw-troop-chip { display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.5rem; border: 1px solid var(--rw-line); border-radius: 6px; background: var(--rw-chip); font-size: 0.9em; }
+.rw-troop-chip b { margin-left: auto; }
+.rw-troop-icon { font-size: 1.05em; }
+
+.rw-action-block { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px dashed var(--rw-line); }
+.rw-action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.4rem 0; }
+.rw-recruit-row select { min-width: 7rem; }
+
+.rw-diplo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--rw-line); }
+.rw-diplo-row:last-child { border-bottom: 0; }
+.rw-relation-bar { position: relative; width: 6rem; height: 0.6rem; border-radius: 999px; background: var(--rw-chip); border: 1px solid var(--rw-line); overflow: hidden; }
+.rw-relation-fill { position: absolute; inset: 0; background: var(--rw-accent); }
+.rw-provoke-pick { flex-basis: 100%; }
+
+.rw-modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 50; }
+.rw-modal { background: Canvas; color: CanvasText; border-radius: 12px; padding: 1.2rem; max-width: 40rem; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4); }
+
+.rw-slot-grid { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.6rem 0; }
+.rw-slot { display: flex; align-items: center; gap: 0.5rem; }
+.rw-slot b { min-width: 4.5rem; }
+.rw-slot select { flex: 1; min-width: 9rem; }
+
+.rw-log { max-height: 16rem; overflow: auto; }
+.rw-log-item { padding: 0.15rem 0; font-size: 0.92em; border-bottom: 1px solid var(--rw-line); }
+.rw-log-item:last-child { border-bottom: 0; }
