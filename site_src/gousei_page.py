@@ -19,7 +19,7 @@ GOUSEI_SCRIPTS: tuple[str, ...] = (
     "gousei.js",
 )
 
-GOUSEI_THEMES: tuple[str, ...] = ("wuxia", "wafu")
+GOUSEI_THEMES: tuple[str, ...] = ("wuxia", "wafu", "food")
 
 # 語音模式的拼音表（tools/gousei_data/build_pinyin.py 產生）也是開啟語音時才動態載入
 GOUSEI_PINYIN_FILE = "gousei_pinyin.js"

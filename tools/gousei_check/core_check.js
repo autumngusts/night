@@ -240,4 +240,38 @@ assert.strictEqual(Core.parseYesNo("不對"), false, "否定詞優先");
 assert.strictEqual(Core.parseYesNo("違います"), false);
 assert.strictEqual(Core.parseYesNo("雷加水"), null);
 
+// ---- trio（3 材料合成＋副產物二選一，僅世界美食主題使用，見 docs/gousei_game_design.md） ----
+var trioData = fixture();
+trioData.allowTrio = true;
+trioData.trios = {};
+trioData.trios[Core.tripleKey("b1", "b2", "i1")] = ["j1", "j2"];
+var ttheme = Core.indexTheme(trioData);
+assert.strictEqual(ttheme.allowTrio, true);
+assert.deepStrictEqual(Core.combineTrio(ttheme, "b1", "b2", "i1").options, ["j1", "j2"]);
+assert.deepStrictEqual(Core.combineTrio(ttheme, "i1", "b2", "b1").options, ["j1", "j2"], "順序不影響");
+var junkOpt = Core.combineTrio(ttheme, "b1", "b2", "z1").options;
+assert.strictEqual(junkOpt.length, 1, "材料含廢料→單一結果，沒有選擇");
+assert.ok(ttheme.junkSet[junkOpt[0]], "材料含廢料→廢料");
+assert.strictEqual(Core.combineTrio(ttheme, "i2", "i3", "j1").options.length, 1, "沒配方→單一廢料結果");
+
+var ts = Core.newGame(ttheme, { seed: "trio", mode: "shared", names: ["A", "B"] });
+ts.pool = ts.pool.concat(["i1"]);
+assert.throws(function () { Core.applyCombineTrio(ttheme, ts, "b1", "b2", "i1", "k1"); }, /invalid-choice/, "chosen 必須是 options 之一");
+var tr1 = Core.applyCombineTrio(ttheme, ts, "b1", "b2", "i1", "j2");
+assert.strictEqual(tr1.entry.result, "j2");
+assert.strictEqual(tr1.entry.otherOption, "j1", "沒選中的那個記在 otherOption");
+assert.strictEqual(tr1.entry.c, "i1");
+assert.ok(tr1.state.pool.indexOf("j2") >= 0);
+assert.strictEqual(Core.currentPlayer(tr1.state).id, "p2");
+
+var known1 = Core.knownJunkTrio(ttheme, ts, "b1", "b2", "z1");
+assert.strictEqual(known1.junkMaterial, true, "材料含廢料直接判定");
+var jpool = ts.pool.concat(["i2", "i3", "j3"]);
+var sj = Object.assign({}, ts, { pool: jpool });
+var junkResult = Core.combineTrio(ttheme, "i2", "i3", "j3").options[0];
+var afterJunk = Core.applyCombineTrio(ttheme, sj, "i2", "i3", "j3", junkResult);
+var known2 = Core.knownJunkTrio(ttheme, afterJunk.state, "i2", "i3", "j3");
+assert.strictEqual(known2 && known2.result, junkResult, "紀錄中同組合合出過廢料");
+assert.strictEqual(Core.knownJunkTrio(ttheme, afterJunk.state, "i1", "i2", "i3"), null, "沒試過的組合不會被判定為已知廢料");
+
 console.log("gousei core_check OK");
