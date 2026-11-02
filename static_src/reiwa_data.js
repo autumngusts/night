@@ -1,4 +1,5 @@
-// 令和之野望（reiwa）：靜態資料 —— 東北地方 30 座城池、8 個勢力、16 位武將、8 種兵種的循環相剋表。
+// 令和之野望（reiwa）：靜態資料 —— 東北地方 30 座城池、8 個勢力（含大名特色）、14 位家臣＋8 位浪人武將、
+// 8 種兵種的循環相剋表、劇本與難度設定。規則說明見 docs/reiwa_game_design.md。
 // 這是全新的獨立小遊戲，與 night/midnight 的 TRPG 規則無關；武將為「真實大名姓氏＋原創數值」的混合設定，
 // 地圖座標為示意用的簡化佈局，不是精確地理位置。
 (function () {
@@ -105,6 +106,9 @@
   };
 
   // 8 個勢力（真實大名姓氏，數值與武將為原創設定）
+  // trait：大名特色（reiwa_core.js 的 traitOf() 讀取）——powerMul 兵種戰力倍率／firstRoundAttackMul 進攻第 1 陣倍率
+  //   ／defendMul 守城全兵種倍率／mountainDefendMul 山城守備倍率／coastalGoldMul 沿海軍資倍率
+  //   ／harvestMul 秋收倍率／schemeBonus 偵察外交離間成功率加成／recruitDiscount 徵募每名軍資折扣
   // temperament：AI 的性格傾向（reiwa_core.js 的 TEMPERAMENT_PROFILES 依此決定攻擊門檻／出兵比例／外交積極度等）
   //   aggressive（好戰）／balanced（穩健）／cautious（保守，優先自保）／diplomatic（長於外交，傾向結盟）
   var FACTIONS = {
@@ -115,6 +119,7 @@
       capital: "ao_hirosaki",
       generals: ["tsugaru_tamenobu", "tsugaru_nobutake"],
       temperament: "cautious",
+      trait: { id: "first_strike", name: C("独立の奇襲", "獨立奇襲"), desc: C("侵攻時、第1陣の戦力×1.4", "進攻時第 1 陣戰力 ×1.4"), firstRoundAttackMul: 1.4 },
     },
     nanbu: {
       id: "nanbu",
@@ -123,6 +128,7 @@
       capital: "iw_morioka",
       generals: ["nanbu_harumasa", "nanbu_nobunao"],
       temperament: "balanced",
+      trait: { id: "famed_horses", name: C("名馬の郷", "名馬之鄉"), desc: C("騎馬兵の戦力×1.2、騎馬兵の徴募費用 -1", "騎馬兵戰力 ×1.2，徵募騎馬兵每名軍資 -1"), powerMul: { cavalry: 1.2 }, recruitDiscount: { cavalry: 1 } },
     },
     akita: {
       id: "akita",
@@ -131,6 +137,7 @@
       capital: "ak_akita",
       generals: ["akita_chikasue", "akita_sanesue"],
       temperament: "diplomatic",
+      trait: { id: "sea_trade", name: C("日本海交易", "日本海交易"), desc: C("沿岸の城の軍資収入×1.4", "沿海城池軍資收入 ×1.4"), coastalGoldMul: 1.4 },
     },
     mogami: {
       id: "mogami",
@@ -139,6 +146,7 @@
       capital: "ya_yamagata",
       generals: ["mogami_yoshiaki", "mogami_moritou"],
       temperament: "aggressive",
+      trait: { id: "schemer", name: C("謀将", "謀將"), desc: C("偵察・外交・離間の成功率 +15%", "偵察、外交、離間成功率 +15%"), schemeBonus: 0.15 },
     },
     date: {
       id: "date",
@@ -147,6 +155,7 @@
       capital: "mi_sendai",
       generals: ["date_masamune", "date_katakura"],
       temperament: "aggressive",
+      trait: { id: "horse_guns", name: C("騎馬鉄砲", "騎馬鐵砲"), desc: C("鉄砲兵と騎馬兵の戦力×1.1", "鐵砲兵與騎馬兵戰力 ×1.1"), powerMul: { gun: 1.1, cavalry: 1.1 } },
     },
     kasai: {
       id: "kasai",
@@ -155,6 +164,7 @@
       capital: "mi_ishinomaki",
       generals: ["kasai_harunobu"],
       temperament: "cautious",
+      trait: { id: "river_transport", name: C("北上川水運", "北上川水運"), desc: C("水軍の戦力×1.25、秋の収穫×1.15", "水軍戰力 ×1.25，秋收兵糧 ×1.15"), powerMul: { navy: 1.25 }, harvestMul: 1.15 },
     },
     ashina: {
       id: "ashina",
@@ -163,6 +173,7 @@
       capital: "fu_aizu",
       generals: ["ashina_moriuji", "ashina_moritaka"],
       temperament: "balanced",
+      trait: { id: "aizu_basin", name: C("会津盆地", "會津盆地"), desc: C("秋の収穫×1.3、山城の守備戦力×1.1", "秋收兵糧 ×1.3，山城守備戰力 ×1.1"), harvestMul: 1.3, mountainDefendMul: 1.1 },
     },
     soma: {
       id: "soma",
@@ -171,6 +182,7 @@
       capital: "fu_soma",
       generals: ["soma_moritane"],
       temperament: "cautious",
+      trait: { id: "nomaoi", name: C("相馬野馬追", "相馬野馬追"), desc: C("騎馬兵の戦力×1.15、籠城時は全兵種×1.1", "騎馬兵戰力 ×1.15，守城時全兵種 ×1.1"), powerMul: { cavalry: 1.15 }, defendMul: 1.1 },
     },
   };
 
@@ -288,6 +300,54 @@
       aptitude: "cavalry",
     },
   };
+
+  // 浪人武將：不屬於任何勢力，遊戲中會隨機出現並可花費軍資登用（reiwa_core.js 的浪人事件）
+  var RONIN = {
+    kunohe_masazane: { id: "kunohe_masazane", faction: null, ronin: true, name: C("九戸政実", "九戶政實"), stats: { leadership: 8, valor: 8, strategy: 6, politics: 4 }, aptitude: "cavalry" },
+    osaki_yoshitaka: { id: "osaki_yoshitaka", faction: null, ronin: true, name: C("大崎義隆", "大崎義隆"), stats: { leadership: 5, valor: 4, strategy: 5, politics: 7 }, aptitude: "ashigaru" },
+    tozawa_moriyasu: { id: "tozawa_moriyasu", faction: null, ronin: true, name: C("戸沢盛安", "戶澤盛安"), stats: { leadership: 7, valor: 9, strategy: 6, politics: 4 }, aptitude: "naginata" },
+    onodera_yoshimichi: { id: "onodera_yoshimichi", faction: null, ronin: true, name: C("小野寺義道", "小野寺義道"), stats: { leadership: 5, valor: 6, strategy: 4, politics: 5 }, aptitude: "archer" },
+    daihoji_yoshiuji: { id: "daihoji_yoshiuji", faction: null, ronin: true, name: C("大宝寺義氏", "大寶寺義氏"), stats: { leadership: 6, valor: 7, strategy: 4, politics: 3 }, aptitude: "navy" },
+    shirakawa_yoshichika: { id: "shirakawa_yoshichika", faction: null, ronin: true, name: C("白河義親", "白河義親"), stats: { leadership: 5, valor: 4, strategy: 7, politics: 6 }, aptitude: "ninja" },
+    waga_tadachika: { id: "waga_tadachika", faction: null, ronin: true, name: C("和賀忠親", "和賀忠親"), stats: { leadership: 5, valor: 6, strategy: 5, politics: 4 }, aptitude: "spear" },
+    iwaki_tsunetaka: { id: "iwaki_tsunetaka", faction: null, ronin: true, name: C("岩城常隆", "岩城常隆"), stats: { leadership: 6, valor: 6, strategy: 6, politics: 6 }, aptitude: "gun" },
+  };
+
+  var RONIN_ORDER = Object.keys(RONIN);
+
+  // 劇本：起始年份／季節（0 春 1 夏 2 秋 3 冬）、城池歸屬覆寫、開局即滅亡的勢力（其武將轉為浪人）
+  var SCENARIOS = {
+    s1585: {
+      id: "s1585",
+      name: C("1585 人取橋の戦い", "1585 人取橋之戰"),
+      desc: C("伊達政宗が家督を継ぎ、奥羽の群雄が割拠する。8 勢力すべてが健在。", "伊達政宗繼承家督，奧羽群雄割據，8 個勢力全部健在。"),
+      startYear: 1585,
+      startSeason: 0,
+      ownerOverrides: {},
+      eliminated: [],
+    },
+    s1589: {
+      id: "s1589",
+      name: C("1589 摺上原の後", "1589 摺上原之後"),
+      desc: C("摺上原で蘆名氏が滅び、会津は伊達氏の手に。強大化した伊達を周囲が包囲する。", "蘆名氏於摺上原覆滅，會津落入伊達氏之手；周邊勢力面對坐大的伊達。"),
+      startYear: 1589,
+      startSeason: 2,
+      ownerOverrides: { fu_aizu: "date", fu_koriyama: "date", fu_shirakawa: "date" },
+      eliminated: ["ashina"],
+    },
+  };
+  var SCENARIO_ORDER = ["s1585", "s1589"];
+
+  // 難度：玩家行動點／AI 每回合行動數／AI 收入倍率
+  var DIFFICULTIES = {
+    easy: { id: "easy", playerAp: 4, aiActions: 1, aiIncomeMul: 0.85 },
+    normal: { id: "normal", playerAp: 3, aiActions: 2, aiIncomeMul: 1 },
+    hard: { id: "hard", playerAp: 3, aiActions: 3, aiIncomeMul: 1.2 },
+  };
+  var DIFFICULTY_ORDER = ["easy", "normal", "hard"];
+
+  // 冬季行軍：攻入這些地區時攻方戰力倍率（日本海側與北奧羽雪深）
+  var WINTER_ATTACK_MUL = { aomori: 0.75, iwate: 0.8, akita: 0.75, yamagata: 0.8, miyagi: 0.9, fukushima: 0.9 };
 
   // profile 影響初始兵力構成的比例權重（依 TROOP_ORDER 順序）；在 reiwa_core.js 依 kokudaka 換算成實際人數
   var PROFILE_WEIGHTS = {
@@ -437,7 +497,7 @@
   }
 
   function generalById(id) {
-    return GENERALS[id] || null;
+    return GENERALS[id] || RONIN[id] || null;
   }
 
   function generalsOfFaction(factionId) {
@@ -468,6 +528,13 @@
     FACTIONS: FACTIONS,
     FACTION_ORDER: FACTION_ORDER,
     GENERALS: GENERALS,
+    RONIN: RONIN,
+    RONIN_ORDER: RONIN_ORDER,
+    SCENARIOS: SCENARIOS,
+    SCENARIO_ORDER: SCENARIO_ORDER,
+    DIFFICULTIES: DIFFICULTIES,
+    DIFFICULTY_ORDER: DIFFICULTY_ORDER,
+    WINTER_ATTACK_MUL: WINTER_ATTACK_MUL,
     NODES: NODES,
     EDGES: EDGES,
     PROFILE_WEIGHTS: PROFILE_WEIGHTS,
