@@ -22,8 +22,18 @@
     hurdle: { main: "jmp", sub: "agi", icon: "╫" },
     swim: { main: "swm", sub: "sta", icon: "≈" },
     frisbee: { main: "cat", sub: "jmp", icon: "◎" },
-    obedience: { main: "foc", sub: "cat", icon: "✋" }
+    obedience: { main: "foc", sub: "cat", icon: "✋" },
+    // 2026-11-02 追加 8 種
+    interval: { main: "spd", sub: "sta", icon: "⏱" },
+    lure: { main: "spd", sub: "foc", icon: "🐰" },
+    hill: { main: "pow", sub: "spd", icon: "⛰" },
+    trail: { main: "sta", sub: "agi", icon: "🌲" },
+    agility: { main: "agi", sub: "jmp", icon: "🔀" },
+    dock: { main: "swm", sub: "jmp", icon: "🌊" },
+    tug: { main: "pow", sub: "cat", icon: "🪢" },
+    gate: { main: "foc", sub: "agi", icon: "🚪" }
   };
+  var SK = window.PriTestSaigoSkills;
 
   var store = null;
   function now() { return Date.now(); }
@@ -65,7 +75,7 @@
     var train = {};
     D.STATS.forEach(function (k) { train[k] = 0; });
     var best = D.rollBestStyle(D.BREED_BY_ID[breed].style, Math.random);
-    var d = { id: "d" + (s.nextId++), breed: breed, best: best, runStyle: best, name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
+    var d = { id: "d" + (s.nextId++), breed: breed, best: best, runStyle: best, skills: [], line: D.LINE_IDS[Math.floor(Math.random() * D.LINE_IDS.length)], name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
     s.dogs.push(d);
     save();
     return d;
@@ -108,9 +118,49 @@
     d.fatigue = clamp(d.fatigue + 14, 0, 100);
     if (d.fatigue > 60 && r() < 0.3) { d.mood = clamp(d.mood - 1, 0, 4); out.moodDown = true; }
     out.lvUp = gainExp(d, 8);
+    // 技能池：沒有（或已過期）就抽新的 20 個
+    if (!pool()) { s0().skillPool = { at: now(), ids: SK.rollPool(Math.random) }; out.newPool = true; }
     save();
     return out;
   }
+  function s0() { return load(); }
+
+  // ---------------- 技能 ----------------
+  // 技能池（整個犬舍共用）：訓練時抽 20 個（金 4、罕見 8、一般 8），30 分鐘後消失；
+  // 消失後要再訓練才會抽新的。學習＝從池裡拿一個放進狗（欄位：金 1、罕見 2、一般 2），拿走就從池裡移除。
+  function pool() {
+    var st = load(), p = st.skillPool;
+    if (!p || !Array.isArray(p.ids)) return null;
+    if (now() - p.at >= SK.POOL_TTL_MS) { st.skillPool = null; save(); return null; }
+    return { at: p.at, ids: p.ids.slice(), left: SK.POOL_TTL_MS - (now() - p.at) };
+  }
+  function skillsOf(d) { return SK.sanitize(d && d.skills); }
+  function learn(dogId, skillId) {
+    var d = dog(dogId), p = pool(), st = load();
+    if (!d || !p || p.ids.indexOf(skillId) < 0) return "gone";
+    var cur = skillsOf(d);
+    if (cur.indexOf(skillId) >= 0) return "dup";
+    if (!SK.canLearn(cur, skillId)) return "full";
+    d.skills = cur.concat([skillId]);
+    var ids = st.skillPool.ids, k = ids.indexOf(skillId);
+    ids.splice(k, 1);
+    save();
+    return "ok";
+  }
+  function forget(dogId, skillId) {
+    var d = dog(dogId);
+    if (!d) return;
+    d.skills = skillsOf(d).filter(function (x) { return x !== skillId; });
+    save();
+  }
+  function lineOf(d) { return D.LINES[d.line] ? d.line : D.LINE_IDS[parseInt(String(d.id).replace(/\D/g, ""), 10) % 3 || 0]; }
+  // 總評分（能力＋技能）
+  function stats(d) {
+    var b = D.BREED_BY_ID[d.breed] || D.BREEDS[0], out = {};
+    D.STATS.forEach(function (k) { out[k] = b.base[k] + ((d.train && d.train[k]) || 0) + (d.lv || 0) * 0.5; });
+    return out;
+  }
+  function rating(d) { return SK.rating(stats(d), skillsOf(d)); }
   function rest(id) {
     var d = dog(id);
     if (!d) return;
@@ -150,7 +200,7 @@
   function entry(id, owner, ownerName) {
     var d = dog(id);
     if (!d) return null;
-    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id };
+    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id, skills: skillsOf(d), line: lineOf(d) };
   }
 
   // 賽後：自己的狗拿獎金、經驗、疲勞與心情變化。practice＝家園練習賽（沒有獎金，經驗減半）
@@ -207,6 +257,7 @@
     MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
     train: train, rest: rest, play: play, treat: treat, expNeed: expNeed,
+    pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, lineOf: lineOf, stats: stats, rating: rating,
     entry: entry, afterRace: afterRace, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
   };
 })();

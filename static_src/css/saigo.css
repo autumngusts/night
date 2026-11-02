@@ -177,12 +177,43 @@
 .sg-part-ski { border-color: #90caf9; }
 .sg-code { font-family: ui-monospace, Menlo, Consolas, monospace; }
 
-/* 比賽中改跑法 */
+/* 比賽中的應援列（真賽狗：體力＋麥克風） */
 .sg-race-style { margin: 0.5rem 0; padding: 0.5rem 0.7rem; border: 1px solid var(--sg-line); border-radius: 10px; background: var(--sg-accent-soft); }
 .sg-race-style-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
 .sg-race-sta { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85em; }
 .sg-race-sta .sg-bar { width: 6rem; flex: 0 0 auto; }
-.sg-race-style .sg-seg-btn:disabled { opacity: 0.55; }
-.sg-race-style .sg-seg-btn.sg-on:disabled { opacity: 1; }
-.sg-seg-btn.sg-pending { border-style: dashed; border-color: var(--sg-accent); animation: sg-pend 0.8s ease-in-out infinite alternate; }
 @keyframes sg-pend { from { box-shadow: 0 0 0 0 var(--sg-accent-soft); } to { box-shadow: 0 0 0 4px var(--sg-accent-soft); } }
+
+/* 技能（2026-11-02） */
+.sg-skill { display: inline-flex; align-items: center; gap: 0.25rem; margin: 2px 4px 2px 0; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid var(--sg-line); font-size: 0.85em; white-space: nowrap; }
+.sg-skill-n { background: rgba(120, 144, 156, 0.14); border-color: #90a4ae; }
+.sg-skill-r { background: rgba(67, 160, 71, 0.14); border-color: #43a047; }
+.sg-skill-g { background: linear-gradient(90deg, rgba(255, 213, 79, 0.45), rgba(255, 179, 0, 0.25)); border-color: #f9a825; font-weight: bold; }
+.sg-skill-empty { opacity: 0.55; border-style: dashed; background: transparent; font-weight: normal; }
+.sg-skill .sg-x { padding: 0 0.3rem; line-height: 1.2; }
+.sg-skillbox { margin-top: 0.8rem; padding-top: 0.4rem; border-top: 1px dashed var(--sg-line); }
+.sg-slots { display: grid; gap: 0.3rem; }
+.sg-slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.sg-slot-row > b { min-width: 6.5rem; }
+.sg-pool-grid { display: grid; gap: 0.5rem; }
+.sg-pool-tier { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.35rem; }
+.sg-pool-item { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.4rem 0.6rem; border: 1px solid var(--sg-line); border-radius: 8px; color: inherit; text-align: left; cursor: pointer; }
+.sg-pool-item small { opacity: 0.8; font-size: 0.78em; }
+.sg-pool-item.sg-off { opacity: 0.45; }
+.sg-skills { line-height: 1.9; }
+.sg-rating-line { margin: 0.3rem 0; }
+.sg-grade { display: inline-block; min-width: 1.8rem; padding: 0 0.35rem; border-radius: 4px; background: #546e7a; color: #fff; text-align: center; }
+.sg-grade-SS, .sg-grade-S { background: #f9a825; }
+.sg-grade-Ap, .sg-grade-A { background: #e53935; }
+.sg-grade-Bp, .sg-grade-B { background: #fb8c00; }
+.sg-grade-Cp, .sg-grade-C { background: #43a047; }
+.sg-rating { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* 真賽狗：派多隻、指示列切換、麥克風 */
+.sg-entry-multi { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.sg-entry-chk { padding: 0.3rem 0.6rem; border: 1px solid var(--sg-line); border-radius: 8px; cursor: pointer; }
+.sg-entry-chk.sg-on { border-color: var(--sg-accent); background: var(--sg-accent-soft); }
+.sg-ctl-tabs { margin-bottom: 0.4rem; }
+.sg-mic { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+.sg-mic-on #sg-mic-btn { animation: sg-pend 0.8s ease-in-out infinite alternate; }
+.sg-entry-style { margin: 0.4rem 0; }

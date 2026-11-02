@@ -4,6 +4,7 @@
 遊戲邏輯全部在瀏覽器端：static/saigo_data.js（犬種與資料）→ saigo_core.js（出賽表＋確定性模擬＋賠率）→ saigo_bet.js（下注）
 → saigo_kennel.js（犬舍，localStorage）→ saigo_net.js（多裝置連線：firebase_config.js／game_storage.js 的 rtState）
 → saigo_3d.js（three.js 建模與轉播，第一次用到才載入 vendor/three.min.js）→ saigo.js（畫面）。
+2026-11-02：saigo_skills.js（被動技能）、saigo_real.js（真賽狗模擬）、saigo_real3d.js（真賽狗 3D）、saigo_mic.js（喊「賽狗」）。
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ from site_src.layout import asset_url, page_shell
 
 SAIGO_SCRIPTS: tuple[str, ...] = (
     "saigo_data.js",
+    "saigo_skills.js",
     "saigo_core.js",
+    "saigo_real.js",
     "saigo_bet.js",
     "saigo_kennel.js",
     "firebase_config.js",
@@ -20,6 +23,8 @@ SAIGO_SCRIPTS: tuple[str, ...] = (
     "qrcode.js",
     "saigo_net.js",
     "saigo_3d.js",
+    "saigo_real3d.js",
+    "saigo_mic.js",
     "saigo.js",
 )
 

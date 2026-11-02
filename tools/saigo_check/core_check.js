@@ -1,6 +1,6 @@
 // ============================================================================
 // 賽狗賽狗（saigo）模擬核心與賠率的數值檢查（不開瀏覽器，直接用 Node 載入 static_src）：
-//   1. 比賽中改跑法：生效前每一步不變、同一份指令結果相同、次數上限／90% 後／同跑法的指令被忽略
+//   1. 開跑後不能改跑法（指令無效）；真賽狗的喊聲：確定性、次數／間隔上限、成功率
 //   2. 賠率規則：最低 1.0 倍、0.1 倍單位捨去；彩池制複勝／寬照 JRA 算法（扣本金後由中獎組合平分利益）
 //   3. 跑法平衡：中距離四種跑法（都在適性 A）平均名次差距不大
 //   4. 賠率校準：用另一批獨立試跑估真實機率，每種票的期望回收率接近扣除後的回收率
@@ -14,28 +14,32 @@ var assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["saigo_data.js", "saigo_core.js", "saigo_bet.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
-var D = window.PriTestSaigoData, Core = window.PriTestSaigoCore, Bet = window.PriTestSaigoBet;
+["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_bet.js", "saigo_kennel.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+var D = window.PriTestSaigoData, Core = window.PriTestSaigoCore, Bet = window.PriTestSaigoBet, Real = window.PriTestSaigoReal, SK = window.PriTestSaigoSkills;
 
-// 1. 改跑法
+// 1. 開跑後不能改跑法（改跑法指令一律無效）；真賽狗的喊聲：生效前每一步不變、同一份指令結果相同、次數與間隔上限
 var card = Core.makeCard(424242, [], { cls: "open" });
 var plain = Core.simulate(card, true);
-var other = card.dogs[2].style === "nige" ? "oikomi" : "nige";
-var K = 400, cmd = [{ k: K, d: 2, s: other }];
-var a = Core.simulate(card, true, undefined, cmd), b = Core.simulate(card, true, undefined, cmd.slice());
-for (var i = 0; i < K; i++) for (var j = 0; j < plain.frames[i].length; j++) assert.strictEqual(a.frames[i][j], plain.frames[i][j], "第 " + i + " 步不一樣");
+var styled = Core.simulate(card, true, undefined, [{ k: 300, d: 2, s: "nige" }, { k: 300, d: 3, s: "oikomi" }]);
+assert.strictEqual(JSON.stringify(styled.times), JSON.stringify(plain.times), "關卡賽：改跑法指令無效");
+var rc = Core.makeCard(777, [], { mode: "real", cls: "open", dist: "middle" });
+var rp = Core.simulate(rc, true);
+var rs = Core.simulate(rc, true, undefined, [{ k: 200, d: 1, s: "oikomi" }]);
+assert.strictEqual(JSON.stringify(rs.times), JSON.stringify(rp.times), "真賽狗：改跑法指令無效");
+var K = 200, sc = [{ k: K, d: 2, a: "shout" }];
+var a = Core.simulate(rc, true, undefined, sc), b = Core.simulate(rc, true, undefined, sc.slice());
+for (var i = 0; i < K; i++) for (var j = 0; j < rp.frames[i].length; j++) assert.strictEqual(a.frames[i][j], rp.frames[i][j], "第 " + i + " 步不一樣");
 assert.strictEqual(JSON.stringify(a.times), JSON.stringify(b.times), "同一份指令結果相同");
 assert.strictEqual(a.cmds.length, 1);
-assert.strictEqual(a.events.filter(function (e) { return e.k === "style"; }).length, 1);
-var many = Core.simulate(card, false, undefined, [{ k: 100, d: 1, s: "nige" }, { k: 200, d: 1, s: "oikomi" }, { k: 300, d: 1, s: "sashi" }, { k: 50, d: 3, s: card.dogs[3].style }]);
-assert.strictEqual(many.cmds.filter(function (c) { return c.d === 1; }).length, Core.STYLE_CMD_MAX, "超過次數上限的指令被忽略");
-assert.strictEqual(many.cmds.filter(function (c) { return c.d === 3; }).length, 0, "跟目前一樣的跑法不算一次");
-var late = Core.simulate(card, false, undefined, [{ k: plain.frames.length - 5, d: plain.order[5], s: other }]);
-assert.strictEqual(late.cmds.length, 0, "跑完 90% 之後不能改");
-var shuffled = Core.simulate(card, false, undefined, [{ k: 300, d: 4, s: "nige" }, { k: 200, d: 0, s: "oikomi" }]);
-var sorted = Core.simulate(card, false, undefined, [{ k: 200, d: 0, s: "oikomi" }, { k: 300, d: 4, s: "nige" }]);
-assert.strictEqual(JSON.stringify(shuffled.times), JSON.stringify(sorted.times), "指令順序不影響結果（各裝置收到的順序可能不同）");
-console.log("1. 改跑法 OK");
+var many = Core.simulate(rc, false, undefined, [{ k: 100, d: 1, a: "shout" }, { k: 110, d: 1, a: "shout" }, { k: 150, d: 1, a: "shout" }]);
+assert.strictEqual(many.cmds.length, 2, "喊聲間隔 2 秒（40 步）");
+var lots = [];
+for (var q = 0; q < 12; q++) lots.push({ k: 60 + q * 45, d: 4, a: "shout" });
+assert.strictEqual(Core.simulate(rc, false, undefined, lots).cmds.length, Real.SHOUT_MAX, "每場喊聲上限");
+var hits = 0;
+for (var z = 0; z < 2000; z++) if (Real.shoutHits(rc, z, z % 8)) hits++;
+assert.ok(hits > 2000 * Real.SHOUT_P * 0.8 && hits < 2000 * Real.SHOUT_P * 1.2, "喊聲成功率約 " + Real.SHOUT_P + "：" + hits / 2000);
+console.log("1. 跑法鎖定／喊聲 OK");
 
 // 2. 賠率規則
 var od = Core.odds(card);

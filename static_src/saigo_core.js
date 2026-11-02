@@ -9,13 +9,13 @@
   "use strict";
 
   var D = window.PriTestSaigoData;
+  var SK = window.PriTestSaigoSkills;
+  function Real() { return window.PriTestSaigoReal; }
   // 平衡參數（2026-11-02 調整）：
   //   STA_K：耐力消耗係數，消耗 ∝ (速度比)⁴——前段放慢才省得到體力，後段衝刺也更吃體力，四種跑法才有取捨
   //   DAY：當天狀態幅度（±7%）；CPU_BW／CPU_ADJ：CPU 依等級配對的犬種抽選寬度與訓練補正比例
   var STA_K = 0.0245, DAY = 0.14, CPU_BW = 7, CPU_ADJ = 0.75;
-  // 比賽中改跑法（使用者指定 2026-11-02）：每隻最多 STYLE_CMD_MAX 次、跑完 STYLE_CMD_PROG 之後不能再改，
-  // 每改一次耐力 −STYLE_CMD_COST（臨時變換步調）
-  var STYLE_CMD_MAX = 2, STYLE_CMD_PROG = 0.9, STYLE_CMD_COST = 0.03;
+  // 跑法在出賽表產生時決定、下注前可改，開跑後不得調整（使用者指定 2026-11-02，取代同日稍早的「比賽中改跑法」）
   var DT = 0.05;            // 模擬步長（秒）
   var MAX_T = 240;          // 最長秒數（超過算未完走）
   var LANE_W = 1.6;         // 每條跑道寬（m）
@@ -174,6 +174,7 @@
   // opts：{ cls, terrain?, weather?, dist?, ground? }（沒指定＝依 seed 隨機）
   function makeCard(seed, entries, opts) {
     opts = opts || {};
+    if (opts.mode === "real") return Real().makeCard(seed, entries, opts);
     var r = rng(seed ^ 0x5a1609);
     var cls = D.CLASSES.filter(function (c) { return c.id === opts.cls; })[0] || D.CLASSES[1];
     var terrain = D.TERRAINS[opts.terrain] ? opts.terrain : weighted(r, { park: 30, forest: 20, snowmtn: 17, desert: 16, beach: 17 });
@@ -192,6 +193,7 @@
       if (x < 0.15) m -= 1; else if (x > 0.85) m += 1;
       dogs.push({
         breed: e.breed, name: String(e.name || "").slice(0, 16), train: e.train || {}, lv: e.lv || 0, best: e.best || "", style: e.style || "",
+        skills: SK.sanitize(e.skills), line: D.LINES[e.line] ? e.line : "",
         mood: clamp(m, 0, 4), cpu: false, owner: e.owner || "", ownerName: e.ownerName || "", dogId: e.dogId || ""
       });
     });
@@ -211,7 +213,7 @@
       do { nm = pick(r, names); guard++; } while (used[nm] && guard < 50);
       used[nm] = 1;
       var mx = r(), mood = mx < 0.08 ? 0 : mx < 0.28 ? 1 : mx < 0.72 ? 2 : mx < 0.92 ? 3 : 4;
-      dogs.push({ breed: b.id, name: nm, train: train, lv: Math.round(between(r, 0, cls.cpu[1] / 3)), mood: mood, cpu: true, owner: "", ownerName: "", dogId: "" });
+      dogs.push({ breed: b.id, name: nm, train: train, lv: Math.round(between(r, 0, cls.cpu[1] / 3)), mood: mood, cpu: true, owner: "", ownerName: "", dogId: "", skills: [] });
     }
     // 枠順抽籤
     for (var i = dogs.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var tmp = dogs[i]; dogs[i] = dogs[j]; dogs[j] = tmp; }
@@ -224,6 +226,9 @@
       if (D.STYLE_IDS.indexOf(d.style) < 0) d.style = d.best;
       d.eff = effStats(d, weather, ground, terrain);
     });
+    // CPU 的技能（另一條亂數）：依賽事等級，讓同場的總評分接近
+    var kr = rng((seed ^ 0x5c111) >>> 0);
+    dogs.forEach(function (d) { if (d.cpu) d.skills = SK.npcSkills(cls.id, kr); });
     return { v: 1, seed: seed >>> 0, cls: cls.id, terrain: terrain, dist: dist, weather: weather, ground: ground, course: course, dogs: dogs };
   }
 
@@ -256,20 +261,12 @@
   var CRAWL = [0, 0.78, 0.66, 0.52, 0.4, 0.3];
   var DOCK_RUN = 3;   // 跳水台泳池：台上助跑長度（m）
 
-  // 比賽中改跑法的指令：[{ k: 第幾步生效, d: 枠（0 起）, s: 跑法 }]。整理成 { 步: [指令] }，
-  // 同一步同一隻有多筆時以排序後的最後一筆為準（各裝置收到的順序不同也一樣）
-  function cmdIndex(cmds, n) {
-    var list = (cmds || []).filter(function (c) {
-      return c && D.STYLE_IDS.indexOf(c.s) >= 0 && (c.d | 0) === c.d && c.d >= 0 && c.d < n && (c.k | 0) === c.k && c.k >= 0;
-    }).slice().sort(function (a, b) { return a.k - b.k || a.d - b.d || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0); });
-    var at = {};
-    list.forEach(function (c) { (at[c.k] || (at[c.k] = [])).push(c); });
-    return at;
-  }
+  // 比賽中的指令（真賽狗的喊聲）在第幾步生效
   function stepOf(t) { return Math.max(0, Math.ceil(t / DT - 1e-9)); }
 
-  // record＝是否記錄每一步（畫面用）；seedOverride 給賠率試算用；cmds＝比賽中改跑法的指令
+  // record＝是否記錄每一步（畫面用）；seedOverride 給賠率試算用；cmds＝比賽中的指令（只有真賽狗的喊聲，關卡賽沒有）
   function simulate(card, record, seedOverride, cmds) {
+    if (card.mode === "real") return Real().simulate(card, record, seedOverride, cmds);
     var course = card.course, L = course.length;
     var g0 = D.GROUNDS[card.ground] || D.GROUNDS.firm;
     var sf = D.SURFACES[(D.TERRAINS[card.terrain] || D.TERRAINS.park).surf] || D.SURFACES.dirt;
@@ -286,9 +283,10 @@
       var e = d.eff, b = D.BREED_BY_ID[d.breed] || D.BREEDS[0];
       var vbase = (12.5 + e.spd * 0.045) * g.drag * (sandy ? 0.97 + e.pow * 0.0004 : 1);
       return {
-        i: i, e: e, size: b.size, pace: fieldPace(card, d.style), style: d.style, best: d.best || d.style, cmdN: 0,
+        i: i, e: e, size: b.size, pace: fieldPace(card, d.style), style: d.style,
         r: rng((base + Math.imul(i + 1, 0x632be5ab)) >>> 0),
-        vbase: vbase, vmax: vbase * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
+        vmax: vbase * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
+        sk: SK.runtime(d.skills, rng((base ^ 0x5c111 ^ Math.imul(i + 7, 0x2c1b3c6d)) >>> 0), e.foc), boost: null,
         cold: b.cold,
         acc: 2.5 + e.pow * 0.03 + (5 - b.size) * 0.4,
         day: 0,
@@ -298,28 +296,18 @@
       };
     });
     var frames = record ? [] : null, events = record ? [] : null;
-    var t = 0, step = 0, leader = -1, cmdAt = cmdIndex(cmds, dogs.length), applied = [];
+    var t = 0, step = 0, leader = -1, ranks = [];
     function ev(k, d, x) { if (events) events.push({ t: Math.round(t * 100) / 100, k: k, d: d, x: x === undefined ? null : x }); }
     if (events) ev("start", -1);
 
     while (t < MAX_T) {
       var alive = 0;
+      rankInto(dogs, ranks);
       for (var di = 0; di < dogs.length; di++) {
         var o = dogs[di];
         if (o.done) continue;
         alive++;
         var e = o.e, r = o.r;
-        var cl = cmdAt[step];
-        if (cl) for (var ci = 0; ci < cl.length; ci++) {
-          var cm = cl[ci];
-          if (cm.d !== di || cm.s === o.style || o.cmdN >= STYLE_CMD_MAX || o.s / L > STYLE_CMD_PROG) continue;
-          o.style = cm.s; o.cmdN++;
-          o.pace = fieldPace(card, cm.s);
-          o.vmax = o.vbase * D.APT[D.aptitude(o.best, cm.s)].spd;
-          o.sta = Math.max(0, o.sta - STYLE_CMD_COST);
-          applied.push({ k: step, d: di, s: cm.s });
-          ev("style", di, cm.s);
-        }
         // 每秒換一次隨機起伏（陣風越強越大）
         o.jitT -= DT;
         if (!o.day) o.day = 1 - DAY / 2 + r() * DAY;   // 當天狀態（每場一次，±7%）
@@ -331,7 +319,12 @@
         var prog = o.s / L;
         var pace = prog < o.pace.at ? o.pace.early : o.pace.late;
         if (prog > 0.85 && o.sta > 0.3) pace += 0.03;   // 最後直線還有力氣就衝
-        var vt = o.vmax * pace * o.jit * o.day;
+        // 技能：符合條件時發動（每個限一次），加成在持續時間內套用到目標速度與加速度
+        var bo = o.sk.length ? SK.tick(o.sk, { prog: prog, sect: p.type === "curve" ? "curve" : p.type === "straight" ? "straight" : "other", style: o.style, weather: wx, ground: card.ground, sta: o.sta, rank: ranks[di], n: dogs.length }, t, SK.SCALE_CLASSIC) : null;
+        o.boost = bo;
+        if (bo && bo.heal) o.sta = Math.min(1, o.sta + bo.heal);
+        if (bo && bo.fired) for (var fi = 0; fi < bo.fired.length; fi++) ev("skill", di, bo.fired[fi]);
+        var vt = o.vmax * pace * o.jit * o.day * (bo ? 1 + bo.spd : 1);
         if (o.sta < 0.25) vt *= 0.72 + o.sta * 1.1;
         var mode = MODE.run, drain = 1;
 
@@ -620,7 +613,7 @@
         }
 
         // 加減速
-        if (o.v < vt) o.v = Math.min(vt, o.v + o.acc * DT);
+        if (o.v < vt) o.v = Math.min(vt, o.v + o.acc * (o.boost ? 1 + o.boost.acc : 1) * DT);
         else o.v = Math.max(vt, o.v - 9 * DT);
         // 耐力：速度比例四次方 × 場地 × 炎熱
         var ratio = o.v / o.vmax;
@@ -661,13 +654,28 @@
     return {
       order: order,
       times: dogs.map(function (o) { return o.time; }),
-      frames: frames, events: events, dt: DT, cmds: applied,
+      frames: frames, events: events, dt: DT, cmds: [],
       duration: Math.min(t, MAX_T)
     };
   }
 
+  // 目前名次（1 起）：已完走的依時間在前，其餘依里程
+  function rankInto(dogs, out) {
+    for (var i = 0; i < dogs.length; i++) {
+      var r = 1, a = dogs[i];
+      for (var j = 0; j < dogs.length; j++) {
+        if (j === i) continue;
+        var b = dogs[j];
+        if (b.done && (!a.done || b.time < a.time || (b.time === a.time && j < i))) r++;
+        else if (!b.done && !a.done && (b.s > a.s || (b.s === a.s && j < i))) r++;
+      }
+      out[i] = r;
+    }
+  }
+
   // 第 t 秒的狀態（內插）。回傳 [{ s, v, mode, sta }]
   function stateAt(result, t) {
+    if (result.real) return Real().stateAt(result, t);
     var fr = result.frames, n = fr.length;
     if (!n) return [];
     var p = clamp(t / result.dt - 1, 0, n - 1), i = Math.floor(p), f = p - i;
@@ -680,6 +688,7 @@
   }
   // 目前名次（已完走依時間，其餘依里程）
   function rankAt(result, t) {
+    if (result.real) return Real().rankAt(result, t);
     var st = stateAt(result, t);
     return st.map(function (x, i) { return i; }).sort(function (a, b) {
       var ta = result.times[a], tb = result.times[b];
@@ -698,11 +707,13 @@
   // p1＝試跑勝率；s2、s3 反覆調整到「模型推出的第 2、3 名機率」等於試跑的第 2、3 名機率。
   // 舊版只用勝率套 Harville，會低估冷門狗擠進前三的機率（寬、三連複的回收率曾經超過 100%）。
   // 只用四則運算，所有裝置算出的數字一樣。
-  var SIMS = 200, SMOOTH = 0.5, FIT_ITERS = 40;
+  var SIMS_CLASSIC = 200, SMOOTH_CLASSIC = 0.5, FIT_ITERS = 40;
   // 下限 1.0＝JRA 的「元返し」；賠率以 0.1 為單位無條件捨去（JRA 派彩以 10 円為單位捨去）
   var ODDS_MIN = 1.0, ODDS_MAX = 9999.9;
   function oddsValue(v) { return clamp(Math.floor(v * 10 + 1e-9) / 10, ODDS_MIN, ODDS_MAX); }
+  // 真賽狗（8 隻、搶道）比較隨機：試跑 300 場、平滑 1.0，冷門狗的賠率才不會開太高
   function placeProbs(card) {
+    var real = card.mode === "real", SIMS = real ? 300 : SIMS_CLASSIC, SMOOTH = real ? 1.0 : SMOOTH_CLASSIC;
     var n = card.dogs.length, c1 = [], c2 = [], c3 = [], i, j, k, it;
     for (i = 0; i < n; i++) { c1.push(0); c2.push(0); c3.push(0); }
     for (var m = 0; m < SIMS; m++) {
@@ -729,10 +740,15 @@
       s3 = norm(s3.map(function (x, z) { return x * e3[z] / Math.max(q3[z], 1e-12); }));
     }
     var prob = { win: {}, place: {}, quinella: {}, exacta: {}, wide: {}, trio: {}, trifecta: {} };
+    // 複勝：7 隻以下＝前 2 名、8 隻以上＝前 3 名（JRA 規則）
+    var top3 = placeK(n) === 3;
     for (i = 0; i < n; i++) {
       prob.win[i] = p1[i];
       var pl = p1[i];
-      for (j = 0; j < n; j++) if (j !== i) pl += ex(j, i);
+      for (j = 0; j < n; j++) if (j !== i) {
+        pl += ex(j, i);
+        if (top3) for (k = 0; k < n; k++) if (k !== i && k !== j) pl += tri(j, k, i);
+      }
       prob.place[i] = pl;
     }
     for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
@@ -752,6 +768,7 @@
     }
     return { p: p1, prob: prob };
   }
+  function placeK(n) { return n >= 8 ? 3 : 2; }
   function odds(card) {
     if (card._odds) return card._odds;
     var pp = placeProbs(card), out = { p: pp.p, prob: pp.prob };
@@ -774,6 +791,7 @@
 
   // 出賽表要經過網路傳送：去掉快取欄位
   function cardForWire(card) {
+    if (card.mode === "real") return JSON.parse(JSON.stringify(card, function (k, v) { return k.charAt(0) === "_" ? undefined : v; }));
     var c = JSON.parse(JSON.stringify({ v: card.v, seed: card.seed, cls: card.cls, terrain: card.terrain, dist: card.dist, weather: card.weather, ground: card.ground, course: { parts: card.course.parts, length: card.course.length }, dogs: card.dogs, pm: card.pm ? 1 : 0 }));
     return c;
   }
@@ -783,8 +801,9 @@
 
   window.PriTestSaigoCore = {
     courseCode: courseCode,
-    DT: DT, MODE: MODE, STYLE_CMD_MAX: STYLE_CMD_MAX, STYLE_CMD_PROG: STYLE_CMD_PROG, STYLE_CMD_COST: STYLE_CMD_COST, stepOf: stepOf, LANE_W: LANE_W, DOCK_RUN: DOCK_RUN, LOOP_IN: LOOP_IN, LOOP_R: LOOP_R, LOOP_C: LOOP_C,
-    rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp,
+    DT: DT, MODE: MODE, stepOf: stepOf, LANE_W: LANE_W, DOCK_RUN: DOCK_RUN, LOOP_IN: LOOP_IN, LOOP_R: LOOP_R, LOOP_C: LOOP_C,
+    rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp, weighted: weighted, between: between, pick: pick,
+    fieldPace: fieldPace, PACE: PACE, STA_K: STA_K, DAY: DAY, CPU_BW: CPU_BW, CPU_ADJ: CPU_ADJ, placeK: placeK,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
     geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff,
     odds: odds, oddsValue: oddsValue, ODDS_MIN: ODDS_MIN, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind

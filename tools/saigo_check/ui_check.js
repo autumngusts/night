@@ -1,7 +1,7 @@
 // ============================================================================
 // 賽狗賽狗（saigo）Playwright 流程檢查：
 //   首頁 → 圖鑑（3D 預覽）→ 犬舍（領養、訓練、休息）→ 單機：出賽表（派自己的狗）→ 下注（單勝、三連單壓住、三連複 BOX）
-//   → 比賽（3D 轉播、切鏡頭、截圖）→ 跳到結果 → 派彩與錢包一致 → 重播不重複結算 → 練習賽（比賽中改跑法）→ 確定性 → 日文沒有漏翻的 sg_ 鍵
+//   → 比賽（3D 轉播、切鏡頭、截圖）→ 跳到結果 → 派彩與錢包一致 → 重播不重複結算 → 練習賽（開跑後不能改跑法）→ 確定性 → 日文沒有漏翻的 sg_ 鍵
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8947 --directory dist
@@ -160,30 +160,14 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   await clickText(page, "🏠 我的犬舍");
   await clickText(page, "🏁 家園練習賽");
   await page.waitForSelector(".sg-stage");
-  // 比賽中改跑法（2026-11-02）：開跑後在跑法指示列換成另一種跑法 → 重新模擬、實況出現切換、結果與指令一致
+  // 跑法開跑後不能改（2026-11-02 使用者指定）：關卡賽的比賽畫面沒有指示列，送進來的改跑法指令也不會生效
   await page.waitForFunction(function () { return window.PriTestSaigo.ui.raceT > 1.5; }, null, { timeout: 15000 });
-  await page.waitForSelector(".sg-race-style .sg-seg-btn:not([disabled])");
-  await page.dispatchEvent(".sg-race-style .sg-seg-btn:not([disabled])", "click");
-  await page.waitForTimeout(300);
-  var sc = await page.evaluate(function () {
-    var ui = window.PriTestSaigo.ui, C = window.PriTestSaigoCore, r = ui.result, me = -1;
-    ui.card.dogs.forEach(function (d, i) { if (me < 0 && d.owner === "me") me = i; });
-    var plain = C.simulate(ui.card, true), again = C.simulate(ui.card, true, undefined, ui.cmds), k = r.cmds[0] ? r.cmds[0].k : 0, prefix = true;
-    for (var i = 0; i < k && i < plain.frames.length; i++) for (var j = 0; j < plain.frames[i].length; j++) if (plain.frames[i][j] !== r.frames[i][j]) prefix = false;
-    return {
-      cmds: r.cmds.length, d: r.cmds[0] && r.cmds[0].d, me: me, prefix: prefix,
-      same: JSON.stringify(again.times) === JSON.stringify(r.times),
-      ev: r.events.filter(function (e) { return e.k === "style" && e.d === me; }).length,
-      left: document.querySelector(".sg-race-style-head small").textContent
-    };
+  var locked = await page.evaluate(function () {
+    var ui = window.PriTestSaigo.ui, C = window.PriTestSaigoCore, box = document.querySelector(".sg-race-style");
+    var a = C.simulate(ui.card, false), b = C.simulate(ui.card, false, undefined, [{ k: 100, d: 0, s: "oikomi" }, { k: 100, d: 1, s: "nige" }]);
+    return { hidden: !box || box.style.display === "none", same: JSON.stringify(a.times) === JSON.stringify(b.times) };
   });
-  assert.strictEqual(sc.cmds, 1, "指令被套用");
-  assert.strictEqual(sc.d, sc.me, "指令是給自己的狗");
-  assert.ok(sc.prefix, "生效前的每一步與原本相同");
-  assert.ok(sc.same, "同一份指令重新模擬結果相同");
-  assert.strictEqual(sc.ev, 1, "實況有跑法切換事件");
-  assert.ok(sc.left.indexOf("傳達中") >= 0 || sc.left.indexOf("1 次") >= 0, "剩餘次數顯示：" + sc.left);
-  await page.screenshot({ path: path.join(SHOT_DIR, "race_style.png") });
+  assert.deepStrictEqual(locked, { hidden: true, same: true }, "比賽中不能改跑法");
   await skipToResult(page);
   await page.waitForSelector(".sg-table");
   assert.strictEqual((await kennel(page)).dogs[0].races, 2);

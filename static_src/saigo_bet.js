@@ -59,7 +59,7 @@
     var c = String(combo).split("-").map(Number), o = order;
     switch (type) {
       case "win": return c[0] === o[0];
-      case "place": return c[0] === o[0] || c[0] === o[1];
+      case "place": return c[0] === o[0] || c[0] === o[1] || (Core.placeK(o.length) === 3 && c[0] === o[2]);
       case "quinella": return sortNum([o[0], o[1]]).join("-") === combo;
       case "exacta": return c[0] === o[0] && c[1] === o[1];
       case "wide": var top3 = [o[0], o[1], o[2]]; return top3.indexOf(c[0]) >= 0 && top3.indexOf(c[1]) >= 0;
@@ -100,7 +100,7 @@
         out[bt.id] = o;
         return;
       }
-      var k = bt.id === "place" ? 2 : 3, rg = {};
+      var n = card.dogs.length, pk = Core.placeK(n), k = bt.id === "place" ? pk : 3, rg = {};
       function multi(winners, c) {
         var sum = 0;
         winners.forEach(function (w) { sum += amt[w]; });
@@ -108,9 +108,13 @@
       }
       // c 中的時候，另外一起中的組合有哪些可能
       function partners(c) {
-        var n = card.dogs.length, res = [], x;
+        var res = [], x, y;
         if (bt.id === "place") {
-          for (x = 0; x < n; x++) if (String(x) !== c) res.push([c, String(x)]);
+          for (x = 0; x < n; x++) {
+            if (String(x) === c) continue;
+            if (pk === 2) res.push([c, String(x)]);
+            else for (y = x + 1; y < n; y++) if (String(y) !== c) res.push([c, String(x), String(y)]);
+          }
           return res;
         }
         var ab = c.split("-").map(Number);
@@ -123,7 +127,7 @@
       }
       var final = null;
       if (order) {
-        final = bt.id === "place" ? [String(order[0]), String(order[1])]
+        final = bt.id === "place" ? order.slice(0, pk).map(String)
           : (function () { var s = order.slice(0, 3).sort(function (u, v) { return u - v; }); return [s[0] + "-" + s[1], s[0] + "-" + s[2], s[1] + "-" + s[2]]; })();
       }
       keys.forEach(function (c) {

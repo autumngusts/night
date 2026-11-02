@@ -1335,5 +1335,9 @@
     };
   }
 
-  window.PriTestSaigo3D = { available: available, load: load, create: create, preview: preview, sizeScale: sizeScale };
+  window.PriTestSaigo3D = {
+    available: available, load: load, create: create, preview: preview, sizeScale: sizeScale,
+    // 真賽狗的畫面（saigo_real3d.js）共用的建模工具
+    kit: { mat: mat, mesh: mesh, numberTex: numberTex, buildDog: buildDog, animateDog: animateDog, weatherLook: weatherLook, person: person, instanced: instanced }
+  };
 })();
