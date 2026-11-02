@@ -105,6 +105,8 @@
   };
 
   // 8 個勢力（真實大名姓氏，數值與武將為原創設定）
+  // temperament：AI 的性格傾向（reiwa_core.js 的 TEMPERAMENT_PROFILES 依此決定攻擊門檻／出兵比例／外交積極度等）
+  //   aggressive（好戰）／balanced（穩健）／cautious（保守，優先自保）／diplomatic（長於外交，傾向結盟）
   var FACTIONS = {
     tsugaru: {
       id: "tsugaru",
@@ -112,6 +114,7 @@
       color: "#4f8fd1",
       capital: "ao_hirosaki",
       generals: ["tsugaru_tamenobu", "tsugaru_nobutake"],
+      temperament: "cautious",
     },
     nanbu: {
       id: "nanbu",
@@ -119,6 +122,7 @@
       color: "#3f9b5c",
       capital: "iw_morioka",
       generals: ["nanbu_harumasa", "nanbu_nobunao"],
+      temperament: "balanced",
     },
     akita: {
       id: "akita",
@@ -126,6 +130,7 @@
       color: "#c9a227",
       capital: "ak_akita",
       generals: ["akita_chikasue", "akita_sanesue"],
+      temperament: "diplomatic",
     },
     mogami: {
       id: "mogami",
@@ -133,6 +138,7 @@
       color: "#b25fb0",
       capital: "ya_yamagata",
       generals: ["mogami_yoshiaki", "mogami_moritou"],
+      temperament: "aggressive",
     },
     date: {
       id: "date",
@@ -140,6 +146,7 @@
       color: "#d1483f",
       capital: "mi_sendai",
       generals: ["date_masamune", "date_katakura"],
+      temperament: "aggressive",
     },
     kasai: {
       id: "kasai",
@@ -147,6 +154,7 @@
       color: "#7a6a53",
       capital: "mi_ishinomaki",
       generals: ["kasai_harunobu"],
+      temperament: "cautious",
     },
     ashina: {
       id: "ashina",
@@ -154,6 +162,7 @@
       color: "#4fb3a9",
       capital: "fu_aizu",
       generals: ["ashina_moriuji", "ashina_moritaka"],
+      temperament: "balanced",
     },
     soma: {
       id: "soma",
@@ -161,6 +170,7 @@
       color: "#8a6fd1",
       capital: "fu_soma",
       generals: ["soma_moritane"],
+      temperament: "cautious",
     },
   };
 
