@@ -296,3 +296,15 @@
 .gs-qr-url {
   width: 100%;
 }
+
+/* 合作模式：統計列與效率得分 */
+.gs-coop-stats {
+  font-weight: 600;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.gs-coop-score {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0.25rem 0;
+}

@@ -70,8 +70,36 @@
 | --- | --- | --- |
 | 同一裝置 `shared` | 共用裝置 | 開局先進「任務確認」畫面：全員任務都隱藏，每人輪流查看再隱藏，全員確認且全部隱藏後才能按「正式開始」。遊戲中池子下方可展開各玩家的任務（一次一位） |
 | 分別裝置 `split` | 共用裝置 | 共用裝置顯示各玩家的參加 QR；手機開啟後只顯示自己的任務。不同步 |
+| 合作 `coop` | 共用裝置（可勾連線同步） | 沒有個人任務；全隊共同目標公開顯示（見 §1.6.1） |
 
-人數 2〜8。
+人數 2〜8。三種模式在每個主題（武俠／和風／世界美食）都可以選。
+
+### 1.6.1 合作模式（使用者指定，2026-11-03）
+
+使用者原文：「每個主題之下，新增新模式是合作模式，共同抽到 5 個目標，需要一起將其合出目標，計算出回合數與失敗數來計算得分效率」。
+
+* **共同目標**：以 seed 抽 5 個（`Core.dealCoopTargets`，亂數序列 `"coop:" + seed`，與對戰的發任務不同）：
+  中階（階段 3〜4）×2＋高階（階段 5〜7）×3，不重複、不含初始物體與廢料。目標公開，沒有開局確認畫面。
+  （中階／高階的張數是實作時的選擇，使用者只指定「5 個」。）
+* **回合**：與對戰相同，依座位每輪每人合成一次；2／3 材料合成、清除廢料、已知廢料提示都照舊。
+* **達成**：任何玩家在自己回合合出**尚未達成**的共同目標，即全隊達成（`state.coop.done`），並記在合成者的
+  `players[].done` 當作貢獻（只用於顯示「○○：合出 n 個目標」）。已達成的目標再合出不重複計算。
+* **失敗**：合成結果是廢料記 1 次失敗（`state.coop.fails`，紀錄的 entry 帶 `fail: true`）。
+* **結束**：5 個全部達成即結束（`state.winner = "coop"`，`Core.COOP_WINNER`），結束的那一輪不再進位。
+  也可按「提前結算」（`Core.endCoop`，按兩次確認）以目前進度計分，`state.coop.ended = true`；可復原一層。
+* **效率得分**（`Core.coopScore`）：
+
+  ```text
+  得分 = round(1000 × 達成數 ÷ (回合數 + 失敗數))
+  ```
+
+  回合數＝結束時的 `state.round`；沒有達成任何目標為 0。例：1 輪 0 失敗全達成＝5000；8 輪 3 失敗全達成＝455。
+  同時顯示合成次數（`log.length`）供參考，但不列入公式。（公式是實作時的選擇，使用者只指定「用回合數與失敗數計算」。）
+* **最佳紀錄**：結束畫面把該主題的最佳紀錄存進 `localStorage["pritest-gousei-coop-best"]`
+  （`{ <themeId>: { score, done, total, rounds, fails, players, seed } }`；同分時回合少者優先），設定畫面選合作模式時顯示。
+* **連線同步**：設定畫面勾「連線同步」時與分別裝置相同（建立房間、QR 加入、輪到自己才能在手機合成）。
+  手機上方只顯示「你是 ○○」與輪到自己的提示，共同目標在下方公開。不連線時合作模式不顯示 QR。
+* 語音模式：達成時念「全隊達成目標！（n/5）」，結束時念效率得分。
 
 ### 1.7 版面（使用者指定，2026-10-18）
 
@@ -209,6 +237,9 @@ state = {
 }
 entry = { round, playerId, a, b, result, isNew, achieved }
 // 世界美食的 3 材料合成多兩個欄位：c（第 3 個材料）、otherOption（有主副產物可選時，沒選中的那個）
+// 合作模式（mode: "coop"）：players[].targets 為 []，另有
+//   state.coop = { targets: [5 個共同目標], done: [已達成], fails: 廢料次數, ended: 是否提前結算 }
+//   entry 多一個 fail（結果是廢料時為 true）；結束時 winner = "coop"
 ```
 
 * `prev` 是上一步的 state（自身 `prev` 為 `null`），所以只能復原一層。
@@ -381,6 +412,7 @@ py -3 tools/gousei_data/build.py --check
 py -3 generate.py
 py -3 -m http.server 8943 --directory dist   # 另一個終端
 node tools/gousei_check/ui_check.js
+node tools/gousei_check/coop_check.js   # 合作模式（§1.6.1）
 # 連線同步（另開終端啟動 emulator）：
 #   tools/midnight_check/node_modules/.bin/firebase emulators:start --only database,auth --project elden-ring-nightreign
 node tools/gousei_check/multi_device_check.js
