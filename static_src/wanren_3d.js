@@ -676,6 +676,12 @@
     // ---------------- 女主角 ----------------
     var heroines = {};   // hid → { obj, label, loc, slot }
     var SLOTS = [[-2.4, 1.4], [2.4, 1.4], [0, -2.6], [-3.4, -1.8], [3.4, -1.8], [0, 3.2]];
+    // 人數變多（66 人）後，同一地點超過 6 人時排在外圈
+    function slotOf(n) {
+      if (n < SLOTS.length) return SLOTS[n];
+      var k = n - SLOTS.length, a = k * 0.83 + 0.4, r = 4.6 + Math.floor(k / 8) * 1.3;
+      return [Math.cos(a) * r, Math.sin(a) * r];
+    }
     function heroLabel(text, sub, color) {
       var sp = label(text, sub, color);
       sp.scale.set(4.2, 1.31, 1);
@@ -706,7 +712,7 @@
         }
         var n = perLoc[it.loc] = (perLoc[it.loc] || 0);
         perLoc[it.loc]++;
-        var z = nodes[it.loc], sl = SLOTS[n % SLOTS.length];
+        var z = nodes[it.loc], sl = slotOf(n);
         var first = !hv.obj.visible || !hv.home;
         hv.loc = it.loc;
         hv.home = { x: z.x + sl[0], z: z.z + sl[1] };

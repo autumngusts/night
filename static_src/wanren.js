@@ -79,7 +79,7 @@
           // 在校園走了一段路：機率觸發隨機遭遇（第 9 項）
           onWalk: function () {
             if (!S || S.phase !== "free" || ui.msg || ui.modal) return;
-            if (Math.random() < 0.35 && C.encounter(S, ui.loc)) { save(); render(); }
+            if (Math.random() < 0.45 && C.encounter(S, ui.loc)) { save(); render(); }
           }
         });
         view3dState = "ready";
@@ -97,8 +97,11 @@
     ui.msg = lines.slice();
   }
   function act(fn) {
+    var ap0 = S && S.today && S.phase === "free" ? S.today.ap : null;
     var out = fn();
     if (out) say(out);
+    // 自由時間做完一件事（用掉行動點）後，也有機率發生校園遭遇（2026-11-03：事件更頻繁；沒有 3D 時也會發生）
+    if (S && ap0 !== null && S.phase === "free" && S.today.ap < ap0 && S.today.ap > 0 && Math.random() < 0.2) C.encounter(S, ui.loc);
     achievementToast();
     save();
     render();
@@ -643,13 +646,14 @@
       num(t("wr_rep_exam"), r.examAvg, t("wr_rep_exam_n", { n: r.exams.length }) + (r.exams.length ? "・" + t("wr_rep_exam_best", { n: Math.max.apply(null, r.exams.map(function (e) { return e.score; })) }) : "")),
       num(t("wr_rep_att"), r.attRate + "%", ""),
       num(t("wr_rep_score"), r.score, t("wr_rep_rank") + " " + r.rank),
-      num("💕 " + t("wr_rep_lovers"), r.lovers, t("wr_rep_met", { n: r.met })),
+      num("💕 " + t("wr_rep_lovers"), r.lovers, t("wr_rep_met", { n: r.met, m: r.rows.length })),
       num("📣 " + t("wr_fans"), r.fans, t("wr_rep_adm", { n: r.admirers })),
       num("⚡ " + t("wr_rep_shura"), r.shura, t("wr_rep_breakups", { n: r.breakups })),
       num("🗣 " + L(C.STAT_BY_ID.rep.name), Math.round(r.rep), "✨ " + L(C.STAT_BY_ID.charm.name) + " " + Math.round(r.charm))
     ]);
     var rows = el("div", { class: "wr-rep-rows" });
-    r.rows.slice().sort(function (a, b) { return (b.dating - a.dating) || (b.aff - a.aff); }).forEach(function (row) {
+    // 追加的 50 人只列出已認識的（主要 15 人一律列出）
+    r.rows.filter(function (row) { return row.met || !D.HEROINE_BY_ID[row.id].ext; }).sort(function (a, b) { return (b.dating - a.dating) || (b.aff - a.aff); }).forEach(function (row) {
       var hd = D.HEROINE_BY_ID[row.id];
       rows.appendChild(el("div", { class: "wr-rep-row" + (row.dating ? " lover" : "") + (!row.met ? " none" : ""), style: "--wr-g:" + GROUP_COLOR[hd.group] }, [
         face(hd, 44),
@@ -862,11 +866,21 @@
     return wrap;
   }
   function peopleView() {
-    var wrap = el("div", {}, [el("h2", {}, ["👭 " + t("wr_people")])]);
+    var onlyMet = !!ui.peopleMet;
+    var all = D.HEROINES.filter(function (hd) { return C.available(S, hd.id); });
+    var metN = all.filter(function (hd) { return S.h[hd.id].met; }).length;
+    var wrap = el("div", {}, [el("h2", {}, ["👭 " + t("wr_people")]),
+      el("div", { class: "wr-row" }, [
+        el("span", { class: "wr-small" }, [t("wr_people_count", { a: metN, b: all.length })]),
+        btn(onlyMet ? t("wr_people_all") : t("wr_people_met"), function () { ui.peopleMet = !onlyMet; renderModal(); }, "wr-btn wr-btn-sm" + (onlyMet ? " on" : ""))
+      ])]);
     D.GROUPS.forEach(function (g) {
-      wrap.appendChild(el("h3", { style: "color:" + GROUP_COLOR[g.id] }, [L(g.name)]));
+      var list = all.filter(function (hd) { return hd.group === g.id && (!onlyMet || S.h[hd.id].met); });
+      if (!list.length) return;
+      var gm = list.filter(function (hd) { return S.h[hd.id].met; }).length;
+      wrap.appendChild(el("h3", { style: "color:" + GROUP_COLOR[g.id] }, [L(g.name) + "（" + gm + "／" + all.filter(function (hd) { return hd.group === g.id; }).length + "）"]));
       var row = el("div", { class: "wr-people" });
-      D.HEROINES.filter(function (hd) { return hd.group === g.id && C.available(S, hd.id); }).forEach(function (hd) {
+      list.forEach(function (hd) {
         var h = S.h[hd.id], where = S.today ? C.whereIs(S, hd.id) : null;
         row.appendChild(el("button", { type: "button", class: "wr-person" + (h.dating ? " lover" : ""), onclick: function () { ui.modal = { type: "profile", hid: hd.id }; renderModal(); } }, [
           face(hd, 44),

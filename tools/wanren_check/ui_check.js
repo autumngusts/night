@@ -113,7 +113,10 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(SHOT_DIR, "04_meet.png") });
   await closeMsg(page);
-  await page.locator(".wr-hcard").first().locator("button", { hasText: "聊天" }).click();
+  // 2026-11-03：行動後有機率觸發校園遭遇，且同一地點的人變多（第一張卡不一定是剛認識的人）
+  // → 先清掉事件，再找有「聊天」鍵（已認識）的卡片
+  await clearEvents(page);
+  await page.locator(".wr-hcard", { has: page.locator("button", { hasText: "聊天" }) }).first().locator("button", { hasText: "聊天" }).click();
   await page.locator(".wr-btn-topic").first().click();
   await page.waitForTimeout(100);
   s = await st(page);
@@ -222,7 +225,13 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.strictEqual(s.phase, "report");
   await page.waitForTimeout(1800);
   assert.ok(await page.locator(".wr-rep-title").count() === 1, "應該有稱號");
-  assert.strictEqual(await page.locator(".wr-rep-row").count(), 15);
+  // 2026-11-03：追加 50 人後，報告列出「主要 15 人＋已認識的追加角色」（舊值 15 已過時）
+  var repRows = await page.evaluate(function () {
+    var W = window.PriTestWanren, D = window.PriTestWanrenData;
+    return W.core.report(W.state).rows.filter(function (x) { return x.met || !D.HEROINE_BY_ID[x.id].ext; }).length;
+  });
+  assert.ok(repRows >= 15, "報告至少要有主要 15 人");
+  assert.strictEqual(await page.locator(".wr-rep-row").count(), repRows);
   await page.screenshot({ path: path.join(SHOT_DIR, "07_report.png"), fullPage: true });
   var rep = await page.evaluate(function () { var r = window.PriTestWanren.core.report(window.PriTestWanren.state); return { title: r.title, rank: r.rank, grade: r.grade, lovers: r.lovers, exams: r.exams.length }; });
   console.log("report:", JSON.stringify(rep));

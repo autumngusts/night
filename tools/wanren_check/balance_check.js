@@ -6,6 +6,8 @@ global.window = { localStorage: { s:{}, getItem(k){return this.s[k]||null}, setI
 var ROOT = require("path").join(__dirname, "..", "..");
 require(ROOT + "/static_src/wanren_data.js");
 require(ROOT + "/static_src/wanren_data2.js");
+require(ROOT + "/static_src/wanren_data3.js");
+require(ROOT + "/static_src/wanren_data4.js");
 require(ROOT + "/static_src/wanren_core.js");
 var C = window.PriTestWanrenCore, D = window.PriTestWanrenData;
 function play(seed, strat, len, ng) {

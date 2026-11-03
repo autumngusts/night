@@ -96,7 +96,7 @@
     });
     if (!s.skills) s.skills = { cook: 0, sport: 0, art: 0, music: 0, talk: 0 };
     if (s.club === undefined) s.club = null;
-    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
+    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
     if (!s.newAch) s.newAch = [];
     return s;
   }
@@ -130,12 +130,20 @@
   function takeNewAchievements(s) { var a = s.newAch.slice(); s.newAch.length = 0; return a; }
   // 各種成就的條件：每次行動後由畫面呼叫
   function checkAchievements(s) {
-    var mains = D.HEROINES.filter(function (hd) { return !hd.hidden; });
+    // 主要女主角＝原本的 15 人；追加的 50 人（ext）另外算
+    var mains = D.HEROINES.filter(function (hd) { return !hd.hidden && !hd.ext; });
     var met = mains.filter(function (hd) { return s.h[hd.id].met; }).length;
+    var everyone = D.HEROINES.filter(function (hd) { return !hd.hidden; });
+    var metAll = everyone.filter(function (hd) { return s.h[hd.id].met; }).length;
     var lovers = loversOf(s).length;
     var maxRel = D.HEROINES.reduce(function (a, hd) { return Math.max(a, s.h[hd.id].rel || 0); }, 0);
     if (met >= 1) unlock(s, "meet1");
     if (met >= mains.length) unlock(s, "meetAll");
+    if (metAll >= 30) unlock(s, "meet30");
+    if (metAll >= everyone.length) unlock(s, "meetEvery");
+    if ((s.xev || 0) + s.encounters >= 50) unlock(s, "events50");
+    if (loversOf(s).some(function (hid) { return D.HEROINE_BY_ID[hid].group === "kouhai"; })) unlock(s, "kouhaiLover");
+    if (s.flags.parentOK) unlock(s, "parentOK");
     if (s.dates >= 1) unlock(s, "date1");
     if (s.dates >= 50) unlock(s, "date50");
     if (lovers >= 1) unlock(s, "lover1");
@@ -159,9 +167,12 @@
     return takeNewAchievements(s);
   }
   // 隱藏女主角要解鎖後才會出現
-  function available(s, hid) {
+  // 學妹（追加的 13 人）：完整版第二學年才入學；其他模式一開始就在
+  function available(s, hid, day) {
     var hd = D.HEROINE_BY_ID[hid];
-    return !hd.hidden || !!s.flags[hid];
+    if (hd.hidden) return !!s.flags[hid];
+    if (hd.group === "kouhai" && s.lengthId === "full" && cal(s, day === undefined ? s.day : day).year < 1) return false;
+    return true;
   }
 
   // ---------------- 交往：開始與分手（第 7 項） ----------------
@@ -366,8 +377,9 @@
     if (day === undefined) day = s.day;
     if (slot === undefined) slot = isToday ? curSlot(s) : 0;
     var hd = D.HEROINE_BY_ID[hid], wd = weekday(s, day), kind = dayKind(s, day), sp = D.SPECIAL_DAYS[kind];
-    if (!available(s, hid)) return null;
+    if (!available(s, hid, day)) return null;
     if (hd.hidden && cal(s, day).year < 1) return null;   // 學妹第二學年才入學
+    if (isToday && s.today && s.today.absent && s.today.absent[hid]) return null;   // 今天請假（感冒等事件）
     // 約好見面：她整天都在約定的地點等你
     if (isToday && s.today && s.today.meetup && s.today.meetup.hid === hid && !s.today.meetup.done) return s.today.meetup.loc;
     function spotOf(list, salt) {
@@ -375,7 +387,11 @@
       return list[Math.floor(hash(s.seed, day, hid, salt, k) * list.length)];
     }
     // 特殊活動日：大家都來學校，聚在活動的地點
-    if (sp && sp.spots) return spotOf(sp.spots, "f");
+    if (sp && sp.spots) {
+      // 追加的 50 人：活動日也只有一部分會來，避免一個地點擠滿二十幾個人
+      if (hd.ext && hash(s.seed, day, hid, "a") < 0.6) return null;
+      return spotOf(sp.spots, "f");
+    }
     if (sp && sp.absent) {
       if (hash(s.seed, day, hid, "a") < sp.absent) return null;
       return spotOf(hd.spots, "s");
@@ -383,6 +399,8 @@
     if (hd.days && hd.days.indexOf(wd) < 0) return null;
     if (wd === 6 && hd.group === "teacher") return null;
     var absent = wd >= 5 ? (hd.group === "parent" ? 0 : 0.45) : 0.1;
+    // 追加的 50 人：出現率低一點，避免每個地點擠滿人
+    if (hd.ext) absent = wd >= 5 ? (hd.group === "parent" ? 0.3 : 0.6) : 0.4;
     if (hash(s.seed, day, hid, "a") < absent) return null;
     return spotOf(hd.spots, "s");
   }
@@ -401,10 +419,14 @@
     };
     s.flags.pose = false;
     dayEvents(s, kind);
-    // 隨機事件（有修羅場時優先）
-    if (!s.events.length && rand(s) < 0.38) {
+    // 隨機事件（有修羅場時優先）。2026-11-03 使用者要求事件更頻繁：0.38 → 0.55，另有 15% 再多一件
+    if (!s.events.length && rand(s) < 0.55) {
       var ev = genEvent(s);
       if (ev) s.events.push(ev);
+      if (ev && rand(s) < 0.15) {
+        var ev2 = genEvent(s);
+        if (ev2 && !(ev2.type === ev.type && ev2.id === ev.id)) s.events.push(ev2);
+      }
     }
   }
 
@@ -652,6 +674,7 @@
     if (base > 0) base *= 1 + s.skills.talk / 250;
     if (base > 0 && s.club && D.CLUB_BY_ID[s.club].members.indexOf(hid) >= 0) base *= 1.3;
     if (h.dating) base += 1;
+    if (base > 0 && s.today.lucky) base *= 1.2;   // 星座運勢（事件）
     addAff(s, hid, base, out);
     if (hidden) {
       h.hiddenSeen = true; s.hiddenTalks++;
@@ -771,6 +794,7 @@
     ["study", "charm", "stamina", "money", "rep"].forEach(function (k) { if (r[k]) eff[k] = r[k]; });
     applyEff(s, eff, out);
     if (r.heroine && s.h[r.heroine.id].met) addAff(s, r.heroine.id, r.heroine.aff, out);
+    if (q.req.type === "heroine" && D.HEROINE_BY_ID[hid].group === "parent" && D.HEROINE_BY_ID[hid].daughter === q.req.id) s.flags.parentOK = true;
     h.lastSeen = s.day;
     if (h.quest >= D.HEROINE_BY_ID[hid].quests.length) out.push("（" + name(hid) + " 的任務全部完成！好感 80 以上就可以告白了。）");
     checkFaint(s, out);
@@ -879,15 +903,17 @@
     s.h[mu.hid].lastSeen = s.day;
     return out;
   }
-  // 在 3D 校園走路時觸發（畫面依步行距離呼叫）；一天最多 2 次
+  // 在 3D 校園走路、或在自由時間做完一件事時觸發（畫面呼叫）
+  // 2026-11-03 使用者要求事件更頻繁：一天最多 2 次 → 4 次
+  var ENC_PER_DAY = 4;
   function encounter(s, curLoc) {
-    if (s.phase !== "free" || !s.today || s.today.enc >= 2 || s.events.length) return false;
+    if (s.phase !== "free" || !s.today || s.today.enc >= ENC_PER_DAY || s.events.length) return false;
     var here = curLoc ? heroinesAt(s, curLoc).filter(function (h) { return s.h[h].met; }) : [];
-    var list = D.ENCOUNTERS.filter(function (e) { return e.kind !== "bump" || here.length; });
+    var list = D.ENCOUNTERS.filter(function (e) { return !e.kind || here.length; });
     var e = pick(s, list);
     s.today.enc++;
     s.encounters++;
-    s.events.push({ type: "enc", id: e.id, hid: e.kind === "bump" ? pick(s, here) : undefined });
+    s.events.push({ type: "enc", id: e.id, hid: e.kind ? pick(s, here) : undefined });
     return true;
   }
   function endFree(s) {
@@ -1008,6 +1034,9 @@
       if (o.skill) addSkill(s, o.skill, 3, out);
     }
     s.phase = "night";
+    // 深夜的訊息（2026-11-03 追加事件）
+    var night = metList(s, function (h) { return h.aff >= 30; });
+    if (night.length && D.X_EVENT_BY_ID && rand(s) < 0.22) s.events.push({ type: "x", id: "latenight", hid: pick(s, night) });
     return out;
   }
   // 特殊日的晚上（後夜祭、夏日祭典、聖誕夜、情人節、畢業典禮）：選一位共度
@@ -1144,7 +1173,18 @@
     var conf = metList(s, function (h, hd) { return h.aff >= 85 && !h.dating && h.quest >= hd.quests.length; });
     if (conf.length) c.push({ type: "herconfess", hid: pick(s, conf) }, { type: "herconfess", hid: pick(s, conf) });
     if (s.stats.money < 1500) c.push({ type: "broke" });
-    return c.length ? pick(s, c) : null;
+    // 追加的事件（wanren_data4.js）：依權重混進候選
+    var w = c.map(function () { return 1; });
+    (D.X_EVENTS || []).forEach(function (x) {
+      if (x.night || !x.w || !x.cond(s, XA)) return;
+      var ev = { type: "x", id: x.id };
+      if (x.pick) { var p = x.pick(s, XA); Object.keys(p).forEach(function (k) { ev[k] = p[k]; }); }
+      c.push(ev); w.push(x.w);
+    });
+    if (!c.length) return null;
+    var tot = w.reduce(function (a, b) { return a + b; }, 0), r = rand(s) * tot;
+    for (var i = 0; i < c.length; i++) { r -= w[i]; if (r < 0) return c[i]; }
+    return c[c.length - 1];
   }
   function eventView(s, ev) {
     var n = ev.hid ? name(ev.hid) : "";
@@ -1173,6 +1213,7 @@
     if (ev.type === "stalker") return { title: "👁 揮之不去的視線", text: "你回應過的「" + ev.who + "」開始每天在你家門口等你，還知道你昨天去了哪裡。", opts: ["嚴正地說清楚", "找可靠的人幫忙", "算了，隨她去"] };
     if (ev.type === "leak") return { title: "📢 論壇爆料", text: "「" + ev.who + "」在校園論壇發文：「他對每個女生都這麼溫柔嗎？」還附上了你們的合照。", opts: ["發文澄清", "不予理會"] };
     if (ev.type === "hiyoriUnlock") return { title: "🌙 神秘的學妹", text: "那個一直遠遠看著你的學妹，終於鼓起勇氣站到你面前：「學長……我叫朝比奈日和。我、我可以……成為學長身邊的人嗎？」", opts: ["「當然，請多指教」"] };
+    if (ev.type === "x") return D.X_EVENT_BY_ID[ev.id].view(s, ev, XA);
     if (ev.type === "enc") {
       var e = D.ENCOUNTERS.filter(function (x) { return x.id === ev.id; })[0];
       return { title: e.title, text: fmt(e.text, { n: n }), opts: e.opts };
@@ -1317,7 +1358,7 @@
         memory(s, "rel4_" + hid, name(hid) + "・未來的約定", "夕陽下，你和" + name(hid) + "勾了勾小指。", hid);
       } else { out.push(name(hid) + "：「……沒關係，我會等。」"); }
     } else if (ev.type === "stalker") {
-      var helper = ["akane", "kaoru"].filter(function (x) { return s.h[x].met && available(s, x); })[0];
+      var helper = ["sachi", "akane", "kaoru"].filter(function (x) { return s.h[x] && s.h[x].met && available(s, x); })[0];
       if (idx === 0) { out.push("你清楚地拒絕了她。她哭著跑走了，之後再也沒有出現。"); applyEff(s, { rep: 2 }, out); }
       else if (idx === 1 && helper) { out.push(name(helper) + "站到你前面：「有事找我談。」從此世界安靜了。"); addAff(s, helper, 6, out); s.h[helper].lastSeen = s.day; }
       else if (idx === 1) { out.push("你找了學生會幫忙，事情總算平息了。"); applyEff(s, { rep: 1 }, out); }
@@ -1337,6 +1378,11 @@
       s.h.hiyori.met = true; s.h.hiyori.lastSeen = s.day;
       addAff(s, "hiyori", 10, out, true);
       out.push("🌙 隱藏女主角「朝比奈 日和」登場了！");
+    } else if (ev.type === "x") {
+      s.xev = (s.xev || 0) + 1;
+      D.X_EVENT_BY_ID[ev.id].res(s, ev, idx, out, XA);
+    } else if (ev.type === "enc" && D.ENCOUNTERS.some(function (x) { return x.id === ev.id && x.res; })) {
+      D.ENCOUNTERS.filter(function (x) { return x.id === ev.id; })[0].res(s, ev, idx, out, XA);
     } else if (ev.type === "enc") {
       if (ev.id === "bump") {
         if (idx === 0) { out.push("你們蹲在地上一起撿東西，手不小心碰在一起。"); addAff(s, hid, 4, out); }
@@ -1429,7 +1475,8 @@
     };
     var title = D.TITLES.filter(function (t) { return t.cond(r); })[0];
     r.title = title.name; r.titleComment = title.comment;
-    var sumAff = rows.reduce(function (a, x) { return a + x.aff; }, 0);
+    // 人數變多（66 人）後只算好感最高的 15 人，避免分數膨脹
+    var sumAff = rows.map(function (x) { return x.aff; }).sort(function (a, b) { return b - a; }).slice(0, 15).reduce(function (a, x) { return a + x; }, 0);
     r.fansPerDay = r.fans / r.days;
     r.score = Math.round(r.charm * 1.5 + Math.min(r.fansPerDay, 6) * 12 + sumAff / 6 + r.lovers * 25 + r.rep * 0.5 + grade * 0.5);
     r.rank = r.score >= 480 ? "SS" : r.score >= 380 ? "S" : r.score >= 280 ? "A" : r.score >= 190 ? "B" : r.score >= 110 ? "C" : "D";
@@ -1453,7 +1500,7 @@
     r.love = love;
     r.skills = JSON.parse(JSON.stringify(s.skills)); r.club = s.club; r.clubWins = s.clubWins; r.ng = s.ng || 0;
     // 真結局：二周目以上，15 位主要女主角好感都 80 以上（第 12 項）
-    r.trueEnd = !interim && !!s.ng && D.HEROINES.filter(function (hd) { return !hd.hidden; }).every(function (hd) { return s.h[hd.id].aff >= 80; });
+    r.trueEnd = !interim && !!s.ng && D.HEROINES.filter(function (hd) { return !hd.hidden && !hd.ext; }).every(function (hd) { return s.h[hd.id].aff >= 80; });
     if (r.trueEnd) love.unshift("🌈【真結局】三年來，你讓每一個人都露出了笑容。畢業典禮那天，15 個人一起站在櫻花樹下，對你說：「謝謝你來到這間學校。」");
     if (!interim) recordEnding(s, r);
     r.summary = interim ? s.name + "的" + YEAR_NAMES[year] + "學年結束了。目前的稱號是「" + r.title + "」。" :
@@ -1502,6 +1549,12 @@
     } catch (e) { return null; }
   }
   function clearSave() { try { window.localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
+
+  // 追加事件（wanren_data4.js）用的工具：沿用這裡的規則，不在資料檔重複定義
+  var XA = {
+    addAff: addAff, applyEff: applyEff, addSkill: addSkill, name: name, pick: pick, rand: rand, ri: ri,
+    metList: metList, loversOf: loversOf, available: available, whereIs: whereIs, memory: memory
+  };
 
   window.PriTestWanrenCore = {
     SAVE_KEY: SAVE_KEY, LENGTHS: LENGTHS, STATS: STATS, STAT_BY_ID: STAT_BY_ID, STAGES: STAGES,
