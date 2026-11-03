@@ -94,14 +94,24 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   assert.ok((await page.textContent(".sg-rating-line")).indexOf("pt") >= 0, "顯示總評分");
   await page.screenshot({ path: path.join(SHOT_DIR, "kennel_skills.png"), fullPage: true });
   // 技能池過期（30 分鐘）
-  await page.evaluate(function () { var s = JSON.parse(localStorage.getItem("pritest-saigo-kennel")); s.skillPool.at -= 31 * 60000; localStorage.setItem("pritest-saigo-kennel", JSON.stringify(s)); });
+  await page.evaluate(function () { var s = JSON.parse(localStorage.getItem("pritest-saigo-kennel")); s.skillPool.at -= 31 * 60000; s.dogs.forEach(function (d) { Object.keys(d.skillExp || {}).forEach(function (k) { d.skillExp[k] -= 31 * 60000; }); }); localStorage.setItem("pritest-saigo-kennel", JSON.stringify(s)); });
   await page.reload();
   await page.waitForSelector(".sg-menu");
   await clickText(page, "🏠 我的犬舍");
   assert.ok((await page.textContent("#sg-app")).indexOf("目前沒有技能池") >= 0, "30 分鐘後技能池消失");
-  assert.strictEqual((await kennel(page)).dogs[0].skills.length, 5, "學會的技能保留");
+  // 2026-11-03 起：學會的技能跟著技能池一起過期（留在欄位顯示「已過期」，但不帶進比賽，要替換）
+  assert.strictEqual((await kennel(page)).dogs[0].skills.length, 5, "過期的技能仍留在欄位上");
+  await page.click(".sg-dog-card");
+  await page.waitForTimeout(150);
+  assert.strictEqual(await page.$$eval(".sg-skill-expired", function (x) { return x.length; }), 5, "5 個技能都顯示已過期");
+  assert.deepStrictEqual(await page.evaluate(function () { var K = window.PriTestSaigoKennel; return K.entry(K.load().dogs[0].id).skills; }), [], "過期的技能不帶進出賽資料");
   await clickText(page, "坡道衝刺", true);
   assert.strictEqual((await kennel(page)).skillPool.ids.length, 20, "再訓練出現新的 20 個");
+  await page.evaluate(function () { document.querySelectorAll(".sg-pool-item.sg-skill-g")[0].click(); });
+  await page.waitForTimeout(150);
+  assert.ok((await page.textContent("#sg-app")).indexOf("替換掉過期的技能") >= 0, "學新金技能替換掉過期的");
+  assert.strictEqual(await page.$$eval(".sg-skill-expired", function (x) { return x.length; }), 4, "剩 4 個過期");
+  assert.strictEqual(await page.evaluate(function () { var K = window.PriTestSaigoKennel; return K.entry(K.load().dogs[0].id).skills.length; }), 1, "新技能帶進出賽資料");
 
   // ---- 真賽狗（單機） ----
   await clickText(page, "← 返回");
@@ -126,6 +136,16 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
     return { mode: u.card.mode, placeK: C.placeK(u.card.dogs.length), hit3: B.hit("place", "5", [0, 1, 5, 2, 3, 4, 6, 7]), npcKennel: u.card.dogs.filter(function (d) { return d.cpu; }).every(function (d) { return !!d.ownerName; }), skills: u.card.dogs.some(function (d) { return d.skills.length; }) };
   });
   assert.deepStrictEqual(cardInfo, { mode: "real", placeK: 3, hit3: true, npcKennel: true, skills: true });
+  // 出走表直接列出每隻狗的 8 項能力與技能；點技能顯示簡易說明（2026-11-03）
+  assert.strictEqual(await page.$$eval(".sg-dogsub .sg-statmini", function (x) { return x.length; }), 8, "8 隻都列出能力");
+  assert.strictEqual(await page.$$eval(".sg-dogsub .sg-statmini span", function (x) { return x.length; }), 64, "每隻 8 項能力");
+  var tapName = await page.evaluate(function () { var b = document.querySelector(".sg-dogsub .sg-skill-btn"); b.click(); return b.textContent; });
+  await page.waitForTimeout(150);
+  var descTxt = await page.textContent(".sg-skill-desc");
+  assert.ok(descTxt && descTxt.indexOf(tapName.replace(/^\S+\s/, "")) >= 0, "點技能顯示說明：" + descTxt);
+  await page.evaluate(function () { document.querySelector(".sg-skill-btn.sg-on").click(); });
+  await page.waitForTimeout(150);
+  assert.strictEqual(await page.$(".sg-skill-desc"), null, "再點一次收起說明");
   var coins0 = (await kennel(page)).coins;
   await page.click(".sg-pick:nth-child(1)");
   await clickText(page, "加入");
@@ -179,6 +199,23 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   var placeRows = await page.evaluate(function () { return Array.prototype.filter.call(document.querySelectorAll(".sg-pay tr"), function (r) { return r.textContent.indexOf("複勝") >= 0; })[0].querySelectorAll("td div").length; });
   assert.strictEqual(placeRows, 3, "8 隻出賽：複勝 3 個中獎");
   await page.screenshot({ path: path.join(SHOT_DIR, "real_result.png"), fullPage: true });
+
+  // 關卡障礙關閉：只有直道／彎道（2026-11-03）
+  await page.evaluate(function () { window.PriTestSaigo.go("setup"); });
+  await clickText(page, "關閉（純搶道）", true);
+  await clickText(page, "產生出賽表");
+  await page.waitForSelector(".sg-entries");
+  var flat = await page.evaluate(function () { var c = window.PriTestSaigo.ui.card; return { noObs: !!c.noObs, open: c.course.parts.every(function (p) { return p.type === "straight" || p.type === "curve"; }), chips: document.querySelectorAll(".sg-part").length }; });
+  assert.deepStrictEqual(flat, { noObs: true, open: true, chips: 0 }, "關閉關卡障礙");
+  await page.screenshot({ path: path.join(SHOT_DIR, "real_card_flat.png"), fullPage: true });
+  await clickText(page, "不下注直接看");
+  await page.waitForSelector(".sg-stage canvas", { timeout: 15000 });
+  await page.waitForFunction(function () { return window.PriTestSaigo.ui.raceT > 3; }, null, { timeout: 30000 });
+  await page.screenshot({ path: path.join(SHOT_DIR, "real_race_flat.png") });
+  await clickText(page, "跳到結果");
+  await page.waitForSelector(".sg-pay");
+  await page.evaluate(function () { window.PriTestSaigo.go("setup"); });
+  await clickText(page, "開啟（障礙賽道）", true);
 
   // 日文沒有漏翻
   for (var scr of ["home", "kennel", "setup"]) {

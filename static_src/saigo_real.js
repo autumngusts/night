@@ -43,7 +43,7 @@
   }
 
   // ---------------- 出賽表 ----------------
-  // entries 同關卡賽（可以有同一個玩家的好幾隻）；opts：{ cls, terrain?, weather?, dist?, ground? }（沒指定＝依 seed 隨機）
+  // entries 同關卡賽（可以有同一個玩家的好幾隻）；opts：{ cls, terrain?, weather?, dist?, ground?, obstacles? }（沒指定＝依 seed 隨機）
   function makeCard(seed, entries, opts) {
     opts = opts || {};
     var r = rng((seed ^ 0x9ea1) >>> 0);
@@ -54,7 +54,9 @@
     var dist = D.DISTANCES[opts.dist] ? opts.dist : weighted(r, { sprint: D.DISTANCES.sprint.w, middle: D.DISTANCES.middle.w, long: D.DISTANCES.long.w });
     var wet = weather === "rain" || weather === "typhoon", cold = weather === "snow" || weather === "blizzard";
     var ground = opts.ground || (weather === "typhoon" ? pick(r, ["soft", "heavy", "heavy"]) : wet ? pick(r, ["good", "soft", "heavy"]) : cold ? pick(r, ["good", "soft"]) : weather === "hot" || weather === "sandstorm" ? "firm" : weighted(r, { firm: 70, good: 30 }));
-    var course = Core.makeCourse(r, terrain, dist);
+    // 關卡障礙開關（2026-11-03 使用者指定）：opts.obstacles === false → 只有直道／彎道的純搶道賽道
+    var noObs = opts.obstacles === false;
+    var course = noObs ? Core.makeFlatCourse(r, dist) : Core.makeCourse(r, terrain, dist);
     var dogs = [];
     (entries || []).slice(0, FIELD).forEach(function (e) {
       var m = clamp(e.mood === undefined ? 2 : e.mood | 0, 0, 4), f = e.fatigue || 0;
@@ -94,7 +96,9 @@
       if (d.cpu) d.skills = SK.npcSkills(cls.id, kr);
       d.eff = Core.effStats(d, weather, ground, terrain);
     });
-    return { v: 2, mode: "real", seed: seed >>> 0, cls: cls.id, terrain: terrain, dist: dist, weather: weather, ground: ground, course: course, length: course.length, dogs: dogs };
+    var card = { v: 2, mode: "real", seed: seed >>> 0, cls: cls.id, terrain: terrain, dist: dist, weather: weather, ground: ground, course: course, length: course.length, dogs: dogs };
+    if (noObs) card.noObs = true;
+    return card;
   }
 
   // ---------------- 指令 ----------------

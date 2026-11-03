@@ -230,3 +230,20 @@
 .sg-banner-mine { outline: 2px solid rgba(255, 255, 255, 0.7); }
 @keyframes sg-banner-in { from { transform: translateX(-120%); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 640px) { .sg-skill-banners { top: 3.4rem; font-size: 0.82em; max-width: 62%; } }
+/* 2026-11-03：出走表的能力一覽、可點的技能與說明、過期技能 */
+.sg-warn { color: var(--sg-bad); font-weight: bold; }
+.sg-dogsub td { padding-top: 0; border-top: none; }
+.sg-dogrow + .sg-dogsub { cursor: default; }
+.sg-statmini { display: flex; flex-wrap: wrap; gap: 0.2rem 0.35rem; margin: 0.1rem 0 0.2rem; font-size: 0.8em; font-variant-numeric: tabular-nums; }
+.sg-statmini span { display: inline-flex; gap: 0.2rem; padding: 0 0.4rem; border-radius: 4px; background: var(--sg-chip); }
+.sg-statmini i { font-style: normal; opacity: 0.7; }
+.sg-statmini .sg-sm-a { color: var(--sg-good); font-weight: bold; }
+.sg-statmini .sg-sm-d { opacity: 0.6; }
+.sg-skill-btn { cursor: pointer; font: inherit; font-size: 0.85em; color: inherit; }
+.sg-skill-btn.sg-on { outline: 2px solid var(--sg-accent); }
+.sg-skill-desc { margin: 0.2rem 0 0.3rem; padding: 0.35rem 0.6rem; border-left: 4px solid #90a4ae; border-radius: 4px; background: var(--sg-chip); font-size: 0.88em; }
+.sg-skill-desc-r { border-left-color: #43a047; }
+.sg-skill-desc-g { border-left-color: #f9a825; }
+.sg-skill-left { opacity: 0.7; font-weight: normal; }
+.sg-skill-expired { opacity: 0.6; text-decoration: line-through; border-style: dashed; filter: grayscale(0.8); }
+.sg-skill-expired small { text-decoration: none; }

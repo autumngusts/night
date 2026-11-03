@@ -109,6 +109,35 @@
     return { parts: parts, length: s };
   }
 
+  // 真賽狗「關閉關卡障礙」（2026-11-03 使用者指定「能選擇是否起動關卡障礙」）：只有直道與彎道的賽道，
+  // 長度與障礙賽道相近（短 ≈420、中 ≈650、長 ≈950 m），彎道方向限制與 makeCourse 相同（不會自己交叉）。
+  var FLAT_LEN = { sprint: 420, middle: 650, long: 950 };
+  function makeFlatCourse(r, distId) {
+    var dist = D.DISTANCES[distId] || D.DISTANCES.middle, sm = dist.straight, target = FLAT_LEN[distId] || FLAT_LEN.middle;
+    var parts = [], s = 0, lastCurve = false;
+    function add(type, len, extra) {
+      var p = { type: type, len: Math.round(len) };
+      Object.keys(extra || {}).forEach(function (k) { p[k] = extra[k]; });
+      parts.push(p); s += p.len;
+    }
+    add("straight", between(r, 60, 100) * sm);
+    while (s < target - 130) {
+      if (!lastCurve && r() < 0.75) { add("curve", between(r, 35, 75), { turn: Math.round(between(r, 45, 110)) * (r() < 0.5 ? -1 : 1) }); lastCurve = true; }
+      else { add("straight", between(r, 40, 90) * sm); lastCurve = false; }
+    }
+    add("straight", between(r, 90, 140) * sm);
+    var h = 0;
+    parts.forEach(function (p) {
+      if (p.type !== "curve") return;
+      if (Math.abs(h + p.turn) > 80) p.turn = -p.turn;
+      if (Math.abs(h + p.turn) > 80) p.turn = (h > 0 ? -1 : 1) * Math.min(Math.abs(p.turn), 80 - Math.abs(h) + 40);
+      h += p.turn;
+    });
+    var s2 = 0;
+    parts.forEach(function (p) { p.s0 = s2; s2 += p.len; });
+    return { parts: parts, length: s2, flat: true };
+  }
+
   // 畫面用的路線幾何：每 1 m 一點（x, y, 方向 h）
   function geometry(course) {
     if (course._geo) return course._geo;
@@ -327,7 +356,7 @@
       o.slow = r2() < clamp(0.12 - e.agi * 0.0008, 0.02, 0.12);
       o.react = 0.08 + (100 - Math.min(e.foc, 100)) * 0.0022 + r2() * 0.12 + (o.slow ? 0.35 : 0);
       o.lineId = D.LINES[d.line] ? d.line : "mid"; o.lineB = ln.bend * 2.5;   // 關卡賽地圖的彎道比較急，外側加成放大 2.5 倍，三種跑線平均名次才接近（實測 1200 場：4.57／4.38／4.56）
-      o.started = false; o.shoutN = 0; o.lastShout = -1e9; o.blockEv = -9;
+      o.started = false; o.shoutN = 0; o.lastShout = -1e9; o.blockEv = -9; o.queueEv = -1;
     });
     // 決定目標橫向位置 o.xt、橫移速度 o.lat，回傳被擋住後的目標速度
     function crowdSteer(o, di, pi, p, vt) {
@@ -335,14 +364,28 @@
       var approach = isOpen(p) && nx && !isOpen(nx) && nx.s0 - o.s < CROWD_APPROACH;
       if (!isOpen(p)) { xt = slotX(o.slot); lat = 1.2; }
       else if (approach) {
-        // 搶關卡的位置：離自己最近、從自己前後到關卡入口後 6 m 都沒有狗的空位
-        var best = o.slot, bc = 1e9;
+        // 搶關卡的位置（2026-11-03 加強「後方的狗要計算排進關卡的哪一道」）：
+        //   每一道估一個代價＝橫移距離＋來不及在入口前移到的部分（大幅加重）＋那一道裡前面的狗造成的等待。
+        //   入口附近（入口後 6 m 內）有狗＝那一道被佔住；更裡面停下來／比自己慢的狗也算等待（看整個關卡長度）。
+        var toGo = nx.s0 - o.s, reach = lat * toGo / Math.max(o.v, 3) + 0.2, best = o.slot, bc = 1e9, near = 0, nd = 1e9;
         for (var k = 0; k < n; k++) {
           var cx = slotX(k), dd = cx - o.x;
           if (dd < 0) dd = -dd;
-          var cost = dd + (laneFree(o, cx, -1.2, nx.s0 - o.s + 6) ? 0 : 50) - (k === o.slot ? 0.3 : 0);
+          if (dd < nd) { nd = dd; near = k; }
+          var cost = dd + (dd > reach ? (dd - reach) * 6 : 0) - (k === o.slot ? 0.3 : 0);
+          for (var q2 = 0; q2 < n; q2++) {
+            var z2 = dogs[q2];
+            if (z2 === o || z2.done) continue;
+            var dp2 = S0[q2] - o.s, dx2 = X0[q2] - cx;
+            if (!(dx2 < 0.8 && dx2 > -0.8) || dp2 <= -1.2 || dp2 >= toGo + nx.len) continue;
+            if (dp2 < toGo + 6) cost += 50;                                     // 入口被佔住
+            else if (V0[q2] < 1) cost += 8;                                     // 關卡裡停下來的狗（吃零食、接飛盤、摔倒…）
+            else if (V0[q2] < o.v - 0.5) cost += 1.5 + (o.v - V0[q2]) * 0.6;   // 比自己慢的狗
+          }
           if (cost < bc) { bc = cost; best = k; }
         }
+        // 實況：後半的狗因為最近的那一道被佔住而改排別道
+        if (events && toGo < 3 && o.queueEv !== pi) { o.queueEv = pi; if (best !== near && ranks[di] > n / 2) ev("queue", di, best + 1); }
         o.slot = best; xt = slotX(best);
       } else if (p.type === "curve") {
         // 彎道：依跑線偏好靠內／中間／外側（彎道內側＝turn 的正負決定）
@@ -948,7 +991,7 @@
     rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp, weighted: weighted, between: between, pick: pick,
     fieldPace: fieldPace, PACE: PACE, STA_K: STA_K, DAY: DAY, CPU_BW: CPU_BW, CPU_ADJ: CPU_ADJ, placeK: placeK,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
-    geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff, makeCourse: makeCourse, CROWD_APPROACH: CROWD_APPROACH,
+    geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff, makeCourse: makeCourse, makeFlatCourse: makeFlatCourse, CROWD_APPROACH: CROWD_APPROACH,
     odds: odds, oddsValue: oddsValue, ODDS_MIN: ODDS_MIN, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind
   };
 })();

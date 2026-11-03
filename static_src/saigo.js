@@ -71,6 +71,29 @@
     if (!s) return null;
     return el("span", { class: "sg-skill sg-skill-" + s.tier, title: L(s.desc) + "（" + s.pts + "pt）" }, [s.icon + " " + L(s.name)].concat(extra || []));
   }
+  // 可點的技能標籤（手機沒有 title 提示）：點一下在下方顯示簡易說明，再點一次收起。key＝這一列的識別
+  function skillTap(id, key) {
+    var s = SK.BY_ID[id];
+    if (!s) return null;
+    var k = key + ":" + id, on = ui.selSkill === k;
+    return el("button", { type: "button", class: "sg-skill sg-skill-btn sg-skill-" + s.tier + (on ? " sg-on" : ""), title: L(s.desc), onclick: function (ev) {
+      ev.stopPropagation(); ui.selSkill = on ? "" : k; rerenderKeep();
+    } }, [s.icon + " " + L(s.name)]);
+  }
+  function skillDesc(ids, key) {
+    var hit = (ids || []).filter(function (id) { return ui.selSkill === key + ":" + id; })[0], s = hit && SK.BY_ID[hit];
+    if (!s) return null;
+    return el("div", { class: "sg-skill-desc sg-skill-desc-" + s.tier }, [
+      el("b", null, [s.icon + " " + L(s.name)]), el("small", null, [" " + L(SK.TIERS[s.tier].name) + "・" + s.pts + "pt"]), el("br"), L(s.desc)
+    ]);
+  }
+  // 出走表用的 8 項能力（數字一覽）
+  function statMini(stats) {
+    return el("div", { class: "sg-statmini" }, D.STATS.map(function (k) {
+      var v = Math.round(stats[k]);
+      return el("span", { class: "sg-sm-" + (v >= 90 ? "a" : v >= 70 ? "b" : v >= 50 ? "c" : "d") }, [el("i", null, [t("sg_stat_" + k)]), String(v)]);
+    }));
+  }
   function statBar(v, max, cls) {
     return el("span", { class: "sg-bar " + (cls || "") }, [el("i", { style: "width:" + Math.round(Core.clamp(v / (max || 120), 0, 1) * 100) + "%" })]);
   }
@@ -83,7 +106,7 @@
     dashOk: false, dash: { start: "", all: "", per: {} }, dashMsg: "",
     pool: pref().pool !== false, finalOdds: null, jpWin: null,
     mode: pref().mode === "real" ? "real" : "classic", rmap: pref().rmap || { weather: "", dist: "" },
-    entryDogs: pref().entryDogs || [], ctlDog: -1, mic: null, micState: "", selSkill: ""
+    entryDogs: pref().entryDogs || [], ctlDog: -1, mic: null, micState: "", selSkill: "", obs: pref().obs !== false
   };
 
   // 彩池制（連線房間、房主開啟）：賠率＝虛擬彩池＋大家的下注；開跑後用房主鎖定的彩池
@@ -329,13 +352,15 @@
   // ---------------- 技能（犬舍） ----------------
   // 上：這隻狗學會的技能（欄位 金 1／罕見 2／一般 2，點 × 遺忘）；下：技能池（訓練時抽 20 個、30 分鐘後消失，點一下讓這隻狗學）
   function skillPanel(d) {
-    var have = K.skillsOf(d), used = SK.slotsUsed(have), pool = K.pool();
+    var have = K.skillsOf(d), old = K.expiredSkillsOf(d), used = SK.slotsUsed(have), pool = K.pool();
+    function forgetBtn(sid) { return btn("×", function () { if (window.confirm(t("sg_forget_confirm", { s: L(SK.BY_ID[sid].name) }))) { K.forget(d.id, sid); render(); } }, "sg-x", { title: t("sg_forget") }); }
     var slots = el("div", { class: "sg-slots" }, SK.TIER_IDS.map(function (tier) {
-      var mineT = have.filter(function (id) { return SK.BY_ID[id].tier === tier; }), cells = [];
+      var mineT = have.filter(function (id) { return SK.BY_ID[id].tier === tier; }), oldT = old.filter(function (id) { return SK.BY_ID[id].tier === tier; }), cells = [];
       for (var i = 0; i < SK.TIERS[tier].slots; i++) {
-        var id = mineT[i];
-        cells.push(id ? skillChip(id, [btn("×", function (sid) { return function () { if (window.confirm(t("sg_forget_confirm", { s: L(SK.BY_ID[sid].name) }))) { K.forget(d.id, sid); render(); } }; }(id), "sg-x", { title: t("sg_forget") })])
-          : el("span", { class: "sg-skill sg-skill-empty sg-skill-" + tier }, [SK.TIERS[tier].icon + " " + t("sg_slot_empty")]));
+        var id = mineT[i], oid = !id ? oldT[i - mineT.length] : null;
+        if (id) cells.push(skillChip(id, [el("small", { class: "sg-skill-left" }, [t("sg_skill_left", { m: Math.ceil(K.skillLeft(d, id) / 60000) })]), forgetBtn(id)]));
+        else if (oid) cells.push(el("span", { class: "sg-skill sg-skill-expired sg-skill-" + tier, title: t("sg_skill_expired_note") }, [SK.BY_ID[oid].icon + " " + L(SK.BY_ID[oid].name), el("small", null, ["⌛ " + t("sg_skill_expired")]), forgetBtn(oid)]));
+        else cells.push(el("span", { class: "sg-skill sg-skill-empty sg-skill-" + tier }, [SK.TIERS[tier].icon + " " + t("sg_slot_empty")]));
       }
       return el("div", { class: "sg-slot-row" }, [el("b", null, [L(SK.TIERS[tier].name) + "（" + used[tier] + "/" + SK.TIERS[tier].slots + "）"])].concat(cells));
     }));
@@ -350,7 +375,7 @@
             var sk = SK.BY_ID[id], ok = SK.canLearn(have, id);
             return el("button", { type: "button", class: "sg-pool-item sg-skill-" + tier + (ok ? "" : " sg-off"), title: L(sk.desc), onclick: function () {
               var r = K.learn(d.id, id);
-              ui.msg = r === "ok" ? t("sg_msg_learned", { name: d.name, s: L(sk.name) }) : r === "full" ? t("sg_msg_slot_full", { tier: L(SK.TIERS[tier].name) }) : r === "dup" ? t("sg_msg_skill_dup") : t("sg_msg_pool_gone");
+              ui.msg = r === "ok" ? t("sg_msg_learned", { name: d.name, s: L(sk.name) }) : r === "replaced" ? t("sg_msg_replaced", { name: d.name, s: L(sk.name) }) : r === "full" ? t("sg_msg_slot_full", { tier: L(SK.TIERS[tier].name) }) : r === "dup" ? t("sg_msg_skill_dup") : t("sg_msg_pool_gone");
               render();
             } }, [el("b", null, [sk.icon + " " + L(sk.name)]), el("small", null, [L(sk.desc) + "（" + sk.pts + "pt）"])]);
           }));
@@ -360,6 +385,8 @@
     return el("div", { class: "sg-skillbox" }, [
       el("h3", null, [t("sg_skills")]),
       el("p", { class: "sg-small sg-muted" }, [t("sg_skill_rule", { g: SK.TIERS.g.slots, r: SK.TIERS.r.slots, n: SK.TIERS.n.slots })]),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_skill_expire_rule", { ttl: Math.round(SK.POOL_TTL_MS / 60000) })]),
+      old.length ? el("p", { class: "sg-small sg-warn" }, ["⌛ " + t("sg_skill_expired_warn", { n: old.length })]) : null,
       slots,
       el("h3", null, [t("sg_pool_title")]),
       poolBox
@@ -385,7 +412,8 @@
     var s = K.load();
     var sel = el("select", { class: "sg-input", onchange: function (e) { ui.entryDog = e.target.value; setPref({ entryDog: ui.entryDog }); if (onPick) onPick(); } },
       [el("option", { value: "" }, [t("sg_entry_none")])].concat(s.dogs.map(function (d) {
-        return el("option", { value: d.id, selected: d.id === ui.entryDog }, [d.name + "（" + L(breedOf(d).name) + " Lv" + d.lv + "・" + t("sg_fatigue") + d.fatigue + "）"]);
+        var ex = K.expiredSkillsOf(d).length;
+        return el("option", { value: d.id, selected: d.id === ui.entryDog }, [d.name + "（" + L(breedOf(d).name) + " Lv" + d.lv + "・" + t("sg_fatigue") + d.fatigue + "）" + (ex ? " " + t("sg_entry_expired", { n: ex }) : "")]);
       })));
     if (ui.entryDog && !K.dog(ui.entryDog)) ui.entryDog = "";
     return sel;
@@ -421,6 +449,16 @@
       el("p", { class: "sg-small sg-muted" }, [t(ui.mode === "real" ? "sg_mode_real_note" : "sg_mode_classic_note")])
     ]);
   }
+  // 真賽狗：關卡障礙開／關（2026-11-03 使用者指定「能選擇是否起動關卡障礙」）
+  function obsPicker(onPick, disabled) {
+    return el("div", null, [
+      el("h3", null, [t("sg_obstacles")]),
+      el("div", { class: "sg-seg" }, [[true, "sg_obs_on"], [false, "sg_obs_off"]].map(function (o) {
+        return btn(t(o[1]), function () { ui.obs = o[0]; setPref({ obs: o[0] }); if (onPick) onPick(); else rerenderKeep(); }, "sg-seg-btn" + (ui.obs === o[0] ? " sg-on" : ""), { disabled: disabled });
+      })),
+      el("p", { class: "sg-small sg-muted" }, [t(ui.obs ? "sg_obs_on_note" : "sg_obs_off_note")])
+    ]);
+  }
   // 真賽狗：可以派好幾隻（勾選）
   var ENTRY_MAX_SOLO = 6, ENTRY_MAX_NET = 4;
   function multiEntryPicker(max, onPick) {
@@ -437,7 +475,8 @@
             setPref({ entryDogs: ui.entryDogs });
             if (onPick) onPick(); else rerenderKeep();
           } }),
-          " " + d.name + "（" + L(breedOf(d).name) + " Lv" + d.lv + "・" + r.grade + "・" + t("sg_fatigue") + d.fatigue + "）"
+          " " + d.name + "（" + L(breedOf(d).name) + " Lv" + d.lv + "・" + r.grade + "・" + t("sg_fatigue") + d.fatigue + "）",
+          K.expiredSkillsOf(d).length ? el("small", { class: "sg-warn" }, [" " + t("sg_entry_expired", { n: K.expiredSkillsOf(d).length })]) : null
         ]);
       })),
       el("p", { class: "sg-small sg-muted" }, [t("sg_entry_multi_note", { n: max })])
@@ -460,6 +499,7 @@
       el("h3", null, [t("sg_class")]), classPicker(),
       el("p", { class: "sg-small sg-muted" }, [t("sg_class_note")]),
       mapPicker(),
+      real ? obsPicker() : null,
       el("h3", null, [t("sg_entry")]), real ? multiEntryPicker(ENTRY_MAX_SOLO) : entryPicker(rerenderKeep),
       real ? entryStylePickers() : dogStylePicker(ui.entryDog),
       el("div", { class: "sg-actions" }, [btn(t("sg_make_card"), function () { startSolo(false, ui.entryDog); }, "sg-btn sg-primary")])
@@ -471,7 +511,7 @@
       ui.practice = false;
       ui.entryDogs.forEach(function (id) { var e1 = K.entry(id, "me", ""); if (e1) entries.push(e1); });
       var ro = mapOpts();
-      ro.mode = "real"; ro.cls = ui.cls;
+      ro.mode = "real"; ro.cls = ui.cls; ro.obstacles = ui.obs;
       ui.card = Core.makeCard(Core.newSeed(), entries.slice(0, ENTRY_MAX_SOLO), ro);
       ui.result = null; ui.tickets = []; ui.openDog = -1;
       ui.slip = { type: "win", method: "normal", picks: [], key: null, stake: ui.slip.stake || 100 };
@@ -596,6 +636,7 @@
         el("div", null, [
           el("p", { class: "sg-cond" }, [
             isReal(card) ? el("span", { class: "sg-chip sg-real-chip" }, ["🏟 " + t("sg_real_crowd_chip")]) : null,
+            card.noObs ? el("span", { class: "sg-chip sg-real-chip" }, ["🏁 " + t("sg_real_flat_chip")]) : null,
             el("span", { class: "sg-chip" }, [(D.TERRAINS[card.terrain] || D.TERRAINS.park).icon + " " + L((D.TERRAINS[card.terrain] || D.TERRAINS.park).name) + "（" + L(D.SURFACES[(D.TERRAINS[card.terrain] || D.TERRAINS.park).surf].name) + "）"]),
             el("span", { class: "sg-chip" }, [W.icon + " " + L(W.name)]),
             el("span", { class: "sg-chip" }, [L((D.DISTANCES[card.dist] || D.DISTANCES.middle).name)]),
@@ -606,8 +647,8 @@
             !ui.practice ? el("span", { class: "sg-chip sg-jp" }, ["💰 " + t("sg_jp_chip", { n: money(jackpotAmt()) })]) : null,
             poolMode(card) ? el("span", { class: "sg-chip sg-pool" }, [t("sg_pool_chip", { n: money(Bet.poolTotal(ui.room.livePool())) })]) : null
           ]),
-          partChips(card),
-          isReal(card) ? el("p", { class: "sg-small sg-muted" }, [t("sg_real_note")]) : null,
+          card.noObs ? null : partChips(card),
+          isReal(card) ? el("p", { class: "sg-small sg-muted" }, [t(card.noObs ? "sg_real_note_flat" : "sg_real_note")]) : null,
           el("p", { class: "sg-small sg-muted" }, [t("sg_terrain_note_" + (card.terrain || "park"))]),
           el("p", { class: "sg-small sg-muted" }, [t("sg_weather_note_" + card.weather)])
         ])
@@ -629,6 +670,14 @@
         el("td", { class: "sg-odds" }, [od.win[i].toFixed(1)]),
         el("td", null, [t("sg_pop_n", { n: pop[i] })])
       ]));
+      // 真賽狗：每隻狗的 8 項能力與技能直接列在下面（2026-11-03 使用者指定），點技能看簡易說明
+      if (isReal(card) && ui.openDog !== i) {
+        rows.push(el("tr", { class: "sg-dogsub" + (mine ? " sg-mine" : "") }, [el("td", { colspan: "9" }, [
+          statMini(d.eff),
+          el("div", { class: "sg-skills" }, (d.skills || []).length ? d.skills.map(function (id) { return skillTap(id, "c" + i); }) : [el("span", { class: "sg-muted sg-small" }, [t("sg_no_skills")])]),
+          skillDesc(d.skills, "c" + i)
+        ])]));
+      }
       if (ui.openDog === i) {
         rows.push(el("tr", { class: "sg-dogdetail" }, [el("td", { colspan: "9" }, [
           el("div", { class: "sg-zukan-detail" }, [
@@ -637,7 +686,8 @@
               el("p", null, [traitLine(b) + (d.lv ? "・Lv" + d.lv : "")]),
               el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[d.best || d.style]) + "・" + t("sg_run_style") + "：" + styleLabel(d)]),
               statsTable(d.eff),
-              el("p", { class: "sg-skills" }, [t("sg_skills") + "："].concat((d.skills || []).length ? d.skills.map(function (id) { return skillChip(id); }) : [el("span", { class: "sg-muted" }, [t("sg_no_skills")])])),
+              el("p", { class: "sg-skills" }, [t("sg_skills") + "："].concat((d.skills || []).length ? d.skills.map(function (id) { return skillTap(id, "d" + i); }) : [el("span", { class: "sg-muted" }, [t("sg_no_skills")])])),
+              skillDesc(d.skills, "d" + i),
               isReal(card) ? el("p", { class: "sg-small" }, [t("sg_line") + "：" + L((D.LINES[d.line] || D.LINES.mid).name) + "・" + t("sg_line_note_" + (d.line || "mid"))]) : null,
               el("p", { class: "sg-small sg-muted" }, [t("sg_eff_note")]),
               el("p", { class: "sg-small" }, [t("sg_place_odds") + "：" + oddsText(od, "place", String(i))])
@@ -649,7 +699,7 @@
     app.appendChild(panel(t("sg_entries"), [el("table", { class: "sg-table sg-entries" }, [
       el("thead", null, [el("tr", null, ["", t("sg_col_dog"), el("span", { class: "sg-hide-s" }, [t("sg_col_owner")]), t("sg_mood"), el("span", { class: "sg-hide-s" }, [t("sg_style")]), el("span", { class: "sg-hide-s" }, [t("sg_rating")]), el("span", { class: "sg-hide-s" }, [t("sg_col_spd_sta_agi")]), t("sg_col_odds"), t("sg_col_pop")].map(function (h) { return el("th", null, [h]); }))]),
       el("tbody", null, rows)
-    ]), el("p", { class: "sg-small sg-muted" }, [t("sg_click_detail")])]));
+    ]), el("p", { class: "sg-small sg-muted" }, [t("sg_click_detail") + (isReal(card) ? " " + t("sg_card_skill_tap") : "")])]));
 
     // 單機：自己的狗可以在出賽表上改跑法（買了票之後就鎖定，免得先下注再改）
     if (!ui.room && !ui.practice) card.dogs.forEach(function (md) {
@@ -767,7 +817,7 @@
     ui.raceT = -3; ui.speed = 1; ui.replay = false; ui.settledSolo = false;
     go("race");
   }
-  var EV_ICONS = { knock: "💥", catchGood: "🥏", catchLate: "🥏", catchMiss: "❌", eat: "🍖", stayBreak: "🙃", stayGood: "✋", weaveMiss: "〰", lead: "🚩", finish: "🏁", jumpGood: "✨", start: "🔫", diveGood: "🌊", bridgeStop: "😰",
+  var EV_ICONS = { queue: "🔀", knock: "💥", catchGood: "🥏", catchLate: "🥏", catchMiss: "❌", eat: "🍖", stayBreak: "🙃", stayGood: "✋", weaveMiss: "〰", lead: "🚩", finish: "🏁", jumpGood: "✨", start: "🔫", diveGood: "🌊", bridgeStop: "😰",
     clip: "🦵", fireBalk: "🔥", ringMiss: "💥", loopFail: "➰", climbSlip: "🧗", kickGood: "🧱", kickFall: "🤕", seesawFly: "⚖",
     plankFall: "🤕", trip: "⭕", ballPlay: "🔴", sprayStop: "💦", bounceGood: "🤸", bounceFlop: "🤕", paddleBonk: "✣", catStare: "🐈",
     ditchGood: "✨", ditchFall: "💦", surfWipe: "🌊", skateFall: "🛹", skiFall: "❄",
@@ -1151,7 +1201,7 @@
     var es = ui.entryDogs.slice(0, ENTRY_MAX_NET).map(function (id) { return K.entry(id, cid, nm); }).filter(Boolean);
     ui.room.update({ entry: e, entries: es, name: nm });
   }
-  function netCfg() { return { mode: ui.mode, cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "", rdist: ui.rmap.dist || "", rweather: ui.rmap.weather || "", pool: ui.pool }; }
+  function netCfg() { return { mode: ui.mode, cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "", rdist: ui.rmap.dist || "", rweather: ui.rmap.weather || "", pool: ui.pool, obs: ui.obs }; }
   function publishCard() {
     var room = ui.room;
     if (!room || !room.isHost()) return;
@@ -1162,7 +1212,7 @@
         return (p.entries && p.entries.length ? p.entries : p.entry ? [p.entry] : []).slice(0, ENTRY_MAX_NET).map(function (e) { e.owner = p.cid; e.ownerName = p.name; return e; });
       }), picked = [];
       for (var round = 0; round < ENTRY_MAX_NET && picked.length < Real.FIELD; round++) lists.forEach(function (l) { if (l[round] && picked.length < Real.FIELD) picked.push(l[round]); });
-      card = Core.makeCard(Core.newSeed(), picked, { mode: "real", cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
+      card = Core.makeCard(Core.newSeed(), picked, { mode: "real", cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null, obstacles: cfg.obs !== false });
     } else {
       var entries = room.list().filter(function (p) { return p.entry; }).map(function (p) { var e = p.entry; e.owner = p.cid; e.ownerName = p.name; return e; });
       card = Core.makeCard(Core.newSeed(), entries.slice(0, D.FIELD), { cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
@@ -1315,6 +1365,7 @@
       ui.map = { terrain: room.cfg.terrain || "", weather: room.cfg.weather || "", dist: room.cfg.dist || "" };
       ui.mode = room.cfg.mode === "real" ? "real" : "classic";
       ui.rmap = { weather: room.cfg.rweather || "", dist: room.cfg.rdist || "" };
+      ui.obs = room.cfg.obs !== false;
     }
     var realRoom = ui.mode === "real";
     var qr = el("canvas", { class: "sg-qr" });
@@ -1361,6 +1412,7 @@
       el("h3", null, [t("sg_class")]),
       classPicker(function () { if (host) room.setCfg(netCfg()); render(); }, !host),
       mapPicker(function () { if (host) room.setCfg(netCfg()); rerenderKeep(); }, !host),
+      realRoom ? obsPicker(function () { if (host) room.setCfg(netCfg()); rerenderKeep(); }, !host) : null,
       el("h3", null, [t("sg_odds_mode")]),
       el("div", { class: "sg-seg" }, [[true, "sg_odds_pool"], [false, "sg_odds_fixed"]].map(function (o) {
         return btn(t(o[1]), function () { ui.pool = o[0]; setPref({ pool: o[0] }); room.setCfg(netCfg()); rerenderKeep(); }, "sg-seg-btn" + (ui.pool === o[0] ? " sg-on" : ""), { disabled: !host });

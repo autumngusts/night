@@ -75,7 +75,7 @@
     var train = {};
     D.STATS.forEach(function (k) { train[k] = 0; });
     var best = D.rollBestStyle(D.BREED_BY_ID[breed].style, Math.random);
-    var d = { id: "d" + (s.nextId++), breed: breed, best: best, runStyle: best, skills: [], line: D.LINE_IDS[Math.floor(Math.random() * D.LINE_IDS.length)], name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
+    var d = { id: "d" + (s.nextId++), breed: breed, best: best, runStyle: best, skills: [], skillExp: {}, line: D.LINE_IDS[Math.floor(Math.random() * D.LINE_IDS.length)], name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
     s.dogs.push(d);
     save();
     return d;
@@ -134,23 +134,42 @@
     if (now() - p.at >= SK.POOL_TTL_MS) { st.skillPool = null; save(); return null; }
     return { at: p.at, ids: p.ids.slice(), left: SK.POOL_TTL_MS - (now() - p.at) };
   }
-  function skillsOf(d) { return SK.sanitize(d && d.skills); }
+  // 技能期限（2026-11-03 使用者指定「抽選的技能表 30 分鐘過後自動過期，狗無法再帶前 30 分鐘的技能，需要替換」）：
+  //   學會的技能跟著它來自的技能池一起過期（池子抽出後 POOL_TTL_MS），過期的技能不會帶進比賽、不算評分，
+  //   但仍留在欄位上顯示「已過期」，學新技能時同一階的過期技能會被替換掉。d.skillExp[id]＝到期時刻（毫秒）；
+  //   沒有記錄的（這次改版前學的）一律視為已過期。
+  function expOf(d, id) { return (d && d.skillExp && d.skillExp[id]) || 0; }
+  function skillsOf(d) { return SK.sanitize((d && d.skills || []).filter(function (id) { return expOf(d, id) > now(); })); }
+  function expiredSkillsOf(d) {
+    var ok = skillsOf(d);
+    return (d && d.skills || []).filter(function (id) { return SK.BY_ID[id] && ok.indexOf(id) < 0; });
+  }
+  function skillLeft(d, id) { return Math.max(0, expOf(d, id) - now()); }
   function learn(dogId, skillId) {
     var d = dog(dogId), p = pool(), st = load();
     if (!d || !p || p.ids.indexOf(skillId) < 0) return "gone";
     var cur = skillsOf(d);
     if (cur.indexOf(skillId) >= 0) return "dup";
     if (!SK.canLearn(cur, skillId)) return "full";
-    d.skills = cur.concat([skillId]);
+    // 同一階的過期技能：替換掉一個（欄位總數不超過上限）
+    var tier = SK.BY_ID[skillId].tier, old = expiredSkillsOf(d), all = cur.concat(old).filter(function (id) { return id !== skillId; });
+    var usedT = all.filter(function (id) { return SK.BY_ID[id].tier === tier; }).length;
+    var drop = usedT >= SK.TIERS[tier].slots ? old.filter(function (id) { return SK.BY_ID[id].tier === tier; })[0] : null;
+    d.skills = all.filter(function (id) { return id !== drop; }).concat([skillId]);
+    d.skillExp = d.skillExp || {};
+    if (drop) delete d.skillExp[drop];
+    Object.keys(d.skillExp).forEach(function (k) { if (d.skills.indexOf(k) < 0) delete d.skillExp[k]; });
+    d.skillExp[skillId] = p.at + SK.POOL_TTL_MS;
     var ids = st.skillPool.ids, k = ids.indexOf(skillId);
     ids.splice(k, 1);
     save();
-    return "ok";
+    return drop ? "replaced" : "ok";
   }
   function forget(dogId, skillId) {
     var d = dog(dogId);
     if (!d) return;
-    d.skills = skillsOf(d).filter(function (x) { return x !== skillId; });
+    d.skills = (d.skills || []).filter(function (x) { return x !== skillId; });
+    if (d.skillExp) delete d.skillExp[skillId];
     save();
   }
   function lineOf(d) { return D.LINES[d.line] ? d.line : D.LINE_IDS[parseInt(String(d.id).replace(/\D/g, ""), 10) % 3 || 0]; }
@@ -257,7 +276,7 @@
     MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
     train: train, rest: rest, play: play, treat: treat, expNeed: expNeed,
-    pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, lineOf: lineOf, stats: stats, rating: rating,
+    pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, expiredSkillsOf: expiredSkillsOf, skillLeft: skillLeft, lineOf: lineOf, stats: stats, rating: rating,
     entry: entry, afterRace: afterRace, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
   };
 })();

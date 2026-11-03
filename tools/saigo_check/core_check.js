@@ -4,6 +4,9 @@
 //   2. 賠率規則：最低 1.0 倍、0.1 倍單位捨去；彩池制複勝／寬照 JRA 算法（扣本金後由中獎組合平分利益）
 //   3. 跑法平衡：中距離四種跑法（都在適性 A）平均名次差距不大
 //   4. 賠率校準：用另一批獨立試跑估真實機率，每種票的期望回收率接近扣除後的回收率
+//   5. 真賽狗（關卡地圖＋搶道）
+//   6. 真賽狗關閉關卡障礙（2026-11-03）：只有直道／彎道、8 隻跑完、有搶道；開啟時後方的狗會改排關卡的別道
+//   7. 技能期限（2026-11-03）：技能跟著技能池 30 分鐘過期，過期的不帶進出賽資料，學同階新技能時替換
 // 執行：node tools/saigo_check/core_check.js（約 1〜2 分鐘）
 // ============================================================================
 "use strict";
@@ -113,7 +116,7 @@ console.log("4. 賠率校準 OK");
 // 5. 真賽狗（2026-11-02 第二版：關卡賽的地圖＋搶道）
 //    出賽表用關卡地圖、8 隻都跑完、關卡裡同一位置不重疊、三種跑線平均名次接近、賠率校準
 (function () {
-  var races = 120, lineRank = { rail: [0, 0], mid: [0, 0], wide: [0, 0] }, overlaps = 0, stationSteps = 0, boxed = 0, bumps = 0;
+  var races = 120, lineRank = { rail: [0, 0], mid: [0, 0], wide: [0, 0] }, overlaps = 0, stationSteps = 0, boxed = 0, bumps = 0, queues = 0;
   for (var s = 0; s < races; s++) {
     var cd = Core.makeCard((s * 2246822519 + 7) >>> 0, [], { mode: "real", cls: ["rookie", "open", "stakes"][s % 3] });
     assert.ok(cd.course && cd.course.parts.length >= 5, "真賽狗用關卡賽的地圖");
@@ -121,7 +124,7 @@ console.log("4. 賠率校準 OK");
     var res = Core.simulate(cd, true);
     assert.ok(res.real && res.crowd && res.frames[0].length === 32, "frames 每隻 4 格");
     assert.ok(res.times.every(function (x) { return x !== null; }), "8 隻都跑完：" + cd.seed);
-    res.events.forEach(function (e) { if (e.k === "boxed") boxed++; if (e.k === "bump") bumps++; });
+    res.events.forEach(function (e) { if (e.k === "boxed") boxed++; if (e.k === "bump") bumps++; if (e.k === "queue") queues++; });
     // 關卡裡（非直道／彎道）同一位置的兩隻狗不能重疊
     for (var k = 0; k < res.frames.length; k += 4) {
       var f = res.frames[k];
@@ -137,8 +140,9 @@ console.log("4. 賠率校準 OK");
       }
     }
   }
-  console.log("   每場：卡位 " + (boxed / races).toFixed(1) + " 次、碰撞 " + (bumps / races).toFixed(1) + " 次；關卡內重疊 " + overlaps + "／" + stationSteps);
+  console.log("   每場：卡位 " + (boxed / races).toFixed(1) + " 次、碰撞 " + (bumps / races).toFixed(1) + " 次、後方改排關卡別道 " + (queues / races).toFixed(1) + " 次；關卡內重疊 " + overlaps + "／" + stationSteps);
   assert.ok(boxed > 0 && bumps > 0, "有搶道（卡位、碰撞）");
+  assert.ok(queues > 0, "後方的狗會改排關卡的別道");
   assert.ok(overlaps / Math.max(1, stationSteps) < 0.005, "關卡裡同一位置不重疊");
   // 跑線平衡：樣本少時誤差大（120 場相差可達 0.4），用 600 場不記錄畫面的試跑
   for (var s2 = 0; s2 < 600; s2++) {
@@ -168,4 +172,58 @@ console.log("4. 賠率校準 OK");
   });
 })();
 console.log("5. 真賽狗（關卡地圖＋搶道）OK");
+
+// 6. 關閉關卡障礙：只有直道／彎道（長度接近障礙賽道）、8 隻跑完、有搶道；同 seed 開啟時仍是障礙賽道
+(function () {
+  var lens = { sprint: [], middle: [], long: [] }, boxed = 0, bumps = 0;
+  for (var s = 0; s < 90; s++) {
+    var dist = ["sprint", "middle", "long"][s % 3];
+    var cd = Core.makeCard((s * 2246822519 + 11) >>> 0, [], { mode: "real", cls: "open", dist: dist, obstacles: false });
+    assert.ok(cd.noObs && cd.course.flat, "出賽表標記無障礙");
+    assert.ok(cd.course.parts.every(function (p) { return p.type === "straight" || p.type === "curve"; }), "無障礙＝只有直道／彎道");
+    lens[dist].push(cd.course.length);
+    var res = Core.simulate(cd, true);
+    assert.ok(res.times.every(function (x) { return x !== null; }), "無障礙 8 隻都跑完：" + cd.seed);
+    assert.strictEqual(JSON.stringify(Core.simulate(cd, false).order), JSON.stringify(res.order), "無障礙模擬確定性");
+    res.events.forEach(function (e) { if (e.k === "boxed") boxed++; if (e.k === "bump") bumps++; });
+  }
+  var on = Core.makeCard(31337, [], { mode: "real", cls: "open" });
+  assert.ok(!on.noObs && on.course.parts.some(function (p) { return p.type !== "straight" && p.type !== "curve"; }), "預設（開啟）仍是障礙賽道");
+  Object.keys(lens).forEach(function (k) {
+    var a = lens[k].reduce(function (x, y) { return x + y; }, 0) / lens[k].length;
+    console.log("   無障礙 " + k + " 平均長度 " + Math.round(a) + "m");
+  });
+  console.log("   無障礙每場：卡位 " + (boxed / 90).toFixed(1) + " 次、碰撞 " + (bumps / 90).toFixed(1) + " 次");
+  assert.ok(boxed > 0 && bumps > 0, "無障礙也有搶道");
+})();
+console.log("6. 關卡障礙開關 OK");
+
+// 7. 技能期限：用假的 localStorage 與時鐘
+(function () {
+  var mem = {}, realNow = Date.now, clock = realNow();
+  global.localStorage = { getItem: function (k) { return mem[k] || null; }, setItem: function (k, v) { mem[k] = String(v); } };
+  Date.now = function () { return clock; };
+  try {
+    var Kn = window.PriTestSaigoKennel;
+    var d = Kn.adopt("shiba", "テスト");
+    Kn.train(d.id, "sprint");
+    var pool = Kn.pool(), g = pool.ids.filter(function (id) { return SK.BY_ID[id].tier === "g"; });
+    assert.strictEqual(Kn.learn(d.id, g[0]), "ok");
+    assert.deepStrictEqual(Kn.entry(d.id).skills, [g[0]], "期限內帶進出賽資料");
+    clock += SK.POOL_TTL_MS + 1000;
+    assert.strictEqual(Kn.pool(), null, "30 分鐘後技能池消失");
+    assert.deepStrictEqual(Kn.entry(d.id).skills, [], "過期的技能不帶進出賽資料");
+    assert.deepStrictEqual(Kn.expiredSkillsOf(Kn.dog(d.id)), [g[0]], "過期技能仍顯示在欄位");
+    assert.strictEqual(Kn.rating(Kn.dog(d.id)).skill, 0, "過期技能不算評分");
+    Kn.train(d.id, "sprint");
+    var g2 = Kn.pool().ids.filter(function (id) { return SK.BY_ID[id].tier === "g" && id !== g[0]; })[0];
+    assert.strictEqual(Kn.learn(d.id, g2), "replaced", "學同階新技能時替換過期的");
+    assert.deepStrictEqual(Kn.dog(d.id).skills, [g2], "金欄位只剩新技能");
+    assert.deepStrictEqual(Kn.entry(d.id).skills, [g2]);
+    // 舊資料（沒有期限記錄）視為已過期
+    Kn.dog(d.id).skills.push("n_corner");
+    assert.ok(Kn.entry(d.id).skills.indexOf("n_corner") < 0, "沒有期限記錄的舊技能視為過期");
+  } finally { Date.now = realNow; delete global.localStorage; }
+})();
+console.log("7. 技能期限 OK");
 console.log("saigo core_check OK");
