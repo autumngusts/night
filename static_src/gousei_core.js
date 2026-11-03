@@ -5,11 +5,16 @@
 //   ・每人任務：中階 ×1（階段 3〜4）＋ 高階 ×2（階段 5〜7），全體不重複
 //   ・共用池子，每輪每人合成一次；只有在自己回合親手合出自己的任務物才算達成
 //   ・最先達成全部任務者立即獲勝；可復原一層
+//   ・合作模式 coop（使用者指定 2026-11-03）：全隊共同抽 5 個目標（中階 2＋高階 3），任何人在自己回合
+//     合出未達成的目標即全隊達成；合出廢料記 1 次失敗；全部達成（或提前結算）後依回合數與失敗數計算效率得分
 (function () {
   "use strict";
 
   var MID_TIERS = [3, 4];
   var HIGH_TIERS = [5, 7];
+  var COOP_MID_COUNT = 2;
+  var COOP_HIGH_COUNT = 3;
+  var COOP_WINNER = "coop"; // 合作模式結束時的 state.winner（不是玩家 id）
   var MIN_PLAYERS = 2;
   var MAX_PLAYERS = 8;
 
@@ -110,15 +115,40 @@
     return out;
   }
 
+  // 合作模式的共同目標：中階 ×2 ＋ 高階 ×3，以 seed 決定（與對戰的 dealTargets 用不同的亂數序列）
+  function dealCoopTargets(theme, seed) {
+    var rng = makeRng("coop:" + seed);
+    function candidates(range) {
+      return theme.items.filter(function (it) {
+        return it.cat !== "basic" && !theme.junkSet[it.id] && inRange(it.tier, range);
+      }).map(function (it) { return it.id; });
+    }
+    var mids = shuffle(candidates(MID_TIERS), rng);
+    var highs = shuffle(candidates(HIGH_TIERS), rng);
+    if (mids.length < COOP_MID_COUNT || highs.length < COOP_HIGH_COUNT) throw new Error("not-enough-targets");
+    return mids.slice(0, COOP_MID_COUNT).concat(highs.slice(0, COOP_HIGH_COUNT));
+  }
+
   function newGame(theme, opts) {
+    if (opts.mode === "coop") {
+      var shared = dealCoopTargets(theme, opts.seed);
+      var g = newGameBase(theme, opts, function () { return []; });
+      g.coop = { targets: shared, done: [], fails: 0, ended: false };
+      return g;
+    }
     var targets = dealTargets(theme, opts.seed, opts.names.length);
+    return newGameBase(theme, opts, function (i) { return targets[i]; });
+  }
+
+  // 合作模式：players[].targets 為空，players[].done 記錄該玩家親手合出的共同目標（貢獻）
+  function newGameBase(theme, opts, targetsFor) {
     return {
       version: 1,
       themeId: theme.id,
       seed: opts.seed,
       mode: opts.mode,
       players: opts.names.map(function (name, i) {
-        return { id: "p" + (i + 1), name: name, targets: targets[i], done: [] };
+        return { id: "p" + (i + 1), name: name, targets: targetsFor(i), done: [] };
       }),
       pool: theme.basics.slice(),
       round: 1,
@@ -142,17 +172,8 @@
     var isNew = next.pool.indexOf(result) < 0;
     if (isNew) next.pool.push(result);
     var p = next.players[next.turn];
-    var achieved = p.targets.indexOf(result) >= 0 && p.done.indexOf(result) < 0;
-    if (achieved) p.done.push(result);
-    var entry = { round: next.round, playerId: p.id, a: a, b: b, result: result, isNew: isNew, achieved: achieved };
-    next.log.push(entry);
-    if (p.done.length >= p.targets.length) {
-      next.winner = p.id;
-    } else {
-      next.turn += 1;
-      if (next.turn >= next.players.length) { next.turn = 0; next.round += 1; }
-    }
-    return { state: next, entry: entry };
+    var entry = { round: next.round, playerId: p.id, a: a, b: b, result: result, isNew: isNew, achieved: false };
+    return finishMove(theme, next, entry);
   }
 
   // 3 材料合成（見 combineTrio）：chosen 必須是 combineTrio 回傳的 options 之一；
@@ -173,18 +194,59 @@
     var isNew = next.pool.indexOf(result) < 0;
     if (isNew) next.pool.push(result);
     var p = next.players[next.turn];
-    var achieved = p.targets.indexOf(result) >= 0 && p.done.indexOf(result) < 0;
-    if (achieved) p.done.push(result);
     var entry = { round: next.round, playerId: p.id, a: a, b: b, c: c, result: result,
-      otherOption: other, isNew: isNew, achieved: achieved };
-    next.log.push(entry);
-    if (p.done.length >= p.targets.length) {
-      next.winner = p.id;
+      otherOption: other, isNew: isNew, achieved: false };
+    return finishMove(theme, next, entry);
+  }
+
+  // 合成後的共同處理：判定達成、記紀錄、判定結束、換下一位。
+  //   對戰：只有親手合出自己的任務才算；先全部達成者勝。
+  //   合作：合出任一個未達成的共同目標即全隊達成（記在合成者的 done 當作貢獻）；廢料記 1 次失敗；全部達成即結束。
+  function finishMove(theme, next, entry) {
+    var p = next.players[next.turn];
+    var result = entry.result;
+    var finished = false;
+    if (next.coop) {
+      var c = next.coop;
+      entry.achieved = c.targets.indexOf(result) >= 0 && c.done.indexOf(result) < 0;
+      if (entry.achieved) { c.done.push(result); p.done.push(result); }
+      if (theme.junkSet[result]) { c.fails += 1; entry.fail = true; }
+      if (c.done.length >= c.targets.length) { next.winner = COOP_WINNER; finished = true; }
     } else {
+      entry.achieved = p.targets.indexOf(result) >= 0 && p.done.indexOf(result) < 0;
+      if (entry.achieved) p.done.push(result);
+      if (p.done.length >= p.targets.length) { next.winner = p.id; finished = true; }
+    }
+    next.log.push(entry);
+    if (!finished) {
       next.turn += 1;
       if (next.turn >= next.players.length) { next.turn = 0; next.round += 1; }
     }
     return { state: next, entry: entry };
+  }
+
+  // 合作模式提前結算：以目前的達成數計分（可復原一層）
+  function endCoop(state) {
+    if (!state.coop) throw new Error("not-coop");
+    if (state.winner) throw new Error("game-over");
+    var snap = clone(state);
+    snap.prev = null;
+    var next = clone(snap);
+    next.prev = snap;
+    next.coop.ended = true;
+    next.winner = COOP_WINNER;
+    return { state: next };
+  }
+
+  // 合作模式的效率得分：回合數＝目前（或結束時）的輪數，失敗數＝合出廢料的次數。
+  //   得分 = round(1000 × 達成數 ÷ (回合數 + 失敗數))；回合越少、失敗越少分數越高，沒有達成任何目標為 0。
+  function coopScore(state) {
+    var c = state.coop;
+    var rounds = state.round;
+    var done = c.done.length;
+    var score = done ? Math.round(1000 * done / (rounds + c.fails)) : 0;
+    return { done: done, total: c.targets.length, rounds: rounds, fails: c.fails, combos: state.log.length,
+      score: score, complete: done >= c.targets.length };
   }
 
   function undo(state) { return state && state.prev ? state.prev : null; }
@@ -551,6 +613,10 @@
     combine: combine,
     combineTrio: combineTrio,
     dealTargets: dealTargets,
+    dealCoopTargets: dealCoopTargets,
+    COOP_WINNER: COOP_WINNER,
+    endCoop: endCoop,
+    coopScore: coopScore,
     newGame: newGame,
     currentPlayer: currentPlayer,
     applyCombine: applyCombine,

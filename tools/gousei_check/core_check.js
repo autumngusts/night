@@ -274,4 +274,51 @@ var known2 = Core.knownJunkTrio(ttheme, afterJunk.state, "i2", "i3", "j3");
 assert.strictEqual(known2 && known2.result, junkResult, "紀錄中同組合合出過廢料");
 assert.strictEqual(Core.knownJunkTrio(ttheme, afterJunk.state, "i1", "i2", "i3"), null, "沒試過的組合不會被判定為已知廢料");
 
+// ---- 合作模式（使用者指定 2026-11-03）：共同 5 目標、任何人合出即達成、廢料記失敗、依回合與失敗計分 ----
+var coopT = Core.dealCoopTargets(theme, "coopA");
+assert.strictEqual(coopT.length, 5);
+coopT.forEach(function (id, i) {
+  var tt = theme.byId[id].tier;
+  if (i < 2) assert.ok(tt >= 3 && tt <= 4, "合作中階 " + id);
+  else assert.ok(tt >= 5 && tt <= 7, "合作高階 " + id);
+});
+assert.strictEqual(Object.keys(coopT.reduce(function (o, id) { o[id] = 1; return o; }, {})).length, 5, "合作目標不重複");
+assert.deepStrictEqual(Core.dealCoopTargets(theme, "coopA"), coopT, "同 seed 相同");
+var cs = Core.newGame(theme, { seed: "coopA", mode: "coop", names: ["A", "B"] });
+assert.deepStrictEqual(cs.coop.targets, coopT);
+assert.deepStrictEqual(cs.players[0].targets, [], "合作模式沒有個人任務");
+cs.coop.targets = ["k1", "k2", "m1", "n1", "o1"];
+cs.pool = cs.pool.concat(["j1", "j2", "j3"]);
+var c1 = Core.applyCombine(theme, cs, "j1", "j2"); // p1 合出 k1
+assert.strictEqual(c1.entry.achieved, true, "任何人合出共同目標即達成");
+assert.deepStrictEqual(c1.state.coop.done, ["k1"]);
+assert.deepStrictEqual(c1.state.players[0].done, ["k1"], "記為合成者的貢獻");
+assert.strictEqual(c1.state.winner, null, "0/0 個人任務不會誤判勝利");
+var c2 = Core.applyCombine(theme, c1.state, "j1", "j2"); // p2 再合 k1：已達成
+assert.strictEqual(c2.entry.achieved, false, "已達成的目標不重複計算");
+var c3 = Core.applyCombine(theme, c2.state, "b1", "j1"); // 無配方 → 廢料
+assert.ok(theme.junkSet[c3.entry.result]);
+assert.strictEqual(c3.entry.fail, true);
+assert.strictEqual(c3.state.coop.fails, 1, "廢料記 1 次失敗");
+var sc = Core.coopScore(c3.state);
+assert.deepStrictEqual([sc.done, sc.total, sc.rounds, sc.fails, sc.combos, sc.complete], [1, 5, 2, 1, 3, false]);
+assert.strictEqual(sc.score, Math.round(1000 * 1 / (2 + 1)));
+var ce = Core.endCoop(c3.state);
+assert.strictEqual(ce.state.winner, Core.COOP_WINNER);
+assert.strictEqual(ce.state.coop.ended, true);
+assert.strictEqual(Core.undo(ce.state).winner, null, "提前結算可復原");
+assert.throws(function () { Core.applyCombine(theme, ce.state, "b1", "b1"); }, /game-over/);
+assert.throws(function () { Core.endCoop(st); }, /not-coop/);
+var cw = Core.newGame(theme, { seed: "coopA", mode: "coop", names: ["A", "B"] });
+cw.coop.targets = ["k1", "k2", "m1", "n1", "o1"];
+cw.coop.done = ["k2", "m1", "n1", "o1"];
+cw.pool = cw.pool.concat(["j1", "j2"]);
+cw.turn = 1;
+var cwin = Core.applyCombine(theme, cw, "j1", "j2");
+assert.strictEqual(cwin.state.winner, Core.COOP_WINNER, "全部達成即結束");
+assert.strictEqual(cwin.state.turn, 1, "結束後不再輪替");
+assert.strictEqual(cwin.state.round, 1, "結束的那一輪不進位");
+assert.strictEqual(Core.coopScore(cwin.state).score, 5000, "1 輪 0 失敗全達成 = 5000");
+assert.strictEqual(Core.coopScore(Core.newGame(theme, { seed: "z", mode: "coop", names: ["A", "B"] })).score, 0, "沒有達成 = 0");
+
 console.log("gousei core_check OK");

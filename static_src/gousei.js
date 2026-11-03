@@ -8,6 +8,9 @@
 //   games/<房間 id>/rtState/gousei（沿用 toushou 的做法，現有規則即允許，不需另外部署）。
 //   手機開 ?join=...&room=<id> 變成完整遊戲畫面，只有輪到自己才能合成；主機可替任何人操作，
 //   復原與新遊戲只有主機能按。所有變更都經 mutate() 在雲端最新 state 上以 transaction 執行。
+// 合作模式 coop（使用者指定 2026-11-03）：全隊共同 5 個目標公開顯示（state.coop），任何人合出即達成；
+//   依回合數與失敗（廢料）數計算效率得分（Core.coopScore），各主題的最佳紀錄存在 localStorage["pritest-gousei-coop-best"]。
+//   可搭配連線同步（和分別裝置一樣用 QR 加入）。
 // 語音模式（Web Speech API）：輪到誰就朗讀玩家與池子，每分鐘重複；喊「yo, アキ」→ 提示音 →「A 加 B」直接合成。
 (function () {
   "use strict";
@@ -19,7 +22,8 @@
   var ROOM_RE = /^g[0-9a-f]{32}$/;
   var Storage = window.PriTestGameStorage;
   var THEMES = ["wuxia", "wafu", "food"];
-  var MODES = ["shared", "split"];
+  var MODES = ["shared", "split", "coop"];
+  var COOP_BEST_KEY = "pritest-gousei-coop-best";
   var POOL_LIMIT = 300;
   var LOG_LIMIT = 30;
   var app = document.getElementById("gs-app");
@@ -29,7 +33,7 @@
   var state = null;
   var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false, online: false };
   var ui = { revealedFor: null, revealed: false, slots: [null, null], trioChoice: null, lastEntry: null, search: "", cat: "all",
-    qrFor: null, confirmNew: false, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
+    qrFor: null, confirmNew: false, confirmEnd: false, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
   var join = null;
   // 連線同步的房間：{ id, hostId, me: 手機的玩家編號（主機為 null）, loaded, missing, unsubscribe }
   var room = null;
@@ -154,6 +158,7 @@
       if (!raw) return null;
       var s = JSON.parse(raw);
       if (!s || s.version !== 1 || !s.players || !s.pool || THEMES.indexOf(s.themeId) < 0) return null;
+      if (s.mode === "coop" && !s.coop) return null;
       return s;
     } catch (e) {
       return null;
@@ -172,11 +177,11 @@
 
   function targetList(theme, player, idPrefix) {
     var list = el("ul", { id: idPrefix, class: "gs-target-list" });
-    player.targets.forEach(function (id, i) {
+    player.targets.forEach(function (id) {
       var it = theme.byId[id];
       var done = player.done.indexOf(id) >= 0;
       list.appendChild(el("li", { class: "gs-target" + (done ? " gs-done" : ""), "data-target": id }, [
-        el("span", { class: "gs-target-tier", text: t(i === 0 ? "gs_tier_mid" : "gs_tier_high") }),
+        el("span", { class: "gs-target-tier", text: t(it.tier <= Core.MID_TIERS[1] ? "gs_tier_mid" : "gs_tier_high") }),
         artNode(theme, id, 40),
         el("strong", { class: "gs-target-name", text: itemName(theme, id) }),
         el("span", { class: "gs-muted", text: t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier }) }),
@@ -200,10 +205,11 @@
   function renderSetup() {
     var box = el("div", { class: "gs-panel" }, [el("h2", { text: t("gs_setup") })]);
     box.appendChild(el("div", { class: "gs-field" }, [el("span", { class: "gs-label", text: t("gs_theme") }),
-      radioGroup("gs-theme", THEMES, draft.themeId, "gs_theme_", function (v) { draft.themeId = v; })]));
+      radioGroup("gs-theme", THEMES, draft.themeId, "gs_theme_", function (v) { draft.themeId = v; if (draft.mode === "coop") render(); })]));
     box.appendChild(el("div", { class: "gs-field" }, [el("span", { class: "gs-label", text: t("gs_mode") }),
       radioGroup("gs-mode", MODES, draft.mode, "gs_mode_", function (v) { draft.mode = v; render(); })]));
-    if (draft.mode === "split") {
+    if (draft.mode === "coop") box.appendChild(coopBestNote(draft.themeId));
+    if (draft.mode === "split" || draft.mode === "coop") {
       var online = el("input", { id: "gs-online", type: "checkbox", checked: draft.online,
         onchange: function () { draft.online = online.checked; } });
       box.appendChild(el("div", { class: "gs-field" }, [
@@ -239,7 +245,7 @@
       el("label", { class: "gs-check" }, [voiceBox, " " + t("gs_voice_setup")]),
       el("span", { class: "gs-muted", text: voiceSupported() ? t("gs_voice_setup_hint") : t("gs_voice_unsupported") })
     ]));
-    box.appendChild(el("p", { class: "gs-muted", text: t("gs_hint") }));
+    box.appendChild(el("p", { class: "gs-muted", text: t(draft.mode === "coop" ? "gs_coop_hint" : "gs_hint") }));
     box.appendChild(el("p", { class: "gs-error", text: ui.error }));
     box.appendChild(el("div", { class: "gs-actions" }, [
       el("button", { id: "gs-start", type: "button", class: "gs-primary", disabled: ui.loading,
@@ -269,8 +275,10 @@
       }
       if (state.mode === "shared") state.confirm = { viewed: [] };
       resetTurnUi();
-      ui.screen = state.mode === "split" ? "qr" : "play";
-      if (state.mode === "split" && draft.online) { createRoom(state); return; }
+      var online = draft.online && (state.mode === "split" || state.mode === "coop");
+      // 分別裝置一律先出 QR；合作模式只有連線同步時才需要 QR
+      ui.screen = state.mode === "split" || online ? "qr" : "play";
+      if (online) { createRoom(state); return; }
       save();
       render();
     });
@@ -392,6 +400,7 @@
     ui.trioChoice = null;
     ui.lastEntry = null;
     ui.confirmNew = false;
+    ui.confirmEnd = false;
     ui.junkWarn = null;
   }
 
@@ -469,11 +478,17 @@
       el("p", { class: "gs-big gs-result-item", "data-result": e.result }, [artNode(theme, e.result, 120), el("span", { text: itemName(theme, e.result) })]),
       el("p", { class: "gs-muted", text: (theme.junkSet[e.result] ? t("gs_junk_meta") : t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier })) + "　" + status }),
       e.otherOption ? el("p", { class: "gs-muted", text: t("gs_trio_other_option", { name: itemName(theme, e.otherOption) }) }) : null,
-      e.achieved ? el("p", { class: "gs-big", text: t("gs_achieved", { done: p.done.length, total: p.targets.length }) }) : null,
+      e.achieved ? el("p", { class: "gs-big", text: achievedText(p) }) : null,
       state.winner ? null : el("div", { class: "gs-actions" }, [
         el("button", { id: "gs-next", type: "button", class: "gs-primary", text: t("gs_next"), onclick: nextTurn })
       ])
     ]);
+  }
+
+  // 「達成任務！（n/總數）」：合作模式算全隊的共同目標
+  function achievedText(p) {
+    if (state.coop) return t("gs_coop_achieved", { done: state.coop.done.length, total: state.coop.targets.length });
+    return t("gs_achieved", { done: p.done.length, total: p.targets.length });
   }
 
   function nextTurn() {
@@ -658,8 +673,18 @@
           render();
         });
       } }),
-      state.mode === "split" ? el("button", { id: "gs-show-qr", type: "button", text: t("gs_qr_button"),
+      state.mode === "split" || (state.mode === "coop" && room) ? el("button", { id: "gs-show-qr", type: "button", text: t("gs_qr_button"),
         onclick: function () { ui.screen = "qr"; ui.qrFor = null; render(); } }) : null,
+      state.coop && !state.winner ? el("button", { id: "gs-coop-end", type: "button", disabled: ui.busy,
+        text: ui.confirmEnd ? t("gs_coop_end_confirm") : t("gs_coop_end"), onclick: function () {
+          if (!ui.confirmEnd) { ui.confirmEnd = true; render(); return; }
+          ui.confirmEnd = false;
+          var logLen = state.log.length;
+          mutate(function (s) {
+            if (s.log.length !== logLen) throw new Error("gs_err_stale");
+            return Core.endCoop(s);
+          }, function () { resetTurnUi(); render(); });
+        } }) : null,
       el("button", { id: "gs-new-game", type: "button", text: ui.confirmNew ? t("gs_new_game_confirm") : t("gs_new_game"),
         onclick: function () {
           if (!ui.confirmNew) { ui.confirmNew = true; render(); return; }
@@ -678,7 +703,9 @@
   }
 
   function renderPlay(theme) {
-    if (state.winner) {
+    if (state.winner && state.coop) {
+      app.appendChild(renderCoopScore(theme));
+    } else if (state.winner) {
       app.appendChild(el("div", { id: "gs-winner", class: "gs-panel gs-achieved" }, [
         el("p", { class: "gs-big", text: t("gs_winner", { name: playerById(state.winner).name }) })
       ]));
@@ -698,8 +725,10 @@
       el("p", { class: "gs-big", text: t("gs_wait_turn", { name: Core.currentPlayer(state).name }) })
     ]));
     if (!state.winner) app.appendChild(renderPool(theme));
-    // 同一裝置：池子下方可展開各玩家的任務（含進度）；分別裝置：任務在手機上，這裡只顯示進度
-    if (state.mode === "shared" && !state.winner) {
+    // 合作：共同目標公開；同一裝置：池子下方可展開各玩家的任務（含進度）；分別裝置：任務在手機上，這裡只顯示進度
+    if (state.coop) {
+      if (!state.winner) app.appendChild(renderCoopPanel(theme));
+    } else if (state.mode === "shared" && !state.winner) {
       app.appendChild(el("div", { class: "gs-panel" }, [el("h2", { text: t("gs_player_targets_heading") }), playerTargetsList(theme)]));
     } else {
       app.appendChild(progressPanel());
@@ -708,10 +737,87 @@
     app.appendChild(renderFooter());
   }
 
+  // ---------------- 合作模式 ----------------
+
+  function coopStatsText() {
+    var sc = Core.coopScore(state);
+    return t("gs_coop_stats", { done: sc.done, total: sc.total, rounds: sc.rounds, fails: sc.fails, combos: sc.combos });
+  }
+
+  // 共同目標（公開）＋統計＋各玩家的貢獻
+  function renderCoopPanel(theme) {
+    var contrib = el("ul", { class: "gs-progress" });
+    state.players.forEach(function (p, i) {
+      contrib.appendChild(el("li", { class: i === state.turn && !state.winner ? "gs-current" : "", "data-player": p.id,
+        text: t("gs_coop_contrib", { name: p.name, n: p.done.length }) }));
+    });
+    return el("div", { id: "gs-coop", class: "gs-panel" }, [
+      el("h2", { text: t("gs_coop_heading") }),
+      el("p", { id: "gs-coop-stats", class: "gs-coop-stats", text: coopStatsText() }),
+      targetList(theme, { targets: state.coop.targets, done: state.coop.done }, "gs-coop-targets"),
+      contrib
+    ]);
+  }
+
+  function loadCoopBest() {
+    try {
+      var o = JSON.parse(localStorage.getItem(COOP_BEST_KEY) || "{}");
+      return o && typeof o === "object" ? o : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // 結束時更新該主題的最佳紀錄（同分時回合少者優先），回傳這一局是否為最佳紀錄。
+  // render 時呼叫，同一局重複呼叫不會改變結果。
+  function recordCoopBest(sc) {
+    var all = loadCoopBest();
+    var cur = all[state.themeId];
+    var better = !cur || sc.score > cur.score || (sc.score === cur.score && sc.rounds < cur.rounds);
+    if (better && sc.score > 0) {
+      all[state.themeId] = { score: sc.score, done: sc.done, total: sc.total, rounds: sc.rounds, fails: sc.fails,
+        players: state.players.length, seed: state.seed };
+      try { localStorage.setItem(COOP_BEST_KEY, JSON.stringify(all)); } catch (e) { /* 私密模式等：只是記不住 */ }
+    }
+    // 這一局就是最佳紀錄（重畫時也維持「新紀錄」顯示）
+    var b = all[state.themeId];
+    return !!b && b.seed === state.seed && b.score === sc.score && b.rounds === sc.rounds;
+  }
+
+  function coopBestNote(themeId) {
+    var b = loadCoopBest()[themeId];
+    return el("p", { id: "gs-coop-best", class: "gs-muted", text: b
+      ? t("gs_coop_best", { score: b.score, done: b.done, total: b.total, rounds: b.rounds, fails: b.fails, players: b.players })
+      : t("gs_coop_best_none") });
+  }
+
+  function renderCoopScore(theme) {
+    var sc = Core.coopScore(state);
+    var isBest = recordCoopBest(sc);
+    return el("div", { id: "gs-coop-score", class: "gs-panel" + (sc.complete ? " gs-achieved" : "") }, [
+      el("p", { class: "gs-big", text: t(sc.complete ? "gs_coop_clear" : "gs_coop_ended") }),
+      el("p", { id: "gs-coop-score-value", class: "gs-coop-score", text: t("gs_coop_score", { score: sc.score }) }),
+      el("p", { class: "gs-coop-stats", text: coopStatsText() }),
+      el("p", { class: "gs-muted", text: t("gs_coop_formula") }),
+      isBest ? el("p", { id: "gs-coop-new-best", class: "gs-big", text: t("gs_coop_new_best") }) : coopBestNote(state.themeId),
+      targetList(theme, { targets: state.coop.targets, done: state.coop.done }, "gs-coop-targets"),
+      el("ul", { class: "gs-progress" }, state.players.map(function (p) {
+        return el("li", { "data-player": p.id, text: t("gs_coop_contrib", { name: p.name, n: p.done.length }) });
+      }))
+    ]);
+  }
+
   // 連線同步的手機：自己的任務（預設收起）＋輪到自己時的提示
   function renderMyTargets(theme) {
     var me = state.players[room.me];
     var mine = !state.winner && state.turn === room.me;
+    if (state.coop) {
+      // 合作模式沒有個人任務：共同目標在下方公開，這裡只顯示身分與輪到自己的提示
+      return el("div", { id: "gs-my-targets", class: "gs-panel" + (mine ? " gs-current" : "") }, [
+        el("h2", { text: t("gs_online_me", { name: me.name }) }),
+        mine ? el("p", { class: "gs-big", text: t("gs_your_turn") }) : null
+      ]);
+    }
     var box = el("div", { id: "gs-my-targets", class: "gs-panel" + (mine ? " gs-current" : "") }, [
       el("h2", { text: t("gs_online_me", { name: me.name }) }),
       mine ? el("p", { class: "gs-big", text: t("gs_your_turn") }) : null,
@@ -1069,8 +1175,9 @@
     var status = theme.junkSet[e.result] ? t("gs_result_junk") : (e.isNew ? t("gs_result_new") : t("gs_result_old"));
     var parts = [t("gs_voice_result", { a: itemName(theme, e.a), b: itemName(theme, e.b), r: itemName(theme, e.result) }), status];
     var p = playerById(e.playerId);
-    if (e.achieved) parts.push(t("gs_achieved", { done: p.done.length, total: p.targets.length }));
-    if (state.winner) parts.push(t("gs_winner", { name: playerById(state.winner).name }));
+    if (e.achieved) parts.push(achievedText(p));
+    if (state.winner && state.coop) parts.push(t("gs_coop_score", { score: Core.coopScore(state).score }));
+    else if (state.winner) parts.push(t("gs_winner", { name: playerById(state.winner).name }));
     setVoiceStatus("");
     // 念完自動換下一位（語音模式不必按「下一位」）；朗讀事件沒觸發時以計時器保底
     function advance() {
