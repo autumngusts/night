@@ -92,4 +92,10 @@ PROJECTS = [
         "name_key": "project_jikan_name",
         "desc_key": "project_jikan_desc",
     },
+    {
+        "id": "jomon",
+        "href": "jomon/index.html",
+        "name_key": "project_jomon_name",
+        "desc_key": "project_jomon_desc",
+    },
 ]

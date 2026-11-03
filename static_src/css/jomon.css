@@ -1,0 +1,287 @@
+/* jomon（繩文帝國）的樣式。遵循「每個遊戲分開 CSS」的慣例，不要把這裡的樣式加進 style.css。
+   遊戲畫面固定使用暖色深底（繩文土器的赤褐、黃土、生成色），亮色／暗色模式下外觀一致。 */
+.jm-wrap {
+  --jm-bg: #1f1812;
+  --jm-bg2: #2a2018;
+  --jm-card: #33271d;
+  --jm-card2: #3d2f22;
+  --jm-line: rgba(232, 200, 150, 0.16);
+  --jm-text: #f1e6d2;
+  --jm-muted: #b9a68a;
+  --jm-accent: #d0763a;
+  --jm-accent2: #e9a95a;
+  --jm-good: #8fd17a;
+  --jm-bad: #ff8a72;
+  --jm-warn: #f2c14e;
+  --jm-water: #4fa3c7;
+  /* 網站 body 只有 900px：遊戲畫面往外撐到接近視窗寬度（不用 transform，以免 position: fixed 的視窗失效） */
+  --jm-w: min(100rem, calc(100vw - 1.5rem));
+  width: var(--jm-w);
+  margin-left: calc((100% - var(--jm-w)) / 2);
+  color: var(--jm-text);
+  line-height: 1.5;
+}
+.jm-wrap button { font: inherit; cursor: pointer; }
+.jm-wrap button:disabled { cursor: default; opacity: 0.4; }
+.jm-wrap select, .jm-wrap input[type="number"] {
+  font: inherit; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid var(--jm-line);
+  background: var(--jm-bg); color: var(--jm-text);
+}
+.jm-wrap input[type="number"] { width: 6rem; }
+.jm-root { position: relative; }
+
+/* ---------- 開始畫面 ---------- */
+.jm-title {
+  background: radial-gradient(120% 90% at 50% 0%, #4a3322 0%, var(--jm-bg) 70%);
+  border: 1px solid var(--jm-line); border-radius: 16px; padding: 1.5rem 1.5rem 2rem; text-align: center;
+  overflow: hidden;
+}
+.jm-title-art { position: relative; height: 150px; margin: -0.5rem auto 0.5rem; max-width: 520px; }
+.jm-title-sun { position: absolute; left: 50%; top: 18px; width: 90px; height: 90px; margin-left: -45px; border-radius: 50%; background: radial-gradient(circle, #ffd28a 0%, #e9874a 60%, rgba(233, 135, 74, 0) 72%); animation: jm-sun 6s ease-in-out infinite alternate; }
+.jm-title-hill { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(#4f6b33, #34481f); border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+.jm-title-house { position: absolute; left: 50%; bottom: 40px; width: 0; height: 0; margin-left: -46px; border-left: 46px solid transparent; border-right: 46px solid transparent; border-bottom: 74px solid #a37b44; filter: drop-shadow(0 4px 0 #6e5530); }
+.jm-title-house::after { content: ""; position: absolute; left: -10px; top: 46px; width: 20px; height: 28px; background: #2a1a10; border-radius: 10px 10px 0 0; }
+@keyframes jm-sun { from { transform: translateY(6px); } to { transform: translateY(-6px); } }
+.jm-title-name { font-size: 2.6rem; letter-spacing: 0.3em; margin: 0.2rem 0 0; color: var(--jm-accent2); text-shadow: 0 2px 0 #5a2f15, 0 0 24px rgba(233, 169, 90, 0.35); }
+.jm-title-sub { margin: 0.2rem 0 1rem; color: var(--jm-muted); letter-spacing: 0.1em; }
+.jm-intro { max-width: 46rem; margin: 0 auto 0.6rem; line-height: 1.75; }
+.jm-intro-list { max-width: 44rem; margin: 0 auto 1rem; text-align: left; line-height: 1.7; color: var(--jm-text); }
+.jm-age-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem; margin: 0.8rem auto 1.2rem; max-width: 52rem; }
+.jm-age-chip { display: inline-flex; flex-direction: column; align-items: center; padding: 0.3rem 0.6rem; border-radius: 8px; background: var(--jm-card); border: 1px solid var(--jm-line); font-size: 0.85rem; }
+.jm-age-chip small { color: var(--jm-muted); }
+.jm-title-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem; margin: 0.8rem 0; }
+.jm-seg { display: inline-flex; border: 1px solid var(--jm-line); border-radius: 8px; overflow: hidden; }
+.jm-seg-btn { padding: 0.35rem 0.9rem; background: var(--jm-card); color: var(--jm-text); border: 0; }
+.jm-seg-btn.jm-on { background: var(--jm-accent); color: #fff; font-weight: bold; }
+
+/* ---------- 共用按鈕 ---------- */
+.jm-primary { padding: 0.55rem 1.3rem; border-radius: 8px; border: 0; background: linear-gradient(#e08a46, #b9612a); color: #fff; font-weight: bold; box-shadow: 0 2px 0 #6d3412; }
+.jm-primary:not(:disabled):hover { filter: brightness(1.08); }
+.jm-secondary { padding: 0.55rem 1.3rem; border-radius: 8px; border: 1px solid var(--jm-line); background: var(--jm-card); color: var(--jm-text); }
+.jm-btn { padding: 0.3rem 0.75rem; border-radius: 6px; border: 1px solid var(--jm-line); background: var(--jm-card2); color: var(--jm-text); }
+.jm-btn:not(:disabled):hover { border-color: var(--jm-accent); }
+.jm-btn.jm-small { padding: 0.15rem 0.55rem; font-size: 0.85rem; }
+.jm-btn.jm-ghost { background: transparent; }
+.jm-btn.jm-danger { border-color: rgba(255, 120, 100, 0.5); color: var(--jm-bad); }
+.jm-wide { display: block; width: 100%; margin-top: 0.6rem; }
+.jm-btn-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.35rem; }
+.jm-muted { color: var(--jm-muted); }
+.jm-small { font-size: 0.85rem; }
+.jm-good { color: var(--jm-good); }
+.jm-bad { color: var(--jm-bad); }
+.jm-warn { color: var(--jm-warn) !important; }
+.jm-dim { opacity: 0.45; }
+.jm-neg { color: var(--jm-bad); }
+.jm-note { color: var(--jm-accent2); font-size: 0.9rem; }
+
+/* ---------- 遊戲主畫面 ---------- */
+.jm-game { background: var(--jm-bg); border: 1px solid var(--jm-line); border-radius: 14px; overflow: hidden; position: relative; }
+.jm-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; padding: 0.5rem 0.8rem; background: linear-gradient(#3a2b1e, #2a2018); border-bottom: 1px solid var(--jm-line); }
+.jm-age-box { flex: 0 1 15rem; min-width: 11rem; }
+.jm-age-name { font-weight: bold; font-size: 1.1rem; color: var(--jm-accent2); letter-spacing: 0.08em; }
+.jm-pop-text { font-size: 0.8rem; color: var(--jm-muted); }
+.jm-res-box { display: flex; flex-wrap: wrap; gap: 0.35rem; flex: 1 1 auto; }
+.jm-res { display: inline-flex; align-items: baseline; gap: 0.3rem; padding: 0.2rem 0.55rem; border-radius: 8px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--jm-line); min-width: 6.4rem; font-variant-numeric: tabular-nums; }
+.jm-res b { font-size: 1rem; }
+.jm-res small { font-size: 0.75rem; color: var(--jm-good); }
+.jm-res small.jm-neg { color: var(--jm-bad); }
+.jm-res.jm-warn b { color: var(--jm-warn); }
+.jm-res-icon { font-size: 1rem; }
+.jm-speed { display: flex; align-items: center; gap: 0.25rem; }
+.jm-speed-btn { min-width: 2.1rem; padding: 0.2rem 0.45rem; border-radius: 6px; border: 1px solid var(--jm-line); background: var(--jm-card); color: var(--jm-text); }
+.jm-speed-btn.jm-on { background: var(--jm-accent); color: #fff; border-color: transparent; }
+.jm-clock { font-variant-numeric: tabular-nums; color: var(--jm-muted); font-size: 0.85rem; padding: 0 0.3rem; white-space: nowrap; }
+
+.jm-bar { height: 7px; border-radius: 4px; background: rgba(0, 0, 0, 0.4); overflow: hidden; margin: 0.25rem 0; }
+.jm-bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, #c76a2e, #f0b866); transition: width 0.25s linear; }
+.jm-bar-age .jm-bar-fill { background: linear-gradient(90deg, #6aa84f, #c7e07a); }
+.jm-bar-back .jm-bar-fill { background: linear-gradient(90deg, #3b7fa3, #8fd0ea); }
+
+.jm-main { display: grid; grid-template-columns: minmax(0, 1fr) 25rem; min-height: 0; }
+.jm-view { position: relative; height: min(74vh, 760px); min-height: 420px; background: #9fcbe6; overflow: hidden; }
+.jm-view canvas.jm-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.jm-view canvas.jm-canvas:active { cursor: grabbing; }
+.jm-loading, .jm-no3d-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2rem; color: #23303a; font-weight: bold; }
+.jm-no3d { background: linear-gradient(#a9d4ec 0%, #cde6c0 60%, #6f9f45 100%); }
+.jm-overlay { position: absolute; inset: 0; pointer-events: none; }
+.jm-alerts { position: absolute; top: 0.6rem; left: 0.6rem; right: 0.6rem; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+.jm-raid-alert, .jm-ageup-alert, .jm-starve-alert { padding: 0.35rem 0.9rem; border-radius: 999px; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.jm-raid-alert { background: rgba(150, 30, 20, 0.92); color: #fff; animation: jm-pulse 1s ease-in-out infinite alternate; }
+.jm-ageup-alert { background: rgba(40, 70, 30, 0.9); color: #e9f7c9; }
+.jm-starve-alert { background: rgba(120, 80, 10, 0.92); color: #fff3c8; }
+@keyframes jm-pulse { from { transform: scale(1); } to { transform: scale(1.04); } }
+.jm-cam { position: absolute; right: 0.6rem; bottom: 0.6rem; display: flex; gap: 0.3rem; pointer-events: auto; }
+.jm-cam button { width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(20, 15, 10, 0.55); color: #fff; font-size: 1.05rem; }
+.jm-cam button.jm-on { background: var(--jm-accent); }
+.jm-cam-hint { position: absolute; left: 0.6rem; bottom: 0.6rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); max-width: 60%; }
+
+.jm-side { display: flex; flex-direction: column; min-height: 0; height: min(74vh, 760px); min-height: 420px; border-left: 1px solid var(--jm-line); background: var(--jm-bg2); }
+.jm-tabs { display: grid; grid-template-columns: repeat(6, 1fr); border-bottom: 1px solid var(--jm-line); }
+.jm-tab { position: relative; padding: 0.5rem 0.1rem; border: 0; background: transparent; color: var(--jm-muted); font-size: 0.88rem; border-bottom: 2px solid transparent; }
+.jm-tab.jm-on { color: var(--jm-text); border-bottom-color: var(--jm-accent); background: rgba(255, 255, 255, 0.03); font-weight: bold; }
+.jm-badge { position: absolute; top: 0.15rem; right: 0.2rem; min-width: 1.05rem; height: 1.05rem; padding: 0 0.2rem; border-radius: 999px; background: var(--jm-water); color: #fff; font-size: 0.7rem; line-height: 1.05rem; }
+.jm-badge-bad { background: #c0392b; }
+.jm-panel { flex: 1 1 auto; overflow-y: auto; padding: 0.6rem 0.7rem 1rem; overscroll-behavior: contain; }
+
+.jm-sec { margin-bottom: 0.9rem; }
+.jm-sec h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--jm-accent2); border-bottom: 1px solid var(--jm-line); padding-bottom: 0.2rem; }
+.jm-sec-age { background: linear-gradient(135deg, rgba(208, 118, 58, 0.18), rgba(0, 0, 0, 0)); border: 1px solid var(--jm-line); border-radius: 10px; padding: 0.6rem; }
+.jm-sec-age p { margin: 0.2rem 0; }
+.jm-civ-line { margin: 0 0 0.3rem; }
+.jm-req { margin: 0.2rem 0; font-size: 0.9rem; }
+.jm-kv { display: grid; grid-template-columns: 1fr; gap: 0.1rem; }
+.jm-kv > div { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.1rem 0; border-bottom: 1px dashed rgba(232, 200, 150, 0.08); }
+.jm-kv b { font-variant-numeric: tabular-nums; }
+.jm-warn-line { color: var(--jm-warn); font-size: 0.85rem; margin-top: 0.2rem; }
+.jm-check { display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.4rem; cursor: pointer; }
+
+.jm-alloc { display: flex; flex-direction: column; gap: 0.35rem; }
+.jm-alloc-row { display: grid; grid-template-columns: 4.8rem 1fr; grid-template-rows: auto auto; column-gap: 0.4rem; align-items: center; }
+.jm-alloc-row input[type="range"] { width: 100%; accent-color: var(--jm-accent); }
+.jm-alloc-label { font-size: 0.9rem; }
+.jm-alloc-info { grid-column: 2; font-size: 0.78rem; color: var(--jm-muted); font-variant-numeric: tabular-nums; }
+
+.jm-cost { display: inline-flex; flex-wrap: wrap; gap: 0.2rem; }
+.jm-cost-item { display: inline-block; padding: 0 0.3rem; border-radius: 4px; background: rgba(0, 0, 0, 0.25); font-size: 0.82rem; font-variant-numeric: tabular-nums; margin-right: 0.15rem; }
+.jm-cost-item.jm-lack { color: var(--jm-bad); }
+.jm-cards { display: grid; grid-template-columns: 1fr; gap: 0.45rem; }
+.jm-card { background: var(--jm-card); border: 1px solid var(--jm-line); border-radius: 9px; padding: 0.45rem 0.55rem; }
+.jm-card.jm-locked { opacity: 0.5; }
+.jm-card.jm-done { opacity: 0.6; border-style: dashed; }
+.jm-card.jm-unique { border-color: rgba(233, 169, 90, 0.6); background: linear-gradient(135deg, rgba(233, 169, 90, 0.14), var(--jm-card)); }
+.jm-card-head { display: flex; align-items: center; gap: 0.35rem; }
+.jm-card-head b { flex: 1 1 auto; }
+.jm-card-icon { font-size: 1.15rem; }
+.jm-card-cost { margin-top: 0.25rem; }
+.jm-count { font-variant-numeric: tabular-nums; color: var(--jm-accent2); font-weight: bold; font-size: 0.9rem; }
+.jm-queue { display: flex; flex-direction: column; gap: 0.3rem; }
+.jm-queue-item { background: var(--jm-card); border-radius: 8px; padding: 0.3rem 0.5rem; font-size: 0.88rem; }
+.jm-trade { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.jm-bonus-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.jm-bonus { font-size: 0.78rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: rgba(143, 209, 122, 0.12); color: var(--jm-good); }
+.jm-army-line { display: flex; flex-wrap: wrap; gap: 0.2rem; margin: 0.25rem 0; }
+.jm-army-chip { display: inline-block; padding: 0 0.35rem; border-radius: 4px; background: rgba(160, 40, 30, 0.25); font-size: 0.82rem; margin-right: 0.15rem; }
+.jm-counter-list > div { padding: 0.1rem 0; }
+
+.jm-report-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.jm-report-item { display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; text-align: left; padding: 0.3rem 0.5rem; border-radius: 7px; border: 1px solid var(--jm-line); background: var(--jm-card); color: var(--jm-text); }
+.jm-report-item.jm-win b { color: var(--jm-good); }
+.jm-report-item.jm-lose b { color: var(--jm-bad); }
+.jm-report-item small { color: var(--jm-muted); }
+.jm-log { list-style: none; padding: 0; margin: 0; font-size: 0.85rem; }
+.jm-log li { padding: 0.15rem 0; border-bottom: 1px dashed rgba(232, 200, 150, 0.08); }
+.jm-log small { color: var(--jm-muted); font-variant-numeric: tabular-nums; }
+.jm-log-good { color: var(--jm-good); }
+.jm-log-bad { color: var(--jm-bad); }
+.jm-log-war { color: #9fd0ff; }
+.jm-log-age { color: var(--jm-accent2); font-weight: bold; }
+
+/* ---------- 提示 ---------- */
+.jm-toasts { position: absolute; left: 0.6rem; top: 4.4rem; display: flex; flex-direction: column; gap: 0.3rem; z-index: 5; max-width: min(26rem, 70%); pointer-events: none; }
+.jm-toast { pointer-events: auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.7rem; border-radius: 8px; background: rgba(30, 22, 16, 0.92); border-left: 4px solid var(--jm-muted); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4); font-size: 0.88rem; animation: jm-toast-in 0.25s ease-out; transition: opacity 0.4s, transform 0.4s; }
+.jm-toast-good { border-left-color: var(--jm-good); }
+.jm-toast-bad { border-left-color: var(--jm-bad); }
+.jm-toast-age { border-left-color: var(--jm-accent2); }
+.jm-toast-war { border-left-color: var(--jm-water); }
+.jm-toast-out { opacity: 0; transform: translateX(-12px); }
+@keyframes jm-toast-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 視窗 ---------- */
+.jm-modal-back { position: fixed; inset: 0; z-index: 50; background: rgba(10, 6, 3, 0.62); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.jm-modal { width: min(44rem, 100%); max-height: 90vh; overflow-y: auto; background: var(--jm-bg2); color: var(--jm-text); border: 1px solid var(--jm-line); border-radius: 14px; padding: 1rem 1.1rem 1.2rem; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+.jm-modal h3 { margin: 0.8rem 0 0.4rem; font-size: 1rem; color: var(--jm-accent2); }
+.jm-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.jm-modal-head h2 { margin: 0; font-size: 1.25rem; color: var(--jm-accent2); }
+.jm-x { border: 0; background: transparent; color: var(--jm-muted); font-size: 1.6rem; line-height: 1; }
+.jm-choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.5rem; }
+.jm-choice { display: flex; flex-direction: column; gap: 0.25rem; text-align: left; padding: 0.6rem 0.7rem; border-radius: 10px; border: 2px solid var(--jm-line); background: var(--jm-card); color: var(--jm-text); }
+.jm-choice.jm-on { border-color: var(--jm-accent2); background: linear-gradient(135deg, rgba(233, 169, 90, 0.2), var(--jm-card)); }
+.jm-civ-grid .jm-choice { border-left: 6px solid var(--jm-civ, var(--jm-line)); }
+.jm-choice b { font-size: 1rem; }
+.jm-exp-rows { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.5rem 0; }
+.jm-exp-row { display: grid; grid-template-columns: minmax(7rem, 1fr) auto auto auto auto; gap: 0.35rem; align-items: center; }
+.jm-preview { margin-top: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 8px; background: rgba(0, 0, 0, 0.25); }
+.jm-preview p { margin: 0.15rem 0; }
+.jm-result { font-size: 1.4rem; font-weight: bold; text-align: center; margin: 0.4rem 0; }
+.jm-rep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.jm-rep-row { display: grid; grid-template-columns: minmax(0, 1fr) 4rem auto; gap: 0.35rem; align-items: center; font-size: 0.85rem; }
+.jm-rep-row .jm-bar { margin: 0; }
+.jm-curve-wrap { margin: 0.6rem 0; }
+.jm-curve { width: 100%; height: 70px; background: rgba(0, 0, 0, 0.25); border-radius: 6px; }
+.jm-curve path { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+.jm-curve-a { stroke: #8fd17a; }
+.jm-curve-b { stroke: #ff8a72; }
+.jm-help-p { line-height: 1.7; margin: 0.4rem 0; }
+.jm-menu-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.jm-victory { text-align: center; }
+.jm-victory .jm-kv { text-align: left; max-width: 22rem; margin: 0.6rem auto; }
+
+/* ---------- 手機 ---------- */
+@media (max-width: 900px) {
+  .jm-main { grid-template-columns: 1fr; }
+  .jm-view { height: 52vh; min-height: 300px; }
+  .jm-side { height: auto; min-height: 0; border-left: 0; border-top: 1px solid var(--jm-line); }
+  .jm-panel { max-height: none; overflow: visible; }
+  .jm-tabs { position: sticky; top: 0; z-index: 3; background: var(--jm-bg2); }
+  .jm-age-box { flex: 1 1 100%; }
+  .jm-res { min-width: 0; padding: 0.15rem 0.4rem; }
+  .jm-title-name { font-size: 2rem; letter-spacing: 0.2em; }
+  .jm-rep-grid { grid-template-columns: 1fr; }
+  .jm-exp-row { grid-template-columns: 1fr auto auto; }
+  .jm-toasts { top: auto; bottom: 0.6rem; left: 0.6rem; right: 0.6rem; max-width: none; position: fixed; }
+  .jm-cam-hint { display: none; }
+}
+@media (min-width: 1400px) {
+  .jm-main { grid-template-columns: minmax(0, 1fr) 28rem; }
+  .jm-cards { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- 2026-11-03 追加：即時戰鬥、點擊選單、勢力、任務、資源儲量 ---------- */
+.jm-modal.jm-modal-wide { width: min(64rem, 100%); }
+.jm-battle-stage { position: relative; height: min(46vh, 420px); min-height: 240px; border-radius: 10px; overflow: hidden; background: #9fcbe6; margin: 0.5rem 0; }
+.jm-battle-stage canvas.jm-battle-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.jm-battle-flat { display: flex; align-items: center; justify-content: center; }
+.jm-battle-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.jm-battle-side { padding: 0.4rem 0.5rem; border-radius: 8px; background: rgba(0, 0, 0, 0.22); }
+.jm-side-mine { border-left: 4px solid var(--jm-good); }
+.jm-side-theirs { border-left: 4px solid var(--jm-bad); }
+.jm-battle-status { text-align: center; font-weight: bold; margin: 0.4rem 0; font-variant-numeric: tabular-nums; }
+.jm-battle-status.jm-good, .jm-battle-status.jm-bad { font-size: 1.3rem; }
+.jm-battle-ctl { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; }
+.jm-stance.jm-on { background: var(--jm-accent); color: #fff; border-color: transparent; }
+.jm-battle-alert { pointer-events: auto; padding: 0.35rem 0.9rem; border-radius: 999px; border: 0; font-weight: bold; font-size: 0.9rem; background: rgba(60, 40, 120, 0.92); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); animation: jm-pulse 0.8s ease-in-out infinite alternate; }
+.jm-bar-battle .jm-bar-fill { background: linear-gradient(90deg, #a33, #f07a5a); }
+.jm-bar-quest .jm-bar-fill { background: linear-gradient(90deg, #6aa84f, #c7e07a); }
+.jm-bar-dep .jm-bar-fill { background: linear-gradient(90deg, #8a6a3a, #d9b46a); }
+.jm-pick-layer { position: absolute; inset: 0; pointer-events: none; }
+.jm-pick { position: absolute; pointer-events: auto; width: 16.5rem; max-height: 70%; overflow-y: auto; padding: 0.55rem 0.65rem; border-radius: 10px; background: rgba(31, 24, 18, 0.95); border: 1px solid var(--jm-line); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); font-size: 0.9rem; }
+.jm-pick .jm-btn-row { align-items: center; }
+.jm-pick-x { position: absolute; top: 0.1rem; right: 0.3rem; font-size: 1.3rem; }
+.jm-quests { display: flex; flex-direction: column; gap: 0.4rem; }
+.jm-quest { background: var(--jm-card); border: 1px solid var(--jm-line); border-radius: 8px; padding: 0.35rem 0.5rem; }
+.jm-quest-head { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.9rem; }
+.jm-deposits { display: flex; flex-direction: column; gap: 0.3rem; }
+.jm-deposit-head { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.jm-terr-list { margin-top: 0.4rem; }
+.jm-terr-chip { background: rgba(143, 209, 122, 0.15); color: var(--jm-good); }
+.jm-army-chip.jm-fog { background: rgba(255, 255, 255, 0.08); color: var(--jm-muted); }
+.jm-intel-ok { margin-right: 0.2rem; }
+.jm-scout { display: inline-flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; }
+.jm-faction { border-left: 5px solid var(--jm-civ, var(--jm-line)); }
+.jm-rel { font-size: 0.8rem; padding: 0.05rem 0.45rem; border-radius: 999px; white-space: nowrap; }
+.jm-rel-hostile { background: rgba(192, 57, 43, 0.3); color: #ffb3a6; }
+.jm-rel-truce { background: rgba(79, 163, 199, 0.25); color: #bfe6f6; }
+.jm-rel-peace { background: rgba(143, 209, 122, 0.25); color: var(--jm-good); }
+.jm-rel-destroyed { background: rgba(255, 255, 255, 0.1); color: var(--jm-muted); }
+.jm-card.jm-branch { border-style: double; border-width: 3px; }
+.jm-vis-tag { font-size: 0.8rem; opacity: 0.8; }
+.jm-bonus.jm-bonus-bad { background: rgba(255, 138, 114, 0.14); color: var(--jm-bad); }
+.jm-event { text-align: center; }
+.jm-event .jm-choice-grid { text-align: left; }
+.jm-event-icon { font-size: 3rem; line-height: 1; margin-top: 0.2rem; }
+.jm-event .jm-modal-head { justify-content: center; }
+@media (max-width: 900px) {
+  .jm-battle-bars { grid-template-columns: 1fr; }
+  .jm-battle-stage { height: 30vh; min-height: 200px; }
+  .jm-pick { width: min(16.5rem, calc(100% - 16px)); }
+}
