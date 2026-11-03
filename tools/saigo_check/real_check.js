@@ -138,7 +138,13 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   assert.deepStrictEqual(cardInfo, { mode: "real", placeK: 3, hit3: true, npcKennel: true, skills: true });
   // 出走表直接列出每隻狗的 8 項能力與技能；點技能顯示簡易說明（2026-11-03）
   assert.strictEqual(await page.$$eval(".sg-dogsub .sg-statmini", function (x) { return x.length; }), 8, "8 隻都列出能力");
-  assert.strictEqual(await page.$$eval(".sg-dogsub .sg-statmini span", function (x) { return x.length; }), 64, "每隻 8 項能力");
+  assert.strictEqual(await page.$$eval(".sg-dogsub .sg-statmini > span", function (x) { return x.length; }), 64, "每隻 8 項能力");
+  // 自己的 2 隻＝數字；別人的 6 隻＝大概範圍；表上沒有評分、速耐敏、適性字母
+  assert.strictEqual(await page.$$eval(".sg-dogsub.sg-mine .sg-sm-range", function (x) { return x.length; }), 0, "自己的狗顯示詳細數值");
+  assert.strictEqual(await page.$$eval(".sg-dogsub:not(.sg-mine) .sg-sm-range", function (x) { return x.length; }), 48, "別人的狗只顯示範圍");
+  assert.strictEqual(await page.$$eval(".sg-entries thead th", function (x) { return x.length; }), 7, "表上沒有評分、速耐敏欄");
+  assert.ok(!/[（(][ABCD][)）]/.test(await page.$$eval(".sg-dogrow", function (x) { return x.map(function (r) { return r.textContent; }).join(" "); })), "表上沒有適性字母");
+  assert.ok(await page.evaluate(function () { return window.PriTestSaigo.ui.card.dogs.filter(function (d) { return d.cpu; }).every(function (d) { return d.skills.length === 5; }); }), "NPC 技能填滿 5 個");
   var tapName = await page.evaluate(function () { var b = document.querySelector(".sg-dogsub .sg-skill-btn"); b.click(); return b.textContent; });
   await page.waitForTimeout(150);
   var descTxt = await page.textContent(".sg-skill-desc");

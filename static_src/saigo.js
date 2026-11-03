@@ -87,11 +87,38 @@
       el("b", null, [s.icon + " " + L(s.name)]), el("small", null, [" " + L(SK.TIERS[s.tier].name) + "・" + s.pts + "pt"]), el("br"), L(s.desc)
     ]);
   }
-  // 出走表用的 8 項能力（數字一覽）
-  function statMini(stats) {
+  // 能力的大概範圍（2026-11-03 使用者指定「屬性的數值只詳細自己的，其他人的只畫大概範圍」）：
+  // 寬 20 的區間（例：60〜80），區間的位置依出賽表 seed＋枠＋能力決定，各裝置一樣、也不會總是置中
+  function statRange(v, key) {
+    var lo = Math.floor(v / 10) * 10 - (Core.hashStr(key) % 2) * 10;
+    if (lo < 0) lo = 0;
+    return [lo, lo + 20];
+  }
+  function rangeKey(card, i, k) { return (card ? card.seed : 0) + ":" + i + ":" + k; }
+  // 出走表用的 8 項能力：自己的狗＝數字；別人的狗＝大概範圍
+  function statMini(stats, exact, card, i) {
     return el("div", { class: "sg-statmini" }, D.STATS.map(function (k) {
       var v = Math.round(stats[k]);
+      if (!exact) {
+        var rg = statRange(v, rangeKey(card, i, k)), mid = rg[0] + 10;
+        return el("span", { class: "sg-sm-range sg-sm-" + (mid >= 90 ? "a" : mid >= 70 ? "b" : mid >= 50 ? "c" : "d") }, [el("i", null, [t("sg_stat_" + k)]), rangeBar(rg, 120), rg[0] + "〜" + rg[1]]);
+      }
       return el("span", { class: "sg-sm-" + (v >= 90 ? "a" : v >= 70 ? "b" : v >= 50 ? "c" : "d") }, [el("i", null, [t("sg_stat_" + k)]), String(v)]);
+    }));
+  }
+  function rangeBar(rg, max) {
+    var a = Core.clamp(rg[0] / max, 0, 1), b = Core.clamp(rg[1] / max, 0, 1);
+    return el("span", { class: "sg-bar sg-bar-range" }, [el("i", { style: "margin-left:" + Math.round(a * 100) + "%;width:" + Math.round((b - a) * 100) + "%" })]);
+  }
+  // 詳細欄：別人的狗只畫範圍
+  function statsRangeTable(stats, card, i) {
+    return el("div", { class: "sg-stats" }, D.STATS.map(function (k) {
+      var rg = statRange(Math.round(stats[k]), rangeKey(card, i, k));
+      return el("div", { class: "sg-stat" }, [
+        el("span", { class: "sg-stat-k" }, [t("sg_stat_" + k)]),
+        rangeBar(rg, 120),
+        el("span", { class: "sg-stat-v" }, [rg[0] + "〜" + rg[1]])
+      ]);
     }));
   }
   function statBar(v, max, cls) {
@@ -664,28 +691,29 @@
         el("td", null, [el("b", null, [d.name]), el("br"), el("small", null, [L(b.name)])]),
         el("td", { class: "sg-hide-s" }, [d.cpu ? (isReal(card) && d.ownerName ? d.ownerName : "CPU") : (mine ? t("sg_owner_me") : d.ownerName || t("sg_owner_player"))]),
         el("td", { class: "sg-mood sg-mood-" + d.mood }, [mood.icon + " " + L(mood.name)]),
-        el("td", { class: "sg-hide-s" }, [styleLabel(d), isReal(card) ? el("br") : null, isReal(card) ? el("small", null, [L((D.LINES[d.line] || D.LINES.mid).name)]) : null]),
-        el("td", { class: "sg-hide-s sg-rating" }, [dogRatingText(d)]),
-        el("td", { class: "sg-hide-s" }, [statBar(d.eff.spd), statBar(d.eff.sta, 120, "sg-bar-b"), statBar(d.eff.agi, 120, "sg-bar-c")]),
+        // 表上不顯示跑法適性（A〜D）、總評分、速／耐／敏（2026-11-03 使用者指定）
+        el("td", { class: "sg-hide-s" }, [L(D.STYLES[d.style]), isReal(card) ? el("br") : null, isReal(card) ? el("small", null, [L((D.LINES[d.line] || D.LINES.mid).name)]) : null]),
         el("td", { class: "sg-odds" }, [od.win[i].toFixed(1)]),
         el("td", null, [t("sg_pop_n", { n: pop[i] })])
       ]));
       // 真賽狗：每隻狗的 8 項能力與技能直接列在下面（2026-11-03 使用者指定），點技能看簡易說明
       if (isReal(card) && ui.openDog !== i) {
-        rows.push(el("tr", { class: "sg-dogsub" + (mine ? " sg-mine" : "") }, [el("td", { colspan: "9" }, [
-          statMini(d.eff),
+        rows.push(el("tr", { class: "sg-dogsub" + (mine ? " sg-mine" : "") }, [el("td", { colspan: "7" }, [
+          statMini(d.eff, mine, card, i),
           el("div", { class: "sg-skills" }, (d.skills || []).length ? d.skills.map(function (id) { return skillTap(id, "c" + i); }) : [el("span", { class: "sg-muted sg-small" }, [t("sg_no_skills")])]),
           skillDesc(d.skills, "c" + i)
         ])]));
       }
       if (ui.openDog === i) {
-        rows.push(el("tr", { class: "sg-dogdetail" }, [el("td", { colspan: "9" }, [
+        rows.push(el("tr", { class: "sg-dogdetail" }, [el("td", { colspan: "7" }, [
           el("div", { class: "sg-zukan-detail" }, [
             previewBox(d.breed, i),
             el("div", null, [
               el("p", null, [traitLine(b) + (d.lv ? "・Lv" + d.lv : "")]),
-              el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[d.best || d.style]) + "・" + t("sg_run_style") + "：" + styleLabel(d)]),
-              statsTable(d.eff),
+              mine ? el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[d.best || d.style]) + "・" + t("sg_run_style") + "：" + styleLabel(d) + "・" + t("sg_rating") + "：" + dogRatingText(d)])
+                : el("p", { class: "sg-small" }, [t("sg_run_style") + "：" + L(D.STYLES[d.style])]),
+              mine ? statsTable(d.eff) : statsRangeTable(d.eff, card, i),
+              mine ? null : el("p", { class: "sg-small sg-muted" }, [t("sg_stat_range_note")]),
               el("p", { class: "sg-skills" }, [t("sg_skills") + "："].concat((d.skills || []).length ? d.skills.map(function (id) { return skillTap(id, "d" + i); }) : [el("span", { class: "sg-muted" }, [t("sg_no_skills")])])),
               skillDesc(d.skills, "d" + i),
               isReal(card) ? el("p", { class: "sg-small" }, [t("sg_line") + "：" + L((D.LINES[d.line] || D.LINES.mid).name) + "・" + t("sg_line_note_" + (d.line || "mid"))]) : null,
@@ -697,7 +725,7 @@
       }
     });
     app.appendChild(panel(t("sg_entries"), [el("table", { class: "sg-table sg-entries" }, [
-      el("thead", null, [el("tr", null, ["", t("sg_col_dog"), el("span", { class: "sg-hide-s" }, [t("sg_col_owner")]), t("sg_mood"), el("span", { class: "sg-hide-s" }, [t("sg_style")]), el("span", { class: "sg-hide-s" }, [t("sg_rating")]), el("span", { class: "sg-hide-s" }, [t("sg_col_spd_sta_agi")]), t("sg_col_odds"), t("sg_col_pop")].map(function (h) { return el("th", null, [h]); }))]),
+      el("thead", null, [el("tr", null, ["", t("sg_col_dog"), el("span", { class: "sg-hide-s" }, [t("sg_col_owner")]), t("sg_mood"), el("span", { class: "sg-hide-s" }, [t("sg_style")]), t("sg_col_odds"), t("sg_col_pop")].map(function (h) { return el("th", null, [h]); }))]),
       el("tbody", null, rows)
     ]), el("p", { class: "sg-small sg-muted" }, [t("sg_click_detail") + (isReal(card) ? " " + t("sg_card_skill_tap") : "")])]));
 

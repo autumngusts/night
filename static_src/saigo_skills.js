@@ -121,13 +121,13 @@
     return { pts: p, grade: g, stat: statPts(stats), skill: skillPts(ids) };
   }
 
-  // CPU／NPC 的技能：依賽事等級（rookie／open／stakes），讓同場的總評分接近玩家的狗
-  var NPC_PLAN = { rookie: [[1, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0]], open: [[1, 1, 0], [2, 0, 0], [1, 0, 0], [2, 1, 0]], stakes: [[2, 1, 0], [1, 2, 0], [2, 1, 1], [1, 1, 1]] };
+  // CPU／NPC 的技能：欄位全部填滿（金 1、罕見 2、一般 2；2026-11-03 使用者指定「NPC 也會填滿技能」）。
+  // cls 保留參數（舊版依賽事等級給部分技能）
   function npcSkills(cls, rnd) {
-    var plan = NPC_PLAN[cls] || NPC_PLAN.open, pick = plan[Math.floor(rnd() * plan.length)], out = [];
-    [["n", pick[0]], ["r", pick[1]], ["g", pick[2]]].forEach(function (x) {
-      var src = byTier(x[0]).slice();
-      for (var i = 0; i < x[1] && src.length; i++) out.push(src.splice(Math.floor(rnd() * src.length), 1)[0].id);
+    var out = [];
+    TIER_IDS.forEach(function (tier) {
+      var src = byTier(tier).slice();
+      for (var i = 0; i < TIERS[tier].slots && src.length; i++) out.push(src.splice(Math.floor(rnd() * src.length), 1)[0].id);
     });
     return out;
   }
