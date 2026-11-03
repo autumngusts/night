@@ -30,6 +30,7 @@ from site_src.saigo_page import SAIGO_SCRIPTS, build_saigo_html
 from site_src.wanren_page import WANREN_SCRIPTS, build_wanren_html
 from site_src.reiwa_page import REIWA_SCRIPTS, build_reiwa_html
 from site_src.jikan_page import JIKAN_SCRIPTS, build_jikan_html
+from site_src.jomon_page import JOMON_SCRIPTS, build_jomon_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -50,6 +51,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "gousei": ("gs_",),
     "reiwa": ("rw_",),
     "jikan": ("jk_",),
+    "jomon": ("jm_",),
 }
 
 
@@ -144,6 +146,7 @@ def build_static_assets() -> None:
         *WANREN_SCRIPTS,
         *REIWA_SCRIPTS,
         *JIKAN_SCRIPTS,
+        *JOMON_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -176,7 +179,7 @@ def build_static_assets() -> None:
     if katana_art_src.is_dir():
         shutil.copytree(katana_art_src, static_dist / "katana_art")
 
-    # 第三方函式庫（three.js r149：starV／賽狗／投賞／令和之野望共用；頁面需要時才動態載入）
+    # 第三方函式庫（three.js r149：starV／賽狗／投賞／令和之野望／繩文帝國共用；頁面需要時才動態載入）
     vendor_src = STATIC_SRC_DIR / "vendor"
     if vendor_src.is_dir():
         shutil.copytree(vendor_src, static_dist / "vendor")
@@ -253,9 +256,13 @@ def build_pages() -> None:
     jikan_dir.mkdir(parents=True, exist_ok=True)
     (jikan_dir / "index.html").write_text(build_jikan_html(), encoding="utf-8")
 
+    jomon_dir = DIST_DIR / "jomon"
+    jomon_dir.mkdir(parents=True, exist_ok=True)
+    (jomon_dir / "index.html").write_text(build_jomon_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
