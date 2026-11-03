@@ -86,4 +86,10 @@ PROJECTS = [
         "name_key": "project_reiwa_name",
         "desc_key": "project_reiwa_desc",
     },
+    {
+        "id": "jikan",
+        "href": "jikan/index.html",
+        "name_key": "project_jikan_name",
+        "desc_key": "project_jikan_desc",
+    },
 ]
