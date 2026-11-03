@@ -33,7 +33,7 @@
   // popToNext：使用者指定的升級人口門檻（300 / 750 / 1800 / 4000 / 10000 / 25000 / 50000 / 100000）
   // houseCap：每棟住居的人口上限；capMult：採集據點／水田容量倍率；tcBatch：村落中心每輪生產村民數
   var AGES = [
-    { id: "jomon", name: C("縄文時代", "繩文時代"), era: C("約1万6千年前〜", "約一萬六千年前〜"), popToNext: 300, cost: { food: 3000, wood: 1500, stone: 500 }, time: 30, houseCap: 5, capMult: 1, tcBatch: 1, maxTC: 3, sky: 0x9fd0ef },
+    { id: "jomon", name: C("縄文時代", "繩文時代"), era: C("約1万6千年前〜", "約一萬六千年前〜"), tcCycle: 2.5, popToNext: 300, cost: { food: 3000, wood: 1500, stone: 500 }, time: 30, houseCap: 5, capMult: 1, tcBatch: 1, maxTC: 3, sky: 0x9fd0ef },
     { id: "yayoi", name: C("弥生時代", "彌生時代"), era: C("紀元前10世紀頃〜", "西元前十世紀左右〜"), popToNext: 750, cost: { food: 15000, wood: 5000, stone: 2500 }, time: 40, houseCap: 8, capMult: 1.5, tcBatch: 2, maxTC: 4, sky: 0x9fd0ef },
     { id: "kofun", name: C("古墳時代", "古墳時代"), era: C("3世紀中頃〜", "三世紀中葉〜"), popToNext: 1800, cost: { food: 50000, wood: 12000, stone: 6000, gold: 3000 }, time: 50, houseCap: 12, capMult: 2.5, tcBatch: 3, maxTC: 5, sky: 0xa6d2ea },
     { id: "asuka", name: C("飛鳥時代", "飛鳥時代"), era: C("6世紀末〜", "六世紀末〜"), popToNext: 4000, cost: { food: 120000, wood: 30000, stone: 15000, gold: 12000 }, time: 60, houseCap: 18, capMult: 4, tcBatch: 4, maxTC: 6, sky: 0xa9d4ec },
@@ -196,13 +196,19 @@
   // ---------------- 研究（強化） ----------------
   // cost 為基準價，實際費用 × TECH_AGE_COST[研究所屬時代]（後期經濟規模大，研究也跟著變貴）；civ：只有該文明能研究
   var TECH_AGE_COST = [1, 2, 5, 8, 12, 25, 50, 100, 150];
-  function T(id, age, name, desc, cost, time, mods, civ) {
+  // extra：{ group: 互斥分支（同組只能研究一項）, vis: 3D 外觀變化（jomon_scene3d.js 讀取） }
+  function T(id, age, name, desc, cost, time, mods, civ, extra) {
     var k = TECH_AGE_COST[age];
     var scaled = {};
     Object.keys(cost).forEach(function (r) {
       scaled[r] = cost[r] * k;
     });
-    return { id: id, age: age, name: name, desc: desc, cost: scaled, time: time, mods: mods, civ: civ || null };
+    extra = extra || {};
+    return { id: id, age: age, name: name, desc: desc, cost: scaled, time: time, mods: mods, civ: civ || null, group: extra.group || null, vis: extra.vis || null };
+  }
+  // 互斥分支科技（同一個 group 只能選一項）
+  function B(group, id, age, name, desc, cost, time, mods, vis) {
+    return T(id, age, name, desc, cost, time, mods, null, { group: group, vis: vis });
   }
   var TECHS = [
     T("doki", 0, C("縄文土器", "繩文土器"), C("煮炊きで食料＋15%", "烹煮使食物＋15%"), { food: 100, wood: 50 }, 20, { "gather.food": 0.15 }),
@@ -212,19 +218,19 @@
     T("kizuna", 0, C("ムラの絆", "村落羈絆"), C("自然増加＋50%", "自然增加＋50%"), { food: 200 }, 25, { birth: 0.5 }),
     T("kaizuka", 0, C("貝塚の知恵", "貝塚智慧"), C("集積所の容量＋25%", "集散地容量＋25%"), { food: 150, wood: 100 }, 25, { campCap: 0.25 }),
 
-    T("inasaku", 1, C("稲作の改良", "改良稻作"), C("水田の採集＋20%", "水田採集＋20%"), { food: 400, wood: 300 }, 30, { paddy: 0.2 }),
-    T("seidou", 1, C("青銅器", "青銅器"), C("全軍の攻撃＋15%", "全軍攻擊＋15%"), { food: 500, wood: 300, stone: 200 }, 35, { "atk.all": 0.15 }),
+    T("inasaku", 1, C("稲作の改良", "改良稻作"), C("水田の採集＋20%", "水田採集＋20%"), { food: 400, wood: 300 }, 30, { paddy: 0.2 }, null, { vis: "rice" }),
+    T("seidou", 1, C("青銅器", "青銅器"), C("全軍の攻撃＋15%", "全軍攻擊＋15%"), { food: 500, wood: 300, stone: 200 }, 35, { "atk.all": 0.15 }, null, { vis: "bronze" }),
     T("tategine", 1, C("竪杵と臼", "豎杵與臼"), C("村人の生産＋20%", "村民生產＋20%"), { food: 500, wood: 200 }, 30, { tcSpeed: 0.2 }),
     T("kuwa", 1, C("木製の鍬", "木製鋤頭"), C("木材＋15%、食料＋10%", "木材＋15%、食物＋10%"), { food: 400, wood: 400 }, 30, { "gather.wood": 0.15, "gather.food": 0.1 }),
 
     T("tetsunougu", 2, C("鉄製農具", "鐵製農具"), C("食料＋20%", "食物＋20%"), { food: 1200, wood: 600, gold: 200 }, 40, { "gather.food": 0.2 }),
-    T("katchu", 2, C("短甲", "短甲"), C("全軍の HP＋20%", "全軍 HP＋20%"), { food: 1000, stone: 300, gold: 300 }, 40, { "hp.all": 0.2 }),
-    T("uma", 2, C("馬の飼育", "養馬"), C("騎兵の攻撃・HP＋20%", "騎兵攻擊與 HP＋20%"), { food: 1200, gold: 300 }, 40, { "atk.cavalry": 0.2, "hp.cavalry": 0.2 }),
+    T("katchu", 2, C("短甲", "短甲"), C("全軍の HP＋20%", "全軍 HP＋20%"), { food: 1000, stone: 300, gold: 300 }, 40, { "hp.all": 0.2 }, null, { vis: "armor" }),
+    T("uma", 2, C("馬の飼育", "養馬"), C("騎兵の攻撃・HP＋20%", "騎兵攻擊與 HP＋20%"), { food: 1200, gold: 300 }, 40, { "atk.cavalry": 0.2, "hp.cavalry": 0.2 }, null, { vis: "horse" }),
     T("kinzan", 2, C("砂金採り", "淘金"), C("金＋25%", "金＋25%"), { food: 800, wood: 800 }, 40, { "gather.gold": 0.25 }),
     T("dobokugijutsu", 2, C("土木技術", "土木技術"), C("集積所・水田の容量＋25%", "集散地與水田容量＋25%"), { wood: 1200, stone: 500 }, 40, { campCap: 0.25, paddyCap: 0.25 }),
 
     T("bukkyo", 3, C("仏教伝来", "佛教傳來"), C("自然増加＋60%", "自然增加＋60%"), { food: 3000, gold: 1000 }, 50, { birth: 0.6 }),
-    T("kawara", 3, C("瓦葺き", "瓦葺"), C("住居＋20%", "住居＋20%"), { wood: 2500, stone: 1500 }, 50, { housing: 0.2 }),
+    T("kawara", 3, C("瓦葺き", "瓦葺"), C("住居＋20%", "住居＋20%"), { wood: 2500, stone: 1500 }, 50, { housing: 0.2 }, null, { vis: "tile" }),
     T("heitan", 3, C("兵站", "兵站"), C("遠征の行軍−20%、訓練速度＋20%", "遠征行軍−20%、訓練速度＋20%"), { food: 3000, wood: 1500 }, 50, { travel: -0.2, trainSpeed: 0.2 }),
     T("ritsuryo", 3, C("律令", "律令"), C("全資源＋10%", "所有資源＋10%"), { food: 3000, wood: 2000, gold: 1000 }, 55, { "gather.all": 0.1 }),
 
@@ -235,21 +241,58 @@
 
     T("shoen", 5, C("荘園", "莊園"), C("全資源＋15%", "所有資源＋15%"), { food: 20000, wood: 10000, gold: 5000 }, 70, { "gather.all": 0.15 }),
     T("bugei", 5, C("武芸", "武藝"), C("全軍の攻撃＋20%", "全軍攻擊＋20%"), { food: 15000, gold: 8000 }, 70, { "atk.all": 0.2 }),
-    T("ooyoroi", 5, C("大鎧", "大鎧"), C("全軍の HP＋20%、騎兵の HP＋20%", "全軍 HP＋20%、騎兵 HP＋20%"), { food: 15000, stone: 5000, gold: 8000 }, 70, { "hp.all": 0.2, "hp.cavalry": 0.2 }),
+    T("ooyoroi", 5, C("大鎧", "大鎧"), C("全軍の HP＋20%、騎兵の HP＋20%", "全軍 HP＋20%、騎兵 HP＋20%"), { food: 15000, stone: 5000, gold: 8000 }, 70, { "hp.all": 0.2, "hp.cavalry": 0.2 }, null, { vis: "armor2" }),
     T("shinden", 5, C("寝殿造", "寢殿造"), C("住居＋20%", "住居＋20%"), { wood: 20000, stone: 8000 }, 70, { housing: 0.2 }),
 
-    T("nimousaku", 6, C("二毛作", "二期作"), C("食料＋25%、水田の採集＋25%", "食物＋25%、水田採集＋25%"), { food: 40000, wood: 20000, gold: 10000 }, 80, { "gather.food": 0.25, paddy: 0.25 }),
+    T("nimousaku", 6, C("二毛作", "二期作"), C("食料＋25%、水田の採集＋25%", "食物＋25%、水田採集＋25%"), { food: 40000, wood: 20000, gold: 10000 }, 80, { "gather.food": 0.25, paddy: 0.25 }, null, { vis: "rice2" }),
     T("kibamusha", 6, C("騎馬武者の鍛錬", "騎馬武者鍛鍊"), C("騎兵の攻撃・HP＋25%", "騎兵攻擊與 HP＋25%"), { food: 40000, gold: 20000 }, 80, { "atk.cavalry": 0.25, "hp.cavalry": 0.25 }),
     T("za", 6, C("座と市", "座與市"), C("金＋25%、木材＋15%", "金＋25%、木材＋15%"), { food: 30000, wood: 30000 }, 80, { "gather.gold": 0.25, "gather.wood": 0.15 }),
     T("kamikaze", 6, C("神風の祈り", "神風祈禱"), C("防御＋40%", "防禦＋40%"), { food: 30000, gold: 15000 }, 80, { defense: 0.4 }),
 
-    T("teppo", 7, C("鉄砲伝来", "鐵砲傳來"), C("弓兵（鉄砲）の攻撃＋40%", "弓兵（鐵砲）攻擊＋40%"), { food: 60000, wood: 30000, gold: 40000 }, 90, { "atk.archer": 0.4 }),
+    T("teppo", 7, C("鉄砲伝来", "鐵砲傳來"), C("弓兵（鉄砲）の攻撃＋40%", "弓兵（鐵砲）攻擊＋40%"), { food: 60000, wood: 30000, gold: 40000 }, 90, { "atk.archer": 0.4 }, null, { vis: "gun" }),
     T("kenchi", 7, C("検地", "檢地"), C("全資源＋15%", "所有資源＋15%"), { food: 80000, wood: 40000, gold: 20000 }, 90, { "gather.all": 0.15 }),
-    T("chikujo", 7, C("築城術", "築城術"), C("防御＋50%、攻城兵器の攻撃＋30%", "防禦＋50%、攻城兵器攻擊＋30%"), { wood: 50000, stone: 80000 }, 90, { defense: 0.5, "atk.siege": 0.3 }),
+    T("chikujo", 7, C("築城術", "築城術"), C("防御＋50%、攻城兵器の攻撃＋30%", "防禦＋50%、攻城兵器攻擊＋30%"), { wood: 50000, stone: 80000 }, 90, { defense: 0.5, "atk.siege": 0.3 }, null, { vis: "stonewall" }),
     T("yarifusuma", 7, C("槍衾", "槍衾"), C("槍兵の攻撃・HP＋30%", "槍兵攻擊與 HP＋30%"), { food: 60000, wood: 40000 }, 90, { "atk.spear": 0.3, "hp.spear": 0.3 }),
 
-    T("shinden_kaihatsu", 8, C("新田開発", "新田開發"), C("食料＋30%", "食物＋30%"), { food: 200000, wood: 100000 }, 100, { "gather.food": 0.3 }),
+    T("shinden_kaihatsu", 8, C("新田開発", "新田開發"), C("食料＋30%", "食物＋30%"), { food: 200000, wood: 100000 }, 100, { "gather.food": 0.3 }, null, { vis: "rice3" }),
     T("sankin", 8, C("参勤交代", "參勤交代"), C("遠征の行軍−20%、全資源＋10%", "遠征行軍−20%、所有資源＋10%"), { food: 200000, gold: 100000 }, 100, { travel: -0.2, "gather.all": 0.1 }),
+    // ---- 奈良以後追加的科技（使用者要求 2026-11-03：奈良之後的科技種類再多一些） ----
+    T("shosoin", 4, C("正倉院", "正倉院"), C("資源の消耗−20%（埋蔵量が長持ち）", "資源消耗−20%（儲量更耐用）"), { food: 6000, wood: 4000, stone: 2000 }, 60, { depletion: -0.2 }),
+    T("kentoshi", 4, C("遣唐使", "遣唐使"), C("研究速度＋25%、研究費用−10%", "研究速度＋25%、研究費用−10%"), { food: 7000, gold: 2500 }, 60, { researchSpeed: 0.25, techCost: -0.1 }),
+    T("kokubunji", 4, C("国分寺", "國分寺"), C("自然増加＋40%、住居＋10%", "自然增加＋40%、住居＋10%"), { food: 6000, wood: 5000, gold: 1500 }, 60, { birth: 0.4, housing: 0.1 }),
+    T("jorisei", 4, C("条里制", "條里制"), C("水田の収容＋30%、水田の採集＋15%", "水田容量＋30%、水田採集＋15%"), { food: 5000, wood: 6000 }, 60, { paddyCap: 0.3, paddy: 0.15 }, null, { vis: "rice2" }),
+    T("onmyodo", 5, C("陰陽道", "陰陽道"), C("偵察時間−30%、研究速度＋15%", "偵察時間−30%、研究速度＋15%"), { food: 12000, gold: 6000 }, 70, { scout: -0.3, researchSpeed: 0.15 }),
+    T("sekkan", 5, C("摂関政治", "攝關政治"), C("朝貢の費用−30%、関係の改善＋30%", "朝貢費用−30%、關係改善＋30%"), { food: 15000, gold: 8000 }, 70, { tribute: -0.3, relation: 0.3 }),
+    T("shokurin", 5, C("植林", "植林"), C("森と獲物の再生＋50%", "森林與獵物再生＋50%"), { food: 10000, wood: 15000 }, 70, { regen: 0.5 }, null, { vis: "forest" }),
+    T("kyuba", 5, C("弓馬の道", "弓馬之道"), C("弓兵の攻撃＋20%、騎兵の攻撃＋15%", "弓兵攻擊＋20%、騎兵攻擊＋15%"), { food: 15000, gold: 7000 }, 70, { "atk.archer": 0.2, "atk.cavalry": 0.15 }),
+    T("goon", 6, C("御恩と奉公", "御恩與奉公"), C("訓練速度＋30%、全軍の HP＋10%", "訓練速度＋30%、全軍 HP＋10%"), { food: 35000, gold: 15000 }, 80, { trainSpeed: 0.3, "hp.all": 0.1 }),
+    T("kamakura_bukkyo", 6, C("鎌倉仏教", "鎌倉佛教"), C("自然増加＋40%、食料＋10%", "自然增加＋40%、食物＋10%"), { food: 30000, wood: 20000 }, 80, { birth: 0.4, "gather.food": 0.1 }),
+    T("kanayama", 6, C("金山開発", "金山開發"), C("金＋15%、資源の消耗−15%", "金＋15%、資源消耗−15%"), { food: 30000, wood: 30000 }, 80, { "gather.gold": 0.15, depletion: -0.15 }),
+    T("sosen", 6, C("宋銭", "宋錢"), C("市の手数料−40%、交易収入＋0.5", "市集手續費−40%、貿易收入＋0.5"), { food: 25000, gold: 20000 }, 80, { marketFee: -0.4, tradeIncome: 0.5 }),
+    T("nanban", 7, C("南蛮貿易", "南蠻貿易"), C("交易収入＋1、金＋20%", "貿易收入＋1、金＋20%"), { food: 60000, wood: 60000 }, 90, { tradeIncome: 1, "gather.gold": 0.2 }),
+    T("heino", 7, C("兵農分離", "兵農分離"), C("訓練速度＋40%、全軍の攻撃＋10%", "訓練速度＋40%、全軍攻擊＋10%"), { food: 80000, gold: 30000 }, 90, { trainSpeed: 0.4, "atk.all": 0.1 }),
+    T("haifuki", 7, C("灰吹法", "灰吹法"), C("金＋30%、資源の消耗−20%", "金＋30%、資源消耗−20%"), { wood: 60000, stone: 40000 }, 90, { "gather.gold": 0.3, depletion: -0.2 }),
+    T("shinobi", 7, C("忍びの術", "忍術"), C("偵察時間−50%、戦利品＋20%", "偵察時間−50%、戰利品＋20%"), { food: 50000, gold: 30000 }, 90, { scout: -0.5, loot: 0.2 }),
+    T("terakoya", 8, C("寺子屋", "寺子屋"), C("研究速度＋30%、自然増加＋30%", "研究速度＋30%、自然增加＋30%"), { food: 150000, wood: 80000 }, 100, { researchSpeed: 0.3, birth: 0.3 }),
+    T("chisui", 8, C("治水工事", "治水工事"), C("水田の収容＋40%、森と獲物の再生＋50%", "水田容量＋40%、森林與獵物再生＋50%"), { wood: 150000, stone: 100000 }, 100, { paddyCap: 0.4, regen: 0.5 }),
+    T("shuinsen", 8, C("朱印船", "朱印船"), C("戦利品＋30%、交易収入＋1", "戰利品＋30%、貿易收入＋1"), { food: 150000, gold: 80000 }, 100, { loot: 0.3, tradeIncome: 1 }),
+    T("ozutsu", 8, C("大筒の改良", "改良大筒"), C("攻城兵器の攻撃＋50%・HP＋30%", "攻城兵器攻擊＋50%、HP＋30%"), { wood: 150000, gold: 100000 }, 100, { "atk.siege": 0.5, "hp.siege": 0.3 }),
+
+    // ---- 互斥分支科技（同一組只能選一項，決定打法；使用者採用的提案 8） ----
+    B("b2", "b2_tekki", 2, C("鉄器軍団", "鐵器軍團"), C("【二者択一】全軍の攻撃＋15%", "【二選一】全軍攻擊＋15%"), { food: 1500, stone: 500, gold: 400 }, 45, { "atk.all": 0.15 }, "iron"),
+    B("b2", "b2_doumei", 2, C("豪族連合", "豪族同盟"), C("【二者択一】戦利品＋25%、関係の改善＋30%", "【二選一】戰利品＋25%、關係改善＋30%"), { food: 1500, wood: 800, gold: 400 }, 45, { loot: 0.25, relation: 0.3 }),
+    B("b3", "b3_kenzuishi", 3, C("遣隋使", "遣隋使"), C("【二者択一】研究速度＋40%", "【二選一】研究速度＋40%"), { food: 4000, gold: 1500 }, 55, { researchSpeed: 0.4 }),
+    B("b3", "b3_tonden", 3, C("屯田兵", "屯田兵"), C("【二者択一】食料＋15%、訓練速度＋25%", "【二選一】食物＋15%、訓練速度＋25%"), { food: 4000, wood: 2000 }, 55, { "gather.food": 0.15, trainSpeed: 0.25 }),
+    B("b4", "b4_chingo", 4, C("鎮護国家", "鎮護國家"), C("【二者択一】自然増加＋60%、防御＋20%", "【二選一】自然增加＋60%、防禦＋20%"), { food: 9000, gold: 3000 }, 65, { birth: 0.6, defense: 0.2 }),
+    B("b4", "b4_seii", 4, C("征夷の軍", "征夷之軍"), C("【二者択一】騎兵の攻撃＋30%、行軍−15%", "【二選一】騎兵攻擊＋30%、行軍−15%"), { food: 9000, gold: 3000 }, 65, { "atk.cavalry": 0.3, travel: -0.15 }),
+    B("b5", "b5_kokufu", 5, C("国風文化", "國風文化"), C("【二者択一】全資源＋10%、住居＋10%", "【二選一】所有資源＋10%、住居＋10%"), { food: 20000, wood: 15000, gold: 6000 }, 75, { "gather.all": 0.1, housing: 0.1 }),
+    B("b5", "b5_bushido", 5, C("武士の道", "武士之道"), C("【二者択一】全軍の攻撃＋15%、HP＋10%", "【二選一】全軍攻擊＋15%、HP＋10%"), { food: 20000, gold: 10000 }, 75, { "atk.all": 0.15, "hp.all": 0.1 }, "armor2"),
+    B("b6", "b6_zen", 6, C("禅宗", "禪宗"), C("【二者択一】研究速度＋30%、研究費用−15%", "【二選一】研究速度＋30%、研究費用−15%"), { food: 40000, gold: 15000 }, 85, { researchSpeed: 0.3, techCost: -0.15 }),
+    B("b6", "b6_bourui", 6, C("元寇防塁", "元寇防壘"), C("【二者択一】防御＋60%", "【二選一】防禦＋60%"), { wood: 40000, stone: 40000 }, 85, { defense: 0.6 }, "stonewall"),
+    B("b7", "b7_teppotai", 7, C("鉄砲隊の戦術", "鐵砲隊戰術"), C("【二者択一】弓兵（鉄砲）の攻撃＋50%", "【二選一】弓兵（鐵砲）攻擊＋50%"), { food: 80000, gold: 50000 }, 95, { "atk.archer": 0.5 }, "gun"),
+    B("b7", "b7_kiba", 7, C("騎馬軍団", "騎馬軍團"), C("【二者択一】騎兵の攻撃・HP＋35%", "【二選一】騎兵攻擊與 HP＋35%"), { food: 80000, gold: 50000 }, 95, { "atk.cavalry": 0.35, "hp.cavalry": 0.35 }, "horse"),
+    B("b8", "b8_sakoku", 8, C("鎖国", "鎖國"), C("【二者択一】防御＋50%、全資源＋10%", "【二選一】防禦＋50%、所有資源＋10%"), { food: 200000, stone: 100000 }, 105, { defense: 0.5, "gather.all": 0.1 }),
+    B("b8", "b8_rangaku", 8, C("蘭学", "蘭學"), C("【二者択一】研究費用−20%、攻城兵器の攻撃＋40%", "【二選一】研究費用−20%、攻城兵器攻擊＋40%"), { food: 200000, gold: 120000 }, 105, { techCost: -0.2, "atk.siege": 0.4 }),
 
     // 文明專屬研究
     T("yamato_shisei", 3, C("氏姓制度", "氏姓制度"), C("村人の生産＋30%", "村民生產＋30%"), { food: 3000, gold: 800 }, 45, { tcSpeed: 0.3 }, "yamato"),
@@ -302,6 +345,27 @@
     N("ikki", 7, "🙏", C("一向一揆", "一向一揆"), C("寺にこもる門徒の大軍", "據守寺院的門徒大軍"), 180, 7, { spear: 9000, infantry: 6000, archer: 3000 }, 0.8, { food: 280000, wood: 120000, stone: 80000, gold: 60000 }, 0.45, 400),
     N("kurofune", 8, "⚓", C("黒船", "黑船"), C("海の彼方からの黒い蒸気船", "來自遠洋的黑色蒸汽船"), 240, 8, { archer: 15000, infantry: 10000, siege: 3000 }, 0.5, { food: 900000, wood: 500000, stone: 300000, gold: 400000 }, 0.2, 600),
   ];
+
+  // 領地：第一次討伐成功時佔領，成為新的資源點（提高該資源的儲量與再生；使用者採用的提案 4）
+  // resource：資源種類；richness：儲量倍率（家鄉＝1）
+  var TERRITORIES = {
+    mura: { resource: "wood", richness: 1, name: C("隣のムラの森", "鄰村之森") },
+    kangou: { resource: "food", richness: 1, name: C("対岸の狩り場", "對岸獵場") },
+    tsuchigumo: { resource: "stone", richness: 1.5, name: C("山の石切り場", "山中石場") },
+    gozoku: { resource: "gold", richness: 1, name: C("豪族の砂金川", "豪族的砂金川") },
+    emishi_toride: { resource: "wood", richness: 1.5, name: C("北の大森林", "北方大森林") },
+    kaizoku2: { resource: "food", richness: 1.5, name: C("瀬戸内の漁場", "瀨戶內漁場") },
+    hanran: { resource: "stone", richness: 1.5, name: C("国衙の石垣山", "國衙石山") },
+    bando: { resource: "food", richness: 2, name: C("坂東の大平野", "坂東大平原") },
+    suigun: { resource: "wood", richness: 2, name: C("西海の船材林", "西海船材林") },
+    akuto: { resource: "stone", richness: 2, name: C("悪党の山城跡", "惡黨山城遺址") },
+    daimyo_e: { resource: "gold", richness: 2, name: C("甲斐の金山", "甲斐金山") },
+    daimyo_w: { resource: "gold", richness: 2.5, name: C("石見の銀山", "石見銀山") },
+    ikki: { resource: "food", richness: 2.5, name: C("加賀の穀倉", "加賀穀倉") },
+  };
+  TARGETS.forEach(function (tg) {
+    tg.territory = TERRITORIES[tg.id] || null;
+  });
 
   // 來襲的敵人名稱（依時代）
   var RAIDERS = [

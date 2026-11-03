@@ -8,6 +8,9 @@
 
   var D = window.PriTestJomonData;
   var Core = window.PriTestJomonCore;
+  var WD = window.PriTestJomonWorldData;
+  var World = window.PriTestJomonWorld;
+  var B3D = window.PriTestJomonBattle3D;
   var Scene3D = window.PriTestJomonScene;
   var app = document.getElementById("jm-app");
   if (!app || !D || !Core) return;
@@ -23,12 +26,30 @@
     tradeFrom: "food",
     tradeTo: "wood",
     toastSeen: 0,
+    seenBattles: {},
+    autoWatch: readPref("jm-autowatch", true),
     difficulty: "normal",
     autoRotate: false,
     reportOpen: null,
   };
 
   var SPEEDS = [1, 2, 4, 8];
+
+  function readPref(k, def) {
+    try {
+      var v = localStorage.getItem(k);
+      return v == null ? def : v === "1";
+    } catch (e) {
+      return def;
+    }
+  }
+  function writePref(k, v) {
+    try {
+      localStorage.setItem(k, v ? "1" : "0");
+    } catch (e) {
+      /* ignore */
+    }
+  }
   var DAY_LENGTH = 300; // 遊戲內一天 300 秒
 
   // ---------------- 小工具 ----------------
@@ -40,7 +61,7 @@
       p = {};
       Object.keys(params).forEach(function (k) {
         var v = params[k];
-        p[k] = v && typeof v === "object" && (v.zh || v.ja) ? L(v) : typeof v === "number" ? fmt(v) : v;
+        p[k] = v && typeof v === "object" && (v.zh || v.ja) ? L(v) : typeof v === "number" ? fmt(v) : typeof v === "string" && v.indexOf("jm_") === 0 ? window.I18N.t(v) : v;
       });
     }
     return window.I18N.t(key, p);
@@ -277,6 +298,18 @@
       state.victoryShown = true;
       openModal("victory");
     }
+    // 時代事件：等玩家選擇（core.step 在 state.event 存在時暫停）
+    if (state.event && ui.modal !== "event" && ui.modal !== "victory") openModal("event");
+    // 新開始的戰鬥：自動打開觀戰視窗
+    Core.activeBattles(state).forEach(function (b) {
+      var key = b.kind === "raid" ? "raid" + (state.stats.raidsWon + state.stats.raidsLost) : "exp" + b.id;
+      if (ui.seenBattles[key]) return;
+      ui.seenBattles[key] = true;
+      if (ui.autoWatch && (!ui.modal || ui.modal === "pick")) openModal("battle", { kind: b.kind, id: b.id });
+      else toast(t("jm_battle_started", { name: b.battle.title }), "war", { label: t("jm_watch"), fn: function () {
+        openModal("battle", { kind: b.kind, id: b.id });
+      } });
+    });
   }
 
   function buildLayout() {
@@ -314,6 +347,8 @@
         scene = Scene3D.create(ui.view);
         ui.view.insertBefore(scene.renderer.domElement, ui.overlay);
         scene.setAutoRotate(ui.autoRotate);
+        scene.setPickHandler(onPick);
+        state.fx = [];
         pushView();
       })
       .catch(function () {
@@ -335,12 +370,21 @@
       Object.keys(ex.army).forEach(function (c) {
         if (ex.army[c] > 0) classes.push(c);
       });
-      return { id: ex.id, phase: ex.phase, frac: 1 - ex.t / ex.total, angle: ex.angle, n: Core.sumArmy(ex.army), classes: classes.length ? classes : ["spear"] };
+      return { id: ex.id, phase: ex.phase === "battle" ? "go" : ex.phase, frac: ex.phase === "battle" ? 1 : 1 - ex.t / ex.total, angle: ex.angle, n: Core.sumArmy(ex.army), classes: classes.length ? classes : ["spear"] };
     });
     var raid = null;
     if (state.raid) {
-      raid = { frac: 1 - state.raid.t / state.raid.total, angle: state.raid.angle, n: Core.sumArmy(state.raid.army), classes: Object.keys(state.raid.army) };
+      raid = { frac: state.raid.phase === "battle" ? 1 : 1 - state.raid.t / state.raid.total, angle: state.raid.angle, n: Core.sumArmy(state.raid.army), classes: Object.keys(state.raid.army) };
     }
+    // 科技外觀標記
+    var vis = {};
+    Object.keys(state.techs).forEach(function (id) {
+      var tc = D.tech(id);
+      if (tc && tc.vis) vis[tc.vis] = true;
+    });
+    if (vis.armor2) vis.armor = true;
+    if (vis.iron || state.age >= 3) vis.metal = 0x8a9199;
+    else if (vis.bronze) vis.metal = 0xb08d57;
     return {
       age: state.age,
       sky: D.AGES[state.age].sky,
@@ -359,13 +403,21 @@
       expeditions: exps,
       raid: raid,
       timeOfDay: (state.time / DAY_LENGTH + 0.08) % 1,
+      vis: vis,
+      deposits: state.deposits,
+      territories: state.territories,
+      scouts: state.scouts.map(function (sc) {
+        return { frac: 1 - sc.t / sc.total, angle: sc.angle };
+      }),
       speed: state.speed,
       paused: state.paused,
     };
   }
 
   function pushView() {
-    if (scene) scene.update(viewModel());
+    if (!scene) return;
+    scene.update(viewModel());
+    if (state.fx && state.fx.length) scene.fx(state.fx.splice(0, state.fx.length));
   }
 
   // ---------------- 上方列 ----------------
@@ -466,8 +518,13 @@
         n.style.display = "none";
         return;
       }
+      if (state.raid.phase === "battle") {
+        n.style.display = "none";
+        return;
+      }
       n.style.display = "";
-      n.textContent = t("jm_raid_alert", { name: state.raid.name, n: Core.sumArmy(state.raid.army), s: Math.ceil(state.raid.t) });
+      var known = state.buildings.tower > 0;
+      n.textContent = t(known ? "jm_raid_alert" : "jm_raid_alert_fog", { name: state.raid.name, n: Core.sumArmy(state.raid.army), s: Math.ceil(state.raid.t) });
     });
     var ageUp = el("div", { class: "jm-ageup-alert" });
     dyn(ageUp, function (n) {
@@ -493,7 +550,18 @@
       } }, ["⟳"]),
     ]);
     var hint = el("div", { class: "jm-cam-hint", text: t("jm_cam_hint") });
-    ov.appendChild(el("div", { class: "jm-alerts" }, [raid, ageUp, starve]));
+    var battleBtn = el("button", { type: "button", class: "jm-battle-alert", onclick: function () {
+      var list = Core.activeBattles(state);
+      if (list.length) openModal("battle", { kind: list[0].kind, id: list[0].id });
+    } });
+    dyn(battleBtn, function (n) {
+      var k = Core.activeBattles(state).length;
+      n.style.display = k ? "" : "none";
+      n.textContent = t("jm_battle_now", { n: k });
+    });
+    ov.appendChild(el("div", { class: "jm-alerts" }, [battleBtn, raid, ageUp, starve]));
+    ui.pickLayer = el("div", { class: "jm-pick-layer" });
+    ov.appendChild(ui.pickLayer);
     ov.appendChild(cam);
     ov.appendChild(hint);
   }
@@ -533,9 +601,9 @@
 
   function panelSig() {
     var s = [ui.tab, state.age, state.civ, lang(), !!state.ageUp];
-    if (ui.tab === "village") s.push(state.buildings.market > 0, state.age >= D.GOLD_AGE);
+    if (ui.tab === "village") s.push(state.buildings.market > 0, state.age >= D.GOLD_AGE, Object.keys(state.quests).length, state.territories.length, state.timedMods.length);
     if (ui.tab === "build") s.push(state.constructing.length, state.wallLevel, !!state.wallBuild);
-    if (ui.tab === "tech") s.push(Object.keys(state.techs).length, state.researching.length);
+    if (ui.tab === "tech") s.push(Object.keys(state.techs).length, state.researching.length, state.civ);
     if (ui.tab === "army")
       s.push(
         D.BUILDINGS.map(function (b) {
@@ -549,6 +617,15 @@
             return e.id + e.phase;
           })
           .join(","),
+        state.scouts.length,
+        Object.keys(state.intel)
+          .map(function (k) {
+            return k + (Core.intelValid(state, k) ? 1 : 0);
+          })
+          .join(","),
+        WD.FACTIONS.map(function (f) {
+          return World.relationState(state, f.id) + World.factionState(state, f.id).capitalHp + (World.canPeace(state, f.id) ? 1 : 0);
+        }).join(","),
         D.TARGETS.map(function (tg) {
           var ts = state.targets[tg.id];
           return (Core.targetAvailable(state, tg.id) ? 1 : 0) + ":" + ts.level;
@@ -644,6 +721,10 @@
     var civLine = state.civ ? el("p", { class: "jm-civ-line" }, [D.civ(state.civ).icon + " " + t("jm_civ_label") + "：", el("b", { text: L(D.civ(state.civ).name) })]) : null;
     wrap.appendChild(section(L(a.name) + " · " + L(a.era), [civLine].concat(ageChildren), "jm-sec-age"));
 
+    wrap.appendChild(renderQuests());
+    // 限時效果
+    if (state.timedMods.length) wrap.appendChild(renderTimed());
+
     // 村民
     var vilInfo = el("div", { class: "jm-kv" });
     dyn(vilInfo, function (n) {
@@ -706,6 +787,9 @@
       n.textContent = t("jm_upkeep_note", { up: fmt(rt.upkeep), farm: Math.round(rt.farmers), cap: Math.round(rt.caps.paddy) }) + (rt.trade > 0 ? " " + t("jm_trade_note", { g: fmtRate(rt.trade) }) : "");
     });
     wrap.appendChild(section(t("jm_sec_alloc"), [el("p", { class: "jm-muted jm-small", text: t("jm_alloc_hint") }), allocRows, presets, foodNote]));
+
+    // 資源儲量與領地
+    wrap.appendChild(renderDeposits());
 
     // 市集
     if (state.buildings.market > 0) wrap.appendChild(renderMarket());
@@ -919,11 +1003,14 @@
           return r.id === tc.id;
         });
         var locked = state.age < tc.age;
-        var card = el("div", { class: "jm-card" + (done ? " jm-done" : "") + (locked ? " jm-locked" : "") }, [
-          el("div", { class: "jm-card-head" }, [el("b", { text: (tc.civ ? "★ " : "") + L(tc.name) }), done ? el("span", { class: "jm-good", text: "✓" }) : null]),
+        var taken = tc.group ? Core.groupTaken(state, tc.group) : null;
+        var otherTaken = taken && taken !== tc.id;
+        var card = el("div", { class: "jm-card" + (done ? " jm-done" : "") + (locked || otherTaken ? " jm-locked" : "") + (tc.group ? " jm-branch" : "") }, [
+          el("div", { class: "jm-card-head" }, [el("b", { text: (tc.civ ? "★ " : "") + (tc.group ? "⑂ " : "") + L(tc.name) }), done ? el("span", { class: "jm-good", text: "✓" }) : null, tc.vis ? el("span", { class: "jm-vis-tag", title: t("jm_vis_tag"), text: "👁" }) : null]),
           el("div", { class: "jm-small", text: L(tc.desc) }),
         ]);
-        if (!done && !busy && !locked) {
+        if (otherTaken) card.appendChild(el("div", { class: "jm-muted jm-small", text: t("jm_branch_taken", { name: D.tech(taken).name }) }));
+        else if (!done && !busy && !locked) {
           card.appendChild(el("div", { class: "jm-card-cost" }, [costView(Core.techCost(state, tc.id)), el("span", { class: "jm-muted jm-small", text: " ⏱" + Math.round(tc.time / (1 + Core.mod(Core.mods(state), "researchSpeed"))) + "s" })]));
           card.appendChild(button(t("jm_research"), function () {
             Core.research(state, tc.id);
@@ -1050,64 +1137,209 @@
 
   function renderExpedition() {
     var wrap = el("div");
-    if (state.expeditions.length) {
+    if (state.expeditions.length || state.scouts.length) {
       var list = el("div", { class: "jm-queue" });
       state.expeditions.forEach(function (ex) {
-        var tg = D.target(ex.target);
+        var o = Core.objective(state, ex.target);
         var label = el("span");
         dyn(label, function (n) {
-          n.textContent = tg.icon + " " + L(tg.name) + " · " + (ex.phase === "go" ? t("jm_exp_going") : t("jm_exp_returning")) + " · " + fmt(Core.sumArmy(ex.army)) + t("jm_people") + " · " + Math.ceil(ex.t) + "s";
+          var ph = ex.phase === "go" ? t("jm_exp_going") : ex.phase === "battle" ? t("jm_exp_fighting") : t("jm_exp_returning");
+          n.textContent = (o ? o.icon + " " + L(o.name) : "") + " · " + ph + " · " + fmt(ex.phase === "battle" && ex.battle ? battleAlive(ex.battle.A) : Core.sumArmy(ex.army)) + t("jm_people") + (ex.phase === "battle" ? "" : " · " + Math.ceil(ex.t) + "s");
         });
         var row = el("div", { class: "jm-queue-item" }, [label, bar(function () {
+          if (ex.phase === "battle" && ex.battle) return ex.battle.round / Core.BATTLE_MAX_ROUNDS;
           return 1 - ex.t / ex.total;
-        }, ex.phase === "go" ? "" : "jm-bar-back")]);
+        }, ex.phase === "go" ? "" : ex.phase === "battle" ? "jm-bar-battle" : "jm-bar-back")]);
+        if (ex.phase === "battle") row.appendChild(button("⚔ " + t("jm_watch"), function () {
+          openModal("battle", { kind: "exp", id: ex.id });
+        }, { cls: "jm-btn jm-small" }));
         if (ex.report) row.appendChild(el("div", { class: ex.report.win ? "jm-good jm-small" : "jm-bad jm-small", text: ex.report.win ? t("jm_exp_won_short") : t("jm_exp_lost_short") }));
         list.appendChild(row);
       });
+      state.scouts.forEach(function (sc) {
+        var o = Core.objective(state, sc.id);
+        var label = el("span");
+        dyn(label, function (n) {
+          n.textContent = "🐎 " + t("jm_scouting", { name: o ? o.name : "" }) + " · " + Math.ceil(sc.t) + "s";
+        });
+        list.appendChild(el("div", { class: "jm-queue-item" }, [label, bar(function () {
+          return 1 - sc.t / sc.total;
+        }, "jm-bar-back")]));
+      });
       wrap.appendChild(section(t("jm_sec_active_exp"), [list]));
+    }
+    // 勢力
+    var facs = WD.FACTIONS.filter(function (f) {
+      return f.appearAge <= state.age + 1;
+    });
+    if (facs.length) {
+      var fcards = el("div", { class: "jm-cards" });
+      facs.forEach(function (f) {
+        fcards.appendChild(factionCard(f));
+      });
+      wrap.appendChild(section(t("jm_sec_factions"), [el("p", { class: "jm-muted jm-small", text: t("jm_factions_hint") }), fcards]));
     }
     var cards = el("div", { class: "jm-cards" });
     D.TARGETS.forEach(function (tg) {
       if (tg.age > state.age + 1) return;
-      var ts = Core.targetState(state, tg.id);
-      var locked = tg.age > state.age;
-      var army = Core.targetArmy(state, tg.id);
-      var armyLine = el("div", { class: "jm-army-line" }, Object.keys(army).map(function (c) {
-        return el("span", { class: "jm-army-chip", title: anyUnitName(c, tg.tier) }, [anyUnitIcon(c) + fmt(army[c])]);
-      }));
-      var reward = Core.targetReward(state, tg.id);
-      var rewardLine = el("div", { class: "jm-small" }, [t("jm_exp_reward") + " "].concat(Object.keys(reward).map(function (r) {
-        return el("span", { class: "jm-cost-item" }, [D.RESOURCE_ICONS[r] + fmt(reward[r])]);
-      })).concat(tg.captives ? [el("span", { class: "jm-cost-item" }, ["👥~" + fmt(Math.floor(Core.sumArmy(army) * tg.captives))])] : []));
-      var meta = el("div", { class: "jm-muted jm-small" });
-      dyn(meta, function (n) {
-        var parts = [t("jm_exp_level", { n: ts.level + 1 }), t("jm_exp_dist", { s: Math.round(tg.dist) })];
-        if (tg.fort) parts.push(t("jm_exp_fort", { p: pct(tg.fort) }));
-        if (ts.strength < 0.999) parts.push(t("jm_exp_weakened", { p: pct(ts.strength) }));
-        if (ts.cooldown > 0) parts.push(t("jm_exp_cooldown", { s: Math.ceil(ts.cooldown) }));
-        n.textContent = parts.join(" · ");
-      });
-      var card = el("div", { class: "jm-card" + (locked ? " jm-locked" : "") }, [
-        el("div", { class: "jm-card-head" }, [el("span", { class: "jm-card-icon", text: tg.icon }), el("b", { text: L(tg.name) }), ts.wins ? el("span", { class: "jm-good jm-small", text: "🏳 ×" + ts.wins }) : null]),
-        el("div", { class: "jm-small", text: L(tg.desc) }),
-        armyLine,
-        rewardLine,
-        meta,
-      ]);
-      if (locked) card.appendChild(el("div", { class: "jm-muted jm-small", text: t("jm_unlock_age", { name: D.AGES[tg.age].name }) }));
-      else
-        card.appendChild(button(t("jm_exp_send"), function () {
-          ui.army = {};
-          openModal("expedition", tg.id);
-        }, { cls: "jm-btn", enabled: function () {
-          return Core.targetAvailable(state, tg.id) && Core.soldiersHome(state) > 0 && !state.expeditions.some(function (e) {
-            return e.target === tg.id && e.phase === "go";
-          });
-        } }));
-      cards.appendChild(card);
+      cards.appendChild(objectiveCard(tg.id, tg.age > state.age ? tg.age : null));
     });
     wrap.appendChild(section(t("jm_sec_targets"), [el("p", { class: "jm-muted jm-small", text: t("jm_exp_hint") }), cards]));
     return wrap;
+  }
+
+  function battleAlive(groups) {
+    var n = 0;
+    groups.forEach(function (g) {
+      if (!g.immortal) n += g.n;
+    });
+    return Math.round(n);
+  }
+
+  // 敵軍編成（有偵察情報才看得到；沒有就只顯示推測範圍）
+  function armyView(id, tier) {
+    var known = Core.knownArmy(state, id);
+    if (known) {
+      return el("div", { class: "jm-army-line" }, [el("span", { class: "jm-intel-ok", text: "👁" })].concat(Object.keys(known).map(function (c) {
+        return el("span", { class: "jm-army-chip", title: anyUnitName(c, tier) }, [anyUnitIcon(c) + fmt(known[c])]);
+      })));
+    }
+    var nom = Core.sumArmy(Core.nominalArmy(state, id));
+    return el("div", { class: "jm-army-line" }, [el("span", { class: "jm-army-chip jm-fog", text: "❓ " + t("jm_fog_estimate", { a: Math.round(nom * 0.7), b: Math.round(nom * 1.3) }) })]);
+  }
+
+  function scoutButton(id) {
+    var wrapS = el("span", { class: "jm-scout" });
+    var b = button("🐎 " + t("jm_scout"), function () {
+      Core.scout(state, id);
+      refresh(true);
+    }, { cls: "jm-btn jm-small", enabled: function () {
+      var o = Core.objective(state, id);
+      return o && o.available && !Core.scouting(state, id) && Core.canAfford(state, Core.scoutCost(state));
+    } });
+    wrapS.appendChild(b);
+    wrapS.appendChild(costView(Core.scoutCost(state)));
+    var tm = el("span", { class: "jm-muted jm-small" });
+    dyn(tm, function (n) {
+      n.textContent = Core.scouting(state, id) ? " " + t("jm_scouting_short") : " ⏱" + Math.round(Core.scoutTime(state, id)) + "s";
+    });
+    wrapS.appendChild(tm);
+    return wrapS;
+  }
+
+  function objectiveCard(id, lockedAge) {
+    var o = Core.objective(state, id);
+    var tg = D.target(id);
+    var ts = Core.targetState(state, id);
+    var reward = Core.targetReward(state, id);
+    var rewardLine = el("div", { class: "jm-small" }, [t("jm_exp_reward") + " "].concat(Object.keys(reward).map(function (r) {
+      return el("span", { class: "jm-cost-item" }, [D.RESOURCE_ICONS[r] + fmt(reward[r])]);
+    })));
+    if (tg.territory && !ts.wins) rewardLine.appendChild(el("span", { class: "jm-cost-item jm-terr-chip", title: t("jm_territory_hint") }, ["🚩" + L(tg.territory.name) + " (" + D.RESOURCE_ICONS[tg.territory.resource] + ")"]));
+    var meta = el("div", { class: "jm-muted jm-small" });
+    dyn(meta, function (n) {
+      var parts = [t("jm_exp_level", { n: ts.level + 1 }), t("jm_exp_dist", { s: Math.round(tg.dist) })];
+      if (tg.fort) parts.push(t("jm_exp_fort", { p: pct(tg.fort) }));
+      if (ts.strength < 0.999) parts.push(t("jm_exp_weakened", { p: pct(ts.strength) }));
+      if (ts.cooldown > 0) parts.push(t("jm_exp_cooldown", { s: Math.ceil(ts.cooldown) }));
+      n.textContent = parts.join(" · ");
+    });
+    var card = el("div", { class: "jm-card" + (lockedAge != null ? " jm-locked" : "") }, [
+      el("div", { class: "jm-card-head" }, [el("span", { class: "jm-card-icon", text: o.icon }), el("b", { text: L(o.name) }), ts.wins ? el("span", { class: "jm-good jm-small", text: "🏳 ×" + ts.wins }) : null]),
+      el("div", { class: "jm-small", text: L(o.desc) }),
+      armyView(id, tg.tier),
+      rewardLine,
+      meta,
+    ]);
+    if (lockedAge != null) card.appendChild(el("div", { class: "jm-muted jm-small", text: t("jm_unlock_age", { name: D.AGES[lockedAge].name }) }));
+    else {
+      var row = el("div", { class: "jm-btn-row" });
+      row.appendChild(button(t("jm_exp_send"), function () {
+        ui.army = {};
+        openModal("expedition", id);
+      }, { cls: "jm-btn", enabled: function () {
+        return Core.targetAvailable(state, id) && Core.soldiersHome(state) > 0 && !state.expeditions.some(function (e) {
+          return e.target === id && e.phase !== "back";
+        });
+      } }));
+      if (!Core.intelValid(state, id)) row.appendChild(scoutButton(id));
+      card.appendChild(row);
+    }
+    return card;
+  }
+
+  var REL_ICON = { hostile: "⚔", truce: "🕊", peace: "🤝", destroyed: "🏳" };
+
+  function factionCard(f) {
+    var fid = f.id;
+    var objId = "fac_" + fid;
+    var fsx = World.factionState(state, fid);
+    var rel = World.relationState(state, fid);
+    var locked = f.appearAge > state.age;
+    var head = el("div", { class: "jm-card-head" }, [el("span", { class: "jm-card-icon", text: f.icon }), el("b", { text: L(f.name) })]);
+    var status = el("span", { class: "jm-rel jm-rel-" + rel });
+    dyn(status, function (n) {
+      var r = World.relationState(state, fid);
+      n.className = "jm-rel jm-rel-" + r;
+      var left = r === "truce" ? fsx.truceUntil - state.time : r === "peace" ? fsx.peaceUntil - state.time : 0;
+      n.textContent = REL_ICON[r] + " " + t("jm_rel_" + r) + (left > 0 ? " " + fmtTime(left) : "");
+    });
+    head.appendChild(status);
+    var card = el("div", { class: "jm-card jm-faction" + (locked || rel === "destroyed" ? " jm-locked" : ""), style: "--jm-civ:#" + ("000000" + f.color.toString(16)).slice(-6) }, [head, el("div", { class: "jm-small", text: L(f.desc) })]);
+    if (locked) {
+      card.appendChild(el("div", { class: "jm-muted jm-small", text: t("jm_faction_appears", { name: D.AGES[f.appearAge].name }) }));
+      return card;
+    }
+    if (rel === "destroyed") {
+      card.appendChild(el("div", { class: "jm-good jm-small", text: t("jm_faction_annexed", { name: f.territory.name }) }));
+      return card;
+    }
+    var info = el("div", { class: "jm-kv jm-small" });
+    dyn(info, function (n) {
+      n.innerHTML = "";
+      var hearts = "";
+      for (var i = 0; i < 3; i++) hearts += i < fsx.capitalHp ? "🏯" : "▫️";
+      [
+        [t("jm_faction_strength"), pct(fsx.strength)],
+        [t("jm_faction_relation"), Math.round(fsx.relation)],
+        [t("jm_faction_capital"), hearts],
+        [t("jm_faction_army"), "~" + fmt(World.capitalSize(state, fid))],
+      ].forEach(function (l) {
+        n.appendChild(el("div", {}, [el("span", { text: l[0] }), el("b", { text: String(l[1]) })]));
+      });
+    });
+    card.appendChild(info);
+    card.appendChild(armyView(objId, state.age));
+    var row = el("div", { class: "jm-btn-row" });
+    row.appendChild(button("🕊 " + t("jm_tribute"), function () {
+      World.tribute(state, fid);
+      refresh(true);
+    }, { cls: "jm-btn jm-small", title: t("jm_tribute_hint", { s: World.TRUCE_TIME }), enabled: function () {
+      return World.canTribute(state, fid);
+    } }));
+    row.appendChild(costView(World.tributeCost(state, fid)));
+    card.appendChild(row);
+    var row2 = el("div", { class: "jm-btn-row" });
+    row2.appendChild(button("🤝 " + t("jm_peace"), function () {
+      World.makePeace(state, fid);
+      refresh(true);
+    }, { cls: "jm-btn jm-small", title: t("jm_peace_hint", { n: World.PEACE_RELATION, s: World.PEACE_TIME }), enabled: function () {
+      return World.canPeace(state, fid);
+    } }));
+    row2.appendChild(costView(World.peaceCost(state, fid)));
+    card.appendChild(row2);
+    var row3 = el("div", { class: "jm-btn-row" });
+    row3.appendChild(button("⚔ " + t("jm_attack_capital"), function () {
+      ui.army = {};
+      openModal("expedition", objId);
+    }, { cls: "jm-btn", enabled: function () {
+      return Core.soldiersHome(state) > 0 && !state.expeditions.some(function (e) {
+        return e.target === objId && e.phase !== "back";
+      });
+    } }));
+    if (!Core.intelValid(state, objId)) row3.appendChild(scoutButton(objId));
+    card.appendChild(row3);
+    return card;
   }
 
   // 自動編成：依兵種比例，找出「預估會贏且損失少於 40%」的最小兵力
@@ -1227,17 +1459,28 @@
       case "help":
         content = modalHelp(close);
         break;
+      case "battle":
+        content = modalBattle(arg, close);
+        box.classList.add("jm-modal-wide");
+        break;
+      case "event":
+        content = modalEvent(close);
+        break;
       default:
         content = modalMenu(close);
     }
     box.appendChild(content);
     var back = el("div", { class: "jm-modal-back", onclick: function (e) {
-      if (e.target === back && kind !== "victory") close();
+      if (e.target === back && kind !== "victory" && kind !== "event") close();
     } }, [box]);
     root.appendChild(back);
   }
 
   function closeModal() {
+    if (ui.battle3d) {
+      ui.battle3d.dispose();
+      ui.battle3d = null;
+    }
     ui.modal = null;
     ui.modalRoot.innerHTML = "";
     ui.updaters = ui.updaters.filter(function (u) {
@@ -1309,13 +1552,12 @@
   }
 
   function modalExpedition(targetId, close) {
-    var tg = D.target(targetId);
+    var tg = Core.objective(state, targetId);
     var wrap = el("div");
     wrap.appendChild(modalHead(t("jm_exp_title", { name: tg.name }), close));
-    var army = Core.targetArmy(state, targetId);
-    wrap.appendChild(el("p", { class: "jm-small" }, [t("jm_exp_enemy") + " "].concat(Object.keys(army).map(function (c) {
-      return el("span", { class: "jm-army-chip" }, [anyUnitIcon(c) + " " + anyUnitName(c, tg.tier) + " " + fmt(army[c])]);
-    }))));
+    wrap.appendChild(el("div", { class: "jm-small" }, [t("jm_exp_enemy") + " ", armyView(targetId, tg.tier)]));
+    if (!Core.intelValid(state, targetId)) wrap.appendChild(el("p", { class: "jm-note jm-small", text: t("jm_fog_hint") }));
+    if (tg.kind === "faction" && World.relationState(state, tg.faction) !== "hostile") wrap.appendChild(el("p", { class: "jm-bad jm-small", text: t("jm_break_treaty_warn") }));
     if (tg.fort) wrap.appendChild(el("p", { class: "jm-muted jm-small", text: t("jm_exp_fort_hint", { p: pct(tg.fort) }) }));
     var rows = el("div", { class: "jm-exp-rows" });
     var inputs = {};
@@ -1374,7 +1616,7 @@
       }
       var p = Core.previewBattle(state, targetId, ui.army);
       var time = Core.travelTime(state, targetId, ui.army);
-      preview.appendChild(el("p", { class: p && p.win ? "jm-good" : "jm-bad", text: p && p.win ? t("jm_exp_predict_win", { lost: p.lost, sent: p.sent }) : t("jm_exp_predict_lose") }));
+      preview.appendChild(el("p", { class: p && p.win ? "jm-good" : "jm-bad", text: (p && p.estimate ? t("jm_exp_guess") + " " : "") + (p && p.win ? t("jm_exp_predict_win", { lost: p.lost, sent: p.sent }) : t("jm_exp_predict_lose")) }));
       preview.appendChild(el("p", { class: "jm-muted jm-small", text: t("jm_exp_travel", { s: Math.round(time), back: Math.round(time * 2) }) }));
     }
     updatePreview();
@@ -1401,7 +1643,7 @@
       });
       return el("div", { class: "jm-rep-side" }, [el("h3", { text: title })].concat(rows));
     }
-    var enemyTier = rp.kind === "expedition" ? D.target(rp.target).tier : null;
+    var enemyTier = rp.tier != null ? rp.tier : state.age;
     wrap.appendChild(el("div", { class: "jm-rep-grid" }, [side(t("jm_report_mine"), rp.mine, null), side(t("jm_report_theirs"), rp.theirs, enemyTier == null ? state.age : enemyTier)]));
     // 戰況曲線
     if (rp.rounds && rp.rounds.length) {
@@ -1427,6 +1669,8 @@
       extra.push(el("p", {}, [t("jm_exp_reward") + " "].concat(Object.keys(rp.reward).map(function (r) {
         return el("span", { class: "jm-cost-item" }, [D.RESOURCE_ICONS[r] + fmt(rp.reward[r])]);
       }))));
+    if (rp.territory) extra.push(el("p", { class: "jm-good", text: t("jm_report_territory", { name: rp.territory }) }));
+    if (rp.destroyed) extra.push(el("p", { class: "jm-good", text: t("jm_report_destroyed") }));
     if (rp.captives) extra.push(el("p", { text: t("jm_report_captives", { n: rp.captives }) + (rp.kind === "expedition" && rp.captivesJoined == null ? " " + t("jm_report_on_return") : "") }));
     if (rp.lostRes && Object.keys(rp.lostRes).length) {
       extra.push(el("p", { class: "jm-bad" }, [t("jm_report_lost_res") + " "].concat(Object.keys(rp.lostRes).map(function (r) {
@@ -1474,7 +1718,7 @@
   function modalHelp(close) {
     var wrap = el("div");
     wrap.appendChild(modalHead(t("jm_help"), close));
-    for (var i = 1; i <= 8; i++) wrap.appendChild(el("p", { class: "jm-help-p", text: t("jm_help_" + i) }));
+    for (var i = 1; i <= 12; i++) wrap.appendChild(el("p", { class: "jm-help-p", text: t("jm_help_" + i) }));
     return wrap;
   }
 
@@ -1482,6 +1726,12 @@
     var wrap = el("div");
     wrap.appendChild(modalHead(t("jm_menu"), close));
     wrap.appendChild(el("p", { class: "jm-muted", text: t("jm_menu_diff", { d: t("jm_diff_" + state.difficulty) }) }));
+    var aw = el("input", { type: "checkbox", onchange: function (e) {
+      ui.autoWatch = e.target.checked;
+      writePref("jm-autowatch", ui.autoWatch);
+    } });
+    aw.checked = ui.autoWatch;
+    wrap.appendChild(el("label", { class: "jm-check" }, [aw, " " + t("jm_auto_watch")]));
     wrap.appendChild(el("div", { class: "jm-menu-btns" }, [
       el("button", { type: "button", class: "jm-btn", onclick: function () {
         Core.save(state);
@@ -1503,13 +1753,460 @@
     return wrap;
   }
 
+  // ---------------- 村落分頁的新區塊：任務、資源儲量、限時效果 ----------------
+
+  function renderQuests() {
+    var list = el("div", { class: "jm-quests" });
+    var qs = World.activeQuests(state, 3);
+    if (!qs.length) list.appendChild(el("p", { class: "jm-good jm-small", text: t("jm_quests_done") }));
+    qs.forEach(function (q) {
+      var need = World.questNeed(q);
+      var prog = el("span", { class: "jm-muted jm-small" });
+      dyn(prog, function (n) {
+        n.textContent = fmt(Math.min(need, World.questValue(state, q))) + " / " + fmt(need);
+      });
+      var rw = World.questReward(q);
+      list.appendChild(el("div", { class: "jm-quest" }, [
+        el("div", { class: "jm-quest-head" }, [el("b", { text: "🎯 " + t("jm_quest_" + q.id) }), prog]),
+        bar(function () {
+          return Math.min(1, World.questValue(state, q) / need);
+        }, "jm-bar-quest"),
+        el("div", { class: "jm-small" }, [t("jm_quest_reward") + " "].concat(Object.keys(rw).map(function (r) {
+          return el("span", { class: "jm-cost-item" }, [D.RESOURCE_ICONS[r] + fmt(rw[r])]);
+        }))),
+      ]));
+    });
+    return section(t("jm_sec_quests"), [list]);
+  }
+
+  function renderTimed() {
+    var list = el("div", { class: "jm-bonus-list" });
+    dyn(list, function (n) {
+      n.innerHTML = "";
+      state.timedMods.forEach(function (tm) {
+        Object.keys(tm.mods).forEach(function (k) {
+          var v = tm.mods[k];
+          n.appendChild(el("span", { class: "jm-bonus" + (v < 0 && k !== "techCost" && k !== "travel" ? " jm-bonus-bad" : "") }, [modLabel(k) + " " + (v > 0 ? "+" : "") + pct(v) + " · " + Math.ceil(tm.t) + "s"]));
+        });
+      });
+    });
+    return section(t("jm_sec_timed"), [list]);
+  }
+
+  function renderDeposits() {
+    var rows = el("div", { class: "jm-deposits" });
+    D.RESOURCES.forEach(function (r) {
+      if (r === "gold" && state.age < D.GOLD_AGE) return;
+      var label = el("span", { class: "jm-small" });
+      var info = el("span", { class: "jm-muted jm-small" });
+      dyn(info, function (n) {
+        var d = Core.depositInfo(state, r);
+        n.textContent = fmt(d.amount) + " / " + fmt(d.max) + (d.regen > 0 ? " · " + t("jm_regen", { r: fmtRate(d.regen) }) : "") + (d.eff < 1 ? " · " + t("jm_depleted", { p: pct(d.eff) }) : "");
+        n.classList.toggle("jm-warn", d.eff < 1);
+      });
+      label.textContent = D.RESOURCE_ICONS[r] + " " + L(WD.DEPOSITS[r].label);
+      rows.appendChild(el("div", { class: "jm-deposit-row" }, [el("div", { class: "jm-deposit-head" }, [label, info]), bar(function () {
+        return state.deposits[r];
+      }, "jm-bar-dep")]));
+    });
+    var terr = el("div", { class: "jm-small" });
+    if (state.territories.length) {
+      state.territories.forEach(function (tr) {
+        terr.appendChild(el("span", { class: "jm-cost-item jm-terr-chip" }, ["🚩" + L(tr.name) + " " + D.RESOURCE_ICONS[tr.resource] + "×" + tr.richness]));
+      });
+    } else terr.appendChild(el("span", { class: "jm-muted", text: t("jm_no_territory") }));
+    return section(t("jm_sec_deposits"), [el("p", { class: "jm-muted jm-small", text: t("jm_deposit_hint") }), rows, el("div", { class: "jm-terr-list" }, [el("b", { class: "jm-small", text: t("jm_territories") + "：" }), terr])]);
+  }
+
+  // ---------------- 即時戰鬥視窗（使用者採用的提案 1） ----------------
+
+  function modalBattle(ref, close) {
+    var wrap = el("div", { class: "jm-battle" });
+    var bt = Core.findBattle(state, ref);
+    if (!bt) {
+      wrap.appendChild(modalHead(t("jm_battle_title"), close));
+      wrap.appendChild(el("p", { class: "jm-muted", text: t("jm_battle_none") }));
+      return wrap;
+    }
+    var isRaid = ref.kind === "raid";
+    var head = modalHead((isRaid ? t("jm_report_raid") : t("jm_report_exp")) + "：" + L(bt.title), close);
+    wrap.appendChild(head);
+    // 切換其他進行中的戰鬥
+    var others = Core.activeBattles(state).filter(function (b) {
+      return !(b.kind === ref.kind && b.id === ref.id);
+    });
+    if (others.length) {
+      wrap.appendChild(el("div", { class: "jm-btn-row" }, others.map(function (b) {
+        return el("button", { type: "button", class: "jm-btn jm-small", onclick: function () {
+          openModal("battle", { kind: b.kind, id: b.id });
+        } }, ["⚔ " + L(b.battle.title)]);
+      })));
+    }
+    var stage = el("div", { class: "jm-battle-stage" });
+    wrap.appendChild(stage);
+    var mine = isRaid ? "B" : "A";
+    var theirs = isRaid ? "A" : "B";
+    var bars = el("div", { class: "jm-battle-bars" });
+    function sideBox(side, title) {
+      var box = el("div", { class: "jm-battle-side jm-side-" + (side === mine ? "mine" : "theirs") });
+      dyn(box, function (n) {
+        var b = Core.findBattle(state, ref) || bt;
+        n.innerHTML = "";
+        n.appendChild(el("b", { text: title + " " + fmt(battleAlive(b[side])) }));
+        b[side].forEach(function (g) {
+          if (g.immortal) {
+            n.appendChild(el("div", { class: "jm-small jm-muted", text: anyUnitIcon("tower") + " " + t("jm_def_towers") + " " + g.n }));
+            return;
+          }
+          n.appendChild(el("div", { class: "jm-rep-row" }, [
+            el("span", { text: anyUnitIcon(g.cls) + " " + (side === mine && g.cls !== "militia" ? unitName(g.cls) : anyUnitName(g.cls, b.tier || state.age)) }),
+            el("div", { class: "jm-bar" }, [el("div", { class: "jm-bar-fill", style: "width:" + clampPct(g.n0 ? g.n / g.n0 : 0) + "%" })]),
+            el("b", { text: fmt(Math.round(g.n)) }),
+          ]));
+        });
+      });
+      return box;
+    }
+    bars.appendChild(sideBox(mine, t("jm_report_mine")));
+    bars.appendChild(sideBox(theirs, t("jm_report_theirs")));
+    wrap.appendChild(bars);
+    var status = el("div", { class: "jm-battle-status" });
+    dyn(status, function (n) {
+      var b = Core.findBattle(state, ref);
+      if (!b) {
+        var rp = state.reports[0];
+        n.textContent = rp ? (rp.win ? "🏆 " + t("jm_win") : rp.retreated ? "🏳 " + t("jm_retreated") : "💀 " + t("jm_lose")) : "";
+        n.className = "jm-battle-status " + (rp && rp.win ? "jm-good" : "jm-bad");
+        return;
+      }
+      n.className = "jm-battle-status";
+      n.textContent = t("jm_battle_round", { r: b.round, max: Core.BATTLE_MAX_ROUNDS }) + (b.rally > 0 ? " · 📣 " + t("jm_rally_on", { n: b.rally }) : "") + (b.effFort > 0 ? " · 🏯 " + t("jm_exp_fort", { p: pct(b.effFort) }) : "");
+    });
+    wrap.appendChild(status);
+    // 戰術
+    var stances = isRaid ? ["charge", "normal", "hold"] : ["charge", "normal", "hold"];
+    var ctl = el("div", { class: "jm-battle-ctl" });
+    stances.forEach(function (sk) {
+      var b = el("button", { type: "button", class: "jm-btn jm-stance", title: t("jm_stance_" + sk + "_hint"), onclick: function () {
+        Core.setStance(state, ref, sk);
+      } }, [t("jm_stance_" + sk)]);
+      dyn(b, function (n) {
+        var x = Core.findBattle(state, ref);
+        n.disabled = !x;
+        n.classList.toggle("jm-on", !!x && x.stance === sk);
+      });
+      ctl.appendChild(b);
+    });
+    var rallyBtn = el("button", { type: "button", class: "jm-btn", title: t("jm_rally_hint"), onclick: function () {
+      Core.rally(state, ref);
+    } }, ["📣 " + t("jm_rally")]);
+    dyn(rallyBtn, function (n) {
+      var x = Core.findBattle(state, ref);
+      n.disabled = !x || x.rallyUsed;
+    });
+    ctl.appendChild(rallyBtn);
+    if (!isRaid) {
+      var rtBtn = el("button", { type: "button", class: "jm-btn jm-danger", title: t("jm_retreat_hint"), onclick: function () {
+        Core.retreat(state, ref);
+      } }, ["🏳 " + t("jm_retreat")]);
+      dyn(rtBtn, function (n) {
+        n.disabled = !Core.findBattle(state, ref);
+      });
+      ctl.appendChild(rtBtn);
+    }
+    wrap.appendChild(ctl);
+    wrap.appendChild(el("p", { class: "jm-muted jm-small", text: t("jm_battle_hint") }));
+    var after = el("div", { class: "jm-btn-row" });
+    dyn(after, function (n) {
+      var done = !Core.findBattle(state, ref);
+      if (done && !n.children.length) {
+        n.appendChild(el("button", { type: "button", class: "jm-primary", onclick: function () {
+          openModal("report", 0);
+        } }, [t("jm_view_report")]));
+        n.appendChild(el("button", { type: "button", class: "jm-btn", onclick: close }, [t("jm_ok")]));
+      }
+    });
+    wrap.appendChild(after);
+    // 3D 戰場
+    var lastBt = bt;
+    function battleView() {
+      var b = Core.findBattle(state, ref);
+      if (b) lastBt = b;
+      var src = lastBt;
+      var vw = {
+        key: (ref.kind || "") + (ref.id || ""),
+        terrain: src.terrain || "field",
+        A: src.A,
+        B: src.B,
+        player: src.player,
+        over: !b || src.over,
+        winner: src.winner,
+        civColor: civColorHex(),
+        paused: state.paused,
+        gun: !!state.techs.teppo || !!state.techs.b7_teppotai,
+        metal: state.age >= 3 ? 0x8a9199 : state.techs.seidou ? 0xb08d57 : null,
+      };
+      return vw;
+    }
+    if (B3D && Scene3D && Scene3D.supported()) {
+      Scene3D.load(app.getAttribute("data-three-src")).then(function (THREE) {
+        if (ui.modal !== "battle" || !stage.isConnected) return;
+        ui.battle3d = B3D.create(stage, THREE);
+        ui.battle3d.update(battleView());
+      });
+      dyn(stage, function () {
+        if (ui.battle3d) ui.battle3d.update(battleView());
+      });
+    } else {
+      stage.classList.add("jm-battle-flat");
+      stage.appendChild(el("div", { class: "jm-muted", text: t("jm_no3d") }));
+    }
+    return wrap;
+  }
+
+  // ---------------- 時代事件（使用者採用的提案 7） ----------------
+
+  function modalEvent(close) {
+    var wrap = el("div", { class: "jm-event" });
+    var ev = state.event && WD.event(state.event.id);
+    if (!ev) {
+      wrap.appendChild(modalHead("", close));
+      return wrap;
+    }
+    wrap.appendChild(el("div", { class: "jm-event-icon", text: ev.icon }));
+    wrap.appendChild(modalHead(L(ev.title), null));
+    wrap.appendChild(el("p", { text: L(ev.desc) }));
+    wrap.appendChild(el("p", { class: "jm-muted jm-small", text: t("jm_event_paused") }));
+    var grid = el("div", { class: "jm-choice-grid" });
+    ev.choices.forEach(function (ch, i) {
+      var cost = ch.effect.cost ? World.effectCost(state, ch.effect) : null;
+      var b = el("button", { type: "button", class: "jm-choice", onclick: function () {
+        var res = World.chooseEvent(state, i);
+        if (!res) return;
+        if (res.lucky === true) toast(t("jm_event_lucky"), "good");
+        else if (res.lucky === false) toast(t("jm_event_unlucky"), "bad");
+        close();
+      } }, [el("b", { text: L(ch.label) }), el("span", { text: L(ch.desc) }), cost ? costView(cost) : null]);
+      b.disabled = !World.canChoose(state, i);
+      grid.appendChild(b);
+    });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  // ---------------- 點擊 3D 物件的快捷選單（使用者採用的提案 2） ----------------
+
+  var PICK_BUILDING = { house: "house", paddy: "paddy", food: "foodcamp", wood: "woodcamp", mine: "minecamp", barracks: "barracks", archery: "archery", stable: "stable", workshop: "workshop", market: "market", tower: "tower", tc: "tc" };
+  var ZONE_RES = { "zone:food": "food", "zone:wood": "wood", "zone:stone": "stone", "zone:gold": "gold", "zone:water": "food" };
+
+  function onPick(info) {
+    if (!state || (ui.modal && ui.modal !== "pick")) return;
+    var layer = ui.pickLayer;
+    if (!layer) return;
+    ui.updaters = ui.updaters.filter(function (u) {
+      return !layer.contains(u.node);
+    });
+    layer.innerHTML = "";
+    var box = el("div", { class: "jm-pick" });
+    var content = pickContent(info);
+    if (!content) return;
+    box.appendChild(el("button", { type: "button", class: "jm-x jm-pick-x", onclick: closePick }, ["×"]));
+    box.appendChild(content);
+    layer.appendChild(box);
+    var w = ui.view.clientWidth;
+    var h = ui.view.clientHeight;
+    box.style.left = Math.max(8, Math.min(w - 270, info.x + 12)) + "px";
+    box.style.top = Math.max(8, Math.min(h - 240, info.y - 20)) + "px";
+    ui.pickOpen = true;
+  }
+  function closePick() {
+    if (ui.pickLayer) ui.pickLayer.innerHTML = "";
+    ui.pickOpen = false;
+  }
+
+  function buildButtons(id) {
+    var row = el("div", { class: "jm-btn-row" });
+    var bd = D.building(id);
+    if (state.age < bd.age) {
+      row.appendChild(el("span", { class: "jm-muted jm-small", text: t("jm_unlock_age", { name: D.AGES[bd.age].name }) }));
+      return row;
+    }
+    [1, 5, 25].forEach(function (k) {
+      row.appendChild(button(t("jm_build_n", { n: k }), function () {
+        Core.build(state, id, k);
+      }, { cls: "jm-btn jm-small", enabled: function () {
+        return Core.canBuild(state, id) && Core.canAfford(state, Core.buildingCost(state, id));
+      } }));
+    });
+    row.appendChild(costView(Core.buildingCost(state, id)));
+    return row;
+  }
+
+  function allocButtons(r) {
+    var row = el("div", { class: "jm-btn-row" });
+    if (r === "gold" && state.age < D.GOLD_AGE) {
+      row.appendChild(el("span", { class: "jm-muted jm-small", text: t("jm_gold_locked") }));
+      return row;
+    }
+    [
+      ["−", -10],
+      ["+", 10],
+    ].forEach(function (p) {
+      row.appendChild(button(t("jm_alloc_btn", { s: p[0] }), function () {
+        state.alloc[r] = Math.max(0, Math.min(100, state.alloc[r] + p[1]));
+        refresh(true);
+      }, { cls: "jm-btn jm-small" }));
+    });
+    var info = el("span", { class: "jm-muted jm-small" });
+    dyn(info, function (n) {
+      var rt = Core.rates(state);
+      n.textContent = t("jm_alloc_info", { n: Math.round(rt.workers[r]), rate: fmtRate(rt.gross[r]), eff: pct(rt.eff[r] * rt.depEff[r]) });
+    });
+    row.appendChild(info);
+    return row;
+  }
+
+  function pickContent(info) {
+    var k = info.kind || "";
+    var wrapP = el("div");
+    if (PICK_BUILDING[k]) {
+      var id = PICK_BUILDING[k];
+      var bd = D.building(id);
+      var count = el("span", { class: "jm-count" });
+      dyn(count, function (n) {
+        n.textContent = "×" + fmt(state.buildings[id]);
+      });
+      wrapP.appendChild(el("div", { class: "jm-card-head" }, [el("span", { class: "jm-card-icon", text: bd.icon }), el("b", { text: L(bd.name) }), count]));
+      wrapP.appendChild(el("div", { class: "jm-small", text: L(bd.desc) }));
+      var extra = el("div", { class: "jm-muted jm-small" });
+      dyn(extra, function (n) {
+        n.textContent = buildingExtra(id);
+      });
+      wrapP.appendChild(extra);
+      if (id === "tc") {
+        var auto = el("input", { type: "checkbox", onchange: function (e) {
+          state.autoVillagers = e.target.checked;
+        } });
+        auto.checked = state.autoVillagers;
+        wrapP.appendChild(el("label", { class: "jm-check jm-small" }, [auto, " " + t("jm_auto_villagers")]));
+        if (D.AGES[state.age].popToNext && !state.ageUp)
+          wrapP.appendChild(button(t("jm_ageup_btn", { name: D.AGES[state.age + 1].name }), function () {
+            closePick();
+            openModal("ageup");
+          }, { cls: "jm-btn jm-small", enabled: function () {
+            return Core.ageUpStatus(state).ok;
+          } }));
+      }
+      if (id === "foodcamp" || id === "paddy") wrapP.appendChild(allocButtons("food"));
+      if (id === "woodcamp") wrapP.appendChild(allocButtons("wood"));
+      if (id === "minecamp") {
+        wrapP.appendChild(allocButtons("stone"));
+        wrapP.appendChild(allocButtons("gold"));
+      }
+      // 兵營類：直接訓練
+      allClasses().forEach(function (cls) {
+        var u = Core.unitDef(state, cls);
+        if (!u || u.building !== id || state.age < u.age) return;
+        var row = el("div", { class: "jm-btn-row" }, [el("span", { class: "jm-small", text: u.icon + " " + L(u.name) })]);
+        [10, 100].forEach(function (nn) {
+          row.appendChild(button("+" + nn, function () {
+            Core.train(state, cls, nn);
+          }, { cls: "jm-btn jm-small", enabled: function () {
+            return Core.canTrain(state, cls) && Core.canAfford(state, Core.unitCost(state, cls));
+          } }));
+        });
+        wrapP.appendChild(row);
+      });
+      if (id === "market") wrapP.appendChild(button(t("jm_open_market"), function () {
+        closePick();
+        ui.tab = "village";
+        renderTabs();
+        refresh(true);
+      }, { cls: "jm-btn jm-small" }));
+      if (id === "tower") {
+        wrapP.appendChild(button(t("jm_wall_build"), function () {
+          Core.buildWall(state);
+        }, { cls: "jm-btn jm-small", enabled: function () {
+          return Core.canWall(state);
+        } }));
+      }
+      wrapP.appendChild(buildButtons(id));
+      return wrapP;
+    }
+    if (k.indexOf("landmark:") === 0) {
+      var lm = D.landmark(state.landmarks[parseInt(k.split(":")[1], 10)]);
+      if (!lm) return null;
+      wrapP.appendChild(el("b", { text: "🏛 " + L(lm.name) }));
+      wrapP.appendChild(el("div", { class: "jm-small", text: L(lm.desc) }));
+      return wrapP;
+    }
+    if (k.indexOf("territory:") === 0) {
+      var tr = state.territories[parseInt(k.split(":")[1], 10)];
+      if (!tr) return null;
+      wrapP.appendChild(el("b", { text: "🚩 " + L(tr.name) }));
+      wrapP.appendChild(el("div", { class: "jm-small", text: t("jm_territory_info", { res: t("jm_res_" + tr.resource), r: tr.richness }) }));
+      return wrapP;
+    }
+    if (k === "army") {
+      wrapP.appendChild(el("b", { text: "⚔ " + t("jm_soldiers") + " " + fmt(Core.soldiersHome(state)) }));
+      wrapP.appendChild(button(t("jm_tab_army"), function () {
+        closePick();
+        ui.tab = "army";
+        renderTabs();
+        refresh(true);
+      }, { cls: "jm-btn jm-small" }));
+      wrapP.appendChild(button(t("jm_tab_expedition"), function () {
+        closePick();
+        ui.tab = "expedition";
+        renderTabs();
+        refresh(true);
+      }, { cls: "jm-btn jm-small" }));
+      return wrapP;
+    }
+    if (ZONE_RES[k]) {
+      var r = ZONE_RES[k];
+      var dinfo = el("div", { class: "jm-muted jm-small" });
+      dyn(dinfo, function (n) {
+        var d = Core.depositInfo(state, r);
+        n.textContent = t("jm_deposit_left", { p: pct(d.frac) }) + (d.regen > 0 ? " · " + t("jm_regen", { r: fmtRate(d.regen) }) : "");
+      });
+      wrapP.appendChild(el("b", { text: D.RESOURCE_ICONS[r] + " " + L(WD.DEPOSITS[r].label) }));
+      wrapP.appendChild(dinfo);
+      wrapP.appendChild(allocButtons(r));
+      var campId = r === "food" ? "foodcamp" : r === "wood" ? "woodcamp" : "minecamp";
+      wrapP.appendChild(el("div", { class: "jm-small", text: L(D.building(campId).name) }));
+      wrapP.appendChild(buildButtons(campId));
+      if (r === "food" && state.age >= 1) {
+        wrapP.appendChild(el("div", { class: "jm-small", text: L(D.building("paddy").name) }));
+        wrapP.appendChild(buildButtons("paddy"));
+      }
+      return wrapP;
+    }
+    if (k === "zone:village") {
+      wrapP.appendChild(el("b", { text: "🛖 " + L(D.building("house").name) }));
+      var hinfo = el("div", { class: "jm-muted jm-small" });
+      dyn(hinfo, function (n) {
+        n.textContent = t("jm_housing") + " " + fmt(Core.population(state)) + " / " + fmt(Core.housing(state));
+      });
+      wrapP.appendChild(hinfo);
+      wrapP.appendChild(buildButtons("house"));
+      return wrapP;
+    }
+    return null;
+  }
+
   function stopGame() {
     clearInterval(loopTimer);
     clearInterval(uiTimer);
     clearInterval(saveTimer);
     destroyScene();
+    if (ui.battle3d) {
+      ui.battle3d.dispose();
+      ui.battle3d = null;
+    }
     state = null;
     ui.modal = null;
+    ui.seenBattles = {};
     ui.updaters = [];
   }
 
@@ -1524,7 +2221,7 @@
     renderTop();
     renderOverlay();
     renderTabs();
-    if (ui.modal && ui.modal !== "expedition" && ui.modal !== "ageup") openModal(ui.modal, ui.modalArg);
+    if (ui.modal && ui.modal !== "expedition" && ui.modal !== "ageup" && ui.modal !== "pick") openModal(ui.modal, ui.modalArg);
     refresh(true);
   });
   document.addEventListener("visibilitychange", function () {

@@ -236,9 +236,10 @@
   // ---------------- 建築模型 ----------------
 
   // 一般住居（依時代分 5 種造型）
-  function houseStyle(kit, age) {
+  function houseStyle(kit, age, vis) {
     var g = G(kit);
     var P = [];
+    var tileRoof = !!(vis && vis.tile);
     if (age <= 1) {
       // 竪穴住居：圓錐茅草屋頂
       P.push(part(g.cyl, kit.mat(COL.earth), 0, 0.25, 0, 4.4, 0.5, 4.4));
@@ -262,12 +263,12 @@
       // 檜皮葺きの屋敷
       P.push(part(g.box, kit.mat(COL.wood), 0, 0.5, 0, 5.2, 0.3, 4.2));
       P.push(part(g.box, kit.mat(COL.woodLight), 0, 1.6, 0, 4.6, 2.0, 3.6));
-      P.push(part(g.pyr, kit.mat(COL.bark), 0, 2.6 + 0.9, 0, 6.4, 1.8, 5.2));
+      P.push(part(g.pyr, kit.mat(tileRoof ? COL.tile : COL.bark), 0, 2.6 + 0.9, 0, 6.4, 1.8, 5.2));
       P.push(part(g.box, kit.mat(COL.woodDark), 0, 1.2, 1.82, 1.2, 1.4, 0.08));
     } else if (age === 6) {
       // 武家の茅葺き屋敷
       P.push(part(g.box, kit.mat(COL.woodLight), 0, 1.2, 0, 4.8, 2.4, 3.8));
-      P.push(part(g.pyr, kit.mat(COL.thatchDark), 0, 2.4 + 1.25, 0, 6.6, 2.5, 5.4));
+      P.push(part(g.pyr, kit.mat(tileRoof ? COL.tile : COL.thatchDark), 0, 2.4 + 1.25, 0, 6.6, 2.5, 5.4));
       P.push(part(g.box, kit.mat(COL.woodDark), 0, 0.9, 1.92, 1.2, 1.6, 0.08));
     } else {
       // 町家：2 階建て、黒い格子、瓦の切妻
@@ -353,9 +354,10 @@
     return P;
   }
 
-  function towerStyle(kit, age) {
+  function towerStyle(kit, age, vis) {
     var g = G(kit);
     var P = [];
+    if (vis && vis.stonewall) P.push(part(g.box, kit.mat(COL.stoneDark), 0, 0.8, 0, 3.4, 1.6, 3.4));
     var h = 6 + Math.min(age, 6) * 0.3;
     [-0.9, 0.9].forEach(function (x) {
       [-0.9, 0.9].forEach(function (z) {
@@ -692,6 +694,13 @@
   var CLASS_COLOR = { spear: 0x2e5e9e, infantry: 0x8e2b2b, archer: 0x3c7a3a, cavalry: 0x6b3fa0, siege: 0x6b5a3a, unique: 0xd4a017 };
   var CARRY_COLOR = { food: 0xb5482f, wood: 0x7a5230, stone: 0xa09d95, gold: 0xf1c40f };
 
+  var ARMOR_COLOR = null;
+  function visKey(v) {
+    return Object.keys((v && v.vis) || {})
+      .sort()
+      .join(",");
+  }
+
   // ---------------- 場景 ----------------
 
   function Scene(container) {
@@ -713,6 +722,7 @@
 
   Scene.prototype.init = function () {
     var self = this;
+    ARMOR_COLOR = new THREE.Color(0x2a2a2e);
     var w = this.container.clientWidth || 800;
     var h = this.container.clientHeight || 500;
     var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -1092,21 +1102,38 @@
       self2.scene.add(m);
     });
     this.treeVisibleKey = "";
-    this.updateTrees({});
+    // 森林（西側）的樹，依離伐木點的距離排序：木材儲量減少時從近的開始消失
+    var order = [];
+    trees.forEach(function (t, i) {
+      if (t.x < -36) order.push([i, (t.x + 50) * (t.x + 50) + t.z * t.z]);
+    });
+    order.sort(function (a, b) {
+      return a[1] - b[1];
+    });
+    this.forestOrder = order.map(function (o) {
+      return o[0];
+    });
+    this.updateTrees({}, 1, false);
   };
 
-  Scene.prototype.updateTrees = function (shown) {
-    var key = JSON.stringify(shown);
+  Scene.prototype.updateTrees = function (shown, woodFrac, replant) {
+    // 資源枯竭：森林依木材儲量被砍掉（離村子近的先砍；研究「植林」後砍伐痕跡較少）
+    var cutK = replant ? 0.35 : 0.65;
+    var cut = Math.floor((1 - (woodFrac == null ? 1 : woodFrac)) * cutK * this.forestOrder.length);
+    cut = Math.round(cut / 6) * 6;
+    var key = JSON.stringify(shown) + "|" + cut;
     if (key === this.treeVisibleKey) return;
     this.treeVisibleKey = key;
+    var cutSet = {};
+    for (var ci = 0; ci < cut; ci++) cutSet[this.forestOrder[ci]] = true;
     var mtx = new THREE.Matrix4();
     var q = new THREE.Quaternion();
     var v = new THREE.Vector3();
     var sc = new THREE.Vector3();
     var counts = [0, 0, 0, 0];
     var meshes = this.treeMeshes;
-    this.trees.forEach(function (t) {
-      var hidden = t.block.some(function (b) {
+    this.trees.forEach(function (t, ti) {
+      var hidden = cutSet[ti] || t.block.some(function (b) {
         return (shown[b[0]] || 0) > b[1];
       });
       if (hidden) return;
@@ -1163,6 +1190,10 @@
     }
     pile(42, -84, 26, COL.stone, 12);
     pile(42, -84, 10, COL.stoneDark, 9);
+    this.stoneRocks = group.children.slice();
+    this.stoneRocks.forEach(function (r0) {
+      r0.userData.s0 = r0.scale.clone();
+    });
     this.goldGroup = new THREE.Group();
     group.add(this.goldGroup);
     var gr = makeRng(5);
@@ -1177,6 +1208,7 @@
       mesh.scale.set(s, s * 0.8, s);
       mesh.rotation.set(gr(), gr() * 6, gr());
       mesh.castShadow = true;
+      mesh.userData.s0 = mesh.scale.clone();
       this.goldGroup.add(mesh);
     }
     // 漿果樹叢（繩文的採集）
@@ -1196,6 +1228,8 @@
       fruit.position.set(bx + 0.5, height(bx, bz) + 1.2, bz + 0.4);
       fruit.scale.set(0.5, 0.5, 0.5);
       berry.add(fruit);
+      this.fruits = this.fruits || [];
+      this.fruits.push(fruit);
     }
     group.add(berry);
     this.scene.add(group);
@@ -1219,7 +1253,8 @@
     var self = this;
     // instanceColor 要在第一次繪製前就建立，否則著色器編譯時沒有 instance color，顏色會全白
     var white = new THREE.Color(0xffffff);
-    [this.vBody, this.vCarry, this.sBody].forEach(function (m) {
+    this.sWeapon.material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0.2, flatShading: true });
+    [this.vBody, this.vCarry, this.sBody, this.sWeapon].forEach(function (m) {
       for (var i = 0; i < m.instanceMatrix.count; i++) m.setColorAt(i, white);
     });
     [this.vBody, this.vHead, this.vCarry, this.sBody, this.sHead, this.sWeapon, this.sHorse].forEach(function (m) {
@@ -1281,6 +1316,7 @@
         m.castShadow = true;
         m.receiveShadow = true;
         m.count = 0;
+        m.userData.pick = key;
         self.scene.add(m);
         return m;
       }),
@@ -1320,8 +1356,9 @@
     return n;
   };
 
-  Scene.prototype.groupAt = function (parts, x, z, ry) {
+  Scene.prototype.groupAt = function (parts, x, z, ry, pick) {
     var grp = new THREE.Group();
+    grp.userData.pick = pick || null;
     addParts(grp, parts);
     grp.position.set(x, height(x, z) - 0.05, z);
     grp.rotation.y = ry || 0;
@@ -1340,7 +1377,7 @@
       });
     }
     // 主村落中心
-    this.groupAt(townCenterParts(kit, v.age, true), 0, 0, 0);
+    this.groupAt(townCenterParts(kit, v.age, true), 0, 0, 0, "tc");
     // 文明旗幟
     var pole = new THREE.Mesh(G(kit).cyl6, kit.mat(COL.woodDark));
     pole.scale.set(0.3, 12, 0.3);
@@ -1356,7 +1393,7 @@
     this.flag = flag;
     // 時代建築：依模型大小挑位置（放得下的最小空位；都放不下就用最大的空位並縮小）
     var used = {};
-    (v.landmarks || []).forEach(function (model) {
+    (v.landmarks || []).forEach(function (model, li) {
       var need = LANDMARK_RADIUS[model] || 10;
       var best = -1;
       self.landmarkSpots.forEach(function (sp, i) {
@@ -1375,18 +1412,19 @@
       used[best] = true;
       var spot = self.landmarkSpots[best];
       var k = Math.min(1, spot[2] / (need * 0.85));
-      var grp = self.groupAt(landmarkParts(kit, model), spot[0], spot[1], Math.atan2(spot[0], spot[1]) + Math.PI);
+      var grp = self.groupAt(landmarkParts(kit, model), spot[0], spot[1], Math.atan2(spot[0], spot[1]) + Math.PI, "landmark:" + li);
       grp.scale.setScalar(k);
     });
     this.landmarkUsed = used;
     // 火堆光源位置
     this.smokeSources = [[0, v.age <= 1 ? 6 : 9, 9, 1.2]];
     this.buildWalls(v);
+    this.buildTerritories(v);
     this.staticKey = this.staticSig(v);
   };
 
   Scene.prototype.staticSig = function (v) {
-    return [v.age, v.civColor, (v.landmarks || []).join(","), v.wallLevel, this.wallRadius(v)].join("|");
+    return [v.age, v.civColor, (v.landmarks || []).join(","), v.wallLevel, this.wallRadius(v), (v.territories || []).length, visKey(v)].join("|");
   };
 
   Scene.prototype.wallRadius = function (v) {
@@ -1484,10 +1522,10 @@
     this.view = v;
     this.gameSpeed = v.paused ? 0 : v.speed || 1;
     var ageChanged = v.age !== this.age;
-    if (ageChanged) {
+    if (ageChanged || visKey(v) !== this.visKeyNow) {
       this.age = v.age;
       this.styles = {
-        house: houseStyle(kit, v.age),
+        house: houseStyle(kit, v.age, v.vis),
         food: shedStyle(kit, "food"),
         wood: shedStyle(kit, "wood"),
         mine: shedStyle(kit, "mine"),
@@ -1496,12 +1534,17 @@
         archery: barracksStyle(kit, "archery", v.age),
         stable: barracksStyle(kit, "stable", v.age),
         workshop: barracksStyle(kit, "workshop", v.age),
-        tower: towerStyle(kit, v.age),
+        tower: towerStyle(kit, v.age, v.vis),
         market: marketStyle(kit),
         tc: townCenterParts(kit, v.age, false),
       };
       this.goldGroup.visible = v.age >= 2;
       this.lightStyle = houseLightOffset(v.age);
+    }
+    var vk = visKey(v);
+    if (vk !== this.visKeyNow) {
+      this.visKeyNow = vk;
+      this.applyVis(v);
     }
     if (ageChanged || this.staticSig(v) !== this.staticKey) this.rebuildStatic(v);
 
@@ -1534,7 +1577,9 @@
       towerSlots.push([tx, tz, a]);
     }
     this.placeSet(this.instSet("tower", st.tower, 24), towerSlots, nt, "t" + R);
-    this.updateTrees(shown);
+    var dep = v.deposits || { food: 1, wood: 1, stone: 1, gold: 1 };
+    this.updateTrees(shown, dep.wood, v.vis && v.vis.forest);
+    this.updateDeposits(dep);
     this.updateHouseLights(shown.house);
     this.shown = shown;
     // 炊煙來源：村落中心＋部分住居
@@ -1744,6 +1789,7 @@
     var bi = 0;
     var self = this;
     var smax = this.soldierMax;
+    var vis = (v && v.vis) || {};
     function soldier(x, z, cls, faceA, moving, enemy, seed) {
       if (si >= smax) return;
       var y = Math.max(height(x, z), WATER_Y + 0.1);
@@ -1755,7 +1801,9 @@
       sc.set(0.75, 1.25, 0.75);
       mtx.compose(v3, q, sc);
       self.sBody.setMatrixAt(si, mtx);
-      self.sBody.setColorAt(si, col.setHex(enemy ? 0x5a1d1d : CLASS_COLOR[cls] || 0x777777));
+      col.setHex(enemy ? 0x5a1d1d : CLASS_COLOR[cls] || 0x777777);
+      if (!enemy && vis.armor) col.lerp(ARMOR_COLOR, vis.armor2 ? 0.45 : 0.25);
+      self.sBody.setColorAt(si, col);
       v3.set(x, y + 1.55 + hy + bob, z);
       sc.set(0.58, 0.58, 0.58);
       mtx.compose(v3, q, sc);
@@ -1767,6 +1815,10 @@
       } else if (cls === "spear" || cls === "unique") {
         v3.set(x + Math.sin(faceA + 1.4) * 0.45, y + 1.6 + hy + bob, z + Math.cos(faceA + 1.4) * 0.45);
         sc.set(0.12, 3.2, 0.12);
+      } else if (cls === "archer" && vis.gun && !enemy) {
+        // 鐵砲：水平的槍身
+        v3.set(x + Math.sin(faceA + 1.4) * 0.4, y + 1.25 + hy + bob, z + Math.cos(faceA + 1.4) * 0.4);
+        sc.set(0.14, 0.14, 1.4);
       } else if (cls === "archer") {
         v3.set(x + Math.sin(faceA + 1.4) * 0.45, y + 1.2 + hy + bob, z + Math.cos(faceA + 1.4) * 0.45);
         sc.set(0.1, 1.9, 0.35);
@@ -1776,9 +1828,11 @@
       }
       mtx.compose(v3, q, sc);
       self.sWeapon.setMatrixAt(si, mtx);
+      self.sWeapon.setColorAt(si, col.setHex(enemy ? 0x3a3030 : cls === "archer" && vis.gun ? 0x2b2b2b : cls === "archer" ? 0x6b4a2e : vis.metal || 0x5a4a3a));
       if (horse) {
         v3.set(x, y + 0.75 + bob * 0.5, z);
-        sc.set(0.9, 1.0, 2.4);
+        if (vis.horse && !enemy) sc.set(1.05, 1.15, 2.7);
+        else sc.set(0.9, 1.0, 2.4);
         mtx.compose(v3, q, sc);
       } else {
         mtx.makeScale(0, 0, 0);
@@ -1838,6 +1892,14 @@
         }
         if (r > 18 && r < 210) banner(dirX * r, dirZ * r, false);
       });
+      // 偵察兵：一騎往返
+      (v.scouts || []).forEach(function (scv, k) {
+        var out = scv.frac < 0.5 ? scv.frac * 2 : (1 - scv.frac) * 2;
+        var r = lerp(22, 205, out);
+        var dx = Math.cos(scv.angle);
+        var dz = Math.sin(scv.angle);
+        if (r < 210) soldier(dx * r, dz * r, "cavalry", Math.atan2(dx * (scv.frac < 0.5 ? 1 : -1), dz * (scv.frac < 0.5 ? 1 : -1)), true, false, 50 + k);
+      });
       // 來襲的敵軍
       if (v.raid) {
         var rd = v.raid;
@@ -1856,6 +1918,7 @@
     }
     [this.sBody, this.sHead, this.sWeapon, this.sHorse].forEach(function (m) {
       m.count = si;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     });
@@ -1943,7 +2006,9 @@
     el.addEventListener("contextmenu", function (e) {
       e.preventDefault();
     });
+    var down = null;
     el.addEventListener("pointerdown", function (e) {
+      down = { x: e.clientX, y: e.clientY, t: performance.now() };
       if (e.pointerType === "touch") return;
       drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
       el.setPointerCapture(e.pointerId);
@@ -1959,8 +2024,11 @@
       else self.rotate(dx, dy);
       touched();
     });
-    el.addEventListener("pointerup", function () {
+    el.addEventListener("pointerup", function (e) {
       drag = null;
+      // 幾乎沒移動的短按＝點擊（選取建築或資源區）
+      if (down && e.button !== 2 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6 && performance.now() - down.t < 450) self.pick(e.clientX, e.clientY);
+      down = null;
     });
     el.addEventListener(
       "wheel",
@@ -2074,8 +2142,233 @@
     this.animateWater(t);
     this.animateSmoke(dt);
     this.animatePeople(dt, t);
+    this.animateFx(dt);
     if (this.flag) this.flag.rotation.y = Math.sin(t * 2) * 0.15;
     this.renderer.render(this.scene, this.camera);
+  };
+
+
+  // ---------------- 點擊選取（使用者採用的提案 2） ----------------
+
+  Scene.prototype.setPickHandler = function (fn) {
+    this.onPick = fn;
+  };
+
+  Scene.prototype.pick = function (cx, cy) {
+    if (!this.onPick) return;
+    var rect = this.renderer.domElement.getBoundingClientRect();
+    var ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1);
+    var ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    var targets = [];
+    var self = this;
+    Object.keys(this.sets || {}).forEach(function (k) {
+      self.sets[k].meshes.forEach(function (m) {
+        if (m.count > 0) targets.push(m);
+      });
+    });
+    targets.push(this.dynamic);
+    targets.push(this.terrain);
+    if (this.sBody.count > 0) targets.push(this.sBody);
+    var hits = ray.intersectObjects(targets, true);
+    var info = null;
+    for (var i = 0; i < hits.length && !info; i++) {
+      var o = hits[i].object;
+      if (o === this.sBody) {
+        info = { kind: "army" };
+        break;
+      }
+      if (o === this.terrain) {
+        info = this.zoneAt(hits[i].point);
+        break;
+      }
+      var cur = o;
+      while (cur && !(cur.userData && cur.userData.pick)) cur = cur.parent;
+      if (cur && cur.userData.pick) info = { kind: cur.userData.pick };
+    }
+    if (!info) return;
+    info.x = cx - rect.left;
+    info.y = cy - rect.top;
+    this.onPick(info);
+  };
+
+  // 地形點擊：依位置判斷資源區
+  Scene.prototype.zoneAt = function (p) {
+    if (p.y < WATER_Y + 0.2) return { kind: "zone:water" };
+    var dq = Math.hypot(p.x - 42, p.z + 84);
+    if (dq < 18) return { kind: "zone:stone" };
+    var dg = Math.hypot(p.x + 48, p.z + 100);
+    if (dg < 16) return { kind: "zone:gold" };
+    if (p.x < -40) return { kind: "zone:wood" };
+    if (p.x > 15 && p.x < riverX(p.z) - 8) return { kind: "zone:food" };
+    var r = Math.hypot(p.x, p.z);
+    if (r < 120) return { kind: "zone:village" };
+    return null;
+  };
+
+  // ---------------- 資源枯竭的外觀 ----------------
+
+  Scene.prototype.updateDeposits = function (dep) {
+    var key = [Math.round(dep.stone * 20), Math.round(dep.gold * 20), Math.round(dep.food * 10)].join(",");
+    if (key === this.depKey) return;
+    this.depKey = key;
+    var ks = 0.3 + 0.7 * dep.stone;
+    (this.stoneRocks || []).forEach(function (r) {
+      r.scale.copy(r.userData.s0).multiplyScalar(ks);
+    });
+    var kg = 0.3 + 0.7 * dep.gold;
+    this.goldGroup.children.forEach(function (r) {
+      if (r.userData.s0) r.scale.copy(r.userData.s0).multiplyScalar(kg);
+    });
+    var nf = Math.round((this.fruits || []).length * dep.food);
+    (this.fruits || []).forEach(function (f, i) {
+      f.visible = i < nf;
+    });
+  };
+
+  // ---------------- 科技外觀（使用者採用的提案 3） ----------------
+
+  Scene.prototype.applyVis = function (v) {
+    var vis = v.vis || {};
+    // 稻穗：綠 → 黃綠 → 金黃
+    var rice = vis.rice3 ? 0xe2b93b : vis.rice2 ? 0xc9c24a : vis.rice ? 0xaccf55 : COL.rice;
+    this.kit.mat(COL.rice).color.setHex(rice);
+  };
+
+  // ---------------- 領地旗幟（使用者採用的提案 4） ----------------
+
+  var TERR_COLOR = { food: 0xb5482f, wood: 0x6b4a2e, stone: 0x9b978c, gold: 0xe2b93b };
+
+  Scene.prototype.buildTerritories = function (v) {
+    var kit = this.kit;
+    var g = G(kit);
+    var self = this;
+    (v.territories || []).forEach(function (t, i) {
+      var a = t.angle + ((i % 3) - 1) * 0.12;
+      var r = 168 + (i % 2) * 12;
+      var x = Math.cos(a) * r;
+      var z = Math.sin(a) * r;
+      if (x > 125) x = 118;
+      var grp = new THREE.Group();
+      var pole = new THREE.Mesh(g.cyl6, kit.mat(COL.woodDark));
+      pole.scale.set(0.4, 14, 0.4);
+      pole.position.y = 7;
+      var flag = new THREE.Mesh(g.box, new THREE.MeshStandardMaterial({ color: v.civColor || 0xc0392b, roughness: 0.7 }));
+      flag.scale.set(4.5, 2.8, 0.15);
+      flag.position.set(2.4, 12.4, 0);
+      var camp = new THREE.Mesh(g.cone8, kit.mat(COL.thatch));
+      camp.scale.set(5, 4, 5);
+      camp.position.set(-4, 2, 2);
+      var pile = new THREE.Mesh(t.resource === "wood" ? g.cyl6 : t.resource === "food" ? g.sphere : g.dodeca, kit.mat(TERR_COLOR[t.resource] || COL.stone, t.resource === "gold" ? { metalness: 0.5, roughness: 0.35 } : null));
+      pile.scale.set(2.6, 2, 2.6);
+      pile.position.set(3, 1, 3);
+      [pole, flag, camp, pile].forEach(function (m) {
+        m.castShadow = true;
+        grp.add(m);
+      });
+      grp.position.set(x, Math.max(height(x, z), WATER_Y), z);
+      grp.userData.pick = "territory:" + i;
+      self.dynamic.add(grp);
+    });
+  };
+
+  // ---------------- 一次性特效（研究完成、升時代、佔領……） ----------------
+
+  Scene.prototype.fxPoint = function (at) {
+    var sh = this.shown || {};
+    if (at === "food" && sh.paddy > 0) return this.paddySlots[0];
+    if (at === "food") return this.campSlots.foodcamp[0] || [20, 8];
+    if (at === "wood") return this.campSlots.woodcamp[0] || [-50, 0];
+    if (at === "mine") return this.campSlots.minecamp[0] || [30, -60];
+    if (at === "army") return [this.parade[0] + 9, this.parade[1] - 6];
+    if (at === "wall") return [(this.towerRing || 40) * 0.7, (this.towerRing || 40) * 0.7];
+    if (at === "house" && this.houseSlots.length) return this.houseSlots[Math.min(5, this.houseSlots.length - 1)];
+    return [0, 4];
+  };
+
+  Scene.prototype.fx = function (list) {
+    var self = this;
+    (list || []).forEach(function (f) {
+      if (f.kind === "tech") {
+        var p = self.fxPoint(f.at);
+        self.burst(p[0], p[1], 0xffd27a, 1);
+      } else if (f.kind === "age") {
+        self.burst(0, 4, 0xffe9a8, 2.4);
+        [0, 1, 2, 3].forEach(function (k) {
+          self.burst(Math.cos(k * 1.57) * 18, 4 + Math.sin(k * 1.57) * 18, 0xffd27a, 1.2);
+        });
+      } else if (f.kind === "territory") {
+        var r = 160;
+        self.burst(Math.min(118, Math.cos(f.angle) * r), Math.sin(f.angle) * r, 0x9fe08a, 2);
+      } else if (f.kind === "wall") {
+        var pw = self.fxPoint("wall");
+        self.burst(pw[0], pw[1], 0xcfd8e0, 1.6);
+      } else if (f.kind === "quest") {
+        self.burst(0, 4, 0x9fe08a, 0.8);
+      }
+    });
+  };
+
+  // 光環＋光柱＋上升的光點
+  Scene.prototype.burst = function (x, z, color, scale) {
+    if (!this.fxItems) this.fxItems = [];
+    var y = Math.max(height(x, z), WATER_Y) + 0.3;
+    var ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.4, 40), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, y, z);
+    var pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.4, 30, 16, 1, true), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    pillar.position.set(x, y + 15 * scale, z);
+    pillar.scale.set(scale, scale, scale);
+    var n = 40;
+    var pg = new THREE.BufferGeometry();
+    var pos = new Float32Array(n * 3);
+    var vel = [];
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var rr = Math.random() * 3 * scale;
+      pos[i * 3] = x + Math.cos(a) * rr;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z + Math.sin(a) * rr;
+      vel.push([Math.cos(a) * 1.5, 4 + Math.random() * 8, Math.sin(a) * 1.5]);
+    }
+    pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    var pts = new THREE.Points(pg, new THREE.PointsMaterial({ color: color, size: 1.2 * scale, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }));
+    pts.frustumCulled = false;
+    this.scene.add(ring);
+    this.scene.add(pillar);
+    this.scene.add(pts);
+    this.fxItems.push({ ring: ring, pillar: pillar, pts: pts, vel: vel, t: 0, dur: 2.6, scale: scale });
+  };
+
+  Scene.prototype.animateFx = function (dt) {
+    if (!this.fxItems || !this.fxItems.length) return;
+    var self = this;
+    for (var i = this.fxItems.length - 1; i >= 0; i--) {
+      var f = this.fxItems[i];
+      f.t += dt;
+      var k = f.t / f.dur;
+      if (k >= 1) {
+        [f.ring, f.pillar, f.pts].forEach(function (o) {
+          self.scene.remove(o);
+          o.geometry.dispose();
+          o.material.dispose();
+        });
+        this.fxItems.splice(i, 1);
+        continue;
+      }
+      var rs = (1 + k * 14) * f.scale;
+      f.ring.scale.set(rs, rs, rs);
+      f.ring.material.opacity = 0.9 * (1 - k);
+      f.pillar.material.opacity = 0.5 * Math.sin(Math.min(1, k * 1.2) * Math.PI);
+      var arr = f.pts.geometry.attributes.position.array;
+      for (var j = 0; j < f.vel.length; j++) {
+        arr[j * 3] += f.vel[j][0] * dt;
+        arr[j * 3 + 1] += f.vel[j][1] * dt;
+        arr[j * 3 + 2] += f.vel[j][2] * dt;
+      }
+      f.pts.geometry.attributes.position.needsUpdate = true;
+      f.pts.material.opacity = 1 - k;
+    }
   };
 
   Scene.prototype.dispose = function () {

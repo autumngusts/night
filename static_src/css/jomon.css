@@ -235,3 +235,53 @@
   .jm-main { grid-template-columns: minmax(0, 1fr) 28rem; }
   .jm-cards { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- 2026-11-03 追加：即時戰鬥、點擊選單、勢力、任務、資源儲量 ---------- */
+.jm-modal.jm-modal-wide { width: min(64rem, 100%); }
+.jm-battle-stage { position: relative; height: min(46vh, 420px); min-height: 240px; border-radius: 10px; overflow: hidden; background: #9fcbe6; margin: 0.5rem 0; }
+.jm-battle-stage canvas.jm-battle-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.jm-battle-flat { display: flex; align-items: center; justify-content: center; }
+.jm-battle-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.jm-battle-side { padding: 0.4rem 0.5rem; border-radius: 8px; background: rgba(0, 0, 0, 0.22); }
+.jm-side-mine { border-left: 4px solid var(--jm-good); }
+.jm-side-theirs { border-left: 4px solid var(--jm-bad); }
+.jm-battle-status { text-align: center; font-weight: bold; margin: 0.4rem 0; font-variant-numeric: tabular-nums; }
+.jm-battle-status.jm-good, .jm-battle-status.jm-bad { font-size: 1.3rem; }
+.jm-battle-ctl { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; }
+.jm-stance.jm-on { background: var(--jm-accent); color: #fff; border-color: transparent; }
+.jm-battle-alert { pointer-events: auto; padding: 0.35rem 0.9rem; border-radius: 999px; border: 0; font-weight: bold; font-size: 0.9rem; background: rgba(60, 40, 120, 0.92); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); animation: jm-pulse 0.8s ease-in-out infinite alternate; }
+.jm-bar-battle .jm-bar-fill { background: linear-gradient(90deg, #a33, #f07a5a); }
+.jm-bar-quest .jm-bar-fill { background: linear-gradient(90deg, #6aa84f, #c7e07a); }
+.jm-bar-dep .jm-bar-fill { background: linear-gradient(90deg, #8a6a3a, #d9b46a); }
+.jm-pick-layer { position: absolute; inset: 0; pointer-events: none; }
+.jm-pick { position: absolute; pointer-events: auto; width: 16.5rem; max-height: 70%; overflow-y: auto; padding: 0.55rem 0.65rem; border-radius: 10px; background: rgba(31, 24, 18, 0.95); border: 1px solid var(--jm-line); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); font-size: 0.9rem; }
+.jm-pick .jm-btn-row { align-items: center; }
+.jm-pick-x { position: absolute; top: 0.1rem; right: 0.3rem; font-size: 1.3rem; }
+.jm-quests { display: flex; flex-direction: column; gap: 0.4rem; }
+.jm-quest { background: var(--jm-card); border: 1px solid var(--jm-line); border-radius: 8px; padding: 0.35rem 0.5rem; }
+.jm-quest-head { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.9rem; }
+.jm-deposits { display: flex; flex-direction: column; gap: 0.3rem; }
+.jm-deposit-head { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.jm-terr-list { margin-top: 0.4rem; }
+.jm-terr-chip { background: rgba(143, 209, 122, 0.15); color: var(--jm-good); }
+.jm-army-chip.jm-fog { background: rgba(255, 255, 255, 0.08); color: var(--jm-muted); }
+.jm-intel-ok { margin-right: 0.2rem; }
+.jm-scout { display: inline-flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; }
+.jm-faction { border-left: 5px solid var(--jm-civ, var(--jm-line)); }
+.jm-rel { font-size: 0.8rem; padding: 0.05rem 0.45rem; border-radius: 999px; white-space: nowrap; }
+.jm-rel-hostile { background: rgba(192, 57, 43, 0.3); color: #ffb3a6; }
+.jm-rel-truce { background: rgba(79, 163, 199, 0.25); color: #bfe6f6; }
+.jm-rel-peace { background: rgba(143, 209, 122, 0.25); color: var(--jm-good); }
+.jm-rel-destroyed { background: rgba(255, 255, 255, 0.1); color: var(--jm-muted); }
+.jm-card.jm-branch { border-style: double; border-width: 3px; }
+.jm-vis-tag { font-size: 0.8rem; opacity: 0.8; }
+.jm-bonus.jm-bonus-bad { background: rgba(255, 138, 114, 0.14); color: var(--jm-bad); }
+.jm-event { text-align: center; }
+.jm-event .jm-choice-grid { text-align: left; }
+.jm-event-icon { font-size: 3rem; line-height: 1; margin-top: 0.2rem; }
+.jm-event .jm-modal-head { justify-content: center; }
+@media (max-width: 900px) {
+  .jm-battle-bars { grid-template-columns: 1fr; }
+  .jm-battle-stage { height: 30vh; min-height: 200px; }
+  .jm-pick { width: min(16.5rem, calc(100% - 16px)); }
+}
