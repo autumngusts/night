@@ -311,6 +311,32 @@
     return out;
   }
 
+  // 合作模式選了材料之後，池子裡「再選它就會合出廢料」的物品（使用者指定 2026-11-04，畫面上調暗）。
+  //   注意：這裡**會查配方表**——使用者明確指定合作模式要提示所有會變廢料的搭配，
+  //   是「已知廢料提示只看紀錄、不偷看配方表」（§1.4）的刻意例外，只用在合作模式的調暗。
+  //   選了 1 個：和它 2 材料合成是廢料的；3 材料主題時，兩者若還出現在某個 3 材料配方裡就不算（還有機會湊成配方）。
+  //   選了 2 個（3 材料主題）：補上它變成 3 材料合成是廢料的。回傳 { id: true }。
+  function junkPartners(theme, state, picked) {
+    var out = {};
+    picked = (picked || []).filter(function (id) { return id; });
+    if (!picked.length || picked.length > 2 || (picked.length === 2 && !theme.allowTrio)) return out;
+    var inTrio = {};
+    if (picked.length === 1 && theme.allowTrio) {
+      Object.keys(theme.trios || {}).forEach(function (key) {
+        var ids = key.split("|"), k = ids.indexOf(picked[0]);
+        if (k < 0) return;
+        ids.splice(k, 1);
+        ids.forEach(function (id) { inTrio[id] = true; });
+      });
+    }
+    state.pool.forEach(function (id) {
+      if (picked.length === 1) {
+        if (!inTrio[id] && theme.junkSet[combine(theme, picked[0], id)]) out[id] = true;
+      } else if (theme.junkSet[combineTrio(theme, picked[0], picked[1], id).options[0]]) out[id] = true;
+    });
+    return out;
+  }
+
   // 把廢料移出池子（不算回合）。上一步的快照也一併清掉，復原時廢料不會跑回來。
   function clearJunk(theme, state) {
     var next = clone(state);
@@ -662,6 +688,7 @@
     knownJunkTrio: knownJunkTrio,
     knownCombo: knownCombo,
     comboPartners: comboPartners,
+    junkPartners: junkPartners,
     clearJunk: clearJunk,
     joinParam: joinParam,
     parseJoin: parseJoin,

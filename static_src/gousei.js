@@ -612,12 +612,14 @@
     });
     // 合作模式：選了材料後，會湊成「紀錄中合過的組合」的物品先調暗（還是可以選，按合成時另有提醒）
     var filled = ui.slots.filter(function (x) { return x; });
-    var dim = state.coop && filled.length < (theme.data.allowTrio ? 3 : 2) ? Core.comboPartners(state, filled) : {};
+    // 會合出廢料的也調暗（2026-11-04 使用者指定，查配方表；見 Core.junkPartners）
+    var open = state.coop && filled.length < (theme.data.allowTrio ? 3 : 2);
+    var dim = open ? Core.comboPartners(state, filled) : {}, dimJunk = open ? Core.junkPartners(theme, state, filled) : {};
     matched.slice(0, POOL_LIMIT).forEach(function (id) {
-      var picked = ui.slots.indexOf(id) >= 0, dimmed = !picked && dim[id];
+      var picked = ui.slots.indexOf(id) >= 0, dimmed = !picked && (dim[id] || dimJunk[id]);
       // 編號＝池子順序（1 起算），語音可以說「3 加 7」
       list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : "") + (dimmed ? " gs-dim" : ""), "data-item": id,
-        title: dimmed ? t("gs_dim_hint") : null,
+        title: dimmed ? t(dim[id] ? "gs_dim_hint" : "gs_dim_junk_hint") : null,
         onclick: function () { pickItem(id); } }, [
         el("span", { class: "gs-item-no", text: String(state.pool.indexOf(id) + 1) }), artNode(theme, id, 34), itemName(theme, id)
       ]));

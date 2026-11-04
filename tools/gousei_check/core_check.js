@@ -295,6 +295,18 @@ assert.deepStrictEqual(Core.comboPartners(tr1.state, ["i1", "b2"]), { b1: true }
 assert.deepStrictEqual(Core.comboPartners(tr1.state, ["b1"]), {}, "3 材料的紀錄不影響只選 1 個時");
 assert.deepStrictEqual(Core.comboPartners(other2, []), {}, "沒選＝不調暗");
 
+// 會合出廢料的搭配（查配方表，2026-11-04 使用者指定的例外）
+var jp = Core.junkPartners(theme, Core.newGame(theme, { seed: "jp", mode: "coop", names: ["A"] }), ["b1"]);
+Object.keys(jp).forEach(function (id) { assert.ok(theme.junkSet[Core.combine(theme, "b1", id)], "調暗的都會合出廢料：" + id); });
+var jstate = Core.newGame(theme, { seed: "jp", mode: "coop", names: ["A"] });
+jstate.pool.forEach(function (id) { if (!jp[id]) assert.ok(!theme.junkSet[Core.combine(theme, "b1", id)], "沒調暗的不會是廢料：" + id); });
+// 3 材料主題：選 b1 → b2 雖然 2 材料是廢料也不調暗（還在 trio 配方 b1|b2|i1 裡）；選兩個 → 補了變廢料的才調暗
+var tjs = JSON.parse(JSON.stringify(ts)); tjs.pool = ["b1", "b2", "i1", "i2"];
+var tj1 = Core.junkPartners(ttheme, tjs, ["b1"]);
+assert.ok(!tj1.b2 && !tj1.i1, "還能湊成 3 材料配方的不調暗");
+var tj2 = Core.junkPartners(ttheme, tjs, ["b1", "b2"]);
+assert.ok(!tj2.i1 && tj2.i2, "選兩個：補 i1 是配方、補 i2 是廢料");
+
 // ---- 合作模式（使用者指定 2026-11-03）：共同 5 目標、任何人合出即達成、廢料記失敗、依回合與失敗計分 ----
 var coopT = Core.dealCoopTargets(theme, "coopA");
 assert.strictEqual(coopT.length, 5);

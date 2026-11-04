@@ -118,6 +118,17 @@ async function combine(page, a, b) {
   // 選了一個 → 和它合過的另一個調暗（還是可以選）
   if (rec[0] !== rec[1]) assert.ok(await page.locator('#gs-pool-list button.gs-dim[data-item="' + rec[0] + '"]').count(), "合過的另一個材料調暗");
   assert.strictEqual(await page.locator('#gs-pool-list button.gs-dim[data-item="' + rec[1] + '"]').count(), 0, "選了的不調暗");
+  // 會合出廢料的也調暗；配方的另一半（rec[0]）以外，調暗的都要真的是廢料或合過的
+  var dimCheck = await page.evaluate(function (p0) {
+    var th = window.PriTestGousei._theme(), s = window.PriTestGousei._debugState(), Core = window.PriTestGouseiCore;
+    var bad = [];
+    Array.prototype.forEach.call(document.querySelectorAll("#gs-pool-list button[data-item]"), function (b) {
+      var id = b.getAttribute("data-item"), junk = th.junkSet[Core.combine(th, p0, id)], seen = !!Core.knownCombo(th, s, p0, id);
+      if (id !== p0 && b.classList.contains("gs-dim") !== (junk || seen)) bad.push(id);
+    });
+    return bad;
+  }, rec[1]);
+  assert.deepStrictEqual(dimCheck, [], "調暗＝會變廢料或合過的");
   await page.dispatchEvent('#gs-pool-list button[data-item="' + rec[0] + '"]', "click");
   await page.dispatchEvent("#gs-combine", "click");
   await page.waitForSelector("#gs-junk-warn");

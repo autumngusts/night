@@ -2476,6 +2476,7 @@ STRINGS_EN: dict[str, str] = {
     "gs_voice_dup_q": "{a} and {b} were already combined into “{r}”. Combine anyway?",
     "gs_voice_dup_status": "Note: {a} + {b} were already combined into “{r}”. Combine anyway? Say \"yes\" or \"no\"",
     "gs_dim_hint": "This combination was already made",
+    "gs_dim_junk_hint": "Combining this with your current pick makes junk",
     "gs_junk_warn_go": "Combine anyway",
     "gs_junk_warn_change": "Pick again",
     "gs_online_setup": "Online sync: everyone plays on their own phone (needs internet)",
