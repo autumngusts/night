@@ -79,6 +79,8 @@
 .sg-breed small, .sg-dog-card small { opacity: 0.75; }
 .sg-breed.sg-on, .sg-dog-card.sg-on { border-color: var(--sg-accent); background: var(--sg-accent-soft); }
 .sg-dog-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem; }
+.sg-train-wrap h4 { margin: 0.6rem 0 0.3rem; font-size: 0.9rem; }
+.sg-train-left { margin: 0.2rem 0; font-weight: bold; }
 .sg-train { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.4rem; }
 
 /* 表格 */
@@ -215,6 +217,11 @@
 .sg-entry-chk.sg-on { border-color: var(--sg-accent); background: var(--sg-accent-soft); }
 .sg-ctl-tabs { margin-bottom: 0.4rem; }
 .sg-mic { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+.sg-mic-heard { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; margin-top: 0.3rem; min-height: 1.4em; }
+.sg-heard { font-size: 0.85rem; padding: 0.05rem 0.4rem; border-radius: 4px; background: rgba(127, 127, 127, 0.15); }
+.sg-heard-cur { opacity: 0.75; font-style: italic; }
+.sg-heard-hit { background: rgba(60, 180, 90, 0.22); color: inherit; font-weight: bold; }
+.sg-heard-miss { opacity: 0.65; }
 .sg-mic-on #sg-mic-btn { animation: sg-pend 0.8s ease-in-out infinite alternate; }
 .sg-entry-style { margin: 0.4rem 0; }
 

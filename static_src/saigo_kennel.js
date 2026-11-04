@@ -7,31 +7,30 @@
   var KEY = "pritest-saigo-kennel";
   var MAX_DOGS = 6;
   var TRAIN_CAP = 40;        // 每項訓練加成上限
+  // 2026-11-04 使用者指定「不是全部能練 +40，而是能固定練 20 次來強化特殊取向」：
+  //   每隻狗一生只有 TRAIN_TIMES 次有效訓練，每次主能力約 +4、次能力約 +1.5（心情影響 ±），
+  //   20 次的主能力合計約 80＝最多把兩項練滿，或分散成幾項；用完之後訓練只得經驗與技能池，不再成長。
+  var TRAIN_TIMES = 20;
+  var GAIN_MAIN = 4, GAIN_SUB = 1.5;
   var MAX_LV = 20;
   var START_COINS = 10000;
   var ADOPT_COST = 2000;     // 第一隻免費
   var BAILOUT = 3000;        // 錢包見底（不到 100）時的救濟金
   var RECOVER_MIN = 6;       // 每 6 分鐘自然恢復 1 點疲勞
 
-  // 訓練項目：主要提升的能力＋次要能力
+  // 訓練項目：主要提升的能力＋次要能力。group：base＝基礎能力、obs＝障礙賽特化
+  // 2026-11-04 使用者指定「障礙賽的訓練種類過多，縮減至 5 種障礙賽特化的訓練，以及其他基礎數值的訓練」：
+  //   原 16 種 → 基礎 4 種（速度／耐力／力量）＋障礙特化 5 種（跳躍、敏捷、游泳、接物、專注各一）。
   var TRAININGS = {
-    sprint: { main: "spd", sub: "pow", icon: "💨" },
-    jog: { main: "sta", sub: "spd", icon: "🏃" },
-    tire: { main: "pow", sub: "sta", icon: "🛞" },
-    slalom: { main: "agi", sub: "foc", icon: "〰" },
-    hurdle: { main: "jmp", sub: "agi", icon: "╫" },
-    swim: { main: "swm", sub: "sta", icon: "≈" },
-    frisbee: { main: "cat", sub: "jmp", icon: "◎" },
-    obedience: { main: "foc", sub: "cat", icon: "✋" },
-    // 2026-11-02 追加 8 種
-    interval: { main: "spd", sub: "sta", icon: "⏱" },
-    lure: { main: "spd", sub: "foc", icon: "🐰" },
-    hill: { main: "pow", sub: "spd", icon: "⛰" },
-    trail: { main: "sta", sub: "agi", icon: "🌲" },
-    agility: { main: "agi", sub: "jmp", icon: "🔀" },
-    dock: { main: "swm", sub: "jmp", icon: "🌊" },
-    tug: { main: "pow", sub: "cat", icon: "🪢" },
-    gate: { main: "foc", sub: "agi", icon: "🚪" }
+    sprint: { main: "spd", sub: "pow", icon: "💨", group: "base" },
+    interval: { main: "spd", sub: "sta", icon: "⏱", group: "base" },
+    jog: { main: "sta", sub: "spd", icon: "🏃", group: "base" },
+    tire: { main: "pow", sub: "sta", icon: "🛞", group: "base" },
+    hurdle: { main: "jmp", sub: "agi", icon: "╫", group: "obs" },
+    slalom: { main: "agi", sub: "foc", icon: "〰", group: "obs" },
+    swim: { main: "swm", sub: "pow", icon: "≈", group: "obs" },
+    frisbee: { main: "cat", sub: "jmp", icon: "◎", group: "obs" },
+    obedience: { main: "foc", sub: "cat", icon: "✋", group: "obs" }
   };
   var SK = window.PriTestSaigoSkills;
 
@@ -75,7 +74,7 @@
     var train = {};
     D.STATS.forEach(function (k) { train[k] = 0; });
     var best = D.rollBestStyle(D.BREED_BY_ID[breed].style, Math.random);
-    var d = { id: "d" + (s.nextId++), breed: breed, best: best, runStyle: best, skills: [], skillExp: {}, line: D.LINE_IDS[Math.floor(Math.random() * D.LINE_IDS.length)], name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
+    var d = { id: "d" + (s.nextId++), trainLeft: TRAIN_TIMES, breed: breed, best: best, runStyle: best, skills: [], skillExp: {}, line: D.LINE_IDS[Math.floor(Math.random() * D.LINE_IDS.length)], name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
     s.dogs.push(d);
     save();
     return d;
@@ -99,22 +98,34 @@
   }
   function expNeed(lv) { return 100 + lv * 40; }
 
-  // 訓練：成長量隨已練程度遞減，心情好練得多，太累練不太動
+  // 剩餘訓練次數。改版前的狗（沒有 trainLeft）依已練的總量換算已用次數（每次約 5.5），已練的能力不扣回
+  function trainLeft(d) {
+    if (!d) return 0;
+    if (typeof d.trainLeft !== "number") {
+      var sum = 0;
+      D.STATS.forEach(function (k) { sum += (d.train && d.train[k]) || 0; });
+      d.trainLeft = Math.max(0, TRAIN_TIMES - Math.round(sum / (GAIN_MAIN + GAIN_SUB)));
+    }
+    return d.trainLeft;
+  }
+  // 訓練：每次固定成長（心情好練得多，太累練不太動），用掉 1 次機會；機會用完仍可練（得經驗、抽技能池），但能力不再成長
   function train(id, kind) {
     var d = dog(id), tr = TRAININGS[kind];
     if (!d || !tr) return null;
     if (d.fatigue >= 95) return { tired: true };
-    var moodF = [0.6, 0.8, 1, 1.15, 1.3][d.mood];
-    var fatF = d.fatigue > 70 ? 0.5 : 1;
-    var r = Math.random;
+    var moodF = [0.8, 0.9, 1, 1.1, 1.2][d.mood];
+    var fatF = d.fatigue > 70 ? 0.75 : 1;
+    var r = Math.random, left = trainLeft(d) > 0;
     function grow(stat, base) {
+      if (!left) return 0;
       var cur = d.train[stat] || 0;
-      var g = base * (0.7 + r() * 0.6) * (1 - cur / (TRAIN_CAP + 5)) * moodF * fatF;
-      g = Math.round(clamp(g, 0.2, 6) * 10) / 10;
+      var g = Math.round(base * (0.9 + r() * 0.2) * moodF * fatF * 10) / 10;
       d.train[stat] = Math.min(TRAIN_CAP, Math.round((cur + g) * 10) / 10);
       return Math.round((d.train[stat] - cur) * 10) / 10;
     }
-    var out = { main: tr.main, sub: tr.sub, gMain: grow(tr.main, 3), gSub: grow(tr.sub, 1) };
+    var out = { main: tr.main, sub: tr.sub, gMain: grow(tr.main, GAIN_MAIN), gSub: grow(tr.sub, GAIN_SUB), noLeft: !left };
+    if (left) d.trainLeft--;
+    out.left = d.trainLeft;
     d.fatigue = clamp(d.fatigue + 14, 0, 100);
     if (d.fatigue > 60 && r() < 0.3) { d.mood = clamp(d.mood - 1, 0, 4); out.moodDown = true; }
     out.lvUp = gainExp(d, 8);
@@ -239,13 +250,7 @@
     if (place === 0) d.mood = clamp(d.mood + 1, 0, 4);
     else if (place >= 4 && Math.random() < 0.4) d.mood = clamp(d.mood - 1, 0, 4);
     var ups = gainExp(d, exp);
-    // 練習賽：隨機兩項能力 +0.5
-    if (practice) {
-      for (var i = 0; i < 2; i++) {
-        var k = D.STATS[Math.floor(Math.random() * D.STATS.length)];
-        d.train[k] = Math.min(TRAIN_CAP, Math.round(((d.train[k] || 0) + 0.5) * 10) / 10);
-      }
-    }
+    // （練習賽原本的「隨機兩項能力 +0.5」已拿掉：能力只能靠 20 次訓練成長，2026-11-04）
     save();
     return { prize: prize, exp: exp, lvUp: ups };
   }
@@ -273,7 +278,7 @@
   function setJackpot(n) { load().jp = n; save(); }
 
   window.PriTestSaigoKennel = {
-    MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
+    MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, TRAIN_TIMES: TRAIN_TIMES, trainLeft: trainLeft, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
     train: train, rest: rest, play: play, treat: treat, expNeed: expNeed,
     pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, expiredSkillsOf: expiredSkillsOf, skillLeft: skillLeft, lineOf: lineOf, stats: stats, rating: rating,

@@ -4,15 +4,20 @@
 (function () {
   "use strict";
 
-  // 「賽狗」的各種辨識結果（中文同音字、日文的「さいご」常被轉成「最後」）
-  var WORDS = /賽狗|赛狗|塞狗|賽夠|赛够|曬狗|晒狗|さいご|サイゴ|最後|最后|sai ?gou|saigo/i;
+  // 「賽狗」的各種辨識結果（2026-11-04 使用者指定「喊賽狗要更精確，可以顯示系統讀到什麼文字」）：
+  //   中文辨識常把「賽狗」聽成同音／近音字，改成「sai 音的字＋gou 音的字」任意組合都算（中間可夾一個標點或空白）；
+  //   日文的「さいご」常被轉成「最後／最期」；英文／拼音的 saigo、sai gou。
+  var SAI = "賽赛塞曬晒腮鰓鳃顋", GOU = "狗够夠購购構构溝沟勾鉤钩苟垢";
+  var WORDS = new RegExp("[" + SAI + "][\\s、，,。.]?[" + GOU + "]|さいご|サイゴ|最後|最后|最期|sai[ -]?gou?|sigh[ -]?go", "gi");
+  function hitCount(txt) { return (String(txt || "").match(WORDS) || []).length; }
   var GAP_MS = 1200;
 
   function Rec() { return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
   function supported() { return !!(Rec() || (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)); }
 
   // onShout()：偵測到一次喊聲；onState(state)：listening／error；lang：zh／ja／en
-  function start(onShout, onState, lang) {
+  // onHeard(text, hit, final)：語音辨識讀到的文字（暫定結果也會送；hit＝這段裡有沒有「賽狗」），給畫面顯示
+  function start(onShout, onState, lang, onHeard) {
     var alive = true, last = 0, rec = null, stream = null, ac = null, raf = 0;
     function fire() {
       var now = Date.now();
@@ -25,11 +30,23 @@
     if (R) {
       rec = new R();
       rec.lang = lang === "ja" ? "ja-JP" : lang === "en" ? "en-US" : "zh-TW";
-      rec.continuous = true; rec.interimResults = true;
+      rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 4;
+      // 支援的瀏覽器（Chrome 新版的 contextual biasing）：提示辨識器優先聽成「賽狗」
+      try {
+        if (window.SpeechRecognitionPhrase && "phrases" in rec) {
+          rec.phrases = (lang === "ja" ? ["さいご", "サイゴ"] : ["賽狗", "賽狗賽狗"]).map(function (w) { return new window.SpeechRecognitionPhrase(w, 8); });
+        }
+      } catch (err) { /* 不支援就算了 */ }
       var seen = {};
       rec.onresult = function (e) {
         for (var i = e.resultIndex; i < e.results.length; i++) {
-          var txt = e.results[i][0].transcript, hits = (txt.match(new RegExp(WORDS.source, "gi")) || []).length;
+          var res = e.results[i], best = res[0].transcript, hits = 0, shown = best;
+          // 每個候選都看：第一候選沒聽成「賽狗」、但其他候選有，也算（顯示命中的那一個）
+          for (var a = 0; a < res.length; a++) {
+            var h = hitCount(res[a].transcript);
+            if (h > hits) { hits = h; shown = res[a].transcript; }
+          }
+          if (onHeard && alive) onHeard(String(shown || "").trim(), hits > 0, !!res.isFinal);
           // 同一段話的暫定結果會重複送來：只在關鍵字次數增加時算一次
           if (hits > (seen[i] || 0)) { seen[i] = hits; fire(); }
         }
@@ -71,5 +88,5 @@
     };
   }
 
-  window.PriTestSaigoMic = { supported: supported, start: start, WORDS: WORDS };
+  window.PriTestSaigoMic = { supported: supported, start: start, WORDS: WORDS, hitCount: hitCount };
 })();

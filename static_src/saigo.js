@@ -187,7 +187,7 @@
   function stopRace() {
     if (ui.raf) cancelAnimationFrame(ui.raf);
     ui.raf = 0;
-    if (ui.mic) { ui.mic.stop(); ui.mic = null; ui.micState = ""; }
+    if (ui.mic) { ui.mic.stop(); ui.mic = null; ui.micState = ""; ui.micHeard = null; }
     if (ui.view) { ui.view.dispose(); ui.view = null; }
   }
   function stopPreview() { ui.previews.forEach(function (p) { p.dispose(); }); ui.previews = []; }
@@ -308,15 +308,24 @@
     var d = ui.selDog ? K.dog(ui.selDog) : null;
     if (d) {
       var b = breedOf(d), stats = dogStats(d);
-      var trainBtns = el("div", { class: "sg-train" }, Object.keys(K.TRAININGS).map(function (k) {
-        var tr = K.TRAININGS[k];
-        return btn(tr.icon + " " + t("sg_train_" + k), function () {
-          var r = K.train(d.id, k);
-          if (!r) return;
-          ui.msg = r.tired ? t("sg_msg_tired") : t("sg_msg_trained", { a: t("sg_stat_" + r.main), ga: r.gMain, b: t("sg_stat_" + r.sub), gb: r.gSub }) + (r.lvUp ? " " + t("sg_msg_lvup") : "") + (r.moodDown ? " " + t("sg_msg_mood_down") : "") + (r.newPool ? " " + t("sg_msg_new_pool", { n: SK.POOL_SIZE }) : "");
-          render();
-        }, "sg-btn", { title: t("sg_stat_" + tr.main) + " / " + t("sg_stat_" + tr.sub), disabled: d.fatigue >= 95 });
-      }));
+      // 訓練（2026-11-04）：每隻狗固定 20 次，分「基礎能力」與「障礙賽特化」兩組
+      var tLeft = K.trainLeft(d);
+      function trainGroup(g) {
+        return el("div", { class: "sg-train" }, Object.keys(K.TRAININGS).filter(function (k) { return K.TRAININGS[k].group === g; }).map(function (k) {
+          var tr = K.TRAININGS[k];
+          return btn(tr.icon + " " + t("sg_train_" + k), function () {
+            var r = K.train(d.id, k);
+            if (!r) return;
+            ui.msg = r.tired ? t("sg_msg_tired") : (r.noLeft ? t("sg_msg_train_none") : t("sg_msg_trained", { a: t("sg_stat_" + r.main), ga: r.gMain, b: t("sg_stat_" + r.sub), gb: r.gSub }) + " " + t("sg_msg_train_left", { n: r.left })) + (r.lvUp ? " " + t("sg_msg_lvup") : "") + (r.moodDown ? " " + t("sg_msg_mood_down") : "") + (r.newPool ? " " + t("sg_msg_new_pool", { n: SK.POOL_SIZE }) : "");
+            render();
+          }, "sg-btn", { title: t("sg_stat_" + tr.main) + " / " + t("sg_stat_" + tr.sub), disabled: d.fatigue >= 95, "data-train": k });
+        }));
+      }
+      var trainBtns = el("div", { class: "sg-train-wrap" }, [
+        el("p", { class: "sg-train-left" + (tLeft ? "" : " sg-muted") }, [t("sg_train_left", { n: tLeft, max: K.TRAIN_TIMES })]),
+        el("h4", null, [t("sg_train_group_base")]), trainGroup("base"),
+        el("h4", null, [t("sg_train_group_obs")]), trainGroup("obs")
+      ]);
       var care = el("div", { class: "sg-actions" }, [
         btn("😴 " + t("sg_rest"), function () { K.rest(d.id); ui.msg = t("sg_msg_rest"); render(); }),
         btn("🎾 " + t("sg_play"), function () { K.play(d.id); ui.msg = t("sg_msg_play"); render(); }),
@@ -926,16 +935,22 @@
     if (mine.indexOf(ui.ctlDog) < 0) ui.ctlDog = mine.length ? mine[0] : -1;
     if (ui.ctlDog >= 0) camDog = ui.ctlDog;
     // 真賽狗：自己的狗的體力＋麥克風喊「賽狗」（重播時不能用；關卡賽沒有比賽中的操作）
-    var real = isReal(card), curTT = -3, styleKey = "", staFill = null, styleOn = real && mine.length > 0 && !ui.replay;
+    var real = isReal(card), curTT = -3, styleKey = "", staFill = null, heardBox = null, heardV = -1, styleOn = real && mine.length > 0 && !ui.replay;
     if (!styleOn) styleBox.style.display = "none";
     function toggleMic() {
-      if (ui.mic) { ui.mic.stop(); ui.mic = null; ui.micState = ""; styleKey = ""; return; }
-      ui.micState = "starting";
+      if (ui.mic) { ui.mic.stop(); ui.mic = null; ui.micState = ""; ui.micHeard = null; styleKey = ""; return; }
+      ui.micState = "starting"; ui.micHeard = null;
       ui.mic = Mic.start(function () {
         var ok = sendShout(ui.ctlDog, curTT);
         ui.micFlash = { t: performance.now(), ok: ok };
         styleKey = "";
-      }, function (stt, why) { ui.micState = stt === "error" ? "error:" + why : "listening"; if (stt === "error") ui.mic = null; styleKey = ""; }, window.I18N.getLang());
+      }, function (stt, why) { ui.micState = stt === "error" ? "error:" + why : "listening"; if (stt === "error") ui.mic = null; styleKey = ""; }, window.I18N.getLang(), function (txt, hit, fin) {
+        // 系統讀到的文字（2026-11-04 使用者指定）：暫定結果即時更新，最後確定的保留最近 3 段
+        var h = ui.micHeard || (ui.micHeard = { cur: "", hit: false, log: [] });
+        h.cur = txt; h.hit = hit;
+        if (fin) { if (txt) h.log.unshift({ txt: txt, hit: hit }); if (h.log.length > 3) h.log.length = 3; h.cur = ""; }
+        h.v = (h.v || 0) + 1;
+      });
       styleKey = "";
     }
     function updateStyleBox(tt, st) {
@@ -965,8 +980,21 @@
             flash ? el("b", { class: flash.ok ? "sg-good" : "sg-muted" }, [flash.ok ? t("sg_shout_sent") : t("sg_shout_wait")]) : sh.pend ? el("b", { class: "sg-good" }, [t("sg_shout_sent")]) : null,
             err ? el("span", { class: "sg-danger sg-small" }, [t("sg_mic_error")]) : on ? el("span", { class: "sg-small sg-muted" }, [t(ui.mic.method === "speech" ? "sg_mic_speech" : "sg_mic_volume")]) : null
           ]));
+          heardBox = on && ui.mic.method === "speech" ? el("div", { class: "sg-mic-heard", id: "sg-mic-heard" }) : null;
+          heardV = -1;
+          if (heardBox) styleBox.appendChild(heardBox);
           styleBox.appendChild(el("p", { class: "sg-small sg-muted" }, [t("sg_shout_note", { p: Math.round(Real.SHOUT_P * 100), h: Math.round(Real.SHOUT_HEAL * 100), n: Real.SHOUT_MAX })]));
         }
+      }
+      // 語音辨識讀到的文字：只改這一塊，不整個重畫
+      var hd = ui.micHeard;
+      if (heardBox && (hd ? hd.v : 0) !== heardV) {
+        heardV = hd ? hd.v : 0;
+        heardBox.innerHTML = "";
+        heardBox.appendChild(el("span", { class: "sg-small sg-muted" }, [t("sg_mic_heard") + "："]));
+        if (!hd || (!hd.cur && !hd.log.length)) heardBox.appendChild(el("span", { class: "sg-small sg-muted" }, [t("sg_mic_heard_none")]));
+        if (hd && hd.cur) heardBox.appendChild(el("span", { class: "sg-heard sg-heard-cur" + (hd.hit ? " sg-heard-hit" : "") }, [(hd.hit ? "✔ " : "") + "「" + hd.cur + "…」"]));
+        if (hd) hd.log.forEach(function (x) { heardBox.appendChild(el("span", { class: "sg-heard" + (x.hit ? " sg-heard-hit" : " sg-heard-miss") }, [(x.hit ? "✔ " : "✘ ") + "「" + x.txt + "」"])); });
       }
       if (staFill && st[idx]) staFill.style.width = Math.round(Core.clamp(st[idx].sta, 0, 1) * 100) + "%";
     }

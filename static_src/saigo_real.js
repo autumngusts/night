@@ -43,6 +43,15 @@
   }
 
   // ---------------- 出賽表 ----------------
+  // 實力分（NPC 補強用）：犬種實力分的算法（速度 55%＋耐力 15%＋力量／敏捷／跳躍 30%）占 6 成，
+  //   8 項能力平均占 4 成（障礙賽也看游泳、接物、專注）。訓練每項同加 t 時分數剛好 +t。
+  function strength(breed, train, lv) {
+    var B = (D.BREED_BY_ID[breed] || D.BREEDS[0]).base, v = {}, sum = 0;
+    D.STATS.forEach(function (k) { v[k] = B[k] + ((train && train[k]) || 0) + (lv || 0) * 0.5; sum += v[k]; });
+    var rt = v.spd * 0.55 + v.sta * 0.15 + (v.pow + v.agi + v.jmp) / 3 * 0.3;
+    return rt * 0.6 + sum / D.STATS.length * 0.4;
+  }
+
   // entries 同關卡賽（可以有同一個玩家的好幾隻）；opts：{ cls, terrain?, weather?, dist?, ground?, obstacles? }（沒指定＝依 seed 隨機）
   function makeCard(seed, entries, opts) {
     opts = opts || {};
@@ -76,6 +85,12 @@
     var names = D.NAMES[lang], kennels = D.NPC_KENNELS[lang];
     var anchor = between(r, cls.band[0], cls.band[1]), bw = {};
     D.BREEDS.forEach(function (b) { var z = (D.breedRating(b) - anchor) / Core.CPU_BW; bw[b.id] = 1 / (1 + z * z * z * z); });
+    // 2026-11-04 使用者指定「玩家人數不足時補上的 NPC 強度再加強，原則貼近玩家中第一名的數值」：
+    //   有玩家的狗時，算出玩家裡實力分最高的那隻（top），NPC 依原本的配對產生後，實力分低於 top 的 96〜103% 就把訓練補到那裡
+    //   （每項同加、再加 ±4 的個體差，保留犬種原本的長短處）；等級也貼近 top。用另一條亂數，原本的抽選順序不變。
+    var top = null;
+    dogs.forEach(function (d) { var s = strength(d.breed, d.train, d.lv); if (!top || s > top.s) top = { s: s, lv: d.lv || 0 }; });
+    var br = rng((seed ^ 0xb0057) >>> 0);
     while (dogs.length < FIELD) {
       var b = D.BREED_BY_ID[weighted(r, bw)], train = {};
       var adj = clamp(Math.round((anchor - D.breedRating(b)) * Core.CPU_ADJ), -12, 12);
@@ -84,7 +99,18 @@
       do { nm = pick(r, names); guard++; } while (used[nm] && guard < 80);
       used[nm] = 1;
       var mx = r(), mood = mx < 0.08 ? 0 : mx < 0.28 ? 1 : mx < 0.72 ? 2 : mx < 0.92 ? 3 : 4;
-      dogs.push({ breed: b.id, name: nm, train: train, lv: Math.round(between(r, 0, cls.cpu[1] / 3)), mood: mood, cpu: true, owner: "", ownerName: pick(r, kennels), dogId: "", line: pick(r, D.LINE_IDS), skills: [] });
+      var lv = Math.round(between(r, 0, cls.cpu[1] / 3));
+      if (top) {
+        var tgt = top.s * between(br, 0.96, 1.03), lv2 = clamp(top.lv + Math.round(between(br, -2, 2)), 0, 20);
+        if (strength(b.id, train, lv) < tgt) {
+          // strength 對「每項同加 t」是線性的（係數 1）：t＝目標 − 犬種基礎分 − 等級 × 0.5
+          var tAdd = tgt - strength(b.id, null, lv2);
+          D.STATS.forEach(function (k) { train[k] = Math.round(clamp(tAdd + between(br, -4, 4), -15, 60)); });
+          lv = lv2;
+          if (mood < 2) mood = 2;   // 補強的 NPC 至少普通調子，免得一開始就輸在心情
+        }
+      }
+      dogs.push({ breed: b.id, name: nm, train: train, lv: lv, mood: mood, cpu: true, owner: "", ownerName: pick(r, kennels), dogId: "", line: pick(r, D.LINE_IDS), skills: [] });
     }
     for (var i = dogs.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var tmp = dogs[i]; dogs[i] = dogs[j]; dogs[j] = tmp; }
     var sr = rng((seed ^ 0x57e1e) >>> 0), kr = rng((seed ^ 0x5c111) >>> 0);
@@ -344,7 +370,7 @@
   }
   function posAt(card, p, x) { return trackXY(trackPos(card, p), x); }
 
-  window.PriTestSaigoReal = {
+  window.PriTestSaigoReal = { strength: strength,
     FIELD: FIELD, LS: LS, R: R, BEND: BEND, LAP: LAP, FINISH: FINISH, W: W, DISTS: DISTS, WEATHER_W: WEATHER_W,
     SHOUT_MAX: SHOUT_MAX, SHOUT_GAP: SHOUT_GAP, SHOUT_P: SHOUT_P, SHOUT_HEAL: SHOUT_HEAL,
     makeCard: makeCard, simulate: simulate, stateAt: stateAt, rankAt: rankAt, trapX: trapX, sectAt: sectAt, trackPos: trackPos,

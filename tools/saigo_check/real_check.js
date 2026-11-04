@@ -1,6 +1,6 @@
 // ============================================================================
 // 賽狗賽狗（saigo）2026-11-02 追加功能的 Playwright 檢查：
-//   犬舍：16 種訓練 → 訓練後出現 20 個技能（金 4／罕見 8／一般 8）→ 學習（欄位上限：金 1）→ 技能池 30 分鐘後消失
+//   犬舍：9 種訓練（2026-11-04 起；原 16 種） → 訓練後出現 20 個技能（金 4／罕見 8／一般 8）→ 學習（欄位上限：金 1）→ 技能池 30 分鐘後消失
 //   真賽狗（單機）：選模式 → 派 2 隻自己的狗、各自選跑法 → 出走表 8 隻、複勝前 3 名 → 比賽（3D、應援列切換 2 隻、喊「賽狗」指令、沒有改跑法、技能廣播）
 //   → 結果：派彩與錢包一致、2 隻狗都有獎金與經驗；日文沒有漏翻
 // 前置：py -3 generate.py；py -3 -m http.server 8947 --directory dist
@@ -54,8 +54,9 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   var store = await kennel(page);
   assert.strictEqual(store.dogs.length, 2);
   assert.ok(store.dogs.every(function (d) { return Array.isArray(d.skills) && d.line; }), "新狗有技能欄與跑線");
-  // 訓練種類 16 種
-  assert.strictEqual(await page.$$eval(".sg-train button", function (x) { return x.length; }), 16, "訓練 16 種");
+  // 訓練種類：2026-11-04 起縮減為 9 種（基礎 4＋障礙特化 5，舊值 16 已過時），每隻固定 20 次
+  assert.strictEqual(await page.$$eval(".sg-train button", function (x) { return x.length; }), 9, "訓練 9 種");
+  assert.strictEqual((await kennel(page)).dogs[0].trainLeft, 20, "新狗有 20 次訓練");
   // 選第一隻（灰影），訓練一次 → 技能池 20 個
   await page.evaluate(function () { document.querySelectorAll(".sg-dog-card")[0].click(); });
   await page.waitForTimeout(150);
@@ -70,7 +71,7 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   assert.deepStrictEqual(tiers, { n: 8, r: 8, g: 4 }, "金 4／罕見 8／一般 8");
   var poolBefore = store.skillPool.ids.slice();
   // 再訓練一次不會換池
-  await clickText(page, "追誘餌", true);
+  await clickText(page, "衝刺跑", true);
   assert.deepStrictEqual((await kennel(page)).skillPool.ids, poolBefore, "30 分鐘內再訓練不換池");
   // 學金技能：第一個成功、第二個欄位已滿
   await page.evaluate(function () { document.querySelectorAll(".sg-pool-item.sg-skill-g")[0].click(); });
@@ -105,7 +106,7 @@ function kennel(page) { return page.evaluate(function () { return JSON.parse(loc
   await page.waitForTimeout(150);
   assert.strictEqual(await page.$$eval(".sg-skill-expired", function (x) { return x.length; }), 5, "5 個技能都顯示已過期");
   assert.deepStrictEqual(await page.evaluate(function () { var K = window.PriTestSaigoKennel; return K.entry(K.load().dogs[0].id).skills; }), [], "過期的技能不帶進出賽資料");
-  await clickText(page, "坡道衝刺", true);
+  await clickText(page, "拉輪胎", true);
   assert.strictEqual((await kennel(page)).skillPool.ids.length, 20, "再訓練出現新的 20 個");
   await page.evaluate(function () { document.querySelectorAll(".sg-pool-item.sg-skill-g")[0].click(); });
   await page.waitForTimeout(150);
