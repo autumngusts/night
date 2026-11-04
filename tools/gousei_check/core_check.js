@@ -288,6 +288,13 @@ var other2 = JSON.parse(JSON.stringify(ts));
 other2.log.push({ round: 1, playerId: "p2", a: "b2", b: "b1", result: "k9", isNew: true, achieved: false });
 assert.deepStrictEqual(Core.knownCombo(ttheme, other2, "b1", "b2").results, ["k9"], "2 材料：別的玩家合過也算");
 
+// 選了材料後要調暗的物品：1 個 → 合過的另一個（2 材料）；2 個 → 合過的第 3 個（3 材料）
+assert.deepStrictEqual(Core.comboPartners(other2, ["b1"]), { b2: true }, "選 b1 → b2 合過");
+assert.deepStrictEqual(Core.comboPartners(other2, ["b2"]), { b1: true }, "不分順序");
+assert.deepStrictEqual(Core.comboPartners(tr1.state, ["i1", "b2"]), { b1: true }, "3 材料：選兩個 → 第 3 個");
+assert.deepStrictEqual(Core.comboPartners(tr1.state, ["b1"]), {}, "3 材料的紀錄不影響只選 1 個時");
+assert.deepStrictEqual(Core.comboPartners(other2, []), {}, "沒選＝不調暗");
+
 // ---- 合作模式（使用者指定 2026-11-03）：共同 5 目標、任何人合出即達成、廢料記失敗、依回合與失敗計分 ----
 var coopT = Core.dealCoopTargets(theme, "coopA");
 assert.strictEqual(coopT.length, 5);

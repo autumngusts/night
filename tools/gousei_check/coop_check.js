@@ -113,7 +113,11 @@ async function combine(page, a, b) {
   await page.dispatchEvent("#gs-next", "click");
 
   // ---- 合過的組合提示（2026-11-04）：再合一次同組合 → 先提醒；換一組可取消 ----
+  assert.strictEqual(await page.locator("#gs-pool-list .gs-dim").count(), 0, "還沒選材料＝不調暗");
   await page.dispatchEvent('#gs-pool-list button[data-item="' + rec[1] + '"]', "click");
+  // 選了一個 → 和它合過的另一個調暗（還是可以選）
+  if (rec[0] !== rec[1]) assert.ok(await page.locator('#gs-pool-list button.gs-dim[data-item="' + rec[0] + '"]').count(), "合過的另一個材料調暗");
+  assert.strictEqual(await page.locator('#gs-pool-list button.gs-dim[data-item="' + rec[1] + '"]').count(), 0, "選了的不調暗");
   await page.dispatchEvent('#gs-pool-list button[data-item="' + rec[0] + '"]', "click");
   await page.dispatchEvent("#gs-combine", "click");
   await page.waitForSelector("#gs-junk-warn");
@@ -179,8 +183,11 @@ async function combine(page, a, b) {
   assert.ok(stF.log[stF.log.length - 1].c, "紀錄有第 3 個材料");
   assert.strictEqual((logLast.match(/＋/g) || []).length, 2, "遊戲紀錄顯示 3 個材料：" + logLast);
   await page.dispatchEvent("#gs-next", "click");
-  // 同樣 3 個材料再合一次 → 提醒（還會提到當時沒選的另一個）
-  for (var k2 = 0; k2 < 3; k2++) await page.dispatchEvent('#gs-pool-list button[data-item="' + trio.ids[(k2 + 1) % 3] + '"]', "click");
+  // 同樣 3 個材料再合一次 → 選了兩個時第 3 個調暗；按合成時提醒（還會提到當時沒選的另一個）
+  for (var k2 = 0; k2 < 3; k2++) {
+    if (k2 === 2 && trio.ids[0] !== trio.ids[1] && trio.ids[0] !== trio.ids[2]) assert.ok(await page.locator('#gs-pool-list button.gs-dim[data-item="' + trio.ids[0] + '"]').count(), "3 材料：選了兩個後第 3 個調暗");
+    await page.dispatchEvent('#gs-pool-list button[data-item="' + trio.ids[(k2 + 1) % 3] + '"]', "click");
+  }
   await page.dispatchEvent("#gs-combine", "click");
   await page.waitForSelector("#gs-junk-warn");
   await page.dispatchEvent("#gs-junk-warn-cancel", "click");

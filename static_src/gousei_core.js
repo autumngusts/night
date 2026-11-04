@@ -290,6 +290,27 @@
     return { results: results, others: others };
   }
 
+  // 合作模式選了材料之後，池子裡「再選它就會湊成合過的組合」的物品（使用者指定 2026-11-04，畫面上調暗提示）：
+  //   選了 1 個 → 紀錄中和它一起合過（2 材料）的另一個；選了 2 個（3 材料主題）→ 紀錄中和這兩個一起合過（3 材料）的第 3 個。
+  //   只看共用的 state.log（別台裝置合的也算）。回傳 { id: true }。
+  function comboPartners(state, picked) {
+    var out = {};
+    picked = (picked || []).filter(function (id) { return id; });
+    if (!picked.length || picked.length > 2) return out;
+    state.log.forEach(function (e) {
+      var ids = e.c ? [e.a, e.b, e.c] : [e.a, e.b];
+      if (ids.length !== picked.length + 1) return;
+      var rest = ids.slice();
+      for (var i = 0; i < picked.length; i++) {
+        var k = rest.indexOf(picked[i]);
+        if (k < 0) return;
+        rest.splice(k, 1);
+      }
+      out[rest[0]] = true;
+    });
+    return out;
+  }
+
   // 把廢料移出池子（不算回合）。上一步的快照也一併清掉，復原時廢料不會跑回來。
   function clearJunk(theme, state) {
     var next = clone(state);
@@ -640,6 +661,7 @@
     knownJunk: knownJunk,
     knownJunkTrio: knownJunkTrio,
     knownCombo: knownCombo,
+    comboPartners: comboPartners,
     clearJunk: clearJunk,
     joinParam: joinParam,
     parseJoin: parseJoin,

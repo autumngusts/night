@@ -2475,6 +2475,7 @@ STRINGS_JA: dict[str, str] = {
     "gs_log_entry3": "第{round}ラウンド {name}：{a} ＋ {b} ＋ {c} → {r}",
     "gs_voice_dup_q": "{a} と {b} は前に合成済みで、結果は「{r}」です。それでも合成しますか？",
     "gs_voice_dup_status": "注意：{a} ＋ {b} は合成済み（結果「{r}」）。それでも合成？「はい」か「違う」と言ってください",
+    "gs_dim_hint": "この組み合わせは合成済みです",
     "gs_junk_warn_go": "それでも合成",
     "gs_junk_warn_change": "選び直す",
     "gs_online_setup": "オンライン同期：各自のスマホで操作（ネット接続が必要）",

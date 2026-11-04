@@ -610,10 +610,14 @@
       if (!q) return true;
       return it.zh.toLowerCase().indexOf(q) >= 0 || it.ja.toLowerCase().indexOf(q) >= 0;
     });
+    // 合作模式：選了材料後，會湊成「紀錄中合過的組合」的物品先調暗（還是可以選，按合成時另有提醒）
+    var filled = ui.slots.filter(function (x) { return x; });
+    var dim = state.coop && filled.length < (theme.data.allowTrio ? 3 : 2) ? Core.comboPartners(state, filled) : {};
     matched.slice(0, POOL_LIMIT).forEach(function (id) {
-      var picked = ui.slots.indexOf(id) >= 0;
+      var picked = ui.slots.indexOf(id) >= 0, dimmed = !picked && dim[id];
       // 編號＝池子順序（1 起算），語音可以說「3 加 7」
-      list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : ""), "data-item": id,
+      list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : "") + (dimmed ? " gs-dim" : ""), "data-item": id,
+        title: dimmed ? t("gs_dim_hint") : null,
         onclick: function () { pickItem(id); } }, [
         el("span", { class: "gs-item-no", text: String(state.pool.indexOf(id) + 1) }), artNode(theme, id, 34), itemName(theme, id)
       ]));

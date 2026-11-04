@@ -2482,6 +2482,7 @@ STRINGS_ZH: dict[str, str] = {
     "gs_log_entry3": "第 {round} 輪 {name}：{a} ＋ {b} ＋ {c} → {r}",
     "gs_voice_dup_q": "{a} 加 {b} 之前合過了，結果是「{r}」，還要合成嗎？",
     "gs_voice_dup_status": "提醒：{a} ＋ {b} 之前合過，結果是「{r}」，仍要合成？請說「對」或「不對」",
+    "gs_dim_hint": "這個組合之前合過了",
     "gs_junk_warn_go": "仍要合成",
     "gs_junk_warn_change": "換一組",
     "gs_online_setup": "連線同步：大家用自己的手機操作（需要網路）",
