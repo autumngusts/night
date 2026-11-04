@@ -1225,6 +1225,19 @@
     });
   }
 
+  // 關閉戰果（收兵）：守城戰回到 AI 階段，自己出陣則回地圖（或結局／事件）
+  function closeResult(modal) {
+    if (modal.closed) return;
+    modal.closed = true;
+    if (modal.kind === "defense") {
+      ui.modal = null;
+      handleAiStep(Core.continueAiPhase(state));
+    } else {
+      ui.modal = state.gameOver ? { type: "gameover" } : state.pendingEvents.length ? { type: "event" } : null;
+      after();
+    }
+  }
+
   // 戰果明細（3D 與 2D 演出共用）：勝敗、掠奪、守方撤退、武將下場、關閉
   function resultDetails(modal) {
     var report = modal.report;
@@ -1248,13 +1261,7 @@
           class: "rw-primary",
           text: t("rw_battle_result_close"),
           onclick: function () {
-            if (modal.kind === "defense") {
-              ui.modal = null;
-              handleAiStep(Core.continueAiPhase(state));
-            } else {
-              ui.modal = state.gameOver ? { type: "gameover" } : state.pendingEvents.length ? { type: "event" } : null;
-              after();
-            }
+            closeResult(modal);
           },
         }),
       ])
@@ -1321,6 +1328,13 @@
           onDone: function () {
             modal.done = true;
             showResult();
+            // 2026-11-04 修正：撤退等結局後，3D 畫面中央的「撤退」字樣看起來像按鈕但按了沒反應，
+            // 真正的「關閉」在 3D 畫面下方、手機上手指在 3D 畫面拖曳只會轉視角而捲不下去，看起來像無法收兵。
+            // 演出結束後在 3D 畫面上直接放「收兵」按鈕，並把戰果明細捲進畫面。
+            if (!stage.querySelector(".rw-b3d-exit")) {
+              stage.appendChild(el("button", { class: "rw-b3d-exit", id: "rw-b3d-exit", text: t("rw_b3d_exit"), onclick: function () { closeResult(modal); } }));
+            }
+            try { resultBox.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) { /* 舊瀏覽器 */ }
           },
         });
       })
