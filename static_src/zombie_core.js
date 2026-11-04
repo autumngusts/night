@@ -122,7 +122,7 @@
       items: { molotov: 1, decoy: 0, serum: 0, part: 0 }, weapons: [], morale: 60, research: 0, evacIn: 0, dog: null, zeroMorale: 0,
       bld: {}, prog: {}, craftProg: {}, walls: [], core: CORE_HP,
       players: (o.players || [{ pid: "me", name: "" }]).map(function (p) { return { pid: p.pid, name: String(p.name || "").slice(0, 16) }; }),
-      surv: [], plans: {}, explore: {}, gate: null, tonight: { horde: 0, heat: 0 }, districts: {}, seen: {},
+      surv: [], plans: {}, explore: {}, gate: null, votes: {}, tonight: { horde: 0, heat: 0 }, districts: {}, seen: {},
       log: [], report: null, nightRes: null, stats: { kills: 0, found: 0, deaths: 0, recruits: 0, days: 0 }, end: null, nextId: 1, ack: {}
     };
     s.rs = (s.seed ^ 0x2545f491) >>> 0;
@@ -164,6 +164,7 @@
   // 回傳 true＝狀態有變（呼叫端要存檔／廣播）。不合法的意圖一律忽略。
   function applyIntent(s, pid, it) {
     if (!s || s.end || !it) return false;
+    if (!s.votes) s.votes = {};
     var me = s.players.filter(function (p) { return p.pid === pid; })[0];
     if (!me) return false;
     var v = it.sid ? survById(s, it.sid) : null;
@@ -200,7 +201,7 @@
         return treat(s, v, it.how);
       case "gate":
         if (s.phase !== "plan" || !s.gate) return false;
-        return answerGate(s, pid, it.c | 0);
+        return voteGate(s, pid, it.c | 0);
       case "ready":
         if (s.phase === "plan") {
           if (it.v && s.gate) return false;           // 大門口的事要先處理
@@ -216,7 +217,16 @@
         return false;
       case "answer":
         if (s.phase !== "explore") return false;
-        return answerCard(s, pid, it.c | 0);
+        return voteCard(s, pid, it.ex || pid, it.c | 0);
+      case "skip":
+        // 不等離線的人（房主在畫面上按；連線時有人斷線，不要讓整局卡住）：
+        //   規劃＝當作他準備好了、外出＝他那一隊用目前的票決定（沒人投就投第一個可選的）、清晨＝當作他看完了
+        return skipPlayers(s, pid, (Array.isArray(it.who) ? it.who : []).filter(function (w) { return w !== pid && s.players.some(function (p) { return p.pid === w; }); }));
+      case "force":
+        // 以目前票數決定：外出隊伍由該隊玩家按、大門口事件任何人都可以（避免有人斷線卡住）
+        if (it.k === "gate") { if (s.phase !== "plan" || !s.gate) return false; return decideGate(s, true); }
+        if (s.phase !== "explore" || it.k !== pid) return false;
+        return decideCard(s, pid, true);
       default:
         return false;
     }
@@ -293,13 +303,101 @@
     return true;
   }
 
-  // ---------------- 大門口事件 ----------------
-  function answerGate(s, pid, c) {
+  // ---------------- 投票（2026-11-04 使用者指定：外出事件卡與大門口事件由全員投票決定） ----------------
+  // s.votes[key]＝{ pid: 選項 }；key：大門口 "g<天>"、外出隊伍 "x<隊伍玩家>:<第幾張卡>"。
+  // 過半數立刻決定；全員都投了就依多數決定；平手以 owner（該隊玩家）的票為準，否則取最前面的選項。
+  // 單機只有一人，投下去就決定。force＝以目前票數決定（至少要有一票）。
+  function voteKeyGate(s) { return "g" + s.day; }
+  function voteKeyCard(s, exPid) { return "x" + exPid + ":" + s.explore[exPid].step; }
+  function tally(s, key, owner, force, okFn) {
+    var votes = s.votes[key] || {}, cnt = {}, voters = 0, n = s.players.length;
+    Object.keys(votes).forEach(function (pid) {
+      var c = votes[pid];
+      if (!okFn(c)) return;
+      cnt[c] = (cnt[c] || 0) + 1; voters++;
+    });
+    var best = 0, tied = [];
+    Object.keys(cnt).forEach(function (c) { if (cnt[c] > best) { best = cnt[c]; tied = [+c]; } else if (cnt[c] === best) tied.push(+c); });
+    if (!voters) return -1;
+    var all = s.players.every(function (p) { return votes[p.pid] !== undefined; });
+    if (!(best > n / 2) && !all && !force) return -1;
+    if (tied.length === 1) return tied[0];
+    var ov = owner ? votes[owner] : undefined;
+    return tied.indexOf(ov) >= 0 ? ov : Math.min.apply(null, tied);
+  }
+  function voteGate(s, pid, c) {
     var e = D.EVENT_BY_ID[s.gate.id], o = e && e.ch[c];
     if (!o || !reqOk(s, null, o.req)) return false;
-    var ctx = { s: s, pid: pid, team: alive(s).filter(function (v) { return v.owner === pid; }), lines: [], gate: true };
+    var key = voteKeyGate(s);
+    (s.votes[key] || (s.votes[key] = {}))[pid] = c;
+    decideGate(s, false);
+    return true;
+  }
+  function decideGate(s, force) {
+    var e = D.EVENT_BY_ID[s.gate.id], key = voteKeyGate(s);
+    var c = tally(s, key, null, force, function (x) { return e.ch[x] && reqOk(s, null, e.ch[x].req); });
+    if (c < 0) return false;
+    // 新加入的人（收留）給目前倖存者最少的玩家帶
+    var to = s.players.slice().sort(function (a, b) { return alive(s).filter(function (v) { return v.owner === a.pid; }).length - alive(s).filter(function (v) { return v.owner === b.pid; }).length; })[0].pid;
+    answerGate(s, to, c, s.votes[key]);
+    delete s.votes[key];
+    return true;
+  }
+  function voteCard(s, pid, exPid, c) {
+    var ex = s.explore[exPid];
+    if (!ex || ex.done) return false;
+    var e = D.EVENT_BY_ID[ex.cards[ex.step]], o = e && e.ch[c];
+    if (!o || !reqOk(s, ex, o.req)) return false;
+    var key = voteKeyCard(s, exPid);
+    (s.votes[key] || (s.votes[key] = {}))[pid] = c;
+    decideCard(s, exPid, false);
+    return true;
+  }
+  function decideCard(s, exPid, force) {
+    var ex = s.explore[exPid];
+    if (!ex || ex.done) return false;
+    var e = D.EVENT_BY_ID[ex.cards[ex.step]], key = voteKeyCard(s, exPid);
+    var c = tally(s, key, exPid, force, function (x) { return e.ch[x] && reqOk(s, ex, e.ch[x].req); });
+    if (c < 0) return false;
+    var votes = s.votes[key];
+    delete s.votes[key];
+    return answerCard(s, exPid, c, votes);
+  }
+  function skipPlayers(s, by, who) {
+    if (!who.length) return false;
+    var changed = false;
+    if (s.phase === "plan") {
+      who.forEach(function (w) { var pl = s.plans[w]; if (pl && !pl.ready) { pl.ready = true; changed = true; } });
+      if (changed && !s.gate && allReady(s)) startExplore(s);
+    } else if (s.phase === "explore") {
+      who.forEach(function (w) {
+        var guard = 0;
+        while (s.phase === "explore" && s.explore[w] && !s.explore[w].done && guard++ < 6) {
+          var ex = s.explore[w], key = voteKeyCard(s, w), e = D.EVENT_BY_ID[ex.cards[ex.step]];
+          if (!Object.keys(votesOf(s, key)).length) {
+            var first = e.ch.map(function (o, j) { return reqOk(s, ex, o.req) ? j : -1; }).filter(function (j) { return j >= 0; })[0];
+            (s.votes[key] || (s.votes[key] = {}))[by] = first === undefined ? 0 : first;
+          }
+          decideCard(s, w, true);
+          changed = true;
+        }
+      });
+    } else if (s.phase === "dawn") {
+      who.forEach(function (w) { if (!s.ack[w]) { s.ack[w] = true; changed = true; } });
+      if (changed && s.players.every(function (p) { return s.ack[p.pid]; })) startDay(s);
+    }
+    return changed;
+  }
+  function votesOf(s, key) { return (s.votes && s.votes[key]) || {}; }
+
+  // ---------------- 大門口事件 ----------------
+  function answerGate(s, pid, c, votes) {
+    var e = D.EVENT_BY_ID[s.gate.id], o = e && e.ch[c];
+    if (!o || !reqOk(s, null, o.req)) return false;
+    var ctx = { s: s, pid: pid, team: alive(s), lines: [], gate: true };
     applyEff(ctx, o.eff);
     s.log.push(line("zm_log_gate", { e: e.text, c: o.t }));
+    if (s.players.length > 1 && votes) s.log.push({ votes: votes, ev: e.id });
     if (o.r) s.log.push(lit(o.r));
     ctx.lines.forEach(function (l) { s.log.push(l); });
     s.gate = null;
@@ -359,14 +457,14 @@
     if (!ex || ex.done) return null;
     return D.EVENT_BY_ID[ex.cards[ex.step]] || null;
   }
-  function answerCard(s, pid, c) {
+  function answerCard(s, pid, c, votes) {
     var ex = s.explore[pid];
     if (!ex || ex.done) return false;
     var e = D.EVENT_BY_ID[ex.cards[ex.step]], o = e && e.ch[c];
     if (!o || !reqOk(s, ex, o.req)) return false;
     s.seen[e.id] = (s.seen[e.id] || 0) + 1;
     var ctx = { s: s, pid: pid, ex: ex, team: exTeam(s, ex), lines: [] };
-    ex.log.push({ card: e.id, c: c });
+    ex.log.push({ card: e.id, c: c, votes: s.players.length > 1 ? votes || null : null });
     applyEff(ctx, o.eff);
     if (o.r) ex.log.push(lit(o.r));
     ctx.lines.forEach(function (l) { ex.log.push(l); });
@@ -832,7 +930,7 @@
 
   window.PriTestZombieCore = {
     VERSION: VERSION, MAX_HP: MAX_HP, MAX_STA: MAX_STA, WALL_HP: WALL_HP, CORE_HP: CORE_HP, EVAC_DAYS: EVAC_DAYS,
-    newGame: newGame, applyIntent: applyIntent, endNight: endNight, nightSetup: nightSetup, currentCard: currentCard, reqOk: reqOk,
+    newGame: newGame, applyIntent: applyIntent, votesOf: votesOf, voteKeyGate: voteKeyGate, voteKeyCard: voteKeyCard, endNight: endNight, nightSetup: nightSetup, currentCard: currentCard, reqOk: reqOk,
     alive: alive, survById: survById, stat: stat, weaponOf: weaponOf, has: has, progress: progress, heatOf: heatOf, cureNeed: cureNeed,
     canScavenge: canScavenge, canBuild: canBuild, canCraft: canCraft, costOk: costOk, teamOf: teamOf, districtName: districtName, ruleMult: ruleMult,
     loadMeta: loadMeta, saveMeta: saveMeta, unlock: unlock, isUnlocked: isUnlocked, unlockable: unlockable, recordRun: recordRun, dailyKey: dailyKey, dailyOpts: dailyOpts,

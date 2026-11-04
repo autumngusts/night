@@ -160,6 +160,8 @@ function fakeFirebase() {
   await page.screenshot({ path: path.join(SHOT_DIR, "solo_nightprep.png"), fullPage: true });
   await clickText(page, "即時防守", true);
   await page.waitForSelector(".zm-canvas", { timeout: 20000 });
+  // 測試用：拿掉守衛，殭屍才會走進畫面讓我們點（第 1 晚殭屍少，守衛常在畫面外就打光了）
+  await page.evaluate(function () { var sim = window.PriTestZombie.ui.sim; window.__guards = [sim.guards, sim.reserve]; sim.guards = []; sim.reserve = []; });
   await page.waitForFunction(visibleZombie, null, { timeout: 40000 });
   var q = await page.evaluate(visibleZombie), shots0 = await page.evaluate(function () { return window.PriTestZombie.ui.sim.shots; });
   await page.mouse.move(q.x, q.y); await page.mouse.down(); await page.mouse.up();
@@ -175,6 +177,7 @@ function fakeFirebase() {
   var rep = await page.evaluate(function () { var s = window.PriTestZombie.ui.sim; return { mats: s.mats, used: s.matsUsed }; });
   assert.ok(rep.used >= 1 && rep.mats < mats0, "點牆＝修牆（材料 " + mats0 + "→" + rep.mats + "）");
   await page.screenshot({ path: path.join(SHOT_DIR, "solo_night.png") });
+  await page.evaluate(function () { var sim = window.PriTestZombie.ui.sim; sim.guards = window.__guards[0]; sim.reserve = window.__guards[1]; sim.core = sim.coreMax; });
   await page.evaluate(function () { document.getElementById("zm-skip").click(); });
   await page.waitForSelector(".zm-big-line", { timeout: 20000 });
   assert.strictEqual(await page.evaluate(function () { return window.PriTestZombie.sess.s.phase; }), "dawn", "天亮了");
@@ -259,21 +262,46 @@ function fakeFirebase() {
   await B.evaluate(function (sid) { window.PriTestZombie.sess.send({ a: "assign", sid: sid, job: "craft" }); }, hostSid);
   await A.waitForTimeout(400);
   assert.notStrictEqual(await A.evaluate(function (sid) { return window.PriTestZombieCore.survById(window.PriTestZombie.sess.s, sid).assign; }, hostSid), "craft", "不能指揮別人的倖存者");
-  // 大門口事件由房主處理
-  if (await A.evaluate(function () { return !!window.PriTestZombie.sess.s.gate; })) await A.evaluate(function () { var s = window.PriTestZombie.sess.s; window.PriTestZombie.sess.send({ a: "gate", c: window.PriTestZombieData.EVENT_BY_ID[s.gate.id].ch.length - 1 }); });
-  await A.waitForTimeout(200);
+  // 大門口事件：兩人都投票（2026-11-04 改為全員投票）
+  if (await A.evaluate(function () { return !!window.PriTestZombie.sess.s.gate; })) {
+    await A.evaluate(function () { Array.prototype.filter.call(document.querySelectorAll(".zm-card .zm-choice"), function (b) { return !b.disabled; }).pop().click(); });
+    await B.waitForSelector(".zm-voters", { timeout: 10000 });
+    assert.ok(await A.evaluate(function () { return !!window.PriTestZombie.sess.s.gate; }), "大門口：一票不夠");
+    await B.evaluate(function () { Array.prototype.filter.call(document.querySelectorAll(".zm-card .zm-choice"), function (b) { return !b.disabled; }).pop().click(); });
+    await A.waitForFunction(function () { return !window.PriTestZombie.sess.s.gate; }, null, { timeout: 10000 });
+  }
   await clickText(A, "結束白天", true);
   await clickText(B, "出發！");
   await B.waitForFunction(function () { return window.PriTestZombie.sess.s.phase === "explore"; }, null, { timeout: 10000 });
+  await A.waitForFunction(function () { return window.PriTestZombie.sess.s.phase === "explore"; }, null, { timeout: 10000 });
+  // 房主沒派人外出，也看得到客人那一隊的事件卡，並且能投票（2026-11-04）
+  var guestPid = await B.evaluate(function () { return window.PriTestZombie.sess.pid; });
+  await A.waitForSelector('.zm-card[data-ex="' + guestPid + '"] .zm-choice', { timeout: 10000 });
+  assert.ok((await A.textContent("#zm-app")).indexOf("你今天沒有派人外出，但每一隊遇到的事都可以投票") >= 0, "沒派人外出的人看到投票說明");
+  await noMissingKeys(A, "explore host");
   var bc = 0;
   while (await B.evaluate(function () { return window.PriTestZombie.sess.s.phase === "explore"; }) && bc < 6) {
-    await B.waitForSelector(".zm-card .zm-choice:not([disabled])", { timeout: 10000 });
+    var sel = '.zm-card[data-ex="' + guestPid + '"] .zm-choice:not([disabled])';
+    await B.waitForSelector(sel, { timeout: 10000 });
     var step0 = await B.evaluate(function () { var Z = window.PriTestZombie; return Z.sess.s.explore[Z.sess.pid].step; });
-    await B.click(".zm-card .zm-choice:not([disabled])");
+    await B.click(sel);
+    // 一票不夠：房主那邊看得到客人的票
+    await A.waitForFunction(function (pid) { return !!document.querySelector('.zm-card[data-ex="' + pid + '"] .zm-voters'); }, guestPid, { timeout: 10000 });
+    assert.strictEqual(await A.evaluate(function () { var Z = window.PriTestZombie, s = Z.sess.s; return s.explore[s.players[1].pid].step; }), step0, "2 人只有 1 票還沒決定");
+    if (bc === 0) {
+      await A.screenshot({ path: path.join(SHOT_DIR, "coop_vote_host.png"), fullPage: true });
+      // 第一張：房主也投（投同一個）＝決定
+      await A.click(sel.replace(":not([disabled])", ".zm-on") + ", " + sel);
+    } else {
+      // 之後：客人（該隊玩家）用「以目前票數決定」
+      await clickText(B, "以目前票數決定");
+    }
     await B.waitForFunction(function (st) { var Z = window.PriTestZombie, ex = Z.sess.s.explore[Z.sess.pid]; return Z.sess.s.phase !== "explore" || !ex || ex.step > st; }, step0, { timeout: 10000 });
     bc++;
   }
-  assert.ok(bc >= 2, "客人翻了 " + bc + " 張卡");
+  assert.ok(bc >= 2, "客人那一隊翻了 " + bc + " 張卡");
+  var lastVote = await A.evaluate(function () { var s = window.PriTestZombie.sess.s, ex = s.explore[s.players[1].pid]; return ex.log.filter(function (l) { return l.card; })[0].votes; });
+  assert.strictEqual(Object.keys(lastVote).length, 2, "第一張卡兩人都投了（日誌有記錄）");
   await A.waitForFunction(function () { return window.PriTestZombie.sess.s.phase === "night"; }, null, { timeout: 10000 });
   await B.waitForSelector(".zm-muted", { timeout: 5000 });
   assert.ok((await B.textContent("#zm-app")).indexOf("等房主開始今晚的防守") >= 0, "客人等房主開防守");
@@ -296,6 +324,39 @@ function fakeFirebase() {
   await B.waitForFunction(function () { return window.PriTestZombie.sess.s.day === 2 && window.PriTestZombie.sess.s.phase === "plan"; }, null, { timeout: 10000 });
   await noMissingKeys(B, "coop day 2");
   await B.screenshot({ path: path.join(SHOT_DIR, "coop_day2_guest.png"), fullPage: true });
+  // 客人重新整理：同一個 pid、還是自己的倖存者
+  var bPid = await B.evaluate(function () { return window.PriTestZombie.sess.pid; });
+  assert.ok(/room=g[0-9a-f]{32}/.test(await B.evaluate(function () { return location.href; })), "加入後網址帶著房間（重新整理才回得到）");
+  // 真的 Firebase 在重新整理（斷線）時會自動移除在線狀態（onDisconnect）；假 Firebase 沒有，這裡手動模擬
+  await B.evaluate(function () { window.PriTestZombie.ui.room.close(); });
+  await B.reload(); await fb.sync(B);
+  await B.waitForSelector(".zm-surv.zm-mine", { timeout: 10000 });
+  assert.strictEqual(await B.evaluate(function () { return window.PriTestZombie.sess.pid; }), bPid, "重新整理後還是同一個人");
+  // 房主離開：客人接手當房主，用「不等離線的人繼續」推進
+  await A.evaluate(function () { window.PriTestZombie.ui.room.close(); });
+  await B.waitForFunction(function () { return window.PriTestZombie.sess.host; }, null, { timeout: 10000 });
+  await B.waitForSelector("#zm-skip-offline", { timeout: 10000 });
+  // 大門口事件：另一人離線，先投一票再「以目前票數決定」（沒有票不能決定）
+  if (await B.evaluate(function () { return !!window.PriTestZombie.sess.s.gate; })) {
+    assert.ok(!(await B.evaluate(function () { return window.PriTestZombie.sess.send({ a: "force", k: "gate" }) && !window.PriTestZombie.sess.s.gate; })), "沒有票不能決定");
+    await B.evaluate(function () { Array.prototype.filter.call(document.querySelectorAll(".zm-card .zm-choice"), function (b) { return !b.disabled; }).pop().click(); });
+    await B.waitForTimeout(150);
+    await clickText(B, "以目前票數決定");
+    assert.ok(await B.evaluate(function () { return !window.PriTestZombie.sess.s.gate; }), "大門口事件決定了");
+  }
+  await B.evaluate(function () { window.PriTestZombie.sess.send({ a: "ready", v: true }); });
+  await B.evaluate(function () { document.getElementById("zm-skip-offline").click(); });
+  await B.waitForFunction(function () { var ph = window.PriTestZombie.sess.s.phase; return ph === "explore" || ph === "night"; }, null, { timeout: 10000 });
+  // 新房主自己那一隊：投票後用「以目前票數決定」（另一人離線，一票不過半）
+  for (var gi = 0; gi < 6 && await B.evaluate(function () { return window.PriTestZombie.sess.s.phase === "explore"; }); gi++) {
+    await B.evaluate(function () { var c = document.querySelector(".zm-card .zm-choice:not([disabled])"); if (c) c.click(); });
+    await B.waitForTimeout(150);
+    await clickText(B, "以目前票數決定");
+  }
+  await B.waitForFunction(function () { return window.PriTestZombie.sess.s.phase === "night"; }, null, { timeout: 10000 });
+  await clickText(B, "自動結算", true);
+  await B.waitForFunction(function () { return window.PriTestZombie.sess.s.phase === "dawn" || window.PriTestZombie.sess.s.phase === "end"; }, null, { timeout: 10000 });
+  await noMissingKeys(B, "coop new host");
   console.log("合作連線 OK");
 
   assert.deepStrictEqual(errors, [], "console 錯誤：\n" + errors.join("\n"));

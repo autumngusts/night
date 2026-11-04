@@ -39,10 +39,13 @@
     });
     return e;
   }
-  function btn(label, onclick, cls, attrs) {
+  // voters：投了這個選項的玩家（多人投票時顯示在按鈕右邊）
+  function btn(label, onclick, cls, attrs, voters) {
     var a = { type: "button", class: cls || "zm-btn", onclick: onclick };
     Object.keys(attrs || {}).forEach(function (k) { a[k] = attrs[k]; });
-    return el("button", a, [label]);
+    var kids = [label];
+    if (voters && voters.length && sess && sess.s) kids.push(el("span", { class: "zm-voters" }, ["🗳" + voters.length + " " + voters.map(function (pid) { return pname(sess.s, pid); }).join("、")]));
+    return el("button", a, kids);
   }
   function panel(title, children, cls) { return el("section", { class: "zm-panel " + (cls || "") }, [title ? el("h2", null, [title]) : null].concat(children)); }
   function bar(v, max, cls) { return el("span", { class: "zm-bar " + (cls || "") }, [el("i", { style: "width:" + Math.round(Core.clamp(v / max, 0, 1) * 100) + "%" })]); }
@@ -100,13 +103,21 @@
   function lineText(l) {
     if (!l) return "";
     if (l.c) return L(l.c);
-    if (l.card) { var e = D.EVENT_BY_ID[l.card]; return e ? "▶ " + L(e.ch[l.c].t) : ""; }
+    if (l.card) { var e = D.EVENT_BY_ID[l.card]; return e ? "▶ " + L(e.ch[l.c].t) + votesText(e, l.votes) : ""; }
+    if (l.votes && l.ev) { var e2 = D.EVENT_BY_ID[l.ev]; return e2 ? votesText(e2, l.votes).replace(/^（|）$/g, "") : ""; }
     if (l.k === "zm_l_bitten" && sess && l.p.pid !== sess.pid) {
       // 被咬：如果還藏著，其他玩家只看到「被抓了一下」
       var nk = JSON.stringify(l.p.n), v = (sess.s.surv || []).filter(function (x) { return JSON.stringify(x.name) === nk && x.owner === l.p.pid; })[0];
       if (v && v.inf && v.inf.hid) return t("zm_l_bitten_masked", l.p);
     }
     return t(l.k, l.p);
+  }
+  // 投票紀錄：（房主：選項、客人：選項）
+  function votesText(e, votes) {
+    if (!votes || !sess || !sess.s || sess.s.players.length < 2) return "";
+    var ks = Object.keys(votes);
+    if (!ks.length) return "";
+    return "（🗳 " + ks.map(function (pid) { var o = e.ch[votes[pid]]; return pname(sess.s, pid) + "：" + (o ? L(o.t) : "?"); }).join("、") + "）";
   }
   function logBox(lines, cls) {
     return el("ul", { class: "zm-log " + (cls || "") }, (lines || []).map(function (l) { var s2 = lineText(l); return s2 ? el("li", null, [s2]) : null; }));
@@ -252,10 +263,27 @@
     app.appendChild(topBar(s));
     if (s.phase === "end") return screenEnd(s);
     if (!me(s)) app.appendChild(el("p", { class: "zm-hint" }, [t("zm_spectator")]));
+    offlineBar(s);
     if (s.phase === "plan") return screenPlan(s);
     if (s.phase === "explore") return screenExplore(s);
     if (s.phase === "night") return screenNightPrep(s);
     if (s.phase === "dawn") return screenDawn(s);
+  }
+
+  // 連線時有人離線：房主可以不等他繼續（規劃、外出投票、清晨都適用）
+  function offlinePids(s) {
+    if (!ui.room) return [];
+    var on = {};
+    ui.room.list().forEach(function (p) { on[p.pid] = 1; });
+    return s.players.filter(function (p) { return !on[p.pid]; }).map(function (p) { return p.pid; });
+  }
+  function offlineBar(s) {
+    var off = offlinePids(s);
+    if (!off.length || ["plan", "explore", "dawn"].indexOf(s.phase) < 0) return;
+    app.appendChild(el("div", { class: "zm-hint zm-actions" }, [
+      el("span", null, ["📴 " + t("zm_offline", { n: off.map(function (pid) { return pname(s, pid); }).join("、") })]),
+      sess.host ? btn(t("zm_skip_offline"), function () { sess.send({ a: "skip", who: off }); }, "zm-btn", { id: "zm-skip-offline" }) : el("span", { class: "zm-small zm-muted" }, [t("zm_skip_offline_host")])
+    ]));
   }
 
   // ---- 規劃 ----
@@ -358,11 +386,11 @@
     if (s.log && s.log.length) app.appendChild(panel(null, [logBox(s.log)], "zm-newsbox"));
     if (s.gate) {
       var e = D.EVENT_BY_ID[s.gate.id];
+      var gv = Core.votesOf(s, Core.voteKeyGate(s));
       app.appendChild(panel("🚪 " + t("zm_gate_title"), [
         el("p", { class: "zm-card-text" }, [L(e.text)]),
-        el("div", { class: "zm-choices" }, e.ch.map(function (o, i) {
-          return btn(L(o.t) + reqText(o.req), function () { sess.send({ a: "gate", c: i }); }, "zm-btn zm-choice", { disabled: !me(s) || !Core.reqOk(s, null, o.req) });
-        }))
+        voteChoices(s, e, gv, function (o) { return Core.reqOk(s, null, o.req); }, function (i) { sess.send({ a: "gate", c: i }); }),
+        voteFooter(s, gv, true, function () { sess.send({ a: "force", k: "gate" }); })
       ], "zm-card"));
     }
     var mine = Core.alive(s).filter(isMine), others = Core.alive(s).filter(function (v) { return !isMine(v); });
@@ -404,37 +432,59 @@
     return p.length ? "（" + t("zm_need") + " " + p.join(" ") + "）" : "";
   }
 
-  // ---- 探索 ----
+  // ---- 投票（多人時全員一起決定外出事件卡與大門口事件；單機投下去就決定） ----
+  function pname(s, pid) { var p = s.players.filter(function (x) { return x.pid === pid; })[0]; return (p && p.name) || t("zm_noname"); }
+  function voteChoices(s, card, votes, okFn, onVote) {
+    var multi = s.players.length > 1, my = votes[sess.pid];
+    return el("div", { class: "zm-choices" }, card.ch.map(function (o, i) {
+      var who = Object.keys(votes).filter(function (pid) { return votes[pid] === i; });
+      return btn(L(o.t) + reqText(o.req), function () { onVote(i); }, "zm-btn zm-choice" + (my === i ? " zm-on" : ""), { disabled: !me(s) || !okFn(o) }, who);
+    }));
+  }
+  function voteFooter(s, votes, canForce, onForce) {
+    if (s.players.length < 2) return null;
+    var n = Object.keys(votes).length;
+    return el("div", { class: "zm-actions zm-votebar" }, [
+      el("span", { class: "zm-small" }, ["🗳 " + t("zm_vote_status", { n: n, m: s.players.length }) + (n ? "：" + Object.keys(votes).map(function (pid) { return pname(s, pid); }).join("、") : "")]),
+      el("span", { class: "zm-small zm-muted" }, [t("zm_vote_rule")]),
+      canForce && n && me(s) ? btn(t("zm_vote_force"), onForce, "zm-btn", { title: t("zm_vote_force_note") }) : null
+    ]);
+  }
+
+  // ---- 探索：所有隊伍都列出來，大家都看得到進度、每一隊都能投票 ----
+  function exPanel(s, owner) {
+    var ex = s.explore[owner], A = D.ARCH[ex.d], card = Core.currentCard(s, owner), mineEx = owner === sess.pid;
+    var team = ex.team.map(function (id) { return Core.survById(s, id); }).filter(Boolean);
+    var title = A.icon + " " + L(Core.districtName(s, ex.d)) + (s.players.length > 1 ? "・👤" + pname(s, owner) + (mineEx ? t("zm_you") : "") : "") + (ex.done ? " ✔" : "（" + Math.min(ex.step + 1, ex.cards.length) + "/" + ex.cards.length + "）");
+    var votes = card ? Core.votesOf(s, Core.voteKeyCard(s, owner)) : {};
+    return panel(title, [
+      el("p", { class: "zm-small" }, [t("zm_team", { n: team.map(function (v) { return L(v.name) + (v.alive ? "" : "✝"); }).join("、") }) + (ex.noise ? "・🔊" + t("zm_noise", { n: ex.noise }) : "")]),
+      logBox(ex.log),
+      card ? el("div", { class: "zm-card", "data-ex": owner }, [
+        el("p", { class: "zm-card-text" }, [L(card.text)]),
+        voteChoices(s, card, votes, function (o) { return Core.reqOk(s, ex, o.req); }, function (i) { sess.send({ a: "answer", ex: owner, c: i }); }),
+        voteFooter(s, votes, mineEx, function () { sess.send({ a: "force", k: owner }); })
+      ]) : el("p", { class: "zm-good" }, [t("zm_explore_done")])
+    ], mineEx ? "zm-ex-mine" : "");
+  }
   function screenExplore(s) {
-    var mineEx = s.explore[sess.pid];
-    if (mineEx) {
-      var card = Core.currentCard(s, sess.pid), A = D.ARCH[mineEx.d];
-      var team = mineEx.team.map(function (id) { return Core.survById(s, id); }).filter(Boolean);
-      app.appendChild(panel(A.icon + " " + L(Core.districtName(s, mineEx.d)) + "（" + (Math.min(mineEx.step + 1, mineEx.cards.length)) + "/" + mineEx.cards.length + "）", [
-        el("p", { class: "zm-small" }, [t("zm_team", { n: team.map(function (v) { return L(v.name) + (v.alive ? "" : "✝"); }).join("、") }) + (mineEx.noise ? "・🔊" + t("zm_noise", { n: mineEx.noise }) : "")]),
-        logBox(mineEx.log),
-        card ? el("div", { class: "zm-card" }, [
-          el("p", { class: "zm-card-text" }, [L(card.text)]),
-          el("div", { class: "zm-choices" }, card.ch.map(function (o, i) {
-            return btn(L(o.t) + reqText(o.req), function () { sess.send({ a: "answer", c: i }); }, "zm-btn zm-choice", { disabled: !Core.reqOk(s, mineEx, o.req) });
-          }))
-        ]) : el("p", { class: "zm-good" }, [t("zm_explore_done")])
-      ]));
-    } else app.appendChild(panel(null, [el("p", null, [t("zm_explore_none")])]));
-    Object.keys(s.explore).filter(function (pid) { return pid !== sess.pid; }).forEach(function (pid) {
-      var ex = s.explore[pid], p = s.players.filter(function (x) { return x.pid === pid; })[0];
-      app.appendChild(panel("👤 " + ((p && p.name) || "?") + "・" + L(Core.districtName(s, ex.d)) + (ex.done ? " ✔" : "（" + (ex.step + 1) + "/" + ex.cards.length + "）"), [logBox(ex.log, "zm-log-other")]));
-    });
+    var owners = Object.keys(s.explore).sort(function (a, b) { return (a === sess.pid ? -1 : 0) - (b === sess.pid ? -1 : 0); });
+    if (!s.explore[sess.pid]) app.appendChild(el("p", { class: "zm-hint" }, [t(s.players.length > 1 ? "zm_explore_none_vote" : "zm_explore_none")]));
+    else if (s.players.length > 1) app.appendChild(el("p", { class: "zm-hint" }, [t("zm_explore_vote_note")]));
+    owners.forEach(function (owner) { app.appendChild(exPanel(s, owner)); });
   }
 
   // ---- 夜晚 ----
   function screenNightPrep(s) {
     var ns = s.night, live = ui.room && ui.room.wrap && ui.room.wrap.nm === "live";
     if (live && !ui.live) { startLiveView(s, false); return; }
-    var mineEx = s.explore[sess.pid];
     app.appendChild(panel("🌙 " + t("zm_night_title", { d: s.day }), [
       s.dayLog && s.dayLog.length ? el("div", null, [el("h3", null, [t("zm_day_work")]), logBox(s.dayLog)]) : null,
-      mineEx ? el("div", null, [el("h3", null, [t("zm_explore_result")]), logBox(mineEx.log.slice(-8))]) : null,
+      // 所有隊伍的收穫都列出來（多人時大家一起看）
+      Object.keys(s.explore).length ? el("div", null, [el("h3", null, [t("zm_explore_result")])].concat(Object.keys(s.explore).map(function (owner) {
+        var ex = s.explore[owner];
+        return el("div", null, [s.players.length > 1 ? el("b", { class: "zm-small" }, ["👤" + pname(s, owner) + "・" + L(Core.districtName(s, ex.d))]) : null, logBox(ex.log.slice(-8))]);
+      }))) : null,
       el("h3", null, [t("zm_forecast")]),
       el("p", null, [t("zm_forecast_text", { n: ns.n, h: ns.heat, g: Math.min(ns.guards.length, Night.posts(ns.tower).length), p: Night.posts(ns.tower).length, a: ns.ammo, m: ns.mats })]),
       el("p", { class: "zm-small zm-muted" }, [t("zm_night_note")]),
@@ -622,7 +672,8 @@
     ui.room = room;
     sess = netSession(room);
     ui.recorded = null;
-    if (!roomId) { try { window.history.replaceState(null, "", roomUrl(room.id)); } catch (e) { /* 改不了網址也沒關係 */ } }
+    // 建房或加入都把網址設成房間網址（leaveRoom 會清掉 ?room=，加入時也要補回來，重新整理才回得到房間）
+    try { window.history.replaceState(null, "", roomUrl(room.id)); } catch (e) { /* 改不了網址也沒關係 */ }
     go("lobby");
   }
   var rp = false;

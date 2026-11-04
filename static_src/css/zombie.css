@@ -134,3 +134,8 @@
 .zm-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0.5rem 0 1rem; }
 .zm-tool.zm-on { background: var(--zm-accent); border-color: var(--zm-accent); color: #fff; }
 .zm-toolnote { flex-basis: 100%; margin: 0.2rem 0 0; }
+/* 投票（2026-11-04） */
+.zm-choice.zm-on { border-color: var(--zm-accent); box-shadow: inset 4px 0 0 var(--zm-accent); }
+.zm-voters { display: inline-block; margin-left: 0.6rem; padding: 0 0.45rem; border-radius: 999px; background: var(--zm-accent-soft); font-size: 0.82em; }
+.zm-votebar { justify-content: space-between; }
+.zm-ex-mine { border-color: var(--zm-accent); }

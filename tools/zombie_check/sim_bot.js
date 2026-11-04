@@ -41,14 +41,18 @@ function play(len, seed, np) {
   var guard = 0;
   while (!s.end && guard++ < 2000) {
     if (s.phase === "plan") {
-      if (s.gate) Core.applyIntent(s, players[0].pid, { a: "gate", c: 0 }) || Core.applyIntent(s, players[0].pid, { a: "gate", c: D.EVENT_BY_ID[s.gate.id].ch.length - 1 });
+      // 大門口事件：每個人都投（不合條件的選項會被拒絕，改投最後一個）
+      if (s.gate) players.forEach(function (p) { if (s.gate) Core.applyIntent(s, p.pid, { a: "gate", c: 0 }) || Core.applyIntent(s, p.pid, { a: "gate", c: D.EVENT_BY_ID[s.gate.id].ch.length - 1 }); });
       players.forEach(function (p) { botPlan(s, p.pid); Core.applyIntent(s, p.pid, { a: "ready", v: true }); });
     } else if (s.phase === "explore") {
-      players.forEach(function (p) {
-        var c = Core.currentCard(s, p.pid);
-        if (!c) return;
-        var ok = c.ch.map(function (o, j) { return Core.reqOk(s, s.explore[p.pid], o.req) ? j : -1; }).filter(function (j) { return j >= 0; });
-        Core.applyIntent(s, p.pid, { a: "answer", c: ok[Math.floor(Math.random() * ok.length)] });
+      // 每一隊外出的事件卡都由全員投票（2026-11-04）
+      Object.keys(s.explore).forEach(function (owner) {
+        players.forEach(function (p) {
+          var c = Core.currentCard(s, owner);
+          if (!c || s.phase !== "explore") return;
+          var ok = c.ch.map(function (o, j) { return Core.reqOk(s, s.explore[owner], o.req) ? j : -1; }).filter(function (j) { return j >= 0; });
+          Core.applyIntent(s, p.pid, { a: "answer", ex: owner, c: ok[Math.floor(Math.random() * ok.length)] });
+        });
       });
     } else if (s.phase === "night") {
       var sim = Night.create(s.night);
