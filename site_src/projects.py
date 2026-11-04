@@ -98,4 +98,10 @@ PROJECTS = [
         "name_key": "project_jomon_name",
         "desc_key": "project_jomon_desc",
     },
+    {
+        "id": "zombie",
+        "href": "zombie/index.html",
+        "name_key": "project_zombie_name",
+        "desc_key": "project_zombie_desc",
+    },
 ]
