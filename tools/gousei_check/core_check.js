@@ -274,6 +274,20 @@ var known2 = Core.knownJunkTrio(ttheme, afterJunk.state, "i2", "i3", "j3");
 assert.strictEqual(known2 && known2.result, junkResult, "紀錄中同組合合出過廢料");
 assert.strictEqual(Core.knownJunkTrio(ttheme, afterJunk.state, "i1", "i2", "i3"), null, "沒試過的組合不會被判定為已知廢料");
 
+// ---- 合過的組合（合作模式提示，2026-11-04）：只看紀錄，2／3 材料分開，3 材料記得沒選的另一個 ----
+assert.strictEqual(Core.knownCombo(ttheme, ts, "b1", "b2", "i1"), null, "沒合過＝null");
+var kc = Core.knownCombo(ttheme, tr1.state, "i1", "b2", "b1");
+assert.deepStrictEqual(kc && kc.results, ["j2"], "3 材料不分順序、合過的結果");
+assert.deepStrictEqual(kc.others, ["j1"], "當時沒選、也還不在池子的另一個結果");
+assert.strictEqual(Core.knownCombo(ttheme, tr1.state, "b1", "b2"), null, "2 材料與 3 材料分開算");
+var kcState = JSON.parse(JSON.stringify(tr1.state));
+kcState.pool.push("j1");
+assert.deepStrictEqual(Core.knownCombo(ttheme, kcState, "b1", "b2", "i1").others, [], "另一個已經在池子就不提");
+// 別台裝置合的：紀錄是共用的 state.log，任何一筆都算
+var other2 = JSON.parse(JSON.stringify(ts));
+other2.log.push({ round: 1, playerId: "p2", a: "b2", b: "b1", result: "k9", isNew: true, achieved: false });
+assert.deepStrictEqual(Core.knownCombo(ttheme, other2, "b1", "b2").results, ["k9"], "2 材料：別的玩家合過也算");
+
 // ---- 合作模式（使用者指定 2026-11-03）：共同 5 目標、任何人合出即達成、廢料記失敗、依回合與失敗計分 ----
 var coopT = Core.dealCoopTargets(theme, "coopA");
 assert.strictEqual(coopT.length, 5);

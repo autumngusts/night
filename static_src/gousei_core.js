@@ -275,6 +275,21 @@
     return null;
   }
 
+  // 合作模式的「這個組合合過了」提示（使用者指定 2026-11-04）：遊戲紀錄中同一組合（不分順序；2／3 材料分開算）
+  //   合出過的結果。紀錄是全隊共用的 state.log，所以別台裝置合過的也算。只看紀錄、不偷看配方表。
+  //   c 省略＝2 材料。回傳 { results: [合出過的結果], others: [3 材料二選一時沒選、也還不在池子裡的另一個結果] } 或 null。
+  function knownCombo(theme, state, a, b, c) {
+    var trio = !!c, key = trio ? tripleKey(a, b, c) : pairKey(a, b), results = [], others = [];
+    state.log.forEach(function (e) {
+      if (!!e.c !== trio || (trio ? tripleKey(e.a, e.b, e.c) : pairKey(e.a, e.b)) !== key) return;
+      if (results.indexOf(e.result) < 0) results.push(e.result);
+      if (e.otherOption && others.indexOf(e.otherOption) < 0) others.push(e.otherOption);
+    });
+    if (!results.length) return null;
+    others = others.filter(function (id) { return results.indexOf(id) < 0 && state.pool.indexOf(id) < 0; });
+    return { results: results, others: others };
+  }
+
   // 把廢料移出池子（不算回合）。上一步的快照也一併清掉，復原時廢料不會跑回來。
   function clearJunk(theme, state) {
     var next = clone(state);
@@ -624,6 +639,7 @@
     undo: undo,
     knownJunk: knownJunk,
     knownJunkTrio: knownJunkTrio,
+    knownCombo: knownCombo,
     clearJunk: clearJunk,
     joinParam: joinParam,
     parseJoin: parseJoin,

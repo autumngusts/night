@@ -112,6 +112,33 @@ async function combine(page, a, b) {
   assert.ok(await page.locator('#gs-coop-targets li.gs-done[data-target="' + target + '"]').count(), "目標標記為完成");
   await page.dispatchEvent("#gs-next", "click");
 
+  // ---- 合過的組合提示（2026-11-04）：再合一次同組合 → 先提醒；換一組可取消 ----
+  await page.dispatchEvent('#gs-pool-list button[data-item="' + rec[1] + '"]', "click");
+  await page.dispatchEvent('#gs-pool-list button[data-item="' + rec[0] + '"]', "click");
+  await page.dispatchEvent("#gs-combine", "click");
+  await page.waitForSelector("#gs-junk-warn");
+  var dupTxt = await page.textContent("#gs-junk-warn");
+  assert.ok(dupTxt.indexOf("之前合過了") >= 0 || dupTxt.indexOf("合成済み") >= 0 || dupTxt.indexOf("already made") >= 0, "合過的組合先提醒：" + dupTxt);
+  var logLen0 = (await debugState(page)).log.length;
+  await page.dispatchEvent("#gs-junk-warn-cancel", "click");
+  assert.strictEqual(await page.locator("#gs-junk-warn").count(), 0, "換一組＝取消");
+  assert.strictEqual((await debugState(page)).log.length, logLen0, "取消不算回合");
+  // 別台裝置合過的（紀錄是共用的）：把一筆別人的紀錄放進 state，同組合也會提醒
+  var fresh = await page.evaluate(function () {
+    var th = window.PriTestGousei._theme(), s = window.PriTestGousei._debugState(), Core = window.PriTestGouseiCore;
+    for (var i = 0; i < s.pool.length; i++) for (var j = i + 1; j < s.pool.length; j++) {
+      var a = s.pool[i], b = s.pool[j];
+      if (!Core.knownCombo(th, s, a, b) && !Core.knownJunk(th, s, a, b)) return [a, b, Core.combine(th, a, b)];
+    }
+    return null;
+  });
+  await patchState(page, "s.log.push({ round: 1, playerId: s.players[0].id, a: arg[1], b: arg[0], result: arg[2], isNew: false, achieved: false });", fresh);
+  await page.dispatchEvent('#gs-pool-list button[data-item="' + fresh[0] + '"]', "click");
+  await page.dispatchEvent('#gs-pool-list button[data-item="' + fresh[1] + '"]', "click");
+  await page.dispatchEvent("#gs-combine", "click");
+  await page.waitForSelector("#gs-junk-warn");
+  await page.dispatchEvent("#gs-junk-warn-cancel", "click");
+
   // 其他 4 個先標記完成，再合一次目標 → 結束並計分
   var target2 = st.coop.targets[1];
   var rec2 = await recipeFor(page, target2);
@@ -129,6 +156,34 @@ async function combine(page, a, b) {
   assert.strictEqual(best.score, expect);
   await page.reload();
   await page.waitForSelector("#gs-coop-new-best");
+
+  // ---- 世界美食：3 材料合成的紀錄列出 3 個材料（2026-11-04） ----
+  await startCoop(page, "food", 2);
+  var trio = await page.evaluate(function () {
+    var th = window.PriTestGousei._theme();
+    var keys = Object.keys(th.trios || {});
+    for (var i = 0; i < keys.length; i++) {
+      var ids = keys[i].split("|");
+      if (ids.every(function (id) { return th.byId[id]; })) return { ids: ids };
+    }
+    return null;
+  });
+  assert.ok(trio, "世界美食有 3 材料配方");
+  await patchState(page, "arg.forEach(function (id) { if (s.pool.indexOf(id) < 0) s.pool.push(id); });", trio.ids);
+  for (var k = 0; k < 3; k++) await page.dispatchEvent('#gs-pool-list button[data-item="' + trio.ids[k] + '"]', "click");
+  await page.dispatchEvent("#gs-combine", "click");
+  if (await page.locator("#gs-trio-choice").count()) await page.dispatchEvent("#gs-trio-choice button.gs-primary", "click");
+  await page.waitForSelector("#gs-result");
+  var logLast = await page.evaluate(function () { var li = document.querySelector("#gs-log li"); return li ? li.textContent : ""; });
+  var stF = await debugState(page);
+  assert.ok(stF.log[stF.log.length - 1].c, "紀錄有第 3 個材料");
+  assert.strictEqual((logLast.match(/＋/g) || []).length, 2, "遊戲紀錄顯示 3 個材料：" + logLast);
+  await page.dispatchEvent("#gs-next", "click");
+  // 同樣 3 個材料再合一次 → 提醒（還會提到當時沒選的另一個）
+  for (var k2 = 0; k2 < 3; k2++) await page.dispatchEvent('#gs-pool-list button[data-item="' + trio.ids[(k2 + 1) % 3] + '"]', "click");
+  await page.dispatchEvent("#gs-combine", "click");
+  await page.waitForSelector("#gs-junk-warn");
+  await page.dispatchEvent("#gs-junk-warn-cancel", "click");
 
   // ---- 提前結算與復原 ----
   await startCoop(page, "wafu", 3);

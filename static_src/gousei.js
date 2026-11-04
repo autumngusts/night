@@ -528,7 +528,9 @@
     } else if (ui.junkWarn) {
       var w = ui.junkWarn;
       actions = el("div", { id: "gs-junk-warn", class: "gs-junk-warn" }, [
-        el("p", { text: w.junkMaterial ? t("gs_junk_warn_material")
+        el("p", { text: w.dup ? t("gs_dup_warn_seen", { r: w.results.map(function (id) { return itemName(theme, id); }).join("、") })
+            + (w.others && w.others.length ? t("gs_dup_warn_other", { r: w.others.map(function (id) { return itemName(theme, id); }).join("、") }) : "")
+          : w.junkMaterial ? t("gs_junk_warn_material")
           : t("gs_junk_warn_seen", { r: itemName(theme, w.result) }) }),
         el("div", { class: "gs-actions" }, [
           el("button", { id: "gs-combine-anyway", type: "button", text: t("gs_junk_warn_go"), onclick: function () { doCombine(true); } }),
@@ -560,6 +562,11 @@
       var known = isTrio ? Core.knownJunkTrio(theme, state, filled[0], filled[1], filled[2])
         : Core.knownJunk(theme, state, filled[0], filled[1]);
       if (known) { ui.junkWarn = known; render(); return; }
+      // 合作模式：紀錄裡（任何裝置）合過同一組合就先提醒（2026-11-04）
+      if (state.coop) {
+        var dup = isTrio ? Core.knownCombo(theme, state, filled[0], filled[1], filled[2]) : Core.knownCombo(theme, state, filled[0], filled[1]);
+        if (dup) { ui.junkWarn = { dup: true, results: dup.results, others: dup.others }; render(); return; }
+      }
     }
     ui.junkWarn = null;
     if (isTrio && chosen == null) {
@@ -650,8 +657,9 @@
   function renderLog(theme) {
     var list = el("ol", { id: "gs-log", class: "gs-log", reversed: true });
     state.log.slice(-LOG_LIMIT).reverse().forEach(function (e) {
-      list.appendChild(el("li", { text: t("gs_log_entry", { round: e.round, name: playerById(e.playerId).name,
-        a: itemName(theme, e.a), b: itemName(theme, e.b), r: itemName(theme, e.result) }) + (e.achieved ? t("gs_log_achieved") : "") }));
+      // 3 材料（世界美食）的紀錄也列出第 3 個材料（2026-11-04）
+      list.appendChild(el("li", { text: t(e.c ? "gs_log_entry3" : "gs_log_entry", { round: e.round, name: playerById(e.playerId).name,
+        a: itemName(theme, e.a), b: itemName(theme, e.b), c: e.c ? itemName(theme, e.c) : "", r: itemName(theme, e.result) }) + (e.achieved ? t("gs_log_achieved") : "") }));
     });
     return el("details", { class: "gs-panel" }, [el("summary", { text: t("gs_log") }), list]);
   }
@@ -1236,6 +1244,8 @@
     clearVoiceTimers();
     // 語音比對本來就排除廢料，所以這裡只會遇到「合過的組合合出廢料」
     var known = Core.knownJunk(theme, state, best.a, best.b);
+    // 合作模式：合過的組合也要先確認（2026-11-04）
+    if (!known && state.coop) { var dup = Core.knownCombo(theme, state, best.a, best.b); if (dup) known = { dup: true, results: dup.results }; }
     if (best.exact && !known) {
       ui.slots = [best.a, best.b];
       doCombine(true);
@@ -1250,12 +1260,14 @@
   function askConfirm(pick, known) {
     var theme = themes[state.themeId];
     var names = { a: itemName(theme, pick.a), b: itemName(theme, pick.b) };
-    var junk = known && known.result;
+    var junk = known && known.result, dup = known && known.dup;
     if (junk) names.r = itemName(theme, junk);
+    if (dup) names.r = known.results.map(function (id) { return itemName(theme, id); }).join("、");
+    var kind = dup ? "dup" : junk ? "junk" : "confirm";
     voice.pending = { a: pick.a, b: pick.b };
-    voice.status = t(junk ? "gs_voice_junk_status" : "gs_voice_confirm_status", names);
+    voice.status = t("gs_voice_" + kind + "_status", names);
     render();
-    speak([t(junk ? "gs_voice_junk_q" : "gs_voice_confirm_q", names)], function () {
+    speak([t("gs_voice_" + kind + "_q", names)], function () {
       if (!voice.pending) return;
       beep();
       clearTimeout(voice.pendingTimer);
