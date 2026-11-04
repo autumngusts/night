@@ -80,6 +80,7 @@
 .sg-breed.sg-on, .sg-dog-card.sg-on { border-color: var(--sg-accent); background: var(--sg-accent-soft); }
 .sg-dog-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem; }
 .sg-train-wrap h4 { margin: 0.6rem 0 0.3rem; font-size: 0.9rem; }
+.sg-train-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; }
 .sg-train-left { margin: 0.2rem 0; font-weight: bold; }
 .sg-train { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.4rem; }
 

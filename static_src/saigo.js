@@ -322,7 +322,15 @@
         }));
       }
       var trainBtns = el("div", { class: "sg-train-wrap" }, [
-        el("p", { class: "sg-train-left" + (tLeft ? "" : " sg-muted") }, [t("sg_train_left", { n: tLeft, max: K.TRAIN_TIMES })]),
+        el("div", { class: "sg-train-head" }, [
+          el("p", { class: "sg-train-left" + (tLeft ? "" : " sg-muted") }, [t("sg_train_left", { n: tLeft, max: K.TRAIN_TIMES })]),
+          btn("↺ " + t("sg_train_reset"), function () {
+            if (!window.confirm(t("sg_train_reset_confirm", { name: d.name, n: K.TRAIN_TIMES }))) return;
+            K.resetTraining(d.id);
+            ui.msg = t("sg_msg_train_reset", { n: K.TRAIN_TIMES });
+            render();
+          }, "sg-link", { id: "sg-train-reset" })
+        ]),
         el("h4", null, [t("sg_train_group_base")]), trainGroup("base"),
         el("h4", null, [t("sg_train_group_obs")]), trainGroup("obs")
       ]);

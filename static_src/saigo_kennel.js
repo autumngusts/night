@@ -135,6 +135,16 @@
     return out;
   }
   function s0() { return load(); }
+  // 重置訓練（2026-11-04 使用者指定「可以重置練習，回復初始再次訓練 20 次」）：
+  //   訓練加成全部歸零、剩餘次數回到 TRAIN_TIMES；等級、經驗、技能、戰績、心情、疲勞不變
+  function resetTraining(id) {
+    var d = dog(id);
+    if (!d) return false;
+    D.STATS.forEach(function (k) { d.train[k] = 0; });
+    d.trainLeft = TRAIN_TIMES;
+    save();
+    return true;
+  }
 
   // ---------------- 技能 ----------------
   // 技能池（整個犬舍共用）：訓練時抽 20 個（金 4、罕見 8、一般 8），30 分鐘後消失；
@@ -280,7 +290,7 @@
   window.PriTestSaigoKennel = {
     MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, TRAIN_TIMES: TRAIN_TIMES, trainLeft: trainLeft, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
-    train: train, rest: rest, play: play, treat: treat, expNeed: expNeed,
+    train: train, resetTraining: resetTraining, rest: rest, play: play, treat: treat, expNeed: expNeed,
     pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, expiredSkillsOf: expiredSkillsOf, skillLeft: skillLeft, lineOf: lineOf, stats: stats, rating: rating,
     entry: entry, afterRace: afterRace, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
   };
