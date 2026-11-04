@@ -40,7 +40,8 @@
     return { v: 1, coins: START_COINS, dogs: [], nextId: 1, at: now(), stats: { races: 0, bets: 0, spent: 0, won: 0, bailouts: 0 }, history: [], jp: window.PriTestSaigoBet ? window.PriTestSaigoBet.JP_SEED : 5000 };
   }
   function load() {
-    if (store) return store;
+    // 2026-11-04 修正：原本快取後直接 return，疲勞的自然恢復只在載入頁面時算一次，頁面一直開著就永遠不恢復
+    if (store) { recover(); return store; }
     try { store = JSON.parse(window.localStorage.getItem(KEY) || "null"); } catch (e) { store = null; }
     if (!store || store.v !== 1) store = blank();
     store.stats = store.stats || blank().stats;
@@ -54,11 +55,13 @@
   }
   // 依經過的真實時間恢復疲勞
   function recover() {
-    var mins = (now() - (store.at || now())) / 60000;
+    if (!store.at || store.at > now()) store.at = now();   // 裝置時間被調回去時不要卡住
+    var mins = (now() - store.at) / 60000;
     var pts = Math.floor(mins / RECOVER_MIN);
     if (pts > 0) {
-      store.dogs.forEach(function (d) { d.fatigue = Math.max(0, d.fatigue - pts); });
-      store.at = (store.at || now()) + pts * RECOVER_MIN * 60000;
+      store.dogs.forEach(function (d) { d.fatigue = Math.max(0, (d.fatigue || 0) - pts); });
+      store.at += pts * RECOVER_MIN * 60000;
+      save();
     }
   }
   function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
@@ -201,12 +204,18 @@
     return out;
   }
   function rating(d) { return SK.rating(stats(d), skillsOf(d)); }
+  // 休息（2026-11-04 修正）：原本沒有任何代價，可以「訓練→休息→訓練…」無限刷訓練經驗（20 次用完後仍給經驗），
+  //   幾分鐘就能把狗練到 Lv20。改成每隻狗休息後要等 REST_CD_MIN 分鐘才能再休息（自然恢復照舊）。
+  var REST_CD_MIN = 5;
+  function restLeft(d) { return d && d.restAt ? Math.max(0, d.restAt + REST_CD_MIN * 60000 - now()) : 0; }
   function rest(id) {
     var d = dog(id);
-    if (!d) return;
+    if (!d || restLeft(d) > 0) return false;
     d.fatigue = clamp(d.fatigue - 35, 0, 100);
     if (d.fatigue < 30) d.mood = clamp(d.mood + 1, 0, 4);
+    d.restAt = now();
     save();
+    return true;
   }
   function play(id) {
     var d = dog(id);
@@ -290,7 +299,7 @@
   window.PriTestSaigoKennel = {
     MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, TRAIN_TIMES: TRAIN_TIMES, trainLeft: trainLeft, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
-    train: train, resetTraining: resetTraining, rest: rest, play: play, treat: treat, expNeed: expNeed,
+    train: train, resetTraining: resetTraining, rest: rest, restLeft: restLeft, REST_CD_MIN: REST_CD_MIN, play: play, treat: treat, expNeed: expNeed,
     pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, expiredSkillsOf: expiredSkillsOf, skillLeft: skillLeft, lineOf: lineOf, stats: stats, rating: rating,
     entry: entry, afterRace: afterRace, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
   };

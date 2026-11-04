@@ -15,6 +15,8 @@ WANREN_SCRIPTS: tuple[str, ...] = (
     "wanren_data2.js",
     "wanren_data3.js",
     "wanren_data4.js",
+    # 追加的朋友・死黨・老師・家長・學姐 20 人與 8 種新個性（2026-11-04）
+    "wanren_data5.js",
     "wanren_core.js",
     "firebase_config.js",
     "game_storage.js",

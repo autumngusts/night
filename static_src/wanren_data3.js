@@ -914,6 +914,8 @@
   // 老師的分組名稱改為「老師・導師」
   D.GROUPS.forEach(function (g) { if (g.id === "teacher") g.name = { zh: "老師・導師", ja: "先生・担任" }; });
   D.EXT_IDS = IDS;
+  // 給 wanren_data5.js（追加朋友・死黨等 20 人）共用精簡格式與個性台詞
+  D.CAST_KIT = { build: build, P_LINES: P_LINES, ADDRESS: ADDRESS, STYLE_NAMES: STYLE_NAMES };
 
   // ---------------- 雙人互動（追加） ----------------
   var PAIRS2 = [

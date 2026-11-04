@@ -89,7 +89,11 @@
   // 舊存檔或新版欄位：補上缺的
   function ensureFields(s) {
     D.HEROINES.forEach(function (hd) {
-      if (!s.h[hd.id]) s.h[hd.id] = blankHeroine();
+      if (!s.h[hd.id]) {
+        s.h[hd.id] = blankHeroine();
+        // 死黨（wanren_data5.js）：入學前就認識，一開始就有好感
+        if (hd.startMet) { s.h[hd.id].met = true; s.h[hd.id].aff = hd.startAff || 0; }
+      }
       var h = s.h[hd.id];
       if (h.rel === undefined) h.rel = h.dating ? 1 : 0;
       if (h.since === undefined) h.since = h.dating ? s.day : -1;

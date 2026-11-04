@@ -43,6 +43,8 @@
   function week() { return Math.min(4, Math.ceil(S.day / 7)); }
   function tier(a) { var t = D.TIERS[0][1]; D.TIERS.forEach(function (p) { if (a >= p[0]) t = p[1]; }); return t; }
   function active() { return S.girls.filter(function (g) { return !g.left; }); }
+  // 2026-11-04 使用者指定：對話中一律以「她」稱呼，名字與個性等個人資訊不先顯示，約會的題目才不會把答案擺在畫面上
+  var SHE = "她";
   function dname(g) { return !g.named ? "???" : (has(g.known, "surname") ? g.surname + " " + g.given : g.given); }
   function imgUrl(ref, e) {
     if (!ref || ref.s === "h") return IMG_BASE + "hero_" + pad3(D.EXPR[e] || 0) + ".webp";
@@ -173,7 +175,7 @@
   }
   function updAff() {
     if (!cur || !$("#jk-who")) return;
-    $("#jk-who").textContent = dname(cur) + "・" + cur.pers + "・" + tier(cur.aff) + "（" + cur.aff + "）";
+    $("#jk-who").textContent = SHE + "・" + tier(cur.aff) + "（" + cur.aff + "）";
     $("#jk-affi").style.width = cur.aff + "%";
   }
   function show(who, text, e) { if (e) setExpr(e); $("#jk-dname").textContent = who || ""; $("#jk-dtext").innerHTML = text; $("#jk-choices").innerHTML = ""; }
@@ -263,22 +265,24 @@
       var opts = [{ t: "🚻 藉口去洗手間，偷偷接", v: "wc" }].concat(ex.map(function (e) { return { t: "💬 掛斷，回訊息「" + e + "」", v: "ex:" + e }; })).concat([{ t: "📱 直接當面接起來", v: "pick" }]);
       return notif(from, "📞 來電中…", esc(from.given) + " 打電話來了！", opts, secs).then(function (v) {
         busy = false;
-        if (v === "wc") { change(from, 3, "接了電話"); change(cur, -3, "約會中離席"); return say(dname(cur), "……去好久喔。", "pout"); }
+        if (v === "wc") { change(from, 3, "接了電話"); change(cur, -3, "約會中離席"); return say(SHE, "……去好久喔。", "pout"); }
         if (v.indexOf("ex:") === 0) {
           var e = v.slice(3); change(from, -2, "電話被掛斷");
           S.lies.push({ gid: from.id, day: S.day, q: "那天我打給你的時候，你說你在幹嘛？", a: e, opts: [e].concat(shuffle(D.EXCUSES.filter(function (x) { return x !== e; })).slice(0, 2)).concat(["我沒接到電話啊"]), done: false });
           return say(null, "（你回了「" + esc(e) + "」。……這個謊要記住。）");
         }
-        if (v === "pick") { change(from, 5, "接了電話"); change(cur, -12, "當面講別人電話"); return say(dname(cur), "……是誰打來的？", "angry"); }
+        if (v === "pick") { change(from, 5, "接了電話"); change(cur, -12, "當面講別人電話"); return say(SHE, "……是誰打來的？", "angry"); }
         change(from, -6, "未接來電");
         return say(null, "（手機震動停了……" + esc(from.given) + " 的未接來電）");
       });
     }
-    if (!from.known.length) { busy = false; return Promise.resolve(); }
-    var Q = buildQ(from, pick(from.known), 3);
+    // 通知的標頭會顯示她的名字（已知時含姓氏）：題目不問已經顯示在畫面上的姓氏／名字
+    var askable = from.known.filter(function (c) { return c !== "surname" && c !== "name"; });
+    if (!askable.length) { busy = false; return Promise.resolve(); }
+    var Q = buildQ(from, pick(askable), 3);
     return notif(from, "💬 新訊息", "「" + esc(V(from).msg) + Q.q + "」", Q.opts.map(function (o) { return { t: esc(o), v: o }; }), secs).then(function (v) {
       busy = false;
-      if (v === Q.ans) { change(from, 4, "秒回又答對"); toast(from.given + "：「" + pick(V(from).good) + "」"); }
+      if (v === Q.ans) { change(from, 4, "秒回又答對"); toast(from.given + "：「" + pick(V(from).good) + (R() < 0.5 ? pick(D.PRAISE) : "") + "」"); }
       else if (v === "__timeout") { change(from, -6, "已讀不回"); toast(from.given + "：「……已讀不回？」"); }
       else if (Q.old && v === Q.old) { change(from, -6, "還記著舊的" + Q.label); toast(from.given + "：「那是以前的事了啦……我不是跟你說過了嗎？」"); }
       else { var mx = Q.mix[v]; change(from, mx ? -12 : -8, mx ? "把她跟別人搞混" : "訊息回錯"); toast(from.given + "：「" + pick(mx ? V(from).mix : V(from).bad) + "」"); }
@@ -297,30 +301,30 @@
       .then(function () { if (opt.fate) return say(null, "✨ 命運的邂逅 ✨"); })
       .then(function () { return say(null, "在" + esc(place) + "，" + meet + "。"); })
       .then(function () { return say("???", pick(V(g).first), "surprise"); })
-      .then(function () { g.named = true; updAff(); return say(dname(g), "我叫" + esc(g.given) + "。", "smile"); })
+      .then(function () { g.named = true; updAff(); return say(SHE, "我叫" + esc(g.given) + "。", "smile"); })
       .then(function () {
         var rev = reveal(g, R() < 0.6 ? 2 : 1);
-        return seq(rev, function (c) { return say(dname(g), esc(tellLine(g, c)) + memo(c, g.facts[c]), "smile"); });
+        return seq(rev, function (c) { return say(SHE, esc(tellLine(g, c)) + memo(c, g.facts[c]), "smile"); });
       })
       .then(function () {
         if (!g.rel) return;
         var f = byId(g.rel);
-        return ask(dname(g), "……咦？你是不是認識" + esc(f.given) + "？她是我閨蜜喔，常聽她提到一個人……", "surprise",
+        return ask(SHE, "……咦？你是不是認識" + esc(f.given) + "？她是我閨蜜喔，常聽她提到一個人……", "surprise",
           [{ t: "「不認識耶，同名的人吧？」", v: "lie" }, { t: "「嗯，我們是朋友。」", v: "true" }]).then(function (r) {
           if (r === "lie") {
             S.lies.push({ gid: g.id, day: S.day, q: "你說過你認不認識" + f.given + "？", a: "不認識", opts: ["不認識", "是朋友", "只見過一次"], done: false });
-            return say(dname(g), "這樣啊……世界真小呢。", "think");
+            return say(SHE, "這樣啊……世界真小呢。", "think");
           }
           change(f, 2, "你對閨蜜很誠實");
-          return say(dname(g), "果然！那以後要好好相處喔。", "smile");
+          return say(SHE, "果然！那以後要好好相處喔。", "smile");
         }).then(function () { return say(null, "（" + esc(g.given) + " 和 " + esc(f.given) + " 是閨蜜。對其中一人做的事，另一人也會知道。）"); });
       })
       .then(function () {
-        return ask(dname(g), "……", "think", shuffle([{ t: "「這一定是命運吧。」", v: "tease" }, { t: "「很高興認識妳！」", v: "agree" }, { t: "「妳沒事吧？有沒有受傷？」", v: "care" }]));
+        return ask(SHE, "……", "think", shuffle([{ t: "「這一定是命運吧。」", v: "tease" }, { t: "「很高興認識妳！」", v: "agree" }, { t: "「妳沒事吧？有沒有受傷？」", v: "care" }]));
       })
       .then(function (r) {
-        if (r === V(g).pref) { change(g, 8, "好印象"); return say(dname(g), "……嘿嘿。那，這是我的LINE。", "happy"); }
-        change(g, 3, "普通的印象"); return say(dname(g), "嗯……那，這是我的LINE。", "smile");
+        if (r === V(g).pref) { change(g, 8, "好印象"); return say(SHE, "……嘿嘿。那，這是我的LINE。", "happy"); }
+        change(g, 3, "普通的印象"); return say(SHE, "嗯……那，這是我的LINE。", "smile");
       })
       .then(function () { return say(null, "（" + esc(g.given) + " 加入了你的好友名單）" + (g.fresh ? "<br><small>✨ 她是常在車站出沒的新面孔。</small>" : "")); })
       .then(function () { g.last = S.day; save(); return true; });
@@ -329,23 +333,23 @@
   // ---------- 約會中的事件 ----------
   function smallTalk(g) {
     var opts = shuffle(Object.keys(D.REPLY).map(function (k) { return { t: D.REPLY[k], v: k }; }));
-    return ask(dname(g), esc(pick(V(g).chat)), "smile", opts).then(function (r) {
-      if (r === V(g).pref) { change(g, 2, "聊得很投機"); return say(dname(g), pick(["嘿嘿，就是說嘛。", "……你很懂我耶。", "跟你聊天好輕鬆。"]), "happy"); }
-      return say(dname(g), pick(["嗯……也是啦。", "是嗎？", "呵呵。"]), "neutral");
+    return ask(SHE, esc(pick(R() < 0.5 ? V(g).chat : D.CHAT)), "smile", opts).then(function (r) {
+      if (r === V(g).pref) { change(g, 2, "聊得很投機"); return say(SHE, pick(["嘿嘿，就是說嘛。", "……你很懂我耶。", "跟你聊天好輕鬆。"].concat(D.TALK_GOOD)), "happy"); }
+      return say(SHE, pick(D.TALK_MID), "neutral");
     });
   }
   function locEvent(g, type) {
     var c = type === "order" ? "food" : "color", known = has(g.known, c), ans = g.facts[c];
     var prompt = type === "order" ? "要幫我點嗎？你知道我想吃什麼吧？" : "你要送我這個？……那，要選哪個顏色的？";
     var opts = shuffle([ans].concat(shuffle(CATS[c].pool.filter(function (x) { return x !== ans; })).slice(0, 3)));
-    return ask(dname(g), esc(prompt), "think", opts.map(function (o) { return { t: (type === "order" ? "🍽️ " : "🎁 ") + esc(o), v: o }; })).then(function (v) {
+    return ask(SHE, esc(prompt), "think", opts.map(function (o) { return { t: (type === "order" ? "🍽️ " : "🎁 ") + esc(o), v: o }; })).then(function (v) {
       if (v === ans) {
         change(g, known ? 5 : 6, type === "order" ? "點了她的最愛" : "送了喜歡的顏色");
-        return say(dname(g), known ? pick(V(g).nice) : "咦！你怎麼知道！？我超喜歡這個！", "love");
+        return say(SHE, known ? pick(V(g).nice) : "咦！你怎麼知道！？我超喜歡這個！", "love");
       }
-      if (known) { change(g, -5, type === "order" ? "點錯她的最愛" : "顏色選錯"); return say(dname(g), pick(V(g).bad), badE(g)); }
+      if (known) { change(g, -5, type === "order" ? "點錯她的最愛" : "顏色選錯"); return say(SHE, pick(V(g).bad), badE(g)); }
       g.known.push(c);
-      return say(dname(g), "謝謝……不過其實呀，" + esc(tellLine(g, c)) + memo(c, ans), "smile");
+      return say(SHE, "謝謝……不過其實呀，" + esc(tellLine(g, c)) + memo(c, ans), "smile");
     });
   }
   function shuraba(g, o) {
@@ -354,19 +358,19 @@
     }).then(function (v) {
       if (v === "hide") {
         if (R() < 0.6) return say(null, "……好險，沒被發現。");
-        change(o, -10, "被撞見約會"); change(g, -5, "行跡可疑"); return say(dname(g), "……你在躲誰？", "angry");
+        change(o, -10, "被撞見約會"); change(g, -5, "行跡可疑"); return say(SHE, "……你在躲誰？", "angry");
       }
       if (v === "hi") {
         change(g, -6, "被說成同事"); change(o, -4, "看到你跟別人");
         S.lies.push({ gid: o.id, day: S.day, q: "那天跟你走在一起的女生，你說是誰？", a: "同事", opts: ["同事", "表妹", "大學同學", "不認識的人"], done: false });
-        return say(dname(g), "……同事？", "pout");
+        return say(SHE, "……同事？", "pout");
       }
       if (R() < 0.5) { change(o, -12, "被撞見約會"); toast(o.given + "：「剛剛那個人……是誰？」"); return; }
       return say(null, "……她好像沒看到你們。");
     });
   }
   function hotelEvent(g) {
-    var n = dname(g);
+    var n = SHE;
     return say(n, "……吶，可以聽我說一件事嗎？", "shy").then(function () {
       if (!has(g.known, "secret")) g.known.push("secret");
       return say(n, esc(tellLine(g, "secret")) + memo("secret", g.facts.secret), "fluster");
@@ -387,39 +391,39 @@
     pool = pool.slice(0, n);
     if (!n) return Promise.resolve();
     var streak = 0, right = 0, ints = 0;
-    return say(dname(g), pick(D.QINTRO), "smile").then(function () {
+    return say(SHE, pick(D.QINTRO), "smile").then(function () {
       return seq(pool, function (c, i) {
         return Promise.resolve().then(function () {
           var avail = others.filter(function (o) { return !o.left; });
           if (i > 0 && ints < WEEK.maxint[wk] && avail.length && R() < WEEK.intp[wk]) { ints++; return interrupt(pick(avail), "date"); }
         }).then(function () {
           var Q = buildQ(g, c, 4);
-          return ask(dname(g), "（" + (i + 1) + "/" + n + "）" + esc(askLine(g, Q.q)), "think", Q.opts.map(function (o) { return { t: esc(o), v: o }; })).then(function (v) {
+          return ask(SHE, "（" + (i + 1) + "/" + n + "）" + esc(askLine(g, Q.q)), "think", Q.opts.map(function (o) { return { t: esc(o), v: o }; })).then(function (v) {
             if (v === Q.ans) {
               streak++; right++; S.stats.right++;
               change(g, 2 + Math.min(streak, 3), "記得" + Q.label);
-              return say(dname(g), pick(streak >= 3 ? V(g).nice : V(g).good), streak >= 3 ? "love" : "happy");
+              return say(SHE, pick(streak >= 3 ? V(g).nice : V(g).good) + (R() < (streak >= 2 ? 0.7 : 0.4) ? "<br>" + esc(pick(D.PRAISE)) : ""), streak >= 3 ? "love" : "happy");
             }
             streak = 0; S.stats.wrong++;
             if (Q.old && v === Q.old) {
               change(g, -8, "還記著舊的" + Q.label);
-              return say(dname(g), "……那是以前的事了啦。我明明跟你說過換了。", "pout").then(function () { return say(null, "（她的" + Q.label + "已經改成「" + esc(Q.ans) + "」了）"); });
+              return say(SHE, "……那是以前的事了啦。我明明跟你說過換了。", "pout").then(function () { return say(null, "（她的" + Q.label + "已經改成「" + esc(Q.ans) + "」了）"); });
             }
             if (Q.mix[v]) {
               S.stats.mix++; change(g, -15, "跟別人搞混");
-              return say(dname(g), pick(V(g).mix), "angry").then(function () {
+              return say(SHE, pick(V(g).mix), "angry").then(function () {
                 return say(null, "（那是 " + esc(Q.mix[v]) + " 的" + Q.label + "……正確答案是「" + esc(Q.ans) + "」）");
               }).then(function () { friendsOf(g).forEach(function (f) { change(f, -4, "閨蜜之間傳開了"); }); });
             }
             change(g, -10, "記錯" + Q.label);
-            return say(dname(g), pick(V(g).bad), badE(g)).then(function () { return say(null, "（正確答案是「" + esc(Q.ans) + "」）"); });
+            return say(SHE, pick(V(g).bad), badE(g)).then(function () { return say(null, "（正確答案是「" + esc(Q.ans) + "」）"); });
           });
         });
       });
     }).then(function () {
       if (right === n && n >= 3) {
         change(g, 6, "全部答對");
-        return say(dname(g), pick(V(g).great), "love").then(function () { return say(null, pick(D.ADMIRE), "love"); })
+        return say(SHE, pick(V(g).great), "love").then(function () { return say(null, pick(D.ADMIRE), "love"); })
           .then(function () { friendsOf(g).forEach(function (f) { change(f, 2, "聽閨蜜誇你"); }); });
       }
     });
@@ -427,24 +431,24 @@
   function opener(g) {
     var isB = g.facts.birthday === dateOf(S.day), k = g.id + "_" + S.day;
     return ask(null, "（要先說什麼？）", "smile", [{ t: "「今天也很好看喔。」", v: "n" }, { t: "🎂「生日快樂！」", v: "b" }]).then(function (v) {
-      if (v === "n") return say(dname(g), isB && !S.wished[k] ? "……嗯，謝謝。（她好像在等你說什麼）" : "嘿嘿，謝謝。", "smile");
+      if (v === "n") return say(SHE, isB && !S.wished[k] ? "……嗯，謝謝。（她好像在等你說什麼）" : pick(["嘿嘿，謝謝。", "欸……突然這樣說，我會害羞啦！", "你也是喔，今天特別帥。", "真的嗎？那今天的努力就值得了！"]), "smile");
       if (isB) {
         // 修正：原版同一天先傳訊息、再當面祝福會拿兩次大額加分
-        if (S.faceWished[k]) return say(dname(g), "嘿嘿，你剛剛已經說過了啦～不過聽幾次都開心。", "happy");
+        if (S.faceWished[k]) return say(SHE, "嘿嘿，你剛剛已經說過了啦～不過聽幾次都開心。", "happy");
         S.faceWished[k] = 1;
         if (S.wished[k]) {
           change(g, 5, "當面再說一次生日快樂");
-          return say(dname(g), "訊息我收到了……當面聽到，還是好開心。", "shy").then(function () { unlock(g, "生日快樂"); });
+          return say(SHE, "訊息我收到了……當面聽到，還是好開心。", "shy").then(function () { unlock(g, "生日快樂"); });
         }
         S.wished[k] = 1; change(g, 12, "記得她的生日");
-        return say(dname(g), "你……記得！？我還以為今天沒人會記得……", "fluster")
-          .then(function () { return say(dname(g), pick(V(g).great), "love"); })
-          .then(function () { return say(null, "（" + esc(g.given) + " 抱著你準備的小蛋糕，眼眶有點紅）"); })
+        return say(SHE, "你……記得！？我還以為今天沒人會記得……", "fluster")
+          .then(function () { return say(SHE, pick(V(g).great), "love"); })
+          .then(function () { return say(null, "（她抱著你準備的小蛋糕，眼眶有點紅）"); })
           .then(function () { unlock(g, "生日快樂"); });
       }
       var who = active().filter(function (o) { return o !== g && o.facts.birthday === dateOf(S.day) && has(o.known, "birthday"); })[0];
       change(g, who ? -10 : -4, who ? "把別人的生日記到她身上" : "記錯生日");
-      return say(dname(g), who ? pick(V(g).mix) : "……今天不是我生日喔？", who ? "angry" : "think");
+      return say(SHE, who ? pick(V(g).mix) : "……今天不是我生日喔？", who ? "angry" : "think");
     });
   }
   function lieCheck(g) {
@@ -452,27 +456,27 @@
     for (var i = 0; i < S.lies.length; i++) { var l = S.lies[i]; if (l.gid === g.id && !l.done && S.day > l.day) { L = l; break; } }
     if (!L || R() < 0.45) return Promise.resolve();
     L.done = true;
-    return ask(dname(g), "對了……" + esc(L.q), "think", shuffle(L.opts).map(function (o) { return { t: "「" + esc(o) + "」", v: o }; })).then(function (v) {
-      if (v === L.a) return say(dname(g), "……嗯，好吧。", "neutral").then(function () { return say(null, "（呼……謊言沒有被拆穿。）"); });
+    return ask(SHE, "對了……" + esc(L.q), "think", shuffle(L.opts).map(function (o) { return { t: "「" + esc(o) + "」", v: o }; })).then(function (v) {
+      if (v === L.a) return say(SHE, "……嗯，好吧。", "neutral").then(function () { return say(null, "（呼……謊言沒有被拆穿。）"); });
       change(g, -12, "謊話被拆穿");
-      return say(dname(g), "……你上次不是這樣說的。", "angry").then(function () { friendsOf(g).forEach(function (f) { change(f, -3, "閨蜜說你是騙子"); }); });
+      return say(SHE, "……你上次不是這樣說的。", "angry").then(function () { friendsOf(g).forEach(function (f) { change(f, -3, "閨蜜說你是騙子"); }); });
     });
   }
   function date(g, loc) {
     stageScreen(g, loc.ic + " " + loc.name);
     S.stats.dates++; g.dates++;
     var fresh = [];
-    return say(null, pick(loc.scene).split("{n}").join(esc(g.given)))
-      .then(function () { return say(dname(g), pick(V(g).greet), "smile"); })
+    return say(null, pick(loc.scene).split("{n}").join(SHE))
+      .then(function () { return say(SHE, pick(V(g).greet), "smile"); })
       .then(function () { return opener(g); })
       .then(function () { if (loc.id === "hotel" && !g.hotel) return hotelEvent(g).then(function () { unlock(g, "旅館之夜"); }); })
       .then(function () { if (loc.album) unlock(g, loc.album); return lieCheck(g); })
       .then(function () { if (R() < 0.55) return smallTalk(g); })
       .then(function () {
         fresh = reveal(g, week() >= 3 ? 2 : 1);
-        return seq(fresh, function (c) { return say(dname(g), esc(tellLine(g, c)) + memo(c, g.facts[c]), pick(["smile", "happy", "shy"])); });
+        return seq(fresh, function (c) { return say(SHE, esc(tellLine(g, c)) + memo(c, g.facts[c]), pick(["smile", "happy", "shy"])); });
       })
-      .then(function () { if (!fresh.length) return say(dname(g), "能像這樣跟你待在一起，就很開心了。", "shy"); })
+      .then(function () { if (!fresh.length) return say(SHE, "能像這樣跟你待在一起，就很開心了。", "shy"); })
       .then(function () { if (loc.ev) return locEvent(g, loc.ev); })
       .then(function () {
         var others = active().filter(function (o) { return o !== g; });
@@ -481,9 +485,9 @@
       .then(function () { return quiz(g, fresh); })
       .then(function () {
         change(g, loc.gain, loc.name + "約會"); g.last = S.day; S.fatigue += (loc.cost || 1);
-        return say(dname(g), pick(V(g).bye), g.aff >= 60 ? "love" : "smile");
+        return say(SHE, pick(V(g).bye) + (g.aff >= 30 && R() < 0.6 ? "<br>" + esc(pick(D.PRAISE_BYE)) : ""), g.aff >= 60 ? "love" : "smile");
       })
-      .then(function () { if (g.aff <= 0) { g.left = true; return say(null, esc(g.given) + " 頭也不回地走了……", "sad"); } });
+      .then(function () { if (g.aff <= 0) { g.left = true; return say(null, "她頭也不回地走了……", "sad"); } });
   }
 
   // ---------- 相簿 ----------
@@ -516,7 +520,8 @@
       "<li>外出邂逅會打開街道圖：點地面（或方向鍵、WASD）走動，走進店家、碰到路上的女孩（💗）就可能邂逅。每次外出只有 " + WALK_STEPS + " 步。</li>" +
       "<li>車站人潮最多，容易遇見常在車站出沒的 32 位新面孔（✨）。有些店晚上會打烊，夜市只在傍晚以後營業。</li>" +
       "<li>女孩有 32 種個性，說話方式和喜歡的回應都不一樣。所有登場人物皆為成年人。</li>" +
-      "<li>約會時會被考 3～5 題，記錯大扣分，跟別人搞混扣更多。</li>" +
+      "<li>約會時會被考 3～5 題，記錯大扣分，跟別人搞混扣更多。對話中只會以「她」稱呼，名字、姓氏、個性都不會顯示在畫面上，要靠自己記住。</li>" +
+      "<li>每個女孩有姓氏、生日、個性、食物、飲料、家鄉、喜歡的花、電影類型、特技、夢想等 17 種情報，會在約會中慢慢說給你聽。</li>" +
       "<li>遊戲裡有日曆。記住她的生日，當天約她說「生日快樂」，或從首頁傳訊息祝福。忘記會大扣分。</li>" +
       "<li>電話裡編的藉口、在她面前說的謊都會被記錄，之後她會追問，答案要一致。</li>" +
       "<li>有些女孩是閨蜜，對一個人做的事另一個人也會知道。</li>" +
@@ -534,7 +539,14 @@
     s.faceWished = s.faceWished || {};
     s.wished = s.wished || {}; s.msged = s.msged || {};
     s.lies = s.lies || []; s.today = s.today || [];
-    s.girls.forEach(function (g) { g.prev = g.prev || {}; });
+    s.girls.forEach(function (g) {
+      g.prev = g.prev || {};
+      // 舊存檔的女孩補上 2026-11-04 追加的 5 種情報（排在還沒說過的情報後面）
+      (D.NEW_INFO || []).forEach(function (c) {
+        if (!g.facts[c]) g.facts[c] = pick(CATS[c].pool);
+        if (g.order && !has(g.order, c)) g.order.push(c);
+      });
+    });
     return s;
   }
   function resume() {
@@ -800,7 +812,7 @@
       shura = true;
       var g = lovers[0]; stageScreen(g, "⚡ 最後的夜晚");
       p = say(null, "門鈴響了。打開門——" + lovers.slice(0, 3).map(function (x) { return esc(x.given); }).join("、") + "，同時站在門口。", "shock")
-        .then(function () { return say(dname(g), "……這是怎麼回事？", "angry"); })
+        .then(function () { return say(SHE, "……這是怎麼回事？", "angry"); })
         .then(function () { return say(null, "三個人互看了一眼，然後同時看向你。"); })
         .then(function () { return ask(null, "怎麼辦？", "worry", [{ t: "「我……每一個都是認真的。」", v: 1 }, { t: "轉身逃跑", v: 2 }]); })
         .then(function (v) {
@@ -811,11 +823,11 @@
     } else if (act.length && act[0].aff >= 80) {
       var g2 = act[0]; stageScreen(g2, "💌 最後的夜晚");
       p = say(null, dateOf(S.day) + " 的晚上，" + esc(g2.given) + " 約你出來。")
-        .then(function () { return say(dname(g2), pick(V(g2).greet), "smile"); })
-        .then(function () { return say(dname(g2), "這段時間……你記得我說過的每一件事。", "shy"); })
-        .then(function () { return say(dname(g2), "……我喜歡你。以後，也只看著我好嗎？", "love"); })
+        .then(function () { return say(SHE, pick(V(g2).greet), "smile"); })
+        .then(function () { return say(SHE, "這段時間……你記得我說過的每一件事。", "shy"); })
+        .then(function () { return say(SHE, "……我喜歡你。以後，也只看著我好嗎？", "love"); })
         .then(function () { return ask(null, "……", "love", [{ t: "「我也喜歡妳。」", v: 1 }, { t: "（緊緊抱住她）", v: 2 }]); })
-        .then(function () { return say(dname(g2), pick(V(g2).great), "love"); })
+        .then(function () { return say(SHE, pick(V(g2).great), "love"); })
         .then(function () { unlock(g2, "告白"); });
     } else p = Promise.resolve();
     p.then(function () { renderEnding(false, shura); });

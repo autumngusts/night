@@ -31,6 +31,8 @@ TOUSHOU_SCRIPTS: tuple[str, ...] = (
     "toushou_core.js",
     "toushou_core_manfen.js",
     "toushou_ui_manfen.js",
+    # 標的卡的朗讀按鈕與語音選單（speechSynthesis）
+    "toushou_tts.js",
     # 標的卡的 3D 拍賣展示台（three.js 在第一次顯示標的卡時才載入 vendor/three.min.js）
     "toushou_3d.js",
     "toushou.js",

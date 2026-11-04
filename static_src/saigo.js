@@ -335,7 +335,13 @@
         el("h4", null, [t("sg_train_group_obs")]), trainGroup("obs")
       ]);
       var care = el("div", { class: "sg-actions" }, [
-        btn("😴 " + t("sg_rest"), function () { K.rest(d.id); ui.msg = t("sg_msg_rest"); render(); }),
+        (function () {
+          var rl = K.restLeft(d);
+          return btn("😴 " + (rl ? t("sg_rest_wait", { n: Math.ceil(rl / 60000) }) : t("sg_rest")), function () {
+            ui.msg = K.rest(d.id) ? t("sg_msg_rest") : t("sg_msg_rest_wait", { n: Math.ceil(K.restLeft(d) / 60000) });
+            render();
+          }, "sg-btn", { disabled: rl > 0, title: t("sg_rest_note", { n: K.REST_CD_MIN }) });
+        })(),
         btn("🎾 " + t("sg_play"), function () { K.play(d.id); ui.msg = t("sg_msg_play"); render(); }),
         btn("🍖 " + t("sg_treat", { n: money(K.TREAT_COST) }), function () { ui.msg = K.treat(d.id) ? t("sg_msg_treat") : t("sg_msg_no_money"); render(); }),
         btn("🏁 " + t("sg_practice"), function () { startSolo(true, d.id); }, "sg-btn sg-primary")
@@ -1507,6 +1513,11 @@
   };
 
   window.addEventListener("i18n:change", function () { if (ui.screen !== "race") render(); });
+  // 2026-11-04 修正：單機在開跑時就扣了下注金額，但派彩、狗的獎金／經驗要等轉播播完才結算；
+  //   轉播中重新整理或關掉分頁＝錢被扣走卻永遠不結算。比賽結果開跑時就已確定，所以離開頁面時直接結算（本機存檔是同步的）。
+  window.addEventListener("pagehide", function () {
+    if (ui.screen === "race" && !ui.room && !ui.replay && ui.result && ui.card) settle();
+  });
   // 測試／除錯用
   window.PriTestSaigo = { ui: ui, go: go, startSolo: startSolo, startRace: startRace, enterRoom: enterRoom, openDash: openDash, sendShout: sendShout };
 

@@ -38,7 +38,7 @@
   function money(n) { return "¥" + Math.round(n).toLocaleString(); }
   function hex(c) { return "#" + ("000000" + c.toString(16)).slice(-6); }
   function hname(hid) { return L(D.HEROINE_BY_ID[hid].name); }
-  var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a", kouhai: "#4fb0a0" };
+  var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a", kouhai: "#4fb0a0", friend: "#5ea84a", bestie: "#d4553e" };
 
   var S = null;   // 遊戲狀態
   var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "full", name: "" };

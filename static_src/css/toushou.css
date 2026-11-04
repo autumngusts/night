@@ -350,3 +350,16 @@
 .ts-wrap .ts-table th { font-family: Georgia, "Noto Serif TC", serif; border-bottom: 2px solid var(--ts-ink); }
 .ts-wrap .ts-table td { border-bottom-color: var(--ts-line); }
 .ts-wrap .ts-error { color: var(--ts-down); }
+
+/* 標的卡的朗讀列（toushou_tts.js） */
+.ts-tts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0.25rem 0 0.5rem;
+}
+.ts-tts-btn { min-height: 2.25rem; }
+.ts-tts-voice { min-height: 2.25rem; max-width: 12rem; }
+.ts-tts-note { font-size: 0.85em; opacity: 0.7; }

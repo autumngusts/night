@@ -33,7 +33,7 @@
   var state = null;
   var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false, online: false };
   var ui = { revealedFor: null, revealed: false, slots: [null, null], trioChoice: null, lastEntry: null, search: "", cat: "all",
-    qrFor: null, confirmNew: false, confirmEnd: false, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
+    qrFor: null, confirmNew: false, confirmEnd: false, recipeOpen: {}, hintConfirm: null, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
   var join = null;
   // 連線同步的房間：{ id, hostId, me: 手機的玩家編號（主機為 null）, loaded, missing, unsubscribe }
   var room = null;
@@ -261,6 +261,8 @@
     ui.error = "";
     ui.cat = "all";
     ui.search = "";
+    ui.recipeOpen = {};
+    ui.hintConfirm = null;
     render();
     loadTheme(draft.themeId, function (err, theme) {
       ui.loading = false;
@@ -401,6 +403,7 @@
     ui.lastEntry = null;
     ui.confirmNew = false;
     ui.confirmEnd = false;
+    ui.hintConfirm = null;
     ui.junkWarn = null;
   }
 
@@ -763,12 +766,78 @@
       contrib.appendChild(el("li", { class: i === state.turn && !state.winner ? "gs-current" : "", "data-player": p.id,
         text: t("gs_coop_contrib", { name: p.name, n: p.done.length }) }));
     });
+    var hints = Core.coopHints(state);
+    var list = targetList(theme, { targets: state.coop.targets, done: state.coop.done }, "gs-coop-targets");
+    var hinted = state.coop.hinted || [];
+    // 點目標：已解鎖 → 開關配方；還有提示次數 → 用 1 次解鎖（按兩次確認）
+    Array.prototype.forEach.call(list.childNodes, function (li) {
+      var id = li.getAttribute("data-target");
+      var unlocked = hinted.indexOf(id) >= 0;
+      var canUse = !unlocked && hints.left > 0 && !state.winner;
+      if (!unlocked && !canUse) return;
+      li.className += " gs-hintable" + (unlocked ? " gs-hint-unlocked" : "");
+      var label = unlocked ? t(ui.recipeOpen[id] ? "gs_hint_hide" : "gs_hint_show")
+        : (ui.hintConfirm === id ? t("gs_hint_use_confirm") : t("gs_hint_use"));
+      li.appendChild(el("button", { type: "button", class: "gs-hint-btn" + (canUse ? " gs-primary" : ""), "data-hint": id,
+        disabled: ui.busy, text: label, onclick: function () {
+          if (unlocked) { ui.recipeOpen[id] = !ui.recipeOpen[id]; render(); return; }
+          if (ui.hintConfirm !== id) { ui.hintConfirm = id; render(); return; }
+          ui.hintConfirm = null;
+          mutate(function (s) { return Core.useCoopHint(s, id); }, function () {
+            ui.recipeOpen[id] = true;
+            save();
+            render();
+          });
+        } }));
+      if (unlocked && ui.recipeOpen[id]) li.appendChild(recipeTree(theme, id, id, 0));
+    });
     return el("div", { id: "gs-coop", class: "gs-panel" }, [
       el("h2", { text: t("gs_coop_heading") }),
       el("p", { id: "gs-coop-stats", class: "gs-coop-stats", text: coopStatsText() }),
-      targetList(theme, { targets: state.coop.targets, done: state.coop.done }, "gs-coop-targets"),
+      el("p", { id: "gs-coop-hints", class: "gs-coop-hints" + (hints.left ? " gs-hint-ready" : ""),
+        text: t(hints.left ? "gs_hint_left" : "gs_hint_none", { n: hints.left, every: Core.HINT_EVERY_FAILS, next: hints.toNext }) }),
+      list,
       contrib
     ]);
+  }
+
+  // 配方樹：每個材料都可以再點開看它的配方（path 用來記哪些節點展開，純 UI、不存檔）
+  var RECIPE_SHOW = 2;
+  var RECIPE_DEPTH = 8;
+  function recipeTree(theme, id, path, depth) {
+    var box = el("div", { class: "gs-recipe", "data-recipe": id });
+    var it = theme.byId[id];
+    if (it && it.cat === "basic") {
+      box.appendChild(el("p", { class: "gs-muted", text: t("gs_hint_basic") }));
+      return box;
+    }
+    var recipes = Core.recipesFor(theme, id, RECIPE_SHOW);
+    if (!recipes.length) {
+      box.appendChild(el("p", { class: "gs-muted", text: t("gs_hint_no_recipe") }));
+      return box;
+    }
+    recipes.forEach(function (ids, ri) {
+      var row = el("div", { class: "gs-recipe-row" }, [
+        el("span", { class: "gs-recipe-label", text: t(ri ? "gs_hint_alt" : "gs_hint_recipe") })
+      ]);
+      var subs = [];
+      ids.forEach(function (mat, mi) {
+        if (mi) row.appendChild(el("span", { class: "gs-recipe-plus", text: "＋" }));
+        var sub = path + "/" + ri + "." + mi + ":" + mat;
+        var basic = theme.byId[mat] && theme.byId[mat].cat === "basic";
+        var inPool = state.pool.indexOf(mat) >= 0;
+        var canOpen = !basic && depth + 1 < RECIPE_DEPTH;
+        row.appendChild(el("button", { type: "button", class: "gs-recipe-mat" + (inPool ? " gs-in-pool" : "") + (ui.recipeOpen[sub] ? " gs-open" : ""),
+          "data-mat": mat, disabled: !canOpen, title: inPool ? t("gs_hint_in_pool") : "",
+          onclick: function () { ui.recipeOpen[sub] = !ui.recipeOpen[sub]; render(); } }, [
+          artNode(theme, mat, 24), itemName(theme, mat) + (inPool ? " ✓" : "")
+        ]));
+        if (ui.recipeOpen[sub] && canOpen) subs.push(recipeTree(theme, mat, sub, depth + 1));
+      });
+      box.appendChild(row);
+      subs.forEach(function (n) { box.appendChild(n); });
+    });
+    return box;
   }
 
   function loadCoopBest() {

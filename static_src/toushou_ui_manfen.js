@@ -66,6 +66,7 @@
         category: cat ? K.lt(cat.name) : "" }) }),
       K.stage(target),
       K.el("h2", { text: K.lt(target.name) }),
+      window.PriTestToushouTTS ? window.PriTestToushouTTS.bar() : null,
       target.summary ? K.el("p", { class: "ts-summary", text: K.lt(target.summary) }) : null,
       tags,
       K.el("p", { id: "ts-mf-blamer", text: K.t("ts_mf_blamer_is", { name: K.playerName(blamer) }) }),

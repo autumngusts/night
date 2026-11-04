@@ -249,6 +249,68 @@
       score: score, complete: done >= c.targets.length };
   }
 
+  // ---------------- 合作模式的提示（使用者指定 2026-11-04） ----------------
+  // 「每合出 10 個廢料，可以有一次提示機會，點目標的物品可以查看配方；配方再點下去還能看到配方的配方」。
+  //   提示次數 ＝ floor(失敗數 ÷ 10) − 已用次數；用掉的提示記在 state.coop.hinted（目標 id，全隊共用、會同步）。
+  //   解鎖某個目標後，往下展開配方的配方不再扣次數（只是看）。
+  var HINT_EVERY_FAILS = 10;
+
+  function coopHints(state) {
+    var c = state && state.coop;
+    if (!c) return { earned: 0, used: 0, left: 0, toNext: HINT_EVERY_FAILS };
+    var earned = Math.floor(c.fails / HINT_EVERY_FAILS);
+    var used = (c.hinted || []).length;
+    return { earned: earned, used: used, left: Math.max(0, earned - used),
+      toNext: HINT_EVERY_FAILS - (c.fails % HINT_EVERY_FAILS) };
+  }
+
+  function useCoopHint(state, id) {
+    if (!state.coop) throw new Error("not-coop");
+    if (state.winner) throw new Error("game-over");
+    if (state.coop.targets.indexOf(id) < 0) throw new Error("gs_hint_err_target");
+    if ((state.coop.hinted || []).indexOf(id) >= 0) return { state: state };
+    if (coopHints(state).left <= 0) throw new Error("gs_hint_err_none");
+    var next = clone(state);
+    function mark(s) {
+      if (!s || !s.coop) return;
+      s.coop.hinted = (s.coop.hinted || []).concat([id]);
+    }
+    mark(next);
+    mark(next.prev); // 復原時提示不會被收回（和 clearJunk 一樣同步改上一步的快照）
+    return { state: next };
+  }
+
+  // 能合出 id 的配方（反查配方表）。回傳 [[a, b], [a, b, c] …]，依「材料都比成品低階」優先、材料階段總和小的優先。
+  //   3 材料配方只在 allowTrio 主題才有（成品是主產物或副產物都算）。
+  function reverseIndex(theme) {
+    if (theme._rev) return theme._rev;
+    var rev = {};
+    function add(result, ids) { (rev[result] = rev[result] || []).push(ids); }
+    Object.keys(theme.recipes).forEach(function (key) { add(theme.recipes[key], key.split("|")); });
+    if (theme.allowTrio) {
+      Object.keys(theme.trios).forEach(function (key) {
+        var r = theme.trios[key];
+        add(r[0], key.split("|"));
+        if (r[1] && r[1] !== r[0]) add(r[1], key.split("|"));
+      });
+    }
+    theme._rev = rev;
+    return rev;
+  }
+
+  function recipesFor(theme, id, limit) {
+    var it = theme.byId[id];
+    if (!it || it.cat === "basic" || theme.junkSet[id]) return [];
+    var list = (reverseIndex(theme)[id] || []).slice();
+    function tierOf(x) { return theme.byId[x] ? theme.byId[x].tier : 99; }
+    function rank(ids) {
+      var lower = ids.every(function (x) { return tierOf(x) < it.tier; }) ? 0 : 1000;
+      return lower + ids.reduce(function (sum, x) { return sum + tierOf(x); }, 0) + ids.length * 0.1;
+    }
+    list.sort(function (a, b) { return rank(a) - rank(b) || (a.join("|") < b.join("|") ? -1 : 1); });
+    return limit ? list.slice(0, limit) : list;
+  }
+
   function undo(state) { return state && state.prev ? state.prev : null; }
 
   // 已知會合出廢料的組合：材料本身是廢料，或遊戲紀錄中同一組合（不分順序）合出過廢料。
@@ -653,6 +715,10 @@
     COOP_WINNER: COOP_WINNER,
     endCoop: endCoop,
     coopScore: coopScore,
+    HINT_EVERY_FAILS: HINT_EVERY_FAILS,
+    coopHints: coopHints,
+    useCoopHint: useCoopHint,
+    recipesFor: recipesFor,
     newGame: newGame,
     currentPlayer: currentPlayer,
     applyCombine: applyCombine,

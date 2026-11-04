@@ -707,6 +707,7 @@
         P("　") + (cat ? lt(cat.name) : "") }),
       stage(target),
       el("h2", { text: targetName(target) }),
+      window.PriTestToushouTTS ? window.PriTestToushouTTS.bar() : null,
       target.summary ? el("p", { class: "ts-summary", text: lt(target.summary) }) : null,
       tags,
       hooks.length ? el("p", { class: "ts-hooks", text: t("ts_hooks") + P("：") + hooks.join(P("、")) }) : null,
