@@ -9,6 +9,8 @@
 //   7. 技能期限（2026-11-03）：技能跟著技能池 30 分鐘過期，過期的不帶進出賽資料，學同階新技能時替換
 //   8. 暴衝／對決／照片判定（2026-11-05）：Core.preRace 與正式比賽一致、頻率、暴衝是懲罰、看板確定性
 //   9. WIN5 與冠軍大會的純計算、宿敵王牌狗的實力、粉絲與重賞賽程（2026-11-05）
+//   10. 生涯養成的計算核心（2026-11-05）：確定性、失敗率、目標賽沒達成就結束、二選一事件、技能商店、畢業資料
+//       （平衡數字另外用 tools/saigo_check/career_sim.js 量）
 // 執行：node tools/saigo_check/core_check.js（約 1〜2 分鐘）
 // ============================================================================
 "use strict";
@@ -19,7 +21,7 @@ var assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_bet.js", "saigo_kennel.js", "saigo_press.js", "saigo_league.js", "saigo_cup.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_bet.js", "saigo_kennel.js", "saigo_press.js", "saigo_league.js", "saigo_cup.js", "saigo_career.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
 var D = window.PriTestSaigoData, Core = window.PriTestSaigoCore, Bet = window.PriTestSaigoBet, Real = window.PriTestSaigoReal, SK = window.PriTestSaigoSkills;
 
 // 1. 開跑後不能改跑法（改跑法指令一律無效）；真賽狗的喊聲：生效前每一步不變、同一份指令結果相同、次數與間隔上限
@@ -319,4 +321,67 @@ console.log("8. 暴衝／對決／照片判定／賽前情報 OK");
   } finally { delete global.localStorage; }
 })();
 console.log("9. WIN5／冠軍大會／宿敵／粉絲 OK");
+
+// 10. 生涯養成
+(function () {
+  var CR = window.PriTestSaigoCareer;
+  function play(seed) {
+    var c = CR.create({ breed: "border", name: "測", seed: seed }), g = 0;
+    while (!c.done && g++ < 100) {
+      if (c.pending) { CR.choose(c, 1); continue; }
+      if (CR.goalNow(c) || c.turn % 5 === 0) {
+        var st = CR.raceSetup(c), card = Core.makeCard(st.seed, [st.entry], { cls: st.cls });
+        CR.applyRace(c, Core.simulate(card, false).order.indexOf(card.dogs.map(function (d) { return d.owner; }).indexOf("me")));
+      } else if (c.energy < 40 || c.injured) CR.rest(c);
+      else CR.train(c, CR.TRAIN_IDS[c.turn % 5]);
+    }
+    return c;
+  }
+  var a = play(12345), b = play(12345);
+  assert.strictEqual(JSON.stringify(a), JSON.stringify(b), "同一個 seed、同樣的選擇＝同樣的生涯");
+  assert.ok(a.done && a.turn <= CR.TURNS);
+  // 失敗率邊界
+  var c = CR.create({ breed: "shiba", seed: 1 });
+  c.energy = 50; assert.strictEqual(CR.failRate(c), 0);
+  c.energy = 0; assert.strictEqual(CR.failRate(c), 0.4);
+  c.energy = 25; assert.ok(Math.abs(CR.failRate(c) - 0.2) < 1e-9);
+  // 目標賽：第 8 回合跑第 4 名＝沒達成，生涯結束
+  c = CR.create({ breed: "shiba", seed: 2 }); c.turn = 8; c.energy = 100;
+  assert.ok(!CR.train(c, "speed"), "目標賽回合不能訓練");
+  CR.applyRace(c, 3);
+  assert.ok(c.done && c.failed === 0 && c.goals[0] === false);
+  assert.ok(CR.graduate(c).career.failed === 0, "沒達成也能畢業");
+  c = CR.create({ breed: "shiba", seed: 3 }); c.turn = 8;
+  CR.applyRace(c, 2);
+  assert.ok(!c.done && c.goals[0] === true && (c.turn === 9 || c.pending), "前 3 名＝達成");
+  // 受傷：不能訓練、休息兩次後恢復
+  c = CR.create({ breed: "shiba", seed: 4 }); c.injured = 2;
+  assert.ok(!CR.train(c, "speed"));
+  c.pending = null; CR.rest(c); c.pending = null; CR.rest(c); c.pending = null;
+  assert.strictEqual(c.injured, 0);
+  // 二選一事件
+  c = CR.create({ breed: "shiba", seed: 5 }); c.pending = "cat"; var t0 = c.turn, foc0 = c.train.foc;
+  assert.ok(!CR.train(c, "speed") && !CR.rest(c), "有事件要先選");
+  CR.choose(c, 1);
+  assert.ok(c.pending === null && c.turn === t0 + 1 && c.train.foc === foc0 + 5, "選第 2 個：專注 +5");
+  // 技能商店：價格、提示折扣、技能點與欄位
+  c = CR.create({ breed: "shiba", seed: 6 });
+  var gid = c.table.filter(function (id) { return SK.BY_ID[id].tier === "g"; })[0];
+  assert.strictEqual(CR.price(c, gid), 360);
+  c.hints[gid] = 2; assert.strictEqual(CR.price(c, gid), 288, "提示 2 級打 8 折");
+  assert.ok(!CR.learn(c, gid), "技能點不夠");
+  c.sp = 1000; assert.ok(CR.learn(c, gid) && c.sp === 712);
+  var g2 = c.table.filter(function (id) { return SK.BY_ID[id].tier === "g" && id !== gid; })[0];
+  assert.ok(!CR.learn(c, g2), "金技能欄位只有 1 格");
+  assert.ok(!CR.learn(c, SK.LIST.filter(function (s) { return c.table.indexOf(s.id) < 0 && s.tier === "n"; })[0].id), "不在技能表也沒有提示的不能學");
+  // 能力上限
+  c.train.spd = CR.STAT_CAP - 1; c.turn = 2; c.energy = 100; c.fac.speed = 5;
+  CR.train(c, "speed");
+  assert.ok(c.train.spd <= CR.STAT_CAP);
+  // 畢業資料
+  var gr = CR.graduate(a);
+  assert.ok(gr.train && gr.career && gr.career.grade && Array.isArray(gr.skills));
+  assert.ok(CR.EVENTS.length >= 30, "事件至少 30 個");
+})();
+console.log("10. 生涯養成 OK");
 console.log("saigo core_check OK");
