@@ -1731,6 +1731,7 @@
     }
     timeline(st, "era", { era: st.era, carry: carry ? { rosterId: carry.rosterId, nameSeed: carry.nameSeed, gender: carry.gender } : null });
     log(st, "new_era", { era: st.era });
+    runHook("newEra", st, carry);   // 擴充：新紀元的日期從 0 開始，帶走的藝人身上的心願等時間戳要重設
     return null;
   }
 

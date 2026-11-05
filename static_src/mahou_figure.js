@@ -369,6 +369,8 @@
     if (t === "brush") return this.c1;
     if (t === "eraser") return this.base;
     if (t === "clone") return this.opts.getUnderlay ? this.opts.getUnderlay() : this.c1;
+    if (t === "stamp") return (this.opts.getStamp && this.opts.getStamp()) || this.c1;   // 取樣拓印：照片別處的紋理
+    if (t === "env") return (this.opts.getEnv && this.opts.getEnv()) || this.c1;         // 環境色筆：背景的模糊平均色
     if (t === "pattern") return this.stroke.pat || (this.stroke.pat = pattern(this.pat, this.c1, this.c2, this.patScale));
     if (t === "blur") return this.stroke.blur;
     return this.c1;
@@ -376,7 +378,7 @@
   // 座標皆為上色層像素
   Painter.prototype.begin = function (x, y) {
     var t = this.tool;
-    if (t === "picker") return;
+    if (t === "picker" || t === "stampSrc") return;
     this.snapshot();
     if (t === "fill") { this.flood(x, y); this.changed(); this.stroke = null; return; }
     var direct = t === "smudge" || t === "blur";
@@ -517,9 +519,105 @@
     return rgbHex(d[0], d[1], d[2]);
   };
 
+  // ---------------- 進階變色（2026-11-05 使用者指定「新增更完善變色龍方式」） ----------------
+  function imgData(c) { return ctx2(c).getImageData(0, 0, c.width, c.height); }
+  function scaled(src, n) { var c = mk(n), g = ctx2(c); g.drawImage(src, 0, 0, n, n); return c; }
+  // 環境色：底下照片的大範圍模糊（只取顏色與明暗走向，不含細節）
+  function envLayer(under, into) {
+    var c = into || mk(PX), g = c.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    if ("filter" in g) { g.filter = "blur(10px)"; g.drawImage(under, 0, 0); g.filter = "none"; }
+    else g.drawImage(scaled(under, 16), 0, 0, PX, PX);
+    return c;
+  }
+  // 色調匹配：把剪影內上色層的平均與標準差對齊底下照片（Reinhard 色彩轉移，逐通道），保留已經畫好的花紋
+  Painter.prototype.matchTone = function (under, poseId, strength) {
+    this.snapshot();
+    var a = strength == null ? 0.85 : strength;
+    var pd = this.g.getImageData(0, 0, PX, PX), d = pd.data, ud = imgData(under).data, md = imgData(mask(poseId)).data;
+    var sp = [0, 0, 0], sq = [0, 0, 0], su = [0, 0, 0], sv = [0, 0, 0], n = 0, i, k;
+    for (i = 0; i < d.length; i += 4) {
+      if (md[i + 3] < 128) continue;
+      n++;
+      for (k = 0; k < 3; k++) { sp[k] += d[i + k]; sq[k] += d[i + k] * d[i + k]; su[k] += ud[i + k]; sv[k] += ud[i + k] * ud[i + k]; }
+    }
+    if (!n) return;
+    var mp = [], dp = [], mu = [], du = [];
+    for (k = 0; k < 3; k++) {
+      mp[k] = sp[k] / n; mu[k] = su[k] / n;
+      dp[k] = Math.sqrt(Math.max(1, sq[k] / n - mp[k] * mp[k])); du[k] = Math.sqrt(Math.max(1, sv[k] / n - mu[k] * mu[k]));
+    }
+    for (i = 0; i < d.length; i += 4) for (k = 0; k < 3; k++) {
+      var v = (d[i + k] - mp[k]) / dp[k] * Math.min(du[k], dp[k] * 3) + mu[k];
+      d[i + k] = Math.max(0, Math.min(255, d[i + k] * (1 - a) + v * a));
+    }
+    this.g.putImageData(pd, 0, 0);
+    this.changed();
+  };
+  // 邊緣融合：越靠近剪影邊緣，越換成底下的照片（輪廓線消失在背景裡）
+  Painter.prototype.edgeBlend = function (under, poseId, width, strength) {
+    this.snapshot();
+    var w = width || 6, a = strength == null ? 0.8 : strength;
+    var m = mk(PX), mg = m.getContext("2d");
+    if ("filter" in mg) { mg.filter = "blur(" + w + "px)"; mg.drawImage(mask(poseId), 0, 0); mg.filter = "none"; }
+    else mg.drawImage(scaled(mask(poseId), 32), 0, 0, PX, PX);
+    var pd = this.g.getImageData(0, 0, PX, PX), d = pd.data, ud = imgData(under).data, bd = mg.getImageData(0, 0, PX, PX).data, md = imgData(mask(poseId)).data;
+    for (var i = 0; i < d.length; i += 4) {
+      if (md[i + 3] < 128) continue;
+      // 模糊後的遮罩：內部接近 1、邊緣接近 0.5 → 換算成 0（內部）〜1（邊緣）
+      var f = Math.max(0, Math.min(1, (1 - bd[i + 3] / 255) * 2)) * a;
+      if (f <= 0) continue;
+      for (var k = 0; k < 3; k++) d[i + k] = d[i + k] * (1 - f) + ud[i + k] * f;
+    }
+    this.g.putImageData(pd, 0, 0);
+    this.changed();
+  };
+  // 色票對齊：每個像素換成照片色票裡最接近的顏色（strength 混合）
+  Painter.prototype.quantize = function (pal, strength) {
+    if (!pal || !pal.length) return;
+    this.snapshot();
+    var a = strength == null ? 0.7 : strength, cols = pal.map(hexRgb);
+    var pd = this.g.getImageData(0, 0, PX, PX), d = pd.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var best = cols[0], bd = 1e9;
+      for (var j = 0; j < cols.length; j++) {
+        var c = cols[j], dr = d[i] - c[0], dg = d[i + 1] - c[1], db = d[i + 2] - c[2], v = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+        if (v < bd) { bd = v; best = c; }
+      }
+      d[i] = d[i] * (1 - a) + best[0] * a; d[i + 1] = d[i + 1] * (1 - a) + best[1] * a; d[i + 2] = d[i + 2] * (1 - a) + best[2] * a;
+    }
+    this.g.putImageData(pd, 0, 0);
+    this.changed();
+  };
+  // 偽裝熱圖：剪影內跟底下照片差很多的地方塗紅（只有躲的人自己看得到）
+  function camoHeat(paint, photo, fig, into) {
+    var N = 64, a = mk(N), b = mk(N);
+    ctx2(a).drawImage(paint, 0, 0, N, N);
+    ctx2(b).drawImage(underlay(photo, fig), 0, 0, N, N);
+    var da = imgData(a).data, db = imgData(b).data;
+    var h = mk(N), hg = ctx2(h), hd = hg.createImageData(N, N), o = hd.data;
+    for (var i = 0; i < da.length; i += 4) {
+      var dr = da[i] - db[i], dg = da[i + 1] - db[i + 1], dB = da[i + 2] - db[i + 2];
+      var v = Math.sqrt(dr * dr * 0.3 + dg * dg * 0.59 + dB * dB * 0.11) * 1.6 / 95;
+      var t = Math.max(0, Math.min(1, (v - 0.25) / 0.6));
+      o[i] = 255; o[i + 1] = Math.round(220 * (1 - t)); o[i + 2] = 40; o[i + 3] = Math.round(t * 190);
+    }
+    hg.putImageData(hd, 0, 0);
+    var c = into || mk(PX), g = c.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "source-over";
+    g.clearRect(0, 0, PX, PX);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(h, 0, 0, PX, PX);
+    g.globalCompositeOperation = "destination-in";
+    g.drawImage(mask(fig.p), 0, 0);
+    g.globalCompositeOperation = "source-over";
+    return c;
+  }
+
   window.PriTestMahouFigure = {
     PX: PX, U: U, BASE: BASE, mk: mk, toPx: toPx, toLocal: toLocal,
-    mask: mask, render: render, place: place, poseIcon: poseIcon, underlay: underlay, camoScore: camoScore,
+    mask: mask, render: render, place: place, poseIcon: poseIcon, underlay: underlay, camoScore: camoScore, envLayer: envLayer, camoHeat: camoHeat,
     palette: palette, pattern: pattern, seedOf: seedOf, eyeVariant: eyeVariant, cloneJitter: cloneJitter, rgbHex: rgbHex, hexRgb: hexRgb, Painter: Painter, rng: rng
   };
 })();

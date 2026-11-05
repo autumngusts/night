@@ -263,6 +263,21 @@ test("7 醜聞連鎖：沉默 → 幾天後第二段 → 結局可以轉機", fu
   assert(Plus.bond(st, a.id, b.id) > b0, "宵夜之約：感情增加");
 });
 
+test("新紀元：帶走的藝人心願重設、之後還會再許願；關係與系列歸零", function () {
+  var st = company(95), a = st.artists[0];
+  Plus.ensure(st);
+  st.day = 9000; a.wishNext = 9500; a.wishes = [{ id: "wo", t: "star5", p: {}, since: 9000, until: 9300, prog: 0 }];
+  Plus._addBond(st, a.id, st.artists[1].id, 60);
+  st.company.level = 10;
+  eq(Core.newEra(st, a.id), null, "新紀元");
+  eq(st.day, 0);
+  eq(a.wishes.length, 0, "心願清空");
+  assert(a.wishNext <= B.wishFirst[1], "wishNext 重設：" + a.wishNext);
+  eq(Object.keys(st.plus.bonds).length, 0, "關係歸零");
+  Core.advance(st, 120);
+  assert(a.wishes.length > 0, "新紀元後會再許願");
+});
+
 test("離線一致性：同 seed 下 advance(480) 與 480 次 advance(1) 結果相同（含擴充）", function () {
   var s1 = company(91), s2 = JSON.parse(JSON.stringify(s1));
   [s1, s2].forEach(function (s) { s.artists.forEach(function (x) { Core.setPolicy(s, x.id, "work"); }); });

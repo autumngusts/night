@@ -151,3 +151,4 @@
 .mh-toast.mh-good { background: rgba(31, 143, 90, 0.95); }
 .mh-toast.mh-bad { background: rgba(190, 50, 45, 0.95); }
 .mh-toast-out { opacity: 0; transform: translateY(8px); }
+.mh-stampbox { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.35rem 0; padding: 0.35rem 0.5rem; border: 1px dashed var(--mh-line); border-radius: 8px; }

@@ -412,6 +412,17 @@
 
   Core.hook("season", function (st) { ensure(st); seasonEnd(st); });
 
+  // 新紀元：st 已重建（plus 不在了，ensure 重新建立）；帶走的藝人的心願日期、宣傳時間都是舊紀元的天數，要重設
+  Core.hook("newEra", function (st, carry) {
+    if (carry) {
+      carry.wishes = [];
+      carry.wishNext = null;
+      carry.lastPromo = null;
+      carry.anti = 0;
+    }
+    ensure(st);
+  });
+
   Core.hook("month", function (st) {
     ensure(st);
     var P = st.plus, alive = {}, fee = 0, inChart = {};
