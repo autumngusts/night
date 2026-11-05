@@ -1348,7 +1348,7 @@
   // ---------------- 技能發動特效（關卡賽與真賽狗共用） ----------------
   // 依技能種類：加速（spd）＝背後的速度線＋光暈；爆發（acc）＝腳下擴散的衝擊波＋速度線；
   // 回復（heal）＝往上飄的綠色光點；金技能另外有金色光暈。顏色依階（一般藍／罕見綠／金）。
-  var FX_TIER = { n: 0x80d8ff, r: 0x69f0ae, g: 0xffd54f };
+  var FX_TIER = { n: 0x80d8ff, r: 0x69f0ae, g: 0xffd54f, k: 0xff5252, d: 0xff9100 };   // k＝暴衝（紅）、d＝對決（橘）
   // 結果裡的技能事件 → 特效時間表 [[{ t0, t1, spd, acc, heal, tier }]]（每隻一個陣列）；scale＝持續時間倍率
   function skillFxEvents(result, n, scale) {
     var out = [], SKL = window.PriTestSaigoSkills;
@@ -1360,6 +1360,20 @@
       var ef = s.eff, dur = Math.max(1.6, (ef.dur || 0) * (scale || 1));
       out[e.d].push({ t0: e.t, t1: e.t + dur, spd: !!ef.spd, acc: !!ef.acc, heal: !!ef.heal, tier: s.tier });
     });
+    // 暴衝：紅色光暈＋速度線，直到冷靜下來；對決：兩隻都是橘色速度線，到終點為止（2026-11-05）
+    var kk = {};
+    (result.events || []).forEach(function (e) {
+      if (e.d < 0 || !out[e.d]) return;
+      if (e.k === "kakari") kk[e.d] = { t0: e.t, t1: e.t + 12, spd: true, acc: false, heal: false, tier: "k" };
+      else if (e.k === "calm" && kk[e.d]) { kk[e.d].t1 = e.t; out[e.d].push(kk[e.d]); kk[e.d] = null; }
+      else if (e.k === "duel" && out[e.x]) {
+        [e.d, e.x].forEach(function (i) {
+          var tf = result.times && result.times[i] !== null && result.times[i] !== undefined ? result.times[i] : e.t + 8;
+          out[i].push({ t0: e.t, t1: Math.max(e.t + 1.6, tf), spd: true, acc: true, heal: false, tier: "d" });
+        });
+      }
+    });
+    Object.keys(kk).forEach(function (i) { if (kk[i]) out[i].push(kk[i]); });
     return out;
   }
   function skillFx(T, scene, n) {

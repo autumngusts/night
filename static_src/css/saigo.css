@@ -236,6 +236,18 @@
 .sg-banner-g { border-left-color: #ffd54f; background: linear-gradient(90deg, rgba(90, 60, 0, 0.9), rgba(120, 80, 0, 0.4)); box-shadow: 0 0 12px rgba(255, 213, 79, 0.55); }
 .sg-banner-g b { color: #ffe082; }
 .sg-banner-mine { outline: 2px solid rgba(255, 255, 255, 0.7); }
+/* 暴衝／對決的廣播（2026-11-05） */
+.sg-banner-kakari { border-left-color: #ff5252; background: linear-gradient(90deg, rgba(90, 10, 10, 0.88), rgba(90, 10, 10, 0.35)); }
+.sg-banner-kakari b { color: #ff8a80; }
+.sg-banner-duel { border-left-color: #ff9100; background: linear-gradient(90deg, rgba(100, 45, 0, 0.9), rgba(100, 45, 0, 0.35)); box-shadow: 0 0 12px rgba(255, 145, 0, 0.5); }
+.sg-banner-duel b { color: #ffd180; font-size: 1.15em; }
+/* 照片判定 */
+.sg-photo { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); padding: 0.6rem 1.4rem; border-radius: 10px; background: rgba(0, 0, 0, 0.78); color: #fff; font-size: 1.5rem; font-weight: 800; text-align: center; letter-spacing: 0.05em; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85); animation: sg-photo-blink 0.9s ease-in-out infinite; z-index: 3; }
+.sg-photo small { display: block; font-size: 0.55em; opacity: 0.85; }
+.sg-photo-done { animation: sg-banner-in 0.35s ease-out; box-shadow: 0 0 0 3px #ffd54f, 0 0 24px rgba(255, 213, 79, 0.6); }
+.sg-photo-done b { color: #ffd54f; }
+@keyframes sg-photo-blink { 50% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25); } }
+@media (max-width: 600px) { .sg-photo { font-size: 1.1rem; padding: 0.45rem 0.9rem; } }
 @keyframes sg-banner-in { from { transform: translateX(-120%); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 640px) { .sg-skill-banners { top: 3.4rem; font-size: 0.82em; max-width: 62%; } }
 /* 2026-11-03：出走表的能力一覽、可點的技能與說明、過期技能 */
@@ -257,3 +269,49 @@
 .sg-skill-expired small { text-decoration: none; }
 .sg-statmini .sg-sm-range .sg-bar { display: inline-block; width: 2.6rem; margin: 0 0.15rem; vertical-align: middle; }
 .sg-bar-range i { background: repeating-linear-gradient(45deg, var(--sg-accent), var(--sg-accent) 3px, transparent 3px, transparent 6px); border: 1px solid var(--sg-accent); box-sizing: border-box; }
+
+/* 賽前情報：看板＋報紙預測（2026-11-05） */
+.sg-press td, .sg-press th { text-align: left; }
+.sg-press .sg-mark { text-align: center; font-weight: 800; font-size: 1.1em; width: 2.2em; }
+.sg-press .sg-mark-hon { color: #d32f2f; }
+.sg-pad { font-size: 0.9em; }
+.sg-pad-4 { color: #2e7d32; font-weight: 700; }
+.sg-pad-3 { color: #558b2f; }
+.sg-pad-1 { color: #8d6e63; }
+.sg-pad-0 { color: #6d4c41; font-weight: 700; }
+.sg-pad-hot { color: #d84315; font-size: 0.85em; }
+.sg-reporters { list-style: none; padding: 0; margin: 0.6rem 0 0; display: grid; gap: 0.3rem; font-size: 0.9em; }
+@media (prefers-color-scheme: dark) {
+  .sg-press .sg-mark-hon { color: #ff8a80; }
+  .sg-pad-4 { color: #81c784; } .sg-pad-3 { color: #aed581; } .sg-pad-1 { color: #bcaaa4; } .sg-pad-0 { color: #d7ccc8; }
+  .sg-pad-hot { color: #ffab91; }
+}
+
+/* 重賞賽程、宿敵、粉絲（2026-11-05） */
+.sg-stakes { margin: 0; padding-left: 1.6rem; display: grid; gap: 0.35rem; }
+.sg-stake { padding: 0.3rem 0.4rem; border-radius: 6px; }
+.sg-stake.sg-on { background: rgba(255, 193, 7, 0.16); outline: 2px solid rgba(255, 179, 0, 0.6); }
+.sg-stake.sg-done { opacity: 0.7; }
+.sg-stake .sg-actions { margin-top: 0.3rem; }
+.sg-grade-badge { display: inline-block; min-width: 2.2em; padding: 0 0.35em; border-radius: 4px; color: #fff; text-align: center; font-size: 0.85em; }
+.sg-grade-badge.sg-grade-G1 { background: #1565c0; }
+.sg-grade-badge.sg-grade-G2 { background: #c62828; }
+.sg-grade-badge.sg-grade-G3 { background: #2e7d32; }
+.sg-title-chip { display: inline-block; margin: 0.1rem 0.3rem 0.1rem 0; padding: 0.05rem 0.45rem; border-radius: 999px; border: 1px solid currentColor; font-size: 0.85em; }
+.sg-title-chip.sg-grade-G1 { color: #1565c0; } .sg-title-chip.sg-grade-G2 { color: #c62828; } .sg-title-chip.sg-grade-G3 { color: #2e7d32; }
+.sg-rival-panel { border-left: 4px solid #e53935; }
+.sg-rival { padding: 0.3rem 0; }
+.sg-rival + .sg-rival { border-top: 1px dashed rgba(127, 127, 127, 0.35); }
+.sg-rival-line { margin: 0.2rem 0 0 1.8rem; font-weight: 700; font-style: italic; }
+@media (prefers-color-scheme: dark) {
+  .sg-title-chip.sg-grade-G1 { color: #90caf9; } .sg-title-chip.sg-grade-G2 { color: #ef9a9a; } .sg-title-chip.sg-grade-G3 { color: #a5d6a7; }
+}
+
+/* WIN5／冠軍大會（2026-11-05） */
+.sg-w5 { border-left: 4px solid #8e24aa; }
+.sg-w5-leg { display: inline-block; margin-right: 0.6rem; font-weight: 700; }
+.sg-cup { border-left: 4px solid #ffb300; }
+.sg-cup-stages { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.3rem 0; }
+.sg-cup-stage { padding: 0.15rem 0.6rem; border-radius: 999px; border: 1px solid rgba(127, 127, 127, 0.5); font-size: 0.9em; }
+.sg-cup-stage.sg-on { background: #ffb300; border-color: #ffb300; color: #222; font-weight: 800; }
+.sg-cup-stage.sg-done { opacity: 0.55; text-decoration: line-through; }

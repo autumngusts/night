@@ -12,6 +12,9 @@
 //   jp            { amt: 累積彩金, no: 已結算到第幾場, last: { no, pot, win: [{ pid, name, pay }] } }
 //   bank          { start: 起始籌碼, ver: 重置次數 }（管理面板設定）
 //   bal/<pid>     { c: 籌碼, ver, name }（房間籌碼；pid 存在 localStorage，重新整理／重進房間也還是同一份）
+//   w5            { ser: 第幾輪, leg: 目前第幾場, res: { 場: 冠軍枠 }, carry: 累積, last: { ser, pot, win: [{ pid, name, pay }] } }（WIN5，房主寫）
+//   w5p/<pid>     JSON { ser, picks: { 場: 枠 } }（WIN5：買了這一輪的人自己寫自己的選擇）
+//   cup           JSON（冠軍大會的狀態，saigo_cup.js 的 start／advance；房主寫）
 //
 // 同步方式：出賽表（含 seed）一旦發佈，每台裝置自己跑同一個確定性模擬，
 // 依伺服器時鐘（startAt）播放，所以結果完全一樣，只是各自看不同的鏡頭。
@@ -57,7 +60,7 @@
     var stopPresence = null;
     var room = {
       id: roomId, cid: cid, pid: myPid(), creating: creating,
-      bank: null, bal: {}, balLoaded: false, jp: null,
+      bank: null, bal: {}, balLoaded: false, jp: null, w5: null, w5p: {}, cup: null,
       loaded: false, missing: false, closed: false,
       meta: null, online: {}, players: {}, cfg: opts.cfg || { cls: "open" }, match: null, matchNo: 0,
       me: { name: opts.name || "", entry: null, entries: [], ready: false, no: 0, at: 0 }
@@ -220,6 +223,88 @@
       });
     };
 
+    // ---- WIN5（2026-11-05）----
+    function Cup() { return window.PriTestSaigoCup; }
+    room.w5Buyers = function (ser) {
+      var out = {};
+      Object.keys(room.w5p || {}).forEach(function (pid) { var x = room.w5p[pid]; if (x && x.ser === ser) out[pid] = x; });
+      return out;
+    };
+    room.w5Mine = function (ser) { var x = room.w5p[room.pid]; return x && x.ser === ser ? x : null; };
+    // 這一輪目前的彩池（累積＋買入 × 回收率）
+    room.w5Pot = function (ser) {
+      var w = room.w5 || {}, carry = w.ser === ser || !w.ser ? (w.carry || 0) : 0;
+      return carry + Math.floor(Object.keys(room.w5Buyers(ser)).length * Cup().W5_COST * Cup().W5_TAKE);
+    };
+    // 房主發佈出賽表前：決定這張是第幾輪第幾場（寫進 w5）
+    room.w5Leg = function () {
+      if (!room.isHost()) return Promise.resolve(null);
+      var nl = null;
+      return GS.rtTransaction(roomId, CLOUD, path("w5"), function (v) {
+        nl = Cup().w5NextLeg(v);
+        var o = v ? JSON.parse(JSON.stringify(v)) : { carry: 0 };
+        o.ser = nl.ser; o.leg = nl.leg;
+        if (nl.fresh) o.res = {};
+        if (!o.res) o.res = {};
+        if (!isFinite(o.carry)) o.carry = 0;
+        return o;
+      }).then(function (v) { return v ? { ser: v.ser, leg: v.leg } : null; });
+    };
+    // 買這一輪（第 1 場開跑前）：扣房間籌碼成功才登記
+    room.w5Buy = function (ser) {
+      if (room.w5Mine(ser)) return Promise.resolve(true);
+      return room.addCoins(room.pid, -Cup().W5_COST).then(function (v) {
+        if (!v) return false;
+        var x = { ser: ser, picks: {} };
+        room.w5p[room.pid] = x;
+        return set("w5p/" + room.pid, JSON.stringify(x)).then(function () { return true; });
+      });
+    };
+    room.w5Pick = function (ser, leg, gate) {
+      var x = room.w5Mine(ser);
+      if (!x) return Promise.resolve(false);
+      x.picks = x.picks || {};
+      x.picks[leg] = gate;
+      return set("w5p/" + room.pid, JSON.stringify(x));
+    };
+    // 房主：一場跑完記下冠軍；第 5 場跑完就結算（全中的人平分彩池，沒人中就累積到下一輪）
+    room.w5Result = function (ser, leg, gate) {
+      if (!room.isHost()) return Promise.resolve(null);
+      var names = {}, buyers = room.w5Buyers(ser);
+      room.ledger().forEach(function (r) { names[r.pid] = r.name; });
+      return GS.rtTransaction(roomId, CLOUD, path("w5"), function (v) {
+        if (!v || v.ser !== ser) return;
+        v.res = v.res || {};
+        if (v.res[leg] !== undefined && v.res[leg] !== null) return;
+        v.res[leg] = gate;
+        if (leg >= Cup().W5_LEGS) {
+          var st = Cup().w5Settle(buyers, v.res, v.carry || 0);
+          v.carry = st.carry;
+          v.last = { ser: ser, pot: st.pot, n: Object.keys(buyers).length, win: st.winners.map(function (pid) { return { pid: pid, name: names[pid] || "", pay: st.pay }; }) };
+        }
+        return v;
+      }).then(function (v) {
+        if (v && v.last && v.last.ser === ser && leg >= Cup().W5_LEGS && v.res && v.res[leg] === gate) (v.last.win || []).forEach(function (w) { room.addCoins(w.pid, w.pay); });
+        return v;
+      });
+    };
+
+    // ---- 冠軍大會（2026-11-05）----
+    room.cupSet = function (state) {
+      if (!room.isHost()) return Promise.resolve();
+      room.cup = state;
+      return set("cup", state ? JSON.stringify(state) : null);
+    };
+    // 房主：這一關跑完就晉級（stage 對得上才寫，避免重複）
+    room.cupAdvance = function (card, order) {
+      if (!room.isHost() || !card.cup) return Promise.resolve(null);
+      return GS.rtTransaction(roomId, CLOUD, path("cup"), function (v) {
+        var cur = parseJson(v);
+        if (!cur || cur.id !== card.cup.id || cur.stage !== card.cup.stage) return;
+        return JSON.stringify(Cup().advance(cur, card, order));
+      });
+    };
+
     // 自己的籌碼紀錄不存在或過期（被重置）時建立
     function ensureBal() {
       if (!room.balLoaded || room.bank === null || fresh(room.bal[room.pid])) return;
@@ -284,6 +369,13 @@
       sub("cfg", function (v) { var c = parseJson(v); if (c) room.cfg = c; changed(); });
       sub("bank", function (v) { room.bank = v && isFinite(v.start) ? { start: Number(v.start), ver: Number(v.ver) || 1 } : { start: DEFAULT_START, ver: 1 }; ensureBal(); changed(); });
       sub("jp", function (v) { room.jp = v || null; changed(); });
+      sub("w5", function (v) { room.w5 = v || null; changed(); });
+      sub("w5p", function (v) {
+        var o = {};
+        Object.keys(v || {}).forEach(function (pid) { var x = parseJson(v[pid]); if (x && isFinite(x.ser)) o[pid] = x; });
+        room.w5p = o; changed();
+      });
+      sub("cup", function (v) { room.cup = parseJson(v); changed(); });
       sub("bal", function (v) { room.bal = v || {}; room.balLoaded = true; ensureBal(); changed(); });
       stopPresence = GS.rtSetWithOnDisconnect(roomId, CLOUD, path("on/" + cid), true);
       pushMe();
