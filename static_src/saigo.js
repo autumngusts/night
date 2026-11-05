@@ -12,6 +12,9 @@
   var SK = window.PriTestSaigoSkills;
   var Real = window.PriTestSaigoReal;
   var Mic = window.PriTestSaigoMic;
+  var Press = window.PriTestSaigoPress;
+  var League = window.PriTestSaigoLeague;
+  var Cup = window.PriTestSaigoCup;
   var app = document.getElementById("sg-app");
   if (!app || !D || !Core) return;
 
@@ -133,7 +136,8 @@
     dashOk: false, dash: { start: "", all: "", per: {} }, dashMsg: "",
     pool: pref().pool !== false, finalOdds: null, jpWin: null,
     mode: pref().mode === "real" ? "real" : "classic", rmap: pref().rmap || { weather: "", dist: "" },
-    entryDogs: pref().entryDogs || [], ctlDog: -1, mic: null, micState: "", selSkill: "", obs: pref().obs !== false
+    entryDogs: pref().entryDogs || [], ctlDog: -1, mic: null, micState: "", selSkill: "", obs: pref().obs !== false,
+    w5: !!pref().w5
   };
 
   // 彩池制（連線房間、房主開啟）：賠率＝虛擬彩池＋大家的下注；開跑後用房主鎖定的彩池
@@ -234,7 +238,7 @@
       s.coins < 100 ? el("div", { class: "sg-actions" }, [btn(t("sg_bailout", { n: money(K.BAILOUT) }), function () { K.bailout(); render(); })]) : null,
       !s.dogs.length ? el("p", { class: "sg-hint" }, [t("sg_hint_adopt")]) : null
     ]));
-    app.appendChild(panel(t("sg_rules_title"), [el("ul", { class: "sg-rules" }, ["sg_rule_1", "sg_rule_6", "sg_rule_2", "sg_rule_7", "sg_rule_3", "sg_rule_4", "sg_rule_5"].map(function (k) { return el("li", null, [t(k)]); }))]));
+    app.appendChild(panel(t("sg_rules_title"), [el("ul", { class: "sg-rules" }, ["sg_rule_1", "sg_rule_6", "sg_rule_2", "sg_rule_7", "sg_rule_8", "sg_rule_9", "sg_rule_3", "sg_rule_10", "sg_rule_4", "sg_rule_5", "sg_rule_11"].map(function (k) { return el("li", null, [t(k)]); }))]));
   }
 
   // ---------------- 犬種圖鑑 ----------------
@@ -300,7 +304,8 @@
       return el("button", { type: "button", class: "sg-dog-card" + (d.id === ui.selDog ? " sg-on" : ""), onclick: function () { ui.selDog = d.id; ui.msg = ""; render(); } }, [
         el("span", { class: "sg-swatch", style: "background:" + b.model.c1 + ";border-color:" + b.model.c2 }),
         el("b", null, [d.name]), el("small", null, [L(b.name) + " Lv" + d.lv]),
-        el("small", null, [L(D.MOODS[d.mood].name) + " " + D.MOODS[d.mood].icon + "・" + t("sg_fatigue") + " " + d.fatigue])
+        el("small", null, [L(D.MOODS[d.mood].name) + " " + D.MOODS[d.mood].icon + "・" + t("sg_fatigue") + " " + d.fatigue]),
+        League ? el("small", null, ["👥 " + League.fansOf(d).toLocaleString() + (League.titlesOf(d).length ? "・🏆" + League.titlesOf(d).length : "")]) : null
       ]);
     }));
     app.appendChild(panel(t("sg_kennel_title", { n: s.dogs.length, max: K.MAX_DOGS }), [s.dogs.length ? list : el("p", { class: "sg-muted" }, [t("sg_kennel_empty")])]));
@@ -353,6 +358,10 @@
           t("sg_mood") + " " + L(D.MOODS[d.mood].name) + D.MOODS[d.mood].icon + "・" + t("sg_fatigue") + " " + d.fatigue + "/100・" + t("sg_bond") + " " + d.bond
         ]),
         el("p", { class: "sg-small" }, [t("sg_dog_record", { r: d.races, w: d.wins, p: d.top3, e: money(d.earnings) })]),
+        League ? el("p", { class: "sg-small" }, ["👥 " + t("sg_fans_line", { n: League.fansOf(d).toLocaleString(), r: L(League.fanRank(League.fansOf(d))) })]) : null,
+        League && League.titlesOf(d).length ? el("p", { class: "sg-small sg-titles" }, ["🏆 " + t("sg_titles") + "：", League.titlesOf(d).map(function (x) {
+          return el("span", { class: "sg-title-chip sg-grade-" + x.grade }, [t("sg_season_n", { n: x.season }) + " " + x.grade + " " + L(League.STAKE_BY_ID[x.id].name)]);
+        })]) : null,
         el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "・" + t("sg_run_style") + "：" + L(D.STYLES[K.runStyle(d)]) + "（" + aptG(K.bestStyle(d), K.runStyle(d)) + "）"]),
         statsTable(stats, d.train),
         el("p", { class: "sg-small sg-muted" }, [t("sg_train_cap", { n: K.TRAIN_CAP })]),
@@ -554,6 +563,58 @@
       real ? entryStylePickers() : dogStylePicker(ui.entryDog),
       el("div", { class: "sg-actions" }, [btn(t("sg_make_card"), function () { startSolo(false, ui.entryDog); }, "sg-btn sg-primary")])
     ]));
+    if (League) app.appendChild(stakesPanel());
+  }
+  // ---- 重賞賽程（2026-11-05）：10 場固定重賞依序進行，報名看派出的狗的粉絲數 ----
+  function stakeDogIds(stake) {
+    if (stake.mode === "real") return ui.entryDogs.filter(function (id) { return K.dog(id); }).slice(0, ENTRY_MAX_SOLO).concat(ui.entryDogs.length ? [] : ui.entryDog ? [ui.entryDog] : []);
+    var one = ui.entryDog && K.dog(ui.entryDog) ? ui.entryDog : ui.entryDogs.filter(function (id) { return K.dog(id); })[0];
+    return one ? [one] : [];
+  }
+  function stakeChip(st) {
+    var TR = D.TERRAINS[st.terrain];
+    return el("span", { class: "sg-small sg-muted" }, [TR.icon + " " + L(TR.name) + "・" + L(D.DISTANCES[st.dist].name) + (st.mode === "real" ? "・🏟 " + t("sg_mode_real") : "") + "・👥 ≥ " + st.fans.toLocaleString()]);
+  }
+  function stakesPanel() {
+    var cur = League.current(), L0 = League.state();
+    var ids = stakeDogIds(cur.stake), ok = ids.length && League.canEnter(ids, cur.stake);
+    var won = {};
+    L0.log.forEach(function (x) { if (x.season === cur.season && !won[x.id]) won[x.id] = x; });
+    return panel("🏆 " + t("sg_stakes_title", { n: cur.season }), [
+      el("ol", { class: "sg-stakes" }, League.STAKES.map(function (st, i) {
+        var done = i < cur.week, now = i === cur.week, lg = won[st.id];
+        return el("li", { class: "sg-stake" + (now ? " sg-on" : "") + (done ? " sg-done" : "") }, [
+          el("b", { class: "sg-grade-badge sg-grade-" + st.grade }, [st.grade]), " ", el("b", null, [L(st.name)]), " ", stakeChip(st),
+          done ? el("small", { class: lg && lg.mine ? "sg-good" : "sg-muted" }, [lg ? "　🏁 " + lg.winner + (lg.mine ? " 🎉" : "") : "　" + t("sg_stakes_skipped")]) : null,
+          now ? el("div", { class: "sg-actions" }, [
+            btn("🏆 " + t("sg_stakes_enter"), function () { startStakes(); }, "sg-btn sg-primary", { disabled: !ok }),
+            btn(t("sg_stakes_skip"), function () { League.advance(); rerenderKeep(); }, "sg-link")
+          ]) : null,
+          now ? el("p", { class: "sg-small " + (ok ? "sg-muted" : "sg-danger") }, [!ids.length ? t("sg_stakes_need_dog") : ok ? t("sg_stakes_with", { names: ids.map(function (id) { return K.dog(id).name; }).join("、") }) : t("sg_stakes_need_fans", { n: st.fans.toLocaleString() })]) : null
+        ]);
+      })),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_stakes_note")])
+    ]);
+  }
+  function freshSlip() { ui.result = null; ui.tickets = []; ui.openDog = -1; ui.slip = { type: "win", method: "normal", picks: [], key: null, stake: ui.slip.stake || 100 }; }
+  function startStakes() {
+    var cur = League.current(), st = cur.stake, ids = stakeDogIds(st);
+    if (!ids.length || !League.canEnter(ids, st)) return;
+    var entries = ids.map(function (id) { return K.entry(id, "me", ""); }).filter(Boolean);
+    var rv = League.pickRivals(st.grade === "G1" ? 2 : 1).map(function (id) { return League.rivalEntry(id, entries); });
+    var o = { cls: "stakes", terrain: st.terrain, dist: st.dist };
+    if (st.mode === "real") { o.mode = "real"; o.obstacles = true; }
+    ui.practice = false;
+    ui.card = Core.makeCard(Core.newSeed(), entries.concat(rv), o);
+    ui.card.stakes = { id: st.id, grade: st.grade, season: cur.season };
+    ui.card.prizeMult = League.GRADES[st.grade].prize;
+    freshSlip();
+    go("card");
+  }
+  // 一般單機比賽：有派狗、不是新手戰時有機率出現宿敵（max＝這場最多幾隻）
+  function withRival(entries, cls, max) {
+    if (!League || !entries.length || entries.length >= max || !League.rollRival(cls)) return entries;
+    return entries.concat([League.rivalEntry(League.pickRivals(1)[0], entries)]);
   }
   function startSolo(practice, dogId) {
     var entries = [];
@@ -562,7 +623,7 @@
       ui.entryDogs.forEach(function (id) { var e1 = K.entry(id, "me", ""); if (e1) entries.push(e1); });
       var ro = mapOpts();
       ro.mode = "real"; ro.cls = ui.cls; ro.obstacles = ui.obs;
-      ui.card = Core.makeCard(Core.newSeed(), entries.slice(0, ENTRY_MAX_SOLO), ro);
+      ui.card = Core.makeCard(Core.newSeed(), withRival(entries.slice(0, ENTRY_MAX_SOLO), ui.cls, Real.FIELD), ro);
       ui.result = null; ui.tickets = []; ui.openDog = -1;
       ui.slip = { type: "win", method: "normal", picks: [], key: null, stake: ui.slip.stake || 100 };
       go("card");
@@ -573,7 +634,7 @@
     ui.practice = !!practice;
     var o = mapOpts();
     o.cls = practice ? "rookie" : ui.cls;
-    ui.card = Core.makeCard(Core.newSeed(), entries, o);
+    ui.card = Core.makeCard(Core.newSeed(), practice ? entries : withRival(entries, o.cls, D.FIELD), o);
     ui.result = null; ui.tickets = []; ui.openDog = -1;
     ui.slip = { type: "win", method: "normal", picks: [], key: null, stake: ui.slip.stake || 100 };
     if (practice) { startRace(); return; }
@@ -647,6 +708,9 @@
   function raceTitle(card) {
     var cls = D.CLASSES.filter(function (c) { return c.id === card.cls; })[0];
     var TR = D.TERRAINS[card.terrain] || D.TERRAINS.park;
+    var stk = League && card.stakes && League.STAKE_BY_ID[card.stakes.id];
+    if (stk) return "🏆 " + stk.grade + " " + L(stk.name) + "・" + L(TR.name) + "・" + card.course.length + "m";
+    if (card.cup) return "🏆 " + t("sg_cup_stage_" + card.cup.stage) + "・" + L(TR.name) + "・" + card.course.length + "m";
     if (isOval(card)) return "🏟 " + t("sg_mode_real") + "・" + L(cls.name) + "・" + card.length + "m";
     if (isReal(card)) return "🏟 " + t("sg_mode_real") + "・" + L(cls.name) + "・" + L(TR.name) + "・" + card.course.length + "m";
     return (ui.practice ? t("sg_practice") : L(cls.name)) + "・" + L(TR.name) + "・" + card.course.length + "m";
@@ -705,13 +769,24 @@
       ])
     ]));
 
+    if (ui.room && card.cup && Cup) app.appendChild(cupPanel(ui.room.cup, card));
+    // 宿敵登場（2026-11-05）
+    var rvDogs = League ? card.dogs.map(function (d, i) { return { d: d, i: i }; }).filter(function (x) { return x.d.rival && League.RIVAL_BY_ID[x.d.rival]; }) : [];
+    if (rvDogs.length) app.appendChild(panel("🔥 " + t("sg_rival_title"), rvDogs.map(function (x) {
+      var rs = League.state().rv[x.d.rival], tn = League.rivalTaunt(x.d.rival);
+      return el("div", { class: "sg-rival" }, [
+        el("div", null, [gateBadge(x.i), " ", el("b", null, [x.d.name]), " ", el("small", { class: "sg-muted" }, [x.d.ownerName + "・" + L(breedOf(x.d).name) + "・" + t("sg_rival_record", { w: rs.w, l: rs.l })])]),
+        el("p", { class: "sg-rival-line" }, ["「" + L(tn) + "」"])
+      ]);
+    }).concat([el("p", { class: "sg-small sg-muted" }, [t("sg_rival_note")])]), "sg-rival-panel"));
+
     // 出走表
     var rows = [];
     card.dogs.forEach(function (d, i) {
       var b = breedOf(d), mine = isMine(d), mood = D.MOODS[d.mood];
       rows.push(el("tr", { class: "sg-dogrow" + (mine ? " sg-mine" : "") + (ui.openDog === i ? " sg-open" : ""), onclick: function () { ui.openDog = ui.openDog === i ? -1 : i; rerenderKeep(); } }, [
         el("td", null, [gateBadge(i)]),
-        el("td", null, [el("b", null, [d.name]), el("br"), el("small", null, [L(b.name)])]),
+        el("td", null, [el("b", null, [d.rival ? "🔥 " + d.name : d.name]), el("br"), el("small", null, [L(b.name)])]),
         el("td", { class: "sg-hide-s" }, [d.cpu ? (isReal(card) && d.ownerName ? d.ownerName : "CPU") : (mine ? t("sg_owner_me") : d.ownerName || t("sg_owner_player"))]),
         el("td", { class: "sg-mood sg-mood-" + d.mood }, [mood.icon + " " + L(mood.name)]),
         // 表上不顯示跑法適性（A〜D）、總評分、速／耐／敏（2026-11-03 使用者指定）
@@ -752,20 +827,45 @@
       el("tbody", null, rows)
     ]), el("p", { class: "sg-small sg-muted" }, [t("sg_click_detail") + (isReal(card) ? " " + t("sg_card_skill_tap") : "")])]));
 
+    if (!ui.practice && Press) app.appendChild(pressPanel(card));
+
     // 單機：自己的狗可以在出賽表上改跑法（買了票之後就鎖定，免得先下注再改）
     if (!ui.room && !ui.practice) card.dogs.forEach(function (md) {
       if (!isMine(md)) return;
       app.appendChild(panel(t("sg_style_pick_title", { name: md.name }), [
         stylePicker(md.best || md.style, md.style, function (st) {
-          md.style = st; card._odds = null;
+          md.style = st; card._odds = null; card._press = null;
           if (md.dogId) K.setRunStyle(md.dogId, st);
           rerenderKeep();
         }, ui.tickets.length > 0),
         el("p", { class: "sg-small sg-muted" }, [ui.tickets.length ? t("sg_style_locked") : t("sg_apt_note")])
       ]));
     });
+    if (ui.room && card.w5 && Cup) app.appendChild(w5Panel(card));
     if (!ui.practice) app.appendChild(betSlip(card, od));
     app.appendChild(cardActions());
+  }
+  // 賽前情報（2026-11-05）：看板＋3 位記者的預測印＋記者戰績
+  function pressPanel(card) {
+    var pad = Press.paddock(card), mk = Press.marks(card), st = Press.stats();
+    var head = el("tr", null, ["", t("sg_col_dog"), t("sg_paddock")].concat(Press.REPORTERS.map(function (rp) { return el("span", { title: L(rp.name) }, [rp.icon]); })).map(function (h) { return el("th", null, [h]); }));
+    var body = card.dogs.map(function (d, i) {
+      var lv = Press.LEVELS[String(pad[i].lv)];
+      return el("tr", { class: isMine(d) ? "sg-mine" : "" }, [
+        el("td", null, [gateBadge(i)]),
+        el("td", null, [el("b", null, [d.name])]),
+        el("td", { class: "sg-pad sg-pad-" + (pad[i].lv + 2) }, [lv.icon + " " + L(lv.text), pad[i].kakari ? el("div", { class: "sg-pad-hot" }, ["🔥 " + L(Press.KAKARI_HINT)]) : null]),
+      ].concat(Press.REPORTERS.map(function (rp) { var m = mk[rp.id][i]; return el("td", { class: "sg-mark" + (m === "◎" ? " sg-mark-hon" : "") }, [m || ""]); })));
+    });
+    return panel("📰 " + t("sg_press_title"), [
+      el("table", { class: "sg-table sg-press" }, [el("thead", null, [head]), el("tbody", null, body)]),
+      el("ul", { class: "sg-reporters" }, Press.REPORTERS.map(function (rp) {
+        var x = st[rp.id];
+        return el("li", null, [rp.icon + " ", el("b", null, [L(rp.name)]), "：" + L(rp.note) + "　",
+          el("small", { class: "sg-muted" }, [x.n ? t("sg_press_record", { n: x.n, w: Math.round(x.win / x.n * 100), p: Math.round(x.top3 / x.n * 100) }) : t("sg_press_record_none")])]);
+      })),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_paddock_note")])
+    ]);
   }
   // 出走表上的總評分（能力用當天的有效能力）
   function dogRatingText(d) { var r = SK.rating(d.eff, d.skills); return r.grade + " " + r.pts; }
@@ -835,7 +935,7 @@
   function cardActions() {
     if (!ui.room) {
       return el("div", { class: "sg-actions sg-next" }, [
-        btn(t("sg_reroll"), function () { startSolo(ui.practice, ui.entryDog); }, "sg-btn"),
+        btn(t("sg_reroll"), function () { if (ui.card && ui.card.stakes) startStakes(); else startSolo(ui.practice, ui.entryDog); }, "sg-btn"),
         btn(ui.tickets.length || ui.practice ? t("sg_go") : t("sg_go_nobet"), function () { startRace(); }, "sg-btn sg-primary sg-big")
       ]);
     }
@@ -872,13 +972,15 @@
     clip: "🦵", fireBalk: "🔥", ringMiss: "💥", loopFail: "➰", climbSlip: "🧗", kickGood: "🧱", kickFall: "🤕", seesawFly: "⚖",
     plankFall: "🤕", trip: "⭕", ballPlay: "🔴", sprayStop: "💦", bounceGood: "🤸", bounceFlop: "🤕", paddleBonk: "✣", catStare: "🐈",
     ditchGood: "✨", ditchFall: "💦", surfWipe: "🌊", skateFall: "🛹", skiFall: "❄",
-    skill: "✨", bump: "💥", boxed: "🚧", slowStart: "🐢", goodBreak: "🚀", shout: "📣", shoutHeal: "📣" };
+    skill: "✨", bump: "💥", boxed: "🚧", slowStart: "🐢", goodBreak: "🚀", shout: "📣", shoutHeal: "📣",
+    kakari: "💢", calm: "😌", duel: "⚔" };
   function eventText(card, e) {
     var name = e.d >= 0 ? (e.d + 1) + " " + card.dogs[e.d].name : "";
     var n = e.x;
     if (e.k === "skill") n = SK.BY_ID[e.x] ? SK.BY_ID[e.x].icon + L(SK.BY_ID[e.x].name) : e.x;
-    else if (e.k === "bump" || e.k === "boxed") n = e.x !== null && card.dogs[e.x] ? (e.x + 1) + " " + card.dogs[e.x].name : "";
-    return (EV_ICONS[e.k] || "") + " " + t("sg_ev_" + e.k, { name: name, n: n });
+    else if (e.k === "bump" || e.k === "boxed" || e.k === "duel") n = e.x !== null && card.dogs[e.x] ? (e.x + 1) + " " + card.dogs[e.x].name : "";
+    var key = e.k === "calm" && e.x ? "calmSkill" : e.k;
+    return (EV_ICONS[e.k] || "") + " " + t("sg_ev_" + key, { name: name, n: n });
   }
   // ---- 比賽中的指令（真賽狗的喊聲；跑法在出賽前決定，開跑後不能改）----
   // 全部的指令：單機＝ui.cmds；連線＝自己的（本機為準）＋其他人寫進房間的
@@ -935,6 +1037,8 @@
     var shot = el("div", { class: "sg-shot" });
     var mm = el("canvas", { class: "sg-hud-map", width: 180, height: 120 });
     var bannerBox = el("div", { class: "sg-skill-banners" });
+    var photoBox = el("div", { class: "sg-photo", style: "display:none" });
+    hud.appendChild(photoBox);
     hud.appendChild(info); hud.appendChild(bannerBox); hud.appendChild(rankBox); hud.appendChild(ticker); hud.appendChild(count); hud.appendChild(shot); hud.appendChild(mm);
     stage.appendChild(hud);
     var camBar = el("div", { class: "sg-cams" });
@@ -1060,6 +1164,18 @@
       bannerBox.innerHTML = "";
       banners.forEach(function (b) {
         var sk = SK.BY_ID[b.e.x], d = card.dogs[b.e.d];
+        if (b.e.k === "kakari" && d) {
+          bannerBox.appendChild(el("div", { class: "sg-skill-banner sg-banner-kakari" + (isMine(d) ? " sg-banner-mine" : "") }, [
+            el("small", null, [t("sg_banner_kakari")]), el("div", null, [gateBadge(b.e.d), " " + d.name + " ", el("b", null, ["💢 " + t("sg_banner_kakari_line")])])
+          ]));
+          return;
+        }
+        if (b.e.k === "duel" && d && card.dogs[b.e.x]) {
+          bannerBox.appendChild(el("div", { class: "sg-skill-banner sg-banner-duel" + (isMine(d) || isMine(card.dogs[b.e.x]) ? " sg-banner-mine" : "") }, [
+            el("small", null, [t("sg_banner_duel")]), el("div", null, [gateBadge(b.e.d), " " + d.name + " ", el("b", null, ["⚔"]), " ", gateBadge(b.e.x), " " + card.dogs[b.e.x].name])
+          ]));
+          return;
+        }
         if (!sk || !d) return;
         bannerBox.appendChild(el("div", { class: "sg-skill-banner sg-banner-" + sk.tier + (isMine(d) ? " sg-banner-mine" : "") }, [
           el("small", null, [t("sg_skill_fired") + "・" + L(SK.TIERS[sk.tier].name)]),
@@ -1067,6 +1183,15 @@
         ]));
       });
     }
+    // 照片判定（第 1、2 名差不到 Core.PHOTO_GAP 秒）：終點前後慢動作，第二隻到後等 PHOTO_WAIT 秒才公布
+    var PHOTO_SLOW = 0.25, PHOTO_WAIT = 2.2, PHOTO_SHOW = 2.8;
+    function photoInfo() {
+      var p = res.photo;
+      if (!p) return null;
+      var t1 = res.times[p.a], t2 = res.times[p.b];
+      return { a: p.a, b: p.b, gap: p.gap, t1: t1, t2: t2, reveal: t2 + PHOTO_WAIT };
+    }
+    function photoSlow(tt) { var p = photoInfo(); return !!p && tt >= p.t1 - 1.0 && tt < p.t2 + 0.3; }
     function liveEvents() { return (res.events || []).filter(function (e) { return e.k !== "enter" && e.k !== "start" && e.k !== "stayGood" && e.k !== "go"; }); }
     var evs = liveEvents();
     function loop(now) {
@@ -1074,8 +1199,9 @@
       var dt = Math.min(0.1, (now - last) / 1000); last = now;
       var tt;
       if (ui.room && !ui.replay) { tt = ui.room.raceTime(); if (tt === null) tt = -3; }
-      else { ui.raceT += dt * (ui.raceT < 0 ? 1 : ui.speed); tt = ui.raceT; }
+      else { ui.raceT += dt * (ui.raceT < 0 ? 1 : ui.speed * (photoSlow(ui.raceT) ? PHOTO_SLOW : 1)); tt = ui.raceT; }
       curTT = tt;
+      var ph = photoInfo(), pend = ph && tt >= ph.t1 && tt < ph.reveal;
       // 改跑法後重新模擬過：實況從目前時間接著播（生效前的事件都一樣）
       if (resVer !== ui.resVer) {
         resVer = ui.resVer; evs = liveEvents(); lastEv = -1;
@@ -1096,8 +1222,14 @@
       else { var part = Core.partAt(card.course, Math.min(ls, card.course.length - 0.01)); where = D.PARTS[part.type].icon + " " + D.partName(part); }
       info.textContent = (tt < 0 ? "" : fmtTime(Math.max(0, tt)) + "  ") + t("sg_hud_left", { n: Math.max(0, Math.round(cardLen(card) - ls)) }) + "  " + where;
       rankBox.innerHTML = "";
+      // 照片判定中：那兩隻先依枠順排、不顯示差距
+      if (pend) {
+        var pa = Math.min(ph.a, ph.b), pb = Math.max(ph.a, ph.b), ia = rank.indexOf(ph.a), ib = rank.indexOf(ph.b);
+        if (ia >= 0 && ib >= 0) { var lo = Math.min(ia, ib); rank = rank.slice(); rank[lo] = pa; rank[lo + 1] = pb; }
+      }
       rank.forEach(function (i, n) {
         var gap = n === 0 ? "" : (res.times[i] !== null && res.times[i] <= tt ? "+" + (res.times[i] - res.times[rank[0]]).toFixed(2) + "s" : "-" + Math.max(0, (ls - st[i].s)).toFixed(1) + "m");
+        if (pend && (i === ph.a || i === ph.b)) gap = "📷";
         rankBox.appendChild(el("li", { class: isMine(card.dogs[i]) ? "sg-mine" : "" }, [gateBadge(i), " " + card.dogs[i].name + " ", el("small", null, [gap])]));
       });
       count.textContent = tt < 0 ? String(Math.ceil(-tt)) : (tt < 1 ? "GO!" : "");
@@ -1106,15 +1238,34 @@
       // 實況
       while (lastEv + 1 < evs.length && evs[lastEv + 1].t <= tt) {
         lastEv++;
-        if (evs[lastEv].k === "skill" && tt - evs[lastEv].t < 2.6) banners.unshift({ e: evs[lastEv], until: evs[lastEv].t + 2.6 });
-        var line = eventText(card, evs[lastEv]);
+        var bk = evs[lastEv].k;
+        if ((bk === "skill" || bk === "kakari" || bk === "duel") && tt - evs[lastEv].t < 2.6) banners.unshift({ e: evs[lastEv], until: evs[lastEv].t + (bk === "duel" ? 3.2 : 2.6) });
+        var line = ph && evs[lastEv].k === "finish" && (evs[lastEv].d === ph.a || evs[lastEv].d === ph.b) ? "" : eventText(card, evs[lastEv]);
         if (line) { tickLines.unshift(line); if (tickLines.length > 4) tickLines.length = 4; }
       }
       if (tt < 0.1 && tickLines.length && lastEv < 0) tickLines = [];
       drawBanners(tt);
       ticker.innerHTML = "";
       tickLines.forEach(function (s2, n) { ticker.appendChild(el("div", { style: "opacity:" + (1 - n * 0.22) }, [s2])); });
-      if (!ended && tt > res.duration + 3) { ended = true; finishRace(); return; }
+      // 照片判定：第二隻到終點後顯示「判定中」，PHOTO_WAIT 秒後公布
+      if (ph && tt >= ph.t2) {
+        var revealed = tt >= ph.reveal, key2 = revealed ? "r" : "w";
+        if (photoBox.getAttribute("data-k") !== key2) {
+          photoBox.setAttribute("data-k", key2);
+          photoBox.innerHTML = "";
+          photoBox.className = "sg-photo" + (revealed ? " sg-photo-done" : "");
+          if (!revealed) photoBox.appendChild(el("div", null, ["📷 " + t("sg_photo_wait")]));
+          else {
+            photoBox.appendChild(el("small", null, [t("sg_photo_result")]));
+            photoBox.appendChild(el("div", null, [gateBadge(ph.a), " " + card.dogs[ph.a].name + " ", el("b", null, [t("sg_margin_" + (Core.marginKind(ph.gap) || "nose"))])]));
+            tickLines.unshift("📷 " + t("sg_photo_line", { name: (ph.a + 1) + " " + card.dogs[ph.a].name, m: t("sg_margin_" + (Core.marginKind(ph.gap) || "nose")) }));
+            if (tickLines.length > 4) tickLines.length = 4;
+          }
+        }
+        photoBox.style.display = tt < ph.reveal + PHOTO_SHOW ? "" : "none";
+      } else if (photoBox.style.display !== "none") photoBox.style.display = "none";
+      var endAt = ph ? Math.max(res.duration + 3, ph.reveal + PHOTO_SHOW) : res.duration + 3;
+      if (!ended && tt > endAt) { ended = true; finishRace(); return; }
       ui.raf = requestAnimationFrame(loop);
     }
     ui.raf = requestAnimationFrame(loop);
@@ -1160,10 +1311,12 @@
     card.dogs.forEach(function (d, i) {
       if (!isMine(d) || !d.dogId) return;
       // 連線房間：狗的獎金進房間籌碼，經驗／疲勞照樣記在自己的犬舍
-      var r = K.afterRace(d.dogId, order.indexOf(i), cls.prize, ui.practice, !!ui.room);
-      if (r) { ui.dogRewards.push({ name: d.name, place: order.indexOf(i), r: r }); prizes += r.prize; }
+      var r = K.afterRace(d.dogId, order.indexOf(i), card.prizeMult || cls.prize, ui.practice, !!ui.room);
+      if (r) { ui.dogRewards.push({ name: d.name, dogId: d.dogId, place: order.indexOf(i), r: r }); prizes += r.prize; }
     });
     if (ui.room && sum.won + prizes > 0) ui.room.addCoins(ui.room.pid, sum.won + prizes);
+    // 粉絲數、宿敵、重賞稱號（2026-11-05）
+    ui.leagueOut = League ? League.afterRace(card, order, ui.dogRewards.map(function (x) { return { dogId: x.dogId, place: x.place }; }), ui.practice) : null;
     // 累積彩金：單機在這裡結算；連線由房主結算（全房間的下注都在 m/<no>/bets）
     ui.jpWin = null;
     if (!ui.practice && !ui.room) {
@@ -1173,13 +1326,24 @@
       ui.jpWin = { pot: st.pot, pay: st.pays.me || 0, next: st.amt };
     }
     if (ui.room && ui.room.isHost()) ui.room.settleJackpot(ui.netNo, order);
+    // WIN5／冠軍大會：房主記下這場的結果（只寫一次，transaction 防重複）
+    if (ui.room && ui.room.isHost() && card.w5) ui.room.w5Result(card.w5.ser, card.w5.leg, order[0]);
+    if (ui.room && ui.room.isHost() && card.cup) ui.room.cupAdvance(card, order);
+    if (!ui.practice && Press) Press.record(card, order);
     if (!ui.practice) K.record({ at: Date.now(), title: raceTitle(card), winner: (order[0] + 1) + " " + card.dogs[order[0]].name, spent: sum.spent, won: sum.won });
   }
 
+  // 著差（和前一名比）：鼻差／頭差／頸差／半身
+  function marginText(tm, prev) {
+    if (tm === null || prev === null || prev === undefined) return "";
+    var k = Core.marginKind(tm - prev);
+    return k ? "（" + t("sg_margin_" + k) + "）" : "";
+  }
   function screenResult() {
     var card = ui.card, res = ui.result, order = res.order, sum = ui.lastSettle || { rows: [], spent: 0, won: 0 };
     var winT = res.times[order[0]];
     app.appendChild(panel(t("sg_result_title") + "・" + raceTitle(card), [
+      res.photo ? el("p", { class: "sg-big-line" }, ["📷 " + t("sg_photo_line", { name: (res.photo.a + 1) + " " + card.dogs[res.photo.a].name, m: t("sg_margin_" + (Core.marginKind(res.photo.gap) || "nose")) })]) : null,
       el("table", { class: "sg-table" }, [
         el("thead", null, [el("tr", null, [t("sg_col_rank"), "", t("sg_col_dog"), t("sg_col_time"), t("sg_col_margin"), t("sg_col_odds")].map(function (h) { return el("th", null, [h]); }))]),
         el("tbody", null, order.map(function (i, n) {
@@ -1188,7 +1352,7 @@
             el("td", null, [n + 1 + ""]), el("td", null, [gateBadge(i)]),
             el("td", null, [el("b", null, [d.name]), " ", el("small", null, [L(breedOf(d).name)])]),
             el("td", null, [tm === null ? t("sg_dnf") : fmtTime(tm)]),
-            el("td", null, [n === 0 || tm === null ? "" : "+" + (tm - winT).toFixed(2)]),
+            el("td", null, [n === 0 || tm === null ? "" : "+" + (tm - winT).toFixed(2) + marginText(tm, res.times[order[n - 1]])]),
             el("td", null, [(ui.finalOdds || Core.odds(card)).win[i].toFixed(1)])
           ]);
         }))
@@ -1211,10 +1375,23 @@
       ]));
     }
     if (!ui.practice) app.appendChild(jackpotPanel());
+    if (ui.room && card.w5 && Cup) app.appendChild(w5Panel(card, order));
+    if (ui.room && card.cup && Cup && ui.room.cup) app.appendChild(cupPanel(ui.room.cup.id === card.cup.id ? ui.room.cup : null, null));
     if (ui.dogRewards && ui.dogRewards.length) {
       app.appendChild(panel(t("sg_dog_rewards"), ui.dogRewards.map(function (x) {
         return el("p", null, [t("sg_dog_reward_line", { name: x.name, p: x.place + 1, prize: money(x.r.prize), exp: x.r.exp }) + (x.r.lvUp ? " " + t("sg_msg_lvup") : "")]);
       })));
+    }
+    var lo = ui.leagueOut;
+    if (lo && (lo.title || lo.rivals.length || lo.fans.length)) {
+      var lines = [];
+      if (lo.title) lines.push(el("p", { class: "sg-big-line sg-good" }, ["🏆 " + t("sg_title_won", { name: lo.title.name, g: lo.title.stake.grade, s: L(lo.title.stake.name) })]));
+      lo.rivals.forEach(function (x) {
+        var d = card.dogs[x.gate];
+        lines.push(el("p", { class: x.beat ? "sg-good" : "" }, ["🔥 " + t(x.beat ? "sg_rival_beat" : "sg_rival_lost", { name: d.name, k: d.ownerName })]));
+      });
+      lo.fans.forEach(function (x) { lines.push(el("p", null, ["👥 " + t("sg_fans_gain", { name: x.name, n: x.gain.toLocaleString(), total: x.total.toLocaleString() })])); });
+      app.appendChild(panel("🏆 " + t("sg_league_result"), lines));
     }
     var acts = [btn(t("sg_replay"), function () { ui.replay = true; ui.raceT = -1; ui.speed = 1; go("race"); }, "sg-btn")];
     if (ui.room) {
@@ -1223,7 +1400,8 @@
         acts.push(btn(t("sg_net_lobby"), function () { ui.room.backToLobby(); }, "sg-btn"));
       } else acts.push(el("span", { class: "sg-muted" }, [t("sg_net_wait_next")]));
     } else {
-      acts.push(btn(ui.practice ? t("sg_back_kennel") : t("sg_next_race"), function () { if (ui.practice) go("kennel"); else startSolo(false, ui.entryDog); }, "sg-btn sg-primary"));
+      if (card.stakes) acts.push(btn("🏆 " + t("sg_stakes_back"), function () { go("setup"); }, "sg-btn sg-primary"));
+      else acts.push(btn(ui.practice ? t("sg_back_kennel") : t("sg_next_race"), function () { if (ui.practice) go("kennel"); else startSolo(false, ui.entryDog); }, "sg-btn sg-primary"));
     }
     app.appendChild(el("div", { class: "sg-actions sg-next" }, acts));
   }
@@ -1243,6 +1421,77 @@
     }
     lines.push(el("p", { class: "sg-small sg-muted" }, [t("sg_jp_rule", { seed: money(Bet.JP_SEED), per: money(Bet.JP_PER_RACE), rate: Math.round(Bet.JP_RATE * 100) })]));
     return panel("💰 " + t("sg_jp_title"), lines);
+  }
+
+  // ---------------- WIN5（連線，2026-11-05）----------------
+  function w5Panel(card, order) {
+    var room = ui.room, w = card.w5, mine = room.w5Mine(w.ser), res = (room.w5 && room.w5.ser === w.ser && room.w5.res) || {};
+    var alive = mine && Cup.w5Alive(mine.picks, res, w.leg), lines = [];
+    lines.push(el("p", { class: "sg-big-line" }, [t("sg_w5_pot", { n: money(room.w5Pot(w.ser)), k: Object.keys(room.w5Buyers(w.ser)).length })]));
+    // 前幾場的結果
+    if (mine && w.leg > 1) {
+      var hist = [];
+      for (var lg = 1; lg < w.leg; lg++) {
+        var ok = mine.picks && res[lg] !== undefined && res[lg] !== null && Number(mine.picks[lg]) === Number(res[lg]);
+        hist.push(el("span", { class: "sg-w5-leg " + (ok ? "sg-good" : "sg-danger") }, [t("sg_w5_leg_n", { n: lg }) + (ok ? " ✔" : " ✘")]));
+      }
+      lines.push(el("p", null, hist));
+    }
+    if (order) {
+      // 結果畫面：這一場中了沒
+      if (mine) {
+        var hitNow = mine.picks && Number(mine.picks[w.leg]) === order[0];
+        var aliveNow = alive && hitNow;
+        lines.push(el("p", { class: aliveNow ? "sg-good sg-big-line" : "sg-muted" }, [alive ? (hitNow ? (w.leg >= Cup.W5_LEGS ? t("sg_w5_all_hit") : t("sg_w5_hit")) : t("sg_w5_miss")) : t("sg_w5_out")]));
+      }
+      var last = room.w5 && room.w5.last;
+      if (w.leg >= Cup.W5_LEGS) {
+        if (!last || last.ser !== w.ser) lines.push(el("p", { class: "sg-muted" }, [t("sg_w5_wait")]));
+        else if (last.win && last.win.length) {
+          lines.push(el("p", { class: "sg-big-line sg-good" }, [t("sg_w5_won_room", { n: money(last.pot) })]));
+          last.win.forEach(function (x) { lines.push(el("p", null, ["🎉 " + (x.name || t("sg_net_noname")) + "：" + money(x.pay)])); });
+        } else lines.push(el("p", null, [t("sg_w5_none", { n: money(room.w5.carry || 0) })]));
+      }
+    } else if (!mine) {
+      lines.push(w.leg === 1 ? el("div", { class: "sg-actions" }, [btn("🎯 " + t("sg_w5_buy", { n: money(Cup.W5_COST) }), function () {
+        room.w5Buy(w.ser).then(function (ok) { ui.msg = ok ? "" : t("sg_msg_no_money"); rerenderKeep(); });
+      }, "sg-btn sg-primary", { disabled: !canBet() || room.coins() < Cup.W5_COST })]) : el("p", { class: "sg-muted" }, [t("sg_w5_late")]));
+    } else if (!alive) lines.push(el("p", { class: "sg-muted" }, [t("sg_w5_out")]));
+    else {
+      var pk = mine.picks ? mine.picks[w.leg] : undefined;
+      lines.push(el("p", null, [t("sg_w5_pick", { n: w.leg })]));
+      lines.push(el("div", { class: "sg-picks" }, card.dogs.map(function (d, i) {
+        var on = pk !== undefined && Number(pk) === i;
+        return el("button", { type: "button", class: "sg-pick" + (on ? " sg-on" : ""), disabled: !canBet(), onclick: function () { room.w5Pick(w.ser, w.leg, i).then(rerenderKeep); } }, [gateBadge(i), " " + d.name]);
+      })));
+      if (pk === undefined) lines.push(el("p", { class: "sg-small sg-danger" }, [t("sg_w5_need_pick")]));
+    }
+    lines.push(el("p", { class: "sg-small sg-muted" }, [t("sg_w5_rule", { n: money(Cup.W5_COST), r: Math.round(Cup.W5_TAKE * 100) })]));
+    return panel("🎯 " + t("sg_w5_title", { s: w.ser, n: w.leg, m: Cup.W5_LEGS }), lines, "sg-w5");
+  }
+
+  // ---------------- 冠軍大會（連線，2026-11-05）----------------
+  function cupNames(list) { return (list || []).map(function (e) { return e.name + (e.ownerName && !e.npc ? "（" + e.ownerName + "）" : ""); }).join("、") || "—"; }
+  function cupPanel(cup, card) {
+    var rows = [];
+    if (!cup) return panel("🏆 " + t("sg_cup_title"), [el("p", { class: "sg-muted" }, [t("sg_cup_none")])]);
+    var c = Cup.conf(cup.mode);
+    rows.push(el("div", { class: "sg-cup-stages" }, ["h1", "h2", "rep", "final"].map(function (st) {
+      var idx = Cup.STAGES.indexOf(st), cur = Cup.STAGES.indexOf(cup.stage);
+      return el("span", { class: "sg-cup-stage" + (st === cup.stage ? " sg-on" : idx < cur ? " sg-done" : "") }, [t("sg_cup_stage_" + st)]);
+    })));
+    if (card) rows.push(el("p", { class: "sg-small" }, [t("sg_cup_adv_" + (card.cup.stage === "final" ? "final" : card.cup.stage === "rep" ? "rep" : "heat"), { q: c.q, r: c.rep, k: Cup.REP_Q, m: Cup.CUP_FINAL_PRIZE })]));
+    if (cup.stage === "done" && cup.champ) {
+      rows.push(el("p", { class: "sg-big-line sg-good" }, ["👑 " + t("sg_cup_champ", { name: cup.champ.name, o: cup.champ.npc ? "CPU" : cup.champ.ownerName || "" })]));
+      rows.push(el("ol", null, (cup.podium || []).map(function (x) { return el("li", null, [x.name + (x.owner ? "（" + x.owner + "）" : "")]); })));
+    } else {
+      if ((cup.q1 || []).length || (cup.q2 || []).length) rows.push(el("p", { class: "sg-small" }, ["✅ " + t("sg_cup_qualified") + "：" + cupNames((cup.q1 || []).concat(cup.q2 || [], cup.qr || []))]));
+      if (!card) {
+        rows.push(el("p", { class: "sg-small" }, [t("sg_cup_stage_h1") + "：" + cupNames(cup.h1)]));
+        rows.push(el("p", { class: "sg-small" }, [t("sg_cup_stage_h2") + "：" + cupNames(cup.h2)]));
+      }
+    }
+    return panel("🏆 " + t("sg_cup_title"), rows, "sg-cup");
   }
 
   // ---------------- 連線 ----------------
@@ -1271,24 +1520,59 @@
     var es = ui.entryDogs.slice(0, ENTRY_MAX_NET).map(function (id) { return K.entry(id, cid, nm); }).filter(Boolean);
     ui.room.update({ entry: e, entries: es, name: nm });
   }
-  function netCfg() { return { mode: ui.mode, cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "", rdist: ui.rmap.dist || "", rweather: ui.rmap.weather || "", pool: ui.pool, obs: ui.obs }; }
+  function netCfg() { return { mode: ui.mode, cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "", rdist: ui.rmap.dist || "", rweather: ui.rmap.weather || "", pool: ui.pool, obs: ui.obs, w5: !!ui.w5 }; }
   function publishCard() {
     var room = ui.room;
     if (!room || !room.isHost()) return;
     var cfg = room.cfg || netCfg(), card;
-    if (cfg.mode === "real") {
-      // 每個玩家輪流排一隻，排滿 8 隻為止（大家都能派到，不會被第一個人佔滿）
-      var lists = room.list().map(function (p) {
-        return (p.entries && p.entries.length ? p.entries : p.entry ? [p.entry] : []).slice(0, ENTRY_MAX_NET).map(function (e) { e.owner = p.cid; e.ownerName = p.name; return e; });
-      }), picked = [];
-      for (var round = 0; round < ENTRY_MAX_NET && picked.length < Real.FIELD; round++) lists.forEach(function (l) { if (l[round] && picked.length < Real.FIELD) picked.push(l[round]); });
-      card = Core.makeCard(Core.newSeed(), picked, { mode: "real", cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null, obstacles: cfg.obs !== false });
+    // 冠軍大會（2026-11-05）：這一關的出賽狗由大會狀態決定（模式與等級用大會開始時的設定）
+    var cup = Cup && room.cup && room.cup.stage !== "done" ? room.cup : null;
+    var pidCid = {};
+    room.list().forEach(function (p) { if (p.pid) pidCid[p.pid] = { cid: p.cid, name: p.name }; });
+    function cupEntries() {
+      return JSON.parse(JSON.stringify(Cup.entriesFor(cup))).map(function (e) {
+        var pc = e.ownerPid && pidCid[e.ownerPid];
+        if (pc) { e.owner = pc.cid; e.ownerName = pc.name || e.ownerName; }
+        else if (e.ownerPid) e.owner = "gone:" + e.ownerPid;   // 飼主不在線：照樣出賽，只是沒有人結算這隻狗
+        return e;
+      });
+    }
+    var mode = cup ? cup.mode : cfg.mode, cls = cup ? cup.cls : cfg.cls || ui.cls;
+    if (mode === "real") {
+      var picked = [];
+      if (cup) picked = cupEntries();
+      else {
+        // 每個玩家輪流排一隻，排滿 8 隻為止（大家都能派到，不會被第一個人佔滿）
+        var lists = room.list().map(function (p) {
+          return (p.entries && p.entries.length ? p.entries : p.entry ? [p.entry] : []).slice(0, ENTRY_MAX_NET).map(function (e) { e.owner = p.cid; e.ownerName = p.name; return e; });
+        });
+        for (var round = 0; round < ENTRY_MAX_NET && picked.length < Real.FIELD; round++) lists.forEach(function (l) { if (l[round] && picked.length < Real.FIELD) picked.push(l[round]); });
+      }
+      card = Core.makeCard(Core.newSeed(), picked.slice(0, Real.FIELD), { mode: "real", cls: cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null, obstacles: cfg.obs !== false });
     } else {
-      var entries = room.list().filter(function (p) { return p.entry; }).map(function (p) { var e = p.entry; e.owner = p.cid; e.ownerName = p.name; return e; });
-      card = Core.makeCard(Core.newSeed(), entries.slice(0, D.FIELD), { cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
+      var entries = cup ? cupEntries() : room.list().filter(function (p) { return p.entry; }).map(function (p) { var e = p.entry; e.owner = p.cid; e.ownerName = p.name; return e; });
+      card = Core.makeCard(Core.newSeed(), entries.slice(0, D.FIELD), { cls: cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
     }
     card.pm = cfg.pool === false ? 0 : 1;
-    room.publish(Core.cardForWire(card));
+    if (cup) {
+      card.cup = { id: cup.id, stage: cup.stage };
+      if (cup.stage === "final") card.prizeMult = (D.CLASSES.filter(function (c) { return c.id === cls; })[0] || D.CLASSES[1]).prize * Cup.CUP_FINAL_PRIZE;
+    }
+    // WIN5：這張是第幾輪第幾場
+    if (Cup && cfg.w5) room.w5Leg().then(function (leg) { if (leg) card.w5 = leg; room.publish(Core.cardForWire(card)); });
+    else room.publish(Core.cardForWire(card));
+  }
+  // 冠軍大會：房主用目前大家派的狗開始（關卡賽每人 1 隻、真賽狗每人最多 ENTRY_MAX_NET 隻）
+  function startCup() {
+    var room = ui.room;
+    if (!room || !room.isHost() || !Cup) return;
+    var cfg = room.cfg || netCfg(), real = cfg.mode === "real";
+    var lists = room.list().map(function (p) {
+      var es = real ? (p.entries && p.entries.length ? p.entries : p.entry ? [p.entry] : []).slice(0, ENTRY_MAX_NET) : p.entry ? [p.entry] : [];
+      return es.map(function (e) { e.owner = p.cid; e.ownerName = p.name; e.ownerPid = p.pid; return e; });
+    });
+    var id = "c" + Core.newSeed().toString(16);
+    room.cupSet(Cup.start(id, real ? "real" : "classic", cfg.cls || ui.cls, lists)).then(function () { publishCard(); });
   }
   var roomRenderPending = false;
   function onRoomChange() {
@@ -1436,6 +1720,7 @@
       ui.mode = room.cfg.mode === "real" ? "real" : "classic";
       ui.rmap = { weather: room.cfg.rweather || "", dist: room.cfg.rdist || "" };
       ui.obs = room.cfg.obs !== false;
+      ui.w5 = !!room.cfg.w5;
     }
     var realRoom = ui.mode === "real";
     var qr = el("canvas", { class: "sg-qr" });
@@ -1488,12 +1773,27 @@
         return btn(t(o[1]), function () { ui.pool = o[0]; setPref({ pool: o[0] }); room.setCfg(netCfg()); rerenderKeep(); }, "sg-seg-btn" + (ui.pool === o[0] ? " sg-on" : ""), { disabled: !host });
       })),
       el("p", { class: "sg-small sg-muted" }, [t("sg_odds_mode_note")]),
+      Cup ? el("h3", null, ["🎯 WIN5"]) : null,
+      Cup ? el("div", { class: "sg-seg" }, [[true, "sg_w5_on"], [false, "sg_w5_off"]].map(function (o) {
+        return btn(t(o[1]), function () { ui.w5 = o[0]; setPref({ w5: o[0] }); room.setCfg(netCfg()); rerenderKeep(); }, "sg-seg-btn" + (!!ui.w5 === o[0] ? " sg-on" : ""), { disabled: !host });
+      })) : null,
+      Cup ? el("p", { class: "sg-small sg-muted" }, [t("sg_w5_lobby_note", { n: money(Cup.W5_COST) }) + (room.w5 && room.w5.ser ? " " + t("sg_w5_status", { s: room.w5.ser, n: room.w5.leg, c: money(room.w5.carry || 0) }) : "")]) : null,
       host ? el("div", { class: "sg-actions" }, [
         btn(t("sg_net_publish"), publishCard, "sg-btn sg-primary sg-big"),
         st === "card" && ui.card ? btn(t("sg_net_back_card"), function () { go("card"); }, "sg-btn") : null
       ]) : el("p", { class: "sg-muted" }, [st === "card" ? t("sg_net_card_open") : t("sg_net_wait_publish")]),
       !host && st === "card" && ui.card ? btn(t("sg_net_back_card"), function () { go("card"); }, "sg-btn") : null
     ]));
+    if (Cup) {
+      var cup = room.cup, active = cup && cup.stage !== "done";
+      var cp = cupPanel(cup, null);
+      cp.appendChild(el("p", { class: "sg-small sg-muted" }, [t("sg_cup_note", { q: Cup.CUP.classic.q, r: Cup.CUP.classic.rep, q8: Cup.CUP.real.q, r8: Cup.CUP.real.rep, m: Cup.CUP_FINAL_PRIZE })]));
+      if (host) cp.appendChild(el("div", { class: "sg-actions" }, [
+        active ? btn(t("sg_cup_next"), publishCard, "sg-btn sg-primary") : btn("🏆 " + t("sg_cup_start"), function () { if (window.confirm(t("sg_cup_start_confirm"))) startCup(); }, "sg-btn sg-primary"),
+        active ? btn(t("sg_cup_end"), function () { if (window.confirm(t("sg_cup_end_confirm"))) { room.cupSet(null); rerenderKeep(); } }, "sg-link sg-danger") : null
+      ]));
+      app.appendChild(cp);
+    }
   }
 
   // ---------------- 設定（畫質） ----------------

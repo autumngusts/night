@@ -24,6 +24,32 @@
   // 圓形通道：入口直線 LOOP_IN m，之後是一圈（沿跑道方向前進 LOOP_C m），畫面上的形狀在 saigo_3d.js
   var LOOP_IN = 6, LOOP_R = 1.6, LOOP_C = 10.05;   // LOOP_C ≈ 2π × LOOP_R
 
+  // ---- 暴衝與對決（2026-11-05 使用者指定，參考賽馬娘的「掛かり」與「追い比べ」）----
+  // 暴衝：比賽開始時每隻擲一次（專注低、調子極端的狗容易暴衝），在前段某一點開始，
+  //   暴衝中無視跑法全力往前衝（目標速度 ≥ KAKARI_PACE）、體力消耗 × KAKARI_DRAIN（實測：關卡賽平均名次落後約 0.24、真賽狗約 0.55）；
+  //   每 KAKARI_CHECK 秒有 KAKARI_CALM 機率冷靜下來，最多 KAKARI_MAX 秒。技能「冷靜沉著」可立刻解除。
+  var KAKARI_PACE = 1.02, KAKARI_DRAIN = 2.5, KAKARI_CHECK = 3, KAKARI_CALM = 0.55, KAKARI_MAX = 12;
+  function kakariP(foc, mood) { return clamp(0.17 - foc * 0.0013, 0.03, 0.17) + (mood === 4 ? 0.05 : mood === 0 ? 0.04 : 0); }
+  // 對決：最後直線（進度 85% 以後、開放區段）名次相鄰的兩隻前後差 DUEL_GAP m 內（真賽狗另外要橫向 DUEL_LAT m 內）
+  //   就開始對決，每隻每場限一次；對決中目標速度＋（2%＋力量 × 0.02%＋剩餘體力 × 3%）、加速度 × 1.3，
+  //   離開 DUEL_END m 或其中一隻到終點就結束。力量（根性）與剩下的體力多的那隻比較會贏。
+  var DUEL_GAP = 1.5, DUEL_LAT = 2.2, DUEL_END = 4, DUEL_PROG = 0.85;
+  function duelBonus(e, sta) { return 0.02 + e.pow * 0.0002 + sta * 0.03; }
+  // 照片判定：第 1、2 名的時間差小於 PHOTO_GAP 秒
+  var PHOTO_GAP = 0.05;
+  // 每隻狗這場的「當天狀態」與暴衝（模擬開頭就決定；出賽表的看板依同一個值給提示，所以要能單獨算出來）
+  function dogRng(base, i) { return rng((base + Math.imul(i + 1, 0x632be5ab)) >>> 0); }
+  function kakariRng(base, i) { return rng(((base ^ 0x7a4a41) + Math.imul(i + 11, 0x1b873593)) >>> 0); }
+  function raceBase(card) { return (card.seed ^ 0x9e3779b1) >>> 0; }
+  // 正式比賽（不是賠率試跑）每隻狗的當天狀態 day（0.93〜1.07）與會不會暴衝
+  function preRace(card) {
+    var base = raceBase(card);
+    return card.dogs.map(function (d, i) {
+      var day = 1 - DAY / 2 + dogRng(base, i)() * DAY, kr = kakariRng(base, i);
+      return { day: day, kakari: kr() < kakariP((d.eff || {}).foc || 0, d.mood | 0) };
+    });
+  }
+
   // mulberry32：只用整數運算，各環境一致
   function rng(seed) {
     var a = seed >>> 0;
@@ -226,6 +252,9 @@
         skills: SK.sanitize(e.skills), line: D.LINES[e.line] ? e.line : "",
         mood: clamp(m, 0, 4), cpu: false, owner: e.owner || "", ownerName: e.ownerName || "", dogId: e.dogId || ""
       });
+      if (e.rival) dogs[dogs.length - 1].rival = String(e.rival).slice(0, 16);   // 宿敵的王牌狗（saigo_league.js）
+      if (e.npc) dogs[dogs.length - 1].npc = 1;   // 冠軍大會晉級的 NPC（只是顯示用）
+      if (e.ownerPid) dogs[dogs.length - 1].ownerPid = String(e.ownerPid).slice(0, 20);   // 冠軍大會：重新連線後用 pid 找回飼主
     });
     var used = {};
     dogs.forEach(function (d) { used[d.name] = 1; });
@@ -314,7 +343,7 @@
       var vbase = (12.5 + e.spd * 0.045) * g.drag * (sandy ? 0.97 + e.pow * 0.0004 : 1);
       return {
         i: i, e: e, size: b.size, pace: fieldPace(card, d.style), style: d.style,
-        r: rng((base + Math.imul(i + 1, 0x632be5ab)) >>> 0),
+        r: dogRng(base, i), kr: kakariRng(base, i),
         vmax: vbase * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
         sk: SK.runtime(d.skills, rng((base ^ 0x5c111 ^ Math.imul(i + 7, 0x2c1b3c6d)) >>> 0), e.foc), boost: null,
         cold: b.cold,
@@ -322,9 +351,17 @@
         day: 0,
         s: 0, v: 0, sta: 1, jit: 1, jitT: 0,
         mode: MODE.run, timer: 0, timerMode: 0, airT: 0,
-        part: -1, flag: 0, tries: 0, done: false, time: null
+        part: -1, flag: 0, tries: 0, done: false, time: null,
+        kk: 0, kkOn: false, kkT: 0, kkNext: 0, kkAt: 0, duel: -1, duelUsed: false
       };
     });
+    // 當天狀態（每場一次，±7%）：o.r 的第一個值（和改版前一樣，只是提前算）；暴衝：另一條亂數
+    dogs.forEach(function (o, i) {
+      o.day = 1 - DAY / 2 + o.r() * DAY;
+      o.kk = o.kr() < kakariP(o.e.foc, card.dogs[i].mood | 0) ? 1 : 0;
+      o.kkAt = 0.06 + o.kr() * 0.2;   // 在進度 6〜26% 的某一點開始暴衝
+    });
+    var duelN = 0, byRank = [];
     var frames = record ? [] : null, events = record ? [] : null;
     var t = 0, step = 0, leader = -1, ranks = [];
     function ev(k, d, x) { if (events) events.push({ t: Math.round(t * 100) / 100, k: k, d: d, x: x === undefined ? null : x }); }
@@ -423,6 +460,27 @@
     while (t < MAX_T) {
       var alive = 0;
       rankInto(dogs, ranks);
+      // 對決：用這一步開始時的位置配對（與處理順序無關）
+      for (var dz = 0; dz < n; dz++) {
+        var oz = dogs[dz];
+        if (oz.duel >= 0) {
+          var pz = dogs[oz.duel], gz = pz.s - oz.s;
+          if (oz.done || pz.done || gz > DUEL_END || gz < -DUEL_END) { oz.duel = -1; }
+        }
+      }
+      for (var zr = 0; zr < n; zr++) byRank[ranks[zr] - 1] = zr;
+      for (var ra = 1; ra < n; ra++) {
+        var A = byRank[ra - 1], B = byRank[ra];
+        var oa = dogs[A], ob = dogs[B];
+        if (oa.done || ob.done || oa.duelUsed || ob.duelUsed || oa.duel >= 0 || ob.duel >= 0) continue;
+        if (oa.s / L < DUEL_PROG || ob.s / L < DUEL_PROG || oa.timer > 0 || ob.timer > 0) continue;
+        if (!isOpen(partAt(course, oa.s)) || !isOpen(partAt(course, ob.s))) continue;
+        var gab = oa.s - ob.s;
+        if (gab > DUEL_GAP || gab < -DUEL_GAP) continue;
+        if (crowd && (oa.x - ob.x > DUEL_LAT || ob.x - oa.x > DUEL_LAT)) continue;
+        oa.duel = B; ob.duel = A; oa.duelUsed = ob.duelUsed = true; duelN++;
+        ev("duel", A, B);
+      }
       if (crowd) {
         for (var z0 = 0; z0 < n; z0++) { S0[z0] = dogs[z0].s; X0[z0] = dogs[z0].x; V0[z0] = dogs[z0].v; }
         // 比賽中的指令：喊「賽狗」（每場每隻 SHOUT_MAX 次、間隔 SHOUT_GAP 步，成功機率 SHOUT_P）
@@ -449,7 +507,6 @@
         }
         // 每秒換一次隨機起伏（陣風越強越大）
         o.jitT -= DT;
-        if (!o.day) o.day = 1 - DAY / 2 + r() * DAY;   // 當天狀態（每場一次，±7%）
         if (o.jitT <= 0) { o.jitT = 1; o.jit = 1 - gust + r() * gust * 2; }
         var pi = 0, ps = course.parts;
         for (var q = ps.length - 1; q >= 0; q--) if (o.s >= ps[q].s0) { pi = q; break; }
@@ -458,12 +515,21 @@
         var prog = o.s / L;
         var pace = prog < o.pace.at ? o.pace.early : o.pace.late;
         if (prog > 0.85 && o.sta > 0.3) pace += 0.03;   // 最後直線還有力氣就衝
+        // 暴衝：開始、每 KAKARI_CHECK 秒擲一次冷靜、最多 KAKARI_MAX 秒
+        if (o.kk === 1 && prog >= o.kkAt) { o.kk = 2; o.kkOn = true; o.kkT = t; o.kkNext = t + KAKARI_CHECK; ev("kakari", di); }
+        else if (o.kkOn && t >= o.kkNext) {
+          if (t - o.kkT >= KAKARI_MAX - 1e-9 || o.kr() < KAKARI_CALM) { o.kkOn = false; ev("calm", di); }
+          else o.kkNext = t + KAKARI_CHECK;
+        }
         // 技能：符合條件時發動（每個限一次），加成在持續時間內套用到目標速度與加速度
-        var bo = o.sk.length ? SK.tick(o.sk, { prog: prog, sect: p.type === "curve" ? "curve" : p.type === "straight" ? "straight" : "other", style: o.style, weather: wx, ground: card.ground, sta: o.sta, rank: ranks[di], n: dogs.length }, t, SK.SCALE_CLASSIC) : null;
+        var bo = o.sk.length ? SK.tick(o.sk, { prog: prog, sect: p.type === "curve" ? "curve" : p.type === "straight" ? "straight" : "other", style: o.style, weather: wx, ground: card.ground, sta: o.sta, rank: ranks[di], n: dogs.length, kakari: o.kkOn, duel: o.duel >= 0 }, t, SK.SCALE_CLASSIC) : null;
         o.boost = bo;
         if (bo && bo.heal) o.sta = Math.min(1, o.sta + bo.heal);
         if (bo && bo.fired) for (var fi = 0; fi < bo.fired.length; fi++) ev("skill", di, bo.fired[fi]);
-        var vt = o.vmax * pace * o.jit * o.day * (bo ? 1 + bo.spd : 1);
+        if (bo && bo.calm && o.kkOn) { o.kkOn = false; ev("calm", di, 1); }
+        if (o.kkOn && pace < KAKARI_PACE) pace = KAKARI_PACE;
+        var duelK = o.duel >= 0 ? 1 + duelBonus(e, o.sta) : 1;
+        var vt = o.vmax * pace * o.jit * o.day * (bo ? 1 + bo.spd : 1) * duelK;
         if (o.sta < 0.25) vt *= 0.72 + o.sta * 1.1;
         var mode = MODE.run, drain = 1;
 
@@ -757,12 +823,12 @@
 
         if (crowd) vt = crowdSteer(o, di, pi, p, vt);
         // 加減速
-        if (o.v < vt) o.v = Math.min(vt, o.v + o.acc * (o.boost ? 1 + o.boost.acc : 1) * DT);
+        if (o.v < vt) o.v = Math.min(vt, o.v + o.acc * (o.boost ? 1 + o.boost.acc : 1) * (o.duel >= 0 ? 1.3 : 1) * DT);
         else o.v = Math.max(vt, o.v - 9 * DT);
         // 耐力：速度比例四次方 × 場地 × 炎熱
         var ratio = o.v / o.vmax;
         var heat = hot ? 1.15 : 1;
-        o.sta -= ratio * ratio * ratio * ratio * STA_K * drain * g.stam * heat * DT / (0.5 + e.sta * 0.01);
+        o.sta -= ratio * ratio * ratio * ratio * STA_K * drain * g.stam * heat * (o.kkOn ? KAKARI_DRAIN : 1) * DT / (0.5 + e.sta * 0.01);
         if (o.v < 0.5) o.sta += 0.03 * DT;
         o.sta = clamp(o.sta, 0, 1);
         var prev = o.s, fac = 1;
@@ -841,6 +907,10 @@
     };
     // 真賽狗：frames 每隻 4 格 [里程, 橫向, 速度, 模式+體力]，和舊版橢圓跑道同格式（stateAt／rankAt 共用 saigo_real.js）
     if (crowd) { out.real = true; out.crowd = true; }
+    // 照片判定：第 1、2 名差不到 PHOTO_GAP 秒
+    var t1 = out.times[order[0]], t2 = order.length > 1 ? out.times[order[1]] : null;
+    if (t1 !== null && t2 !== null && t2 - t1 < PHOTO_GAP) out.photo = { a: order[0], b: order[1], gap: Math.round((t2 - t1) * 1000) / 1000 };
+    out.duels = duelN;
     return out;
   }
 
@@ -978,8 +1048,15 @@
   // 出賽表要經過網路傳送：去掉快取欄位
   function cardForWire(card) {
     if (card.mode === "real") return JSON.parse(JSON.stringify(card, function (k, v) { return k.charAt(0) === "_" ? undefined : v; }));
-    var c = JSON.parse(JSON.stringify({ v: card.v, seed: card.seed, cls: card.cls, terrain: card.terrain, dist: card.dist, weather: card.weather, ground: card.ground, course: { parts: card.course.parts, length: card.course.length }, dogs: card.dogs, pm: card.pm ? 1 : 0 }));
+    var c = JSON.parse(JSON.stringify({ v: card.v, seed: card.seed, cls: card.cls, terrain: card.terrain, dist: card.dist, weather: card.weather, ground: card.ground, course: { parts: card.course.parts, length: card.course.length }, dogs: card.dogs, pm: card.pm ? 1 : 0, w5: card.w5 || null, cup: card.cup || null, prizeMult: card.prizeMult || 0 }));
     return c;
+  }
+
+  // 著差（日本賽馬的說法）：時間差 × 到終點時的速度 ≈ 差幾公尺；狗身長約 1 m
+  //   nose 鼻差（< 0.15 m）、head 頭差（< 0.3）、neck 頸差（< 0.55）、half 半身（< 0.8）、len 1 身以上（顯示秒數）
+  function marginKind(dt, v) {
+    var m = dt * (v || 15);
+    return m < 0.15 ? "nose" : m < 0.3 ? "head" : m < 0.55 ? "neck" : m < 0.8 ? "half" : "";
   }
 
   // 場地編號（seed 的 16 進位，8 碼）
@@ -992,6 +1069,8 @@
     fieldPace: fieldPace, PACE: PACE, STA_K: STA_K, DAY: DAY, CPU_BW: CPU_BW, CPU_ADJ: CPU_ADJ, placeK: placeK,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
     geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff, makeCourse: makeCourse, makeFlatCourse: makeFlatCourse, CROWD_APPROACH: CROWD_APPROACH,
-    odds: odds, oddsValue: oddsValue, ODDS_MIN: ODDS_MIN, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind
+    odds: odds, oddsValue: oddsValue, ODDS_MIN: ODDS_MIN, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind,
+    preRace: preRace, kakariP: kakariP, marginKind: marginKind, PHOTO_GAP: PHOTO_GAP,
+    KAKARI_PACE: KAKARI_PACE, KAKARI_DRAIN: KAKARI_DRAIN, DUEL_GAP: DUEL_GAP
   };
 })();
