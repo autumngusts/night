@@ -369,10 +369,10 @@
     go("game");
   }
   function resetGameUi() {
-    ui.mode = null; ui.sel = 0; ui.bt = null; ui.pi = 0; ui.rot = 0; ui.hover = null; ui.paused = false; ui.lastFx = -1; ui.recorded = false; ui.toast = [];
+    setMode(null); ui.sel = 0; ui.bt = null; ui.pi = 0; ui.rot = 0; ui.hover = null; ui.paused = false; ui.lastFx = -1; ui.recorded = false; ui.toast = [];
     acc = 0; panelSig = "";
     var p = me();
-    if (p && p.pieces.length) ui.mode = "piece";
+    if (p && p.pieces.length) setMode("piece");
   }
 
   var refs = {}, viewToken = 0;
@@ -402,6 +402,7 @@
         ]);
         return b;
       })),
+      refs.pop = el("div", { class: "ds-pop", hidden: true }),
       refs.endBox = el("div", { class: "ds-endbox", hidden: true })
     ]);
     refs.side = el("div", { class: "ds-side" });
@@ -433,6 +434,63 @@
     var m = D.MAPS[s.map];
     return "⚙️ " + L(m.name) + "・" + L(m.mech) + (s.mix && s.mix.length ? "　➕ " + s.mix.map(function (id) { var mm = D.MAPS.filter(function (x) { return x.id === id; })[0]; return mm ? L(mm.mech) : id; }).join("・") : "");
   }
+  // 待放置的懸浮視窗：跟著殘影在畫面上的位置；內容只在狀態改變時重建（避免按鈕被每影格重建吃掉點擊）
+  var popKey = "";
+  function updatePopup(s, p) {
+    var pop = refs.pop;
+    if (!pop) return;
+    var at = ui.pending, show = at && p && !s.end && ((ui.mode === "piece" && p.pieces[ui.pi]) || (ui.mode === "build" && ui.bt));
+    if (!show) { if (!pop.hidden) { pop.hidden = true; popKey = ""; } return; }
+    var ok, why = "", title, cost = 0;
+    if (ui.mode === "piece") {
+      var gc = pieceGhost(s, p, at);
+      ok = gc.ok; why = gc.why ? t("ds_place_" + gc.why) : "";
+      title = t("ds_pop_piece");
+    } else {
+      cost = D.TOWERS[ui.bt].cost;
+      ok = canBuildAt(s, at[0], at[1]) && p.cash >= cost;
+      why = !s.fo[Core.idx(at[0], at[1])] ? t("ds_need_found") : Core.towerAt(s, at[0], at[1]) ? t("ds_pop_occupied") : p.cash < cost ? t("ds_no_cash") : "";
+      title = D.TOWERS[ui.bt].icon + " " + L(D.TOWERS[ui.bt].name) + "　💠" + cost;
+    }
+    var key = [ui.mode, ui.bt, ui.pi, ui.rot, at.join(","), ok, why, window.I18N.getLang()].join("|");
+    if (key !== popKey) {
+      popKey = key;
+      pop.innerHTML = "";
+      pop.appendChild(el("div", { class: "ds-pop-t" }, [title]));
+      if (why) pop.appendChild(el("div", { class: "ds-pop-why" }, [why]));
+      pop.appendChild(el("div", { class: "ds-pop-b" }, [
+        btn("✔ " + t("ds_pop_place"), confirmPending, "ds-btn ds-primary", { id: "ds-pop-place", disabled: ok ? null : true }),
+        ui.mode === "piece" ? btn("↻ " + t("ds_rotate"), function () { ui.rot = (ui.rot + 1) % 4; panelSig = ""; }, "ds-btn", { id: "ds-pop-rot" }) : null,
+        btn("✕", function () { ui.pending = null; }, "ds-btn", { id: "ds-pop-cancel", title: t("ds_pop_cancel") })
+      ]));
+    }
+    pop.hidden = false;
+    var pt = view3 && view3.project(at[0] + 0.5, at[1] + 0.5, 0.9);
+    if (!pt) return;
+    var W2 = refs.stage.clientWidth, w = pop.offsetWidth, h = pop.offsetHeight;
+    var x = Math.max(4, Math.min(W2 - w - 4, pt.x - w / 2)), y = pt.y - h - 18;
+    if (y < 4) y = pt.y + 30;   // 太靠上就改放在殘影下方
+    pop.style.transform = "translate(" + Math.round(x) + "px," + Math.round(y) + "px)";
+  }
+  function confirmPending() {
+    var s = sess && sess.s, p = me(), at = ui.pending;
+    if (!s || !p || !at) return;
+    if (ui.mode === "piece" && p.pieces[ui.pi]) {
+      var gc = pieceGhost(s, p, at);
+      if (!gc.ok) { toast(t("ds_place_" + gc.why), "bad"); return; }
+      sess.send({ a: "place", i: ui.pi, r: ui.rot, x: at[0], y: at[1] });
+      ui.pi = 0; ui.pending = null;
+      // 還有方塊就繼續放置模式（連線的非房主要等房主回傳才知道剩幾塊，先退出）
+      if ((!sess.solo && !sess.host) || !me().pieces.length) { setMode(null); ui.hover = null; }
+    } else if (ui.mode === "build" && ui.bt) {
+      if (!canBuildAt(s, at[0], at[1]) || p.cash < D.TOWERS[ui.bt].cost) return;
+      sess.send({ a: "build", x: at[0], y: at[1], t: ui.bt });
+      ui.pending = null;
+      if (me().cash < D.TOWERS[ui.bt].cost) setMode(null);
+    }
+    panelSig = "";
+  }
+
   function useSkill(k) {
     var s = sess && sess.s, p = me();
     if (!s || !p) return;
@@ -455,59 +513,54 @@
   }
 
   // 預覽（3D 每影格呼叫）
-  var ghostCache = { key: "", cells: null, ok: false };
   function ghostInfo() {
     var s = sess && sess.s, out = { sel: ui.sel, hover: ui.hover };
     if (!s) return out;
     var p = me();
     if (s.phase === "build" && !s.end) out.nextSpawns = Core.waveSpawns(s, s.wave + 1);
-    if (ui.mode === "piece" && p && p.pieces[ui.pi] && ui.hover) {
-      var key = s.gv + "|" + ui.pi + "|" + ui.rot + "|" + ui.hover.join(",") + "|" + JSON.stringify(p.pieces[ui.pi]) + "|" + s.enemies.length;
-      if (key !== ghostCache.key || s.phase === "wave") {
-        var cells = Core.pieceCells(p.pieces[ui.pi], ui.rot, ui.hover[0], ui.hover[1]);
-        ghostCache = { key: key, cells: cells, ok: !Core.checkPlace(s, cells) };
-      }
-      out.ghost = ghostCache.cells; out.ghostOk = ghostCache.ok;
-    } else if (ui.mode === "build" && ui.bt && ui.hover) {
-      var i = Core.idx(ui.hover[0], ui.hover[1]), can = s.fo[i] && !Core.towerAt(s, ui.hover[0], ui.hover[1]);
-      var fake = { ty: ui.bt, lv: 0, x: ui.hover[0], y: ui.hover[1] };
-      var st = Core.stats(s, fake);
-      if (st.range) out.range = { x: ui.hover[0], y: ui.hover[1], r: st.range, bad: !can };
+    // 使用者指定 2026-11-05：點一下只產生殘影（ui.pending），按懸浮視窗的「放置」才真的放；
+    // 砲塔殘影用虛線畫出射程；波次進行中（正式入侵）不再顯示任何射程圈
+    var at = ui.pending || ui.hover, wave = s.phase === "wave";
+    if (ui.mode === "piece" && p && p.pieces[ui.pi] && at) {
+      var gc = pieceGhost(s, p, at);
+      out.ghost = gc.cells; out.ghostOk = gc.ok;
+    } else if (ui.mode === "build" && ui.bt && at) {
+      var can = canBuildAt(s, at[0], at[1]);
+      out.towerGhost = { ty: ui.bt, x: at[0], y: at[1], ok: can };
+      var st = Core.stats(s, { ty: ui.bt, lv: 0, x: at[0], y: at[1], o: sess.pid });
+      if (st.range && !wave) out.range = { x: at[0], y: at[1], r: st.range, bad: !can, ghost: true };
     }
-    if (ui.sel && !out.range) {
+    if (ui.sel && !out.range && !wave) {
       var tw = Core.towerById(s, ui.sel);
       if (tw) { var st2 = Core.stats(s, tw); if (st2.range) out.range = { x: tw.x, y: tw.y, r: st2.range }; }
     }
     return out;
   }
 
-  function onCell(x, y, ptype) {
+  var ghostCache = { key: "" };
+  function pieceGhost(s, p, at) {
+    var key = s.gv + "|" + ui.pi + "|" + ui.rot + "|" + at.join(",") + "|" + JSON.stringify(p.pieces[ui.pi]) + "|" + s.enemies.length;
+    if (key !== ghostCache.key || s.phase === "wave") {
+      var cells = Core.pieceCells(p.pieces[ui.pi], ui.rot, at[0], at[1]), why = Core.checkPlace(s, cells);
+      ghostCache = { key: key, cells: cells, ok: !why, why: why };
+    }
+    return ghostCache;
+  }
+  function canBuildAt(s, x, y) { return !!s.fo[Core.idx(x, y)] && !Core.towerAt(s, x, y); }
+  function setMode(mode) { ui.mode = mode; ui.pending = null; }
+
+  // 點電路板：只產生殘影（待放置），真正放置在懸浮視窗按「放置」
+  function onCell(x, y) {
     var s = sess && sess.s, p = me();
     if (!s || !p || s.end) return;
-    if (ui.mode === "piece" && p.pieces[ui.pi]) {
-      // 觸控：第一下先預覽，同一格再點一下才放
-      if (ptype === "touch" && !(ui.hover && ui.hover[0] === x && ui.hover[1] === y)) { ui.hover = [x, y]; return; }
-      ui.hover = [x, y];
-      var cells = Core.pieceCells(p.pieces[ui.pi], ui.rot, x, y), why = Core.checkPlace(s, cells);
-      if (why) { toast(t("ds_place_" + why), "bad"); return; }
-      sess.send({ a: "place", i: ui.pi, r: ui.rot, x: x, y: y });
-      ui.pi = 0;
-      if (!sess.solo && !sess.host) { ui.mode = null; ui.hover = null; }
-      else if (!me().pieces.length) { ui.mode = null; ui.hover = null; }
-      panelSig = "";
-      return;
-    }
+    if (ui.mode === "piece" && p.pieces[ui.pi]) { ui.pending = [x, y]; ui.hover = [x, y]; return; }
     var tw = Core.towerAt(s, x, y);
     if (ui.mode === "build" && ui.bt) {
-      if (tw) { ui.sel = tw.id; ui.mode = null; panelSig = ""; return; }
-      if (!s.fo[Core.idx(x, y)]) { toast(t("ds_need_found"), "bad"); return; }
-      if (p.cash < D.TOWERS[ui.bt].cost) { toast(t("ds_no_cash"), "bad"); return; }
-      sess.send({ a: "build", x: x, y: y, t: ui.bt });
-      if (p.cash - D.TOWERS[ui.bt].cost < D.TOWERS[ui.bt].cost) ui.mode = null;
-      panelSig = "";
+      if (tw) { ui.sel = tw.id; setMode(null); panelSig = ""; return; }
+      ui.pending = [x, y]; ui.hover = [x, y];
       return;
     }
-    if (tw) { ui.sel = tw.id; ui.mode = null; }
+    if (tw) { ui.sel = tw.id; setMode(null); }
     else if (s.fo[Core.idx(x, y)]) { ui.sel = 0; toast(t("ds_pick_tower"), ""); }
     else ui.sel = 0;
     panelSig = "";
@@ -580,6 +633,7 @@
     else if (s.auto && s.autoT > 0) parts.push(["⏱", t("ds_hud_auto", { n: Math.ceil(s.autoT) })]);
     if (p) parts.push([D.ROLES[p.role] ? D.ROLES[p.role].icon : "", L((D.ROLES[p.role] || D.ROLES.general).name)]);
     updateSkills(s, p);
+    updatePopup(s, p);
     var mt = mechText(s);
     if (refs.mech && refs.mech.textContent !== mt) refs.mech.textContent = mt;
     var txt = parts.map(function (x) { return x[0] + " " + x[1]; }).join("　");
@@ -674,7 +728,7 @@
       var on = ui.mode === "piece" && ui.pi === i;
       var mods = Object.keys(pc.m || {}).map(function (k) { return D.MODS[pc.m[k]].icon + L(D.MODS[pc.m[k]].name); });
       return el("button", { type: "button", class: "ds-piece" + (on ? " ds-on" : ""), title: mods.join("、"), onclick: function () {
-        if (on) ui.rot = (ui.rot + 1) % 4; else { ui.mode = "piece"; ui.pi = i; ui.sel = 0; }
+        if (on) ui.rot = (ui.rot + 1) % 4; else { setMode("piece"); ui.pi = i; ui.sel = 0; }
         panelSig = "";
       } }, [pieceCanvas(pc, on ? ui.rot : 0, on), mods.length ? el("span", { class: "ds-piece-mod" }, [mods.join(" ")]) : null]);
     })));
@@ -682,7 +736,7 @@
     if (ui.mode === "piece" && p.pieces[ui.pi]) {
       act.push(btn("↻ " + t("ds_rotate"), function () { ui.rot = (ui.rot + 1) % 4; panelSig = ""; }, "ds-btn"));
       act.push(btn("🎲 " + t("ds_reroll", { c: Core.rerollCost(p) }), function () { sess.send({ a: "reroll", i: ui.pi }); panelSig = ""; }, "ds-btn", { disabled: p.cash < Core.rerollCost(p) ? true : null }));
-      act.push(btn("🗑 " + t("ds_drop"), function () { sess.send({ a: "drop", i: ui.pi }); ui.pi = 0; if (p.pieces.length <= 1) ui.mode = null; panelSig = ""; }, "ds-btn"));
+      act.push(btn("🗑 " + t("ds_drop"), function () { sess.send({ a: "drop", i: ui.pi }); ui.pi = 0; if (p.pieces.length <= 1) setMode(null); panelSig = ""; }, "ds-btn"));
     }
     if (p.pieces.length < 3) act.push(btn("➕ " + t("ds_buy_piece", { c: Core.buyCost(p) }), function () { sess.send({ a: "buy" }); panelSig = ""; }, "ds-btn", { disabled: p.cash < Core.buyCost(p) ? true : null }));
     kids.push(el("div", { class: "ds-actions" }, act));
@@ -694,7 +748,7 @@
     kids.push(el("div", { class: "ds-towers" }, D.BUILD_ORDER.map(function (k, i) {
       var d = D.TOWERS[k], on = ui.mode === "build" && ui.bt === k;
       return el("button", { type: "button", class: "ds-tw" + (on ? " ds-on" : "") + (d.cat === "elec" ? " ds-elec" : ""), disabled: p.cash < d.cost ? true : null, title: L(d.desc), onclick: function () {
-        if (on) { ui.mode = null; ui.bt = null; } else { ui.mode = "build"; ui.bt = k; ui.sel = 0; }
+        if (on) { setMode(null); ui.bt = null; } else { setMode("build"); ui.bt = k; ui.sel = 0; }
         panelSig = "";
       } }, [el("span", { class: "ds-tw-ic" }, [d.icon]), el("span", { class: "ds-tw-n" }, [L(d.name)]), el("span", { class: "ds-tw-c" }, ["💠" + d.cost]), el("kbd", null, [String(i + 1)])]);
     })));
@@ -822,12 +876,14 @@
     var p = me();
     if (!p) return;
     if (e.key === "r" || e.key === "R") { if (ui.mode === "piece") { ui.rot = (ui.rot + 1) % 4; panelSig = ""; } }
-    else if (e.key === "Escape") { ui.mode = null; ui.bt = null; ui.sel = 0; panelSig = ""; }
+    else if (e.key === "Enter") { if (ui.pending) { e.preventDefault(); confirmPending(); } }
+    else if (e.key === "Escape" && ui.pending) { ui.pending = null; }
+    else if (e.key === "Escape") { setMode(null); ui.bt = null; ui.sel = 0; panelSig = ""; }
     else if (e.key === " ") { e.preventDefault(); if (sess.s.phase === "build") sess.send({ a: "ready", v: sess.solo ? true : !p.ready }); }
     else if (e.key === "q" || e.key === "Q") { if (view3) view3.rotate(-Math.PI / 8); }
     else if (e.key === "e" || e.key === "E") { if (view3) view3.rotate(Math.PI / 8); }
-    else if (e.key === "f" || e.key === "F") { if (p.pieces.length) { ui.mode = "piece"; ui.pi = (ui.mode === "piece" ? (ui.pi + 1) : 0) % p.pieces.length; ui.sel = 0; panelSig = ""; } }
-    else if (/^[1-9]$/.test(e.key)) { var k = D.BUILD_ORDER[+e.key - 1]; if (k) { ui.mode = "build"; ui.bt = k; ui.sel = 0; panelSig = ""; } }
+    else if (e.key === "f" || e.key === "F") { if (p.pieces.length) { setMode("piece"); ui.pi = (ui.mode === "piece" ? (ui.pi + 1) : 0) % p.pieces.length; ui.sel = 0; panelSig = ""; } }
+    else if (/^[1-9]$/.test(e.key)) { var k = D.BUILD_ORDER[+e.key - 1]; if (k) { setMode("build"); ui.bt = k; ui.sel = 0; panelSig = ""; } }
     else if (/^[zxcZXC]$/.test(e.key)) { var sk = { z: "emp", x: "oc", c: "fix" }[e.key.toLowerCase()]; useSkill(sk); }
     else if (e.key === "u" || e.key === "U") { if (ui.sel) sess.send({ a: "up", id: ui.sel }); panelSig = ""; }
   });
