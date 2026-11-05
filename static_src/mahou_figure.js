@@ -45,23 +45,47 @@
   }
 
   // ---------------- 眼睛 ----------------
-  function drawEyes(ctx, sk, eyeId) {
-    var hd = sk.ha * Math.PI / 180, fx = Math.sin(hd) * 0.8, fy = -Math.cos(hd) * 0.8;
-    sk.eyes.forEach(function (p) {
-      var x = p[0], y = p[1];
+  // 每個人每回合的細微差異：用「玩家 id＋回合」當種子，所有裝置算出一樣的結果
+  function seedOf(str) {
+    var h = 0x811c9dc5;
+    str = String(str || "");
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0 || 1;
+  }
+  var IRIS = ["#111111", "#3b2414", "#1d3f7a", "#1f5a2e", "#5a1d1d", "#3a2a55", "#6b4a12"];
+  var WHITE = ["#ffffff", "#fffaf0", "#f4fbff", "#fff7fb", "#fbfff2"];
+  function eyeVariant(seed) {
+    if (!seed) return { sc: 1, gap: 0, dy: 0, pup: 0.52, look: [0, 0], iris: IRIS[0], white: WHITE[0], tilt: 0 };
+    var R = rng(seed);
+    var ang = R() * Math.PI * 2, lr = R() * 0.7;
+    return {
+      sc: 0.82 + R() * 0.36, gap: (R() - 0.5) * 1.8, dy: (R() - 0.5) * 2.4, pup: 0.4 + R() * 0.22,
+      look: [Math.cos(ang) * lr, Math.sin(ang) * lr], iris: IRIS[Math.floor(R() * IRIS.length)], white: WHITE[Math.floor(R() * WHITE.length)],
+      tilt: (R() - 0.5) * 0.5
+    };
+  }
+  function drawEyes(ctx, sk, eyeId, seed) {
+    var V = eyeVariant(seed);
+    var hd = sk.ha * Math.PI / 180, dx = Math.sin(hd), dy = -Math.cos(hd), sx = -dy, sy = dx;
+    var fx = dx * 0.8 + V.look[0], fy = dy * 0.8 + V.look[1];
+    sk.eyes.forEach(function (p, i) {
+      var side = i ? 1 : -1;
+      // 間距與上下位置的差異沿著頭的方向套用，換動作也不會跑出頭外
+      var x = p[0] + sx * side * V.gap / 2 + dx * V.dy * 0.5, y = p[1] + sy * side * V.gap / 2 + dy * V.dy * 0.5;
       ctx.lineWidth = 0.7; ctx.strokeStyle = "rgba(0,0,0,0.85)";
       if (eyeId === "tiny") {
-        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(x, y, 1.7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x - 0.5, y - 0.6, 0.55, 0, Math.PI * 2); ctx.fill();
+        var tr = 1.7 * V.sc;
+        ctx.fillStyle = V.iris; ctx.beginPath(); ctx.arc(x, y, tr, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x - tr * 0.3, y - tr * 0.35, tr * 0.32, 0, Math.PI * 2); ctx.fill();
         return;
       }
-      var r = eyeId === "big" ? 4 : 3;
-      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(x + fx, y + fy, r * 0.52, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x + fx - r * 0.2, y + fy - r * 0.22, r * 0.17, 0, Math.PI * 2); ctx.fill();
+      var r = (eyeId === "big" ? 4 : 3) * V.sc;
+      ctx.fillStyle = V.white; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = V.iris; ctx.beginPath(); ctx.arc(x + fx * V.sc, y + fy * V.sc, r * V.pup, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x + fx * V.sc - r * 0.2, y + fy * V.sc - r * 0.22, r * 0.17, 0, Math.PI * 2); ctx.fill();
       if (eyeId === "sleepy") {
         ctx.save();
-        ctx.translate(x, y); ctx.rotate(hd);
+        ctx.translate(x, y); ctx.rotate(hd + side * V.tilt);
         ctx.fillStyle = "rgba(40,40,40,0.95)";
         ctx.beginPath(); ctx.arc(0, 0, r + 0.35, Math.PI, 0); ctx.closePath(); ctx.fill();
         ctx.restore();
@@ -83,7 +107,7 @@
     g.setTransform(U, 0, 0, U, PX / 2, PX / 2);
     var sk = Core.skeleton(poseId);
     if (opts.outline) outline(g, sk, opts.outline, opts.outlineW || 1.4);
-    drawEyes(g, sk, eyeId || "round");
+    drawEyes(g, sk, eyeId || "round", opts.eyeSeed || 0);
     g.setTransform(1, 0, 0, 1, 0, 0);
     return c;
   }
@@ -125,16 +149,28 @@
     return m;
   }
   // 小人物身體底下的照片（上色層座標），變色拓印與偽裝度都用它
-  function underlay(photo, fig, into) {
+  // jitter（變色拓印用）：{ dx, dy（照片像素位移）, filter }——拓印出來跟原圖有細微差別，不會完美隱形
+  function underlay(photo, fig, into, jitter) {
     var c = into || mk(PX), g = c.getContext("2d");
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = "#777"; g.fillRect(0, 0, PX, PX);
     if (!photo) return c;
     var m = inv(paintToPhoto(fig, photo.height));
     g.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-    g.drawImage(photo, 0, 0);
+    if (jitter && "filter" in g) g.filter = jitter.filter;
+    g.drawImage(photo, jitter ? jitter.dx : 0, jitter ? jitter.dy : 0);
+    if (jitter && "filter" in g) g.filter = "none";
     g.setTransform(1, 0, 0, 1, 0, 0);
     return c;
+  }
+  function cloneJitter(seed) {
+    var R = rng(seed || 1);
+    function sgn() { return R() < 0.5 ? -1 : 1; }
+    var mag = 1 + R() * 2, ang = R() * Math.PI * 2;
+    return {
+      dx: Math.cos(ang) * mag, dy: Math.sin(ang) * mag,
+      filter: "hue-rotate(" + (sgn() * (4 + R() * 4)).toFixed(1) + "deg) brightness(" + (100 + sgn() * (4 + R() * 3)).toFixed(1) + "%) saturate(" + (100 + sgn() * (5 + R() * 7)).toFixed(1) + "%) blur(" + (0.35 + R() * 0.4).toFixed(2) + "px)"
+    };
   }
 
   // 偽裝度 0〜100：剪影內每個像素跟底下照片的顏色差（縮小取樣，順便有點模糊效果）
@@ -484,6 +520,6 @@
   window.PriTestMahouFigure = {
     PX: PX, U: U, BASE: BASE, mk: mk, toPx: toPx, toLocal: toLocal,
     mask: mask, render: render, place: place, poseIcon: poseIcon, underlay: underlay, camoScore: camoScore,
-    palette: palette, pattern: pattern, rgbHex: rgbHex, hexRgb: hexRgb, Painter: Painter, rng: rng
+    palette: palette, pattern: pattern, seedOf: seedOf, eyeVariant: eyeVariant, cloneJitter: cloneJitter, rgbHex: rgbHex, hexRgb: hexRgb, Painter: Painter, rng: rng
   };
 })();

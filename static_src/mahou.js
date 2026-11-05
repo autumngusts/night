@@ -236,7 +236,7 @@
     var key = s.round + ":" + (paint ? (paint.src ? paint.src.length : "c" + (paint._rev || 0)) : "none") + ":" + h.fig.p + ":" + h.fig.e + ":" + (outline || "");
     var c = figRenderCache[pid];
     if (c && c.key === key) return c.cv;
-    var cv = F.render(paint, h.fig.p, h.fig.e, { outline: outline });
+    var cv = F.render(paint, h.fig.p, h.fig.e, { outline: outline, eyeSeed: F.seedOf(pid + ":" + s.round) });
     figRenderCache[pid] = { key: key, cv: cv };
     return cv;
   }
@@ -705,14 +705,16 @@
   function newEditor(pid, round, fig, ar, getPhoto, allowClone) {
     var E = {
       pid: pid, round: round, fig: fig, ar: ar, tab: "pose", tool: "brush", outline: true, camo: -1, camoAt: 0,
-      getPhoto: getPhoto, allowClone: allowClone, recent: [], pal: null, underKey: "", under: F.mk(F.PX)
+      getPhoto: getPhoto, allowClone: allowClone, recent: [], pal: null, underKey: "", under: F.mk(F.PX),
+      seed: F.seedOf(pid + ":" + round)
     };
+    E.jitter = F.cloneJitter(E.seed);
     E.painter = new F.Painter({ getUnderlay: function () { return underFor(E); } });
     return E;
   }
   function underFor(E) {
     var key = JSON.stringify(E.fig) + ":" + (E.getPhoto() ? 1 : 0);
-    if (E.underKey !== key) { E.underKey = key; F.underlay(E.getPhoto(), E.fig, E.under); }
+    if (E.underKey !== key) { E.underKey = key; F.underlay(E.getPhoto(), E.fig, E.under, E.jitter); }
     return E.under;
   }
   var figSendT = 0;
@@ -988,7 +990,7 @@
     if (ui.screen === "practice" || (ui.screen === "game" && sess && sess.s && sess.s.phase === "hide")) {
       var E = ui.edit;
       if (E && (ui.screen === "practice" || amHiding())) {
-        var cv = F.render(E.painter.current(), E.fig.p, E.fig.e, { outline: E.outline ? "rgba(255,255,255,0.9)" : null, outlineW: 1.6 / Math.max(0.6, Core.figK(E.fig) * u / 1.6), into: E.liveCv || (E.liveCv = F.mk(F.PX)) });
+        var cv = F.render(E.painter.current(), E.fig.p, E.fig.e, { outline: E.outline ? "rgba(255,255,255,0.9)" : null, outlineW: 1.6 / Math.max(0.6, Core.figK(E.fig) * u / 1.6), into: E.liveCv || (E.liveCv = F.mk(F.PX)), eyeSeed: E.seed });
         F.place(g, cv, E.fig);
       }
       return;
@@ -1170,7 +1172,7 @@
   }
   function startPractice(photo, ar) {
     ui.practice = { photo: photo, ar: ar, reveal: false };
-    ui.edit = newEditor("me", 1, Core.defaultFig(ar, Math.floor(Math.random() * 20)), ar, function () { return ui.practice && ui.practice.photo; }, true);
+    ui.edit = newEditor("me" + Math.floor(Math.random() * 1e6), 1, Core.defaultFig(ar, Math.floor(Math.random() * 20)), ar, function () { return ui.practice && ui.practice.photo; }, true);
     render();
   }
   function renderPracticeSide() {
