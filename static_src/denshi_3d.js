@@ -1057,7 +1057,10 @@
     }
 
     // ---------------- 路徑指示（流動的光點） ----------------
-    var pathPts = null, pathKey = "", paths = [];
+    // 使用者指定 2026-11-05：預估路線要更明顯 → 每條路鋪一條粉紅發光帶，光點改成亮黃色、加大
+    var PATH_COL = 0xff3d7f, PATH_DOT = 0xfff07a;
+    var pathPts = null, pathKey = "", paths = [], ribbonGroup = new T.Group(), ribbons = [];
+    scene.add(ribbonGroup);
     function rebuildPaths(s) {
       var key = s.gv + "|" + s.spawns.length;
       if (key === pathKey) return;
@@ -1065,9 +1068,25 @@
       paths = s.spawns.map(function (p) { return window.PriTestDenshiCore.pathFrom(s, p[0], p[1]); });
       var n = 0; paths.forEach(function (p) { n += p.length * 2; });
       if (pathPts) { scene.remove(pathPts); pathPts.geometry.dispose(); }
+      while (ribbonGroup.children.length) { var rc = ribbonGroup.children[0]; ribbonGroup.remove(rc); if (rc.geometry) rc.geometry.dispose(); }
+      ribbons = paths.map(function (p) {
+        // 一般混合（不用加色）：在任何顏色的電路板上都保持粉紅色；中間細線用亮黃色
+        var mat = new T.MeshBasicMaterial({ color: PATH_COL, transparent: true, opacity: 0.75, depthWrite: false });
+        var edgeMat = new T.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.6, depthWrite: false });
+        for (var i = 1; i < p.length; i++) {
+          var a = p[i - 1], b = p[i], horiz = a[1] === b[1];
+          var seg = new T.Mesh(new T.BoxGeometry(horiz ? 1.12 : 0.2, 0.02, horiz ? 0.2 : 1.12), mat);
+          seg.position.set(wx((a[0] + b[0]) / 2) + 0.5, 0.035, wz((a[1] + b[1]) / 2) + 0.5);
+          ribbonGroup.add(seg);
+          var core2 = new T.Mesh(new T.BoxGeometry(horiz ? 1.02 : 0.06, 0.022, horiz ? 0.06 : 1.02), edgeMat);
+          core2.position.copy(seg.position); core2.position.y = 0.04;
+          ribbonGroup.add(core2);
+        }
+        return { mat: mat, edge: edgeMat };
+      });
       var geo = new T.BufferGeometry();
       geo.setAttribute("position", new T.BufferAttribute(new Float32Array(Math.max(1, n) * 3), 3));
-      pathPts = new T.Points(geo, new T.PointsMaterial({ color: theme.glow, size: 0.42, map: glowTex, transparent: true, blending: T.AdditiveBlending, depthWrite: false, opacity: 0.85 }));
+      pathPts = new T.Points(geo, new T.PointsMaterial({ color: PATH_DOT, size: 0.55, map: glowTex, transparent: true, blending: T.AdditiveBlending, depthWrite: false, opacity: 0.85 }));
       scene.add(pathPts);
     }
     function updatePaths(s, nextSp) {
@@ -1086,16 +1105,38 @@
       });
       pathPts.geometry.attributes.position.needsUpdate = true;
       pathPts.geometry.setDrawRange(0, n);
-      pathPts.material.opacity = s.phase === "wave" ? 0.35 : 0.85;
+      pathPts.material.opacity = s.phase === "wave" ? 0.4 : 1;
+      var pulse = 0.5 + Math.sin(clock * 3) * 0.15;
+      ribbons.forEach(function (r, pi) {
+        var on = !nextSp || nextSp[pi];
+        r.mat.opacity = s.phase === "wave" ? 0.3 : on ? pulse + 0.3 : 0.18;
+        r.edge.opacity = s.phase === "wave" ? 0.2 : on ? 0.8 : 0.1;
+      });
     }
 
     // ---------------- 放置預覽、射程圈、選取 ----------------
     var ghostGroup = new T.Group(); scene.add(ghostGroup);
     var ghostBoxOk = M(0x3cffb0, { e: 0x3cffb0, ei: 0.7, t: 0.45 }), ghostBoxBad = M(0xff3355, { e: 0xff3355, ei: 0.7, t: 0.45 });
-    var rangeRing = new T.Mesh(new T.RingGeometry(0.96, 1, 72), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: T.DoubleSide, depthWrite: false }));
-    rangeRing.rotation.x = -Math.PI / 2; rangeRing.visible = false; scene.add(rangeRing);
+    // 射程圈：用一圈短段做出明顯的虛線（WebGL 線寬固定 1px，LineDashed 太細看不清楚）
+    var rangeRing = new T.Group(); rangeRing.visible = false; scene.add(rangeRing);
+    var dashMat = new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false });
+    var rangeR = -1;
+    function buildDashes(r) {
+      while (rangeRing.children.length) { var c = rangeRing.children[0]; rangeRing.remove(c); c.geometry.dispose(); }
+      var n = Math.max(12, Math.round(Math.PI * 2 * r / 0.32)), len = Math.PI * 2 * r / n * 0.55;
+      for (var i = 0; i < n; i++) {
+        var a = i / n * Math.PI * 2, d = new T.Mesh(new T.BoxGeometry(0.07, 0.03, len), dashMat);
+        d.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+        d.rotation.y = -a;
+        rangeRing.add(d);
+      }
+      rangeR = r;
+    }
     var rangeDisc = new T.Mesh(new T.CircleGeometry(1, 72), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false }));
     rangeDisc.rotation.x = -Math.PI / 2; rangeDisc.visible = false; scene.add(rangeDisc);
+    var towerGhost = null, towerGhostKey = "";
+    var ghostTwOk = new T.MeshBasicMaterial({ color: 0x7dffd0, transparent: true, opacity: 0.45, depthWrite: false });
+    var ghostTwBad = new T.MeshBasicMaterial({ color: 0xff5566, transparent: true, opacity: 0.45, depthWrite: false });
     var selBox = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(1, 1.1, 1)), new T.LineBasicMaterial({ color: 0xffffff }));
     selBox.visible = false; scene.add(selBox);
     var hoverTile = new T.Mesh(new T.PlaneGeometry(0.96, 0.96), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false }));
@@ -1115,16 +1156,34 @@
       }
       ghostGroup.position.y = Math.sin(clock * 6) * 0.03;
       if (u.range) {
+        if (Math.abs(rangeR - u.range.r) > 0.01) buildDashes(u.range.r);
         rangeRing.visible = rangeDisc.visible = true;
-        rangeRing.scale.setScalar(u.range.r); rangeDisc.scale.setScalar(u.range.r);
-        rangeRing.position.set(wx(u.range.x) + 0.5, 0.05, wz(u.range.y) + 0.5);
-        rangeDisc.position.copy(rangeRing.position);
-        rangeRing.material.color.setHex(u.range.bad ? 0xff5566 : 0xffffff);
+        rangeDisc.scale.setScalar(u.range.r);
+        rangeRing.position.set(wx(u.range.x) + 0.5, 0.08, wz(u.range.y) + 0.5);
+        rangeRing.rotation.y = clock * 0.25;
+        rangeDisc.position.set(rangeRing.position.x, 0.05, rangeRing.position.z);
+        dashMat.color.setHex(u.range.bad ? 0xff5566 : u.range.ghost ? 0x7dffd0 : 0xffffff);
+        rangeDisc.material.color.setHex(u.range.bad ? 0xff5566 : u.range.ghost ? 0x7dffd0 : 0xffffff);
+        rangeDisc.material.opacity = u.range.ghost ? 0.12 : 0.08;
       } else rangeRing.visible = rangeDisc.visible = false;
+      // 砲塔殘影（半透明模型）
+      var tk = u.towerGhost ? u.towerGhost.ty + "|" + u.towerGhost.x + "," + u.towerGhost.y + "|" + u.towerGhost.ok : "";
+      if (tk !== towerGhostKey) {
+        towerGhostKey = tk;
+        if (towerGhost) { scene.remove(towerGhost); towerGhost = null; }
+        if (u.towerGhost) {
+          towerGhost = buildTower(u.towerGhost.ty, 0, 0xffffff).g;
+          var gm = u.towerGhost.ok ? ghostTwOk : ghostTwBad;
+          towerGhost.traverse(function (o) { if (o.isMesh || o.isLineSegments) { o.material = gm; o.castShadow = false; } else if (o.isSprite) o.visible = false; });
+          towerGhost.position.set(wx(u.towerGhost.x) + 0.5, 0.2, wz(u.towerGhost.y) + 0.5);
+          scene.add(towerGhost);
+        }
+      }
+      if (towerGhost) towerGhost.position.y = 0.2 + Math.sin(clock * 5) * 0.04;
       var st = u.sel && window.PriTestDenshiCore.towerById(s, u.sel);
       selBox.visible = !!st;
       if (st) { selBox.position.set(wx(st.x) + 0.5, 0.55, wz(st.y) + 0.5); selBox.material.color.setHSL((clock * 0.5) % 1, 0.6, 0.7); }
-      hoverTile.visible = !!u.hover && !u.ghost;
+      hoverTile.visible = !!u.hover && !u.ghost && !u.towerGhost;
       if (u.hover) hoverTile.position.set(wx(u.hover[0]) + 0.5, 0.2, wz(u.hover[1]) + 0.5);
     }
 
@@ -1307,6 +1366,13 @@
 
     return {
       resize: resize,
+      // 電路板座標（格子單位，可帶小數）→ 畫布內的像素座標；在鏡頭後方回傳 null
+      project: function (bx, by, h) {
+        var v = new T.Vector3(wx(0) + bx, h || 0.6, wz(0) + by).project(cam);
+        if (v.z > 1) return null;
+        var el2 = renderer.domElement;
+        return { x: (v.x + 1) / 2 * el2.clientWidth, y: (1 - v.y) / 2 * el2.clientHeight };
+      },
       resetCam: function () { view.pitch = 0.98; fitCam(); },
       rotate: function (d) { view.yaw += d; },
       zoom: function (f) { view.dist = Math.max(8, Math.min(MAXD, view.dist * f)); },
