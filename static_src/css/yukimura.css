@@ -1,0 +1,170 @@
+/* ===================== 大名幸村（yukimura） ===================== */
+.yk-wrap {
+  --yk-line: rgba(127, 127, 127, 0.32);
+  --yk-accent: #b8262d;
+  --yk-accent-soft: rgba(184, 38, 45, 0.12);
+  --yk-gold: #d9a520;
+  --yk-good: #1f8f5a;
+  --yk-bad: #c0392b;
+  --yk-card: #f8f5ef;
+  --yk-chip: #f0ebe2;
+  width: min(84rem, calc(100vw - 24px));
+  margin-left: calc((100% - min(84rem, calc(100vw - 24px))) / 2);
+}
+@media (prefers-color-scheme: dark) {
+  .yk-wrap { --yk-accent: #e0505a; --yk-accent-soft: rgba(224, 80, 90, 0.16); --yk-good: #6fcf97; --yk-bad: #ff7b6b; --yk-card: #221d1c; --yk-chip: #2c2524; }
+}
+.yk-wrap button { cursor: pointer; font: inherit; }
+.yk-wrap button:disabled { cursor: default; opacity: 0.42; }
+.yk-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.7rem; }
+.yk-title { margin: 0; font-size: 1.6em; flex: 1 1 auto; letter-spacing: 0.12em; font-family: serif; }
+.yk-panel { border: 1px solid var(--yk-line); border-radius: 10px; padding: 0.8rem 0.95rem; margin-bottom: 0.9rem; }
+.yk-panel h2 { margin: 0.1rem 0 0.6rem; font-size: 1.15em; }
+.yk-panel h3 { margin: 0.6rem 0 0.4rem; font-size: 1em; }
+.yk-intro { line-height: 1.8; margin: 0 0 0.5rem; }
+.yk-muted { opacity: 0.7; }
+.yk-small { font-size: 0.85em; }
+.yk-good { color: var(--yk-good); }
+.yk-warn { color: #ff6a3a !important; }
+.yk-hidden { display: none !important; }
+.yk-rules { margin: 0; padding-left: 1.2rem; line-height: 1.75; }
+.yk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-top: 0.5rem; }
+.yk-next { justify-content: flex-end; margin-top: 0.9rem; }
+.yk-grow { flex: 1 1 auto; min-width: 0; }
+.yk-full { width: 100%; box-sizing: border-box; }
+.yk-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.6rem; margin-bottom: 0.9rem; }
+.yk-btn { padding: 0.38rem 0.85rem; border: 1px solid var(--yk-line); border-radius: 6px; background: transparent; color: inherit; }
+.yk-btn:hover:not(:disabled) { border-color: var(--yk-accent); }
+.yk-on { border-color: var(--yk-accent) !important; background: var(--yk-accent-soft) !important; }
+.yk-primary { background: var(--yk-accent) !important; border-color: var(--yk-accent) !important; color: #fff !important; }
+.yk-primary-soft { background: var(--yk-accent-soft) !important; border-color: var(--yk-accent) !important; }
+.yk-big { padding: 0.75rem 1.1rem; font-size: 1.05em; border: 1px solid var(--yk-line); border-radius: 8px; background: transparent; color: inherit; text-align: left; }
+.yk-big:hover:not(:disabled) { border-color: var(--yk-accent); }
+.yk-link { border: none; background: none; color: var(--yk-accent); padding: 0.2rem 0.4rem; }
+.yk-input { padding: 0.35rem 0.5rem; border: 1px solid var(--yk-line); border-radius: 6px; background: transparent; color: inherit; font: inherit; max-width: 100%; }
+.yk-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; margin: 0.5rem 0; }
+.yk-seg { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+.yk-seg .yk-btn { padding: 0.25rem 0.6rem; }
+.yk-chip { display: inline-block; padding: 0.06rem 0.5rem; margin: 0.12rem 0.2rem 0 0; border: 1px solid var(--yk-line); border-radius: 999px; background: var(--yk-chip); font-size: 0.8em; }
+.yk-chips { margin-top: 0.3rem; }
+.yk-r2 { border-color: #4a8ad8 !important; }
+.yk-r3 { border-color: var(--yk-gold) !important; }
+
+/* 首頁 */
+.yk-hero { display: grid; grid-template-columns: minmax(0, 22rem) 1fr; gap: 1rem; align-items: center; margin-bottom: 0.9rem; }
+.yk-hero-art svg { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 0 24px rgba(184, 38, 45, 0.25); }
+@media (max-width: 640px) { .yk-hero { grid-template-columns: 1fr; } }
+
+/* 大名選擇 */
+.yk-crest { display: inline-flex; align-items: center; justify-content: center; width: 1.7em; height: 1.7em; border-radius: 50%; border: 2px solid; font-weight: bold; font-family: serif; flex: none; font-size: 0.9em; }
+.yk-crest-big { width: 2.6em; height: 2.6em; font-size: 1.2em; }
+.yk-dmtop { display: flex; gap: 0.9rem; align-items: center; flex-wrap: wrap; }
+.yk-portrait { width: 150px; height: 150px; border-radius: 10px; background: radial-gradient(circle at 50% 40%, rgba(217, 165, 32, 0.25), transparent 70%); }
+.yk-dmdetail { flex: 1 1 16rem; display: grid; gap: 0.25rem; }
+.yk-dmhead { display: flex; align-items: center; gap: 0.5rem; }
+.yk-dmname { font-size: 1.15em; }
+.yk-dmgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr)); gap: 0.3rem; max-height: 17rem; overflow-y: auto; padding: 0.2rem; }
+.yk-dmcard { display: flex; align-items: center; gap: 0.35rem; padding: 0.28rem 0.4rem; border: 1px solid var(--yk-line); border-radius: 6px; background: transparent; color: inherit; text-align: left; font-size: 0.88em; }
+.yk-dmcard-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* 關卡 */
+.yk-stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.45rem; }
+.yk-stage { text-align: left; border: 1px solid var(--yk-line); border-left: 5px solid; border-radius: 8px; padding: 0.5rem 0.6rem; background: transparent; color: inherit; display: grid; gap: 0.2rem; }
+.yk-stage-n { opacity: 0.7; font-size: 0.85em; }
+
+/* 本陣強化 */
+.yk-meta-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; border-bottom: 1px dashed var(--yk-line); }
+.yk-pips { display: flex; gap: 3px; margin-top: 0.2rem; }
+.yk-pip { width: 14px; height: 6px; border-radius: 3px; background: var(--yk-line); }
+.yk-pip-on { background: var(--yk-gold); }
+
+/* 圖鑑 */
+.yk-cxgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.5rem; }
+.yk-cx { border: 1px solid var(--yk-line); border-radius: 8px; padding: 0.5rem 0.6rem; background: var(--yk-card); display: grid; gap: 0.2rem; align-content: start; }
+.yk-evo { color: var(--yk-gold); }
+
+/* 大廳 */
+.yk-lobby { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
+.yk-qr { background: #fff; padding: 6px; border-radius: 6px; line-height: 0; }
+.yk-plist { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; }
+.yk-plist li { display: flex; align-items: center; gap: 0.3rem; }
+
+/* 戰場 */
+.yk-stagebox { position: relative; width: 100%; height: min(78vh, 52rem); min-height: 22rem; border-radius: 10px; overflow: hidden; background: #111; user-select: none; -webkit-user-select: none; }
+@media (max-width: 700px) { .yk-stagebox { height: calc(100vh - 7rem); height: calc(100dvh - 7rem); border-radius: 0; } }
+.yk-view { position: absolute; inset: 0; touch-action: none; }
+.yk-canvas { display: block; width: 100%; height: 100%; }
+.yk-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 1rem; text-align: center; color: #eed; }
+.yk-hud { position: absolute; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); font-size: 14px; }
+.yk-hud button, .yk-hud .yk-modal { pointer-events: auto; }
+.yk-xpbar { position: absolute; left: 0; right: 0; top: 0; height: 14px; background: rgba(0, 0, 0, 0.55); }
+.yk-xpfill { height: 100%; width: 0; background: linear-gradient(90deg, #3a8af0, #70d0ff); transition: width 0.15s; }
+.yk-xptext { position: absolute; left: 50%; top: 0; transform: translateX(-50%); font-size: 11px; line-height: 14px; font-weight: bold; }
+.yk-hudtop { position: absolute; top: 18px; left: 8px; right: 8px; display: flex; align-items: flex-start; gap: 8px; }
+.yk-hudleft { flex: 1 1 0; min-width: 0; display: grid; gap: 3px; }
+.yk-hpbar { position: relative; width: min(14rem, 100%); height: 14px; background: rgba(0, 0, 0, 0.55); border-radius: 7px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.3); }
+.yk-hpfill { height: 100%; background: linear-gradient(90deg, #c0262d, #ff6a50); transition: width 0.15s; }
+.yk-hptext { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 14px; }
+.yk-info { font-size: 13px; }
+.yk-feat { font-size: 13px; color: #ffe080; animation: yk-blink 1s infinite alternate; }
+@keyframes yk-blink { from { opacity: 0.6; } to { opacity: 1; } }
+.yk-timer { flex: none; font-size: 26px; font-weight: bold; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; padding: 0 0.4rem; }
+.yk-hudbtns { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 6px; }
+.yk-hbtn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(0, 0, 0, 0.45); color: #fff; }
+.yk-bossbar { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); width: min(26rem, 70%); height: 16px; background: rgba(0, 0, 0, 0.6); border: 1px solid #ff5050; border-radius: 4px; overflow: hidden; }
+.yk-bossfill { height: 100%; background: linear-gradient(90deg, #8a0000, #ff3030); transition: width 0.2s; }
+.yk-bosstext { position: absolute; inset: 0; text-align: center; font-size: 12px; line-height: 16px; font-weight: bold; }
+.yk-items { position: absolute; left: 8px; top: 92px; display: flex; flex-direction: column; flex-wrap: wrap; gap: 3px; max-height: 60%; }
+.yk-slot { position: relative; width: 30px; height: 30px; border-radius: 6px; border: 2px solid rgba(255, 255, 255, 0.5); background: rgba(0, 0, 0, 0.5); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
+.yk-slot b { position: absolute; right: -3px; bottom: -4px; font-size: 10px; background: #000; border-radius: 4px; padding: 0 2px; }
+.yk-slot-evo { box-shadow: 0 0 8px #ffd040; border-color: #ffd040 !important; }
+.yk-slot-ready { animation: yk-blink 0.6s infinite alternate; box-shadow: 0 0 6px #ffd040; }
+.yk-slot-acc { border-radius: 50%; }
+.yk-slot-sep { height: 4px; }
+.yk-pb { color: #ffe080; background: rgba(0, 0, 0, 0.5); border-color: #ffd040; font-size: 10px; }
+.yk-team { position: absolute; right: 8px; top: 64px; display: grid; gap: 4px; width: 9.5rem; }
+.yk-tm { display: grid; grid-template-columns: auto 1fr; gap: 0 4px; align-items: center; background: rgba(0, 0, 0, 0.45); padding: 3px 5px; border-radius: 6px; font-size: 11px; }
+.yk-tm .yk-crest { grid-row: span 2; width: 1.5em; height: 1.5em; font-size: 0.85em; }
+.yk-tm-n { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.yk-tm-hp { height: 5px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; overflow: hidden; }
+.yk-tm-hp div { height: 100%; background: #4ad07a; }
+.yk-tm-down { opacity: 0.6; }
+.yk-tm-down .yk-tm-hp div { background: #ff4040; }
+.yk-toasts { position: absolute; left: 50%; top: 100px; transform: translateX(-50%); display: grid; gap: 4px; justify-items: center; width: min(30rem, 80%); }
+.yk-toast { background: rgba(0, 0, 0, 0.6); padding: 3px 10px; border-radius: 6px; font-size: 13px; text-align: center; animation: yk-in 0.25s; }
+@keyframes yk-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.yk-ult { position: absolute; right: 18px; bottom: 22px; width: 84px; height: 84px; border-radius: 50%; border: none; color: #fff; background: conic-gradient(#ffb020 var(--yk-ult, 0deg), rgba(0, 0, 0, 0.55) 0); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35) inset; }
+.yk-ult::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: rgba(20, 10, 10, 0.75); z-index: 0; }
+.yk-ult span { position: relative; z-index: 1; }
+.yk-ult-icon { font-size: 28px; line-height: 1; }
+.yk-ult-pct { font-size: 11px; max-width: 70px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.yk-ult-ready { animation: yk-pulse 0.8s infinite alternate; }
+@keyframes yk-pulse { from { box-shadow: 0 0 6px 2px #ffb020; } to { box-shadow: 0 0 22px 8px #ff6020; } }
+.yk-joy { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.08); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+.yk-joy-on { opacity: 1; }
+.yk-joy-knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); transform: translate(-50%, -50%); }
+.yk-modal { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); padding: 10px; box-sizing: border-box; text-shadow: none; }
+.yk-modal-box { background: rgba(28, 20, 18, 0.95); border: 1px solid #d9a520; border-radius: 12px; padding: 0.8rem 1rem; width: min(34rem, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box; color: #f8f0e0; }
+.yk-modal-box h2 { margin: 0 0 0.5rem; font-size: 1.15em; color: #ffd860; }
+.yk-opts { display: grid; gap: 0.45rem; }
+.yk-opt { display: flex; align-items: center; gap: 0.6rem; text-align: left; padding: 0.55rem 0.7rem; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: inherit; }
+.yk-opt:hover { border-color: #ffd040; background: rgba(255, 210, 60, 0.12); }
+.yk-opt-new { border-left: 4px solid #e0505a; }
+.yk-opt-acc { border-left: 4px solid #9a9a9a; }
+.yk-opt-icon { font-size: 28px; flex: none; width: 2.2rem; text-align: center; }
+.yk-opt-body { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
+.yk-opt-sub { font-size: 0.8em; color: #ffd860; }
+.yk-opt-key { flex: none; opacity: 0.5; font-size: 0.8em; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 0 0.35rem; }
+.yk-statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.15rem 0.6rem; margin-bottom: 0.4rem; }
+@media (max-width: 520px) {
+  .yk-timer { font-size: 20px; }
+  .yk-team { top: 96px; width: 7.5rem; }
+  .yk-ult { width: 72px; height: 72px; right: 12px; bottom: 16px; }
+  .yk-opt { padding: 0.45rem 0.55rem; }
+  .yk-opt-key { display: none; }
+}
+
+/* 結算 */
+.yk-table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; font-size: 0.9em; }
+.yk-table th, .yk-table td { border-bottom: 1px solid var(--yk-line); padding: 0.3rem 0.4rem; text-align: left; vertical-align: middle; }
+.yk-me { background: var(--yk-accent-soft); }

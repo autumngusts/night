@@ -110,4 +110,10 @@ PROJECTS = [
         "name_key": "project_denshi_name",
         "desc_key": "project_denshi_desc",
     },
+    {
+        "id": "yukimura",
+        "href": "yukimura/index.html",
+        "name_key": "project_yukimura_name",
+        "desc_key": "project_yukimura_desc",
+    },
 ]
