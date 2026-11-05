@@ -210,6 +210,24 @@
     for (var k = 0; k < nm; k++) p.m[rint(s, p.c.length)] = mk[rint(s, mk.length)];
     return p;
   }
+  // 這一格屬於哪一次「可以拿起」的放置（沒有就 0）
+  function placementAt(s, x, y) {
+    if (!s.pl || s.phase !== "build") return 0;
+    var ci = idx(x, y), id = 0;
+    Object.keys(s.pl).forEach(function (k) { if (s.pl[k].cells.indexOf(ci) >= 0 && s.fo[ci] === s.pl[k].o) id = +k; });
+    return id;
+  }
+  // 假設這些格子放上地基（或拿起 remove 的格子）後，每個入口到核心的最短路徑；不合法回傳 null
+  function previewPaths(s, cells, remove) {
+    var gv0 = s.gv, d0 = s._d, dv0 = s._dv, saved = [];
+    (cells || []).forEach(function (c) { var ci = idx(c.x, c.y); saved.push([ci, s.fo[ci]]); s.fo[ci] = "?"; });
+    (remove || []).forEach(function (ci) { saved.push([ci, s.fo[ci]]); s.fo[ci] = ""; });
+    touched(s);
+    var ok = pathOk(s), out = ok ? s.spawns.map(function (p) { return pathFrom(s, p[0], p[1]); }) : null;
+    for (var i = saved.length - 1; i >= 0; i--) s.fo[saved[i][0]] = saved[i][1];
+    s.gv = gv0; s._d = d0; s._dv = dv0;
+    return out;
+  }
   function checkPlace(s, cells) {
     var i, c;
     for (i = 0; i < cells.length; i++) {
@@ -334,6 +352,7 @@
     if (s.phase !== "build" || s.end) return;
     s.wave++;
     s.phase = "wave";
+    s.pl = {};   // 開打後就不能再拿起
     s.wq = genWave(s, s.wave);
     s.wt = 0;
     s.autoT = 0;
@@ -902,7 +921,27 @@
         cells.forEach(function (c) { var ci = idx(c.x, c.y); s.fo[ci] = pid; s.fm[ci] = c.m; });
         touched(s);
         p.pieces.splice(it.i, 1);
+        // 建造階段放下的方塊，下一波開始前都可以拿起來重放（使用者指定 2026-11-05）
+        if (s.phase === "build") {
+          s.pl = s.pl || {}; s.plId = (s.plId || 0) + 1;
+          s.pl[s.plId] = { o: pid, pc: pc, r: it.r | 0, x: it.x | 0, y: it.y | 0, cells: cells.map(function (c) { return idx(c.x, c.y); }) };
+        }
         fx(s, { k: "place", c: cells.map(function (c) { return [c.x, c.y]; }) });
+        return true;
+      }
+      case "pickup": {
+        var rec = s.pl && s.pl[it.id];
+        if (!rec || rec.o !== pid || s.phase !== "build") return false;
+        rec.cells.forEach(function (ci) {
+          if (s.fo[ci] !== pid) return;   // 已經被首領吃掉之類（建造階段理論上不會）
+          var x = ci % W, y = (ci - x) / W, tw = towerAt(s, x, y);
+          if (tw) { p.cash += spentOn(tw); s.tv = (s.tv || 0) + 1; s.towers.splice(s.towers.indexOf(tw), 1); }   // 還沒開打：砲塔全額退費
+          s.fo[ci] = ""; s.fm[ci] = "";
+        });
+        touched(s);
+        p.pieces.push(rec.pc);
+        delete s.pl[it.id];
+        fx(s, { k: "pickup", c: rec.cells.map(function (ci) { return [ci % W, Math.floor(ci / W)]; }) });
         return true;
       }
       case "build": {
@@ -1023,6 +1062,6 @@
     checkPlace: checkPlace, stats: stats, towerAt: towerAt, towerById: towerById, refundOf: refundOf, upgradeCost: upgradeCost,
     buyCost: buyCost, wavePreview: wavePreview, waveSpawns: waveSpawns, activeSpawns: activeSpawns, jamX: jamX, jammed: jammed, bossOf: bossOf,
     addPlayer: addPlayer, BIG: BIG, has: has, nets: nets, combosOf: combosOf, evoCost: evoCost, rerollCost: rerollCost,
-    skillCd: skillCd, offline: offline, grounded: grounded
+    skillCd: skillCd, offline: offline, grounded: grounded, placementAt: placementAt, previewPaths: previewPaths
   };
 })();

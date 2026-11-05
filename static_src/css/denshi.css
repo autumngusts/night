@@ -166,3 +166,8 @@
 .ds-pop-b { display: flex; gap: 0.3rem; }
 .ds-pop .ds-btn { color: #e8fff6; padding: 0.3rem 0.6rem; }
 .ds-pop .ds-primary { flex: 1 1 auto; }
+.ds-pop-info { font-size: 0.86em; opacity: 0.92; margin-bottom: 0.25rem; line-height: 1.35; }
+.ds-legend summary { cursor: pointer; font-weight: bold; }
+.ds-lg { margin: 0.35rem 0; padding: 0; list-style: none; font-size: 0.84em; line-height: 1.45; }
+.ds-lg li { margin: 0.25rem 0; }
+.ds-sw { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.35rem; vertical-align: -0.1rem; border: 1px solid rgba(127, 127, 127, 0.5); }
