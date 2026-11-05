@@ -104,4 +104,10 @@ PROJECTS = [
         "name_key": "project_zombie_name",
         "desc_key": "project_zombie_desc",
     },
+    {
+        "id": "denshi",
+        "href": "denshi/index.html",
+        "name_key": "project_denshi_name",
+        "desc_key": "project_denshi_desc",
+    },
 ]

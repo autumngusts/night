@@ -1,0 +1,137 @@
+/* ===================== 電子守衛（denshi） ===================== */
+.ds-wrap {
+  --ds-line: rgba(127, 127, 127, 0.32);
+  --ds-accent: #0f9f74;
+  --ds-accent-soft: rgba(15, 159, 116, 0.12);
+  --ds-glow: #3cffb0;
+  --ds-good: #1f8f5a;
+  --ds-bad: #c0392b;
+  --ds-warn: #b26a00;
+  --ds-card: #f6f8f7;
+  --ds-chip: #eef2f0;
+  /* 網站外框比較窄：遊戲區域往兩側撐開到視窗寬（最寬 84rem），3D 戰場才看得清楚 */
+  width: min(84rem, calc(100vw - 24px));
+  margin-left: calc((100% - min(84rem, calc(100vw - 24px))) / 2);
+}
+@media (prefers-color-scheme: dark) {
+  .ds-wrap { --ds-accent: #2fd39c; --ds-accent-soft: rgba(47, 211, 156, 0.14); --ds-good: #6fcf97; --ds-bad: #ff7b6b; --ds-warn: #f0b04a; --ds-card: #1b2220; --ds-chip: #232c29; }
+}
+.ds-wrap button { cursor: pointer; font: inherit; }
+.ds-wrap button:disabled { cursor: default; opacity: 0.42; }
+.ds-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.7rem; }
+.ds-title { margin: 0; font-size: 1.5em; flex: 1 1 auto; letter-spacing: 0.06em; }
+.ds-roomtag { padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--ds-accent-soft); font-size: 0.85em; }
+.ds-panel { border: 1px solid var(--ds-line); border-radius: 10px; padding: 0.8rem 0.95rem; margin-bottom: 0.9rem; }
+.ds-panel h2 { margin: 0.1rem 0 0.6rem; font-size: 1.15em; }
+.ds-panel h3 { margin: 0.2rem 0 0.45rem; font-size: 0.98em; }
+.ds-intro { line-height: 1.75; margin: 0; }
+.ds-muted { opacity: 0.7; }
+.ds-small { font-size: 0.85em; }
+.ds-mono { font-variant-numeric: tabular-nums; }
+.ds-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 1rem; text-align: center; color: #cfe; }
+.ds-warn { color: var(--ds-warn); font-weight: bold; }
+.ds-hint { background: var(--ds-accent-soft); padding: 0.45rem 0.7rem; border-radius: 8px; margin: 0.4rem 0; }
+.ds-rules { margin: 0; padding-left: 1.2rem; line-height: 1.75; }
+.ds-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-top: 0.5rem; }
+.ds-next { justify-content: flex-end; margin-top: 0.9rem; }
+.ds-grow { flex: 1 1 auto; }
+.ds-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.6rem; margin-bottom: 0.6rem; }
+.ds-btn { padding: 0.38rem 0.85rem; border: 1px solid var(--ds-line); border-radius: 6px; background: transparent; color: inherit; }
+.ds-btn:hover:not(:disabled) { border-color: var(--ds-accent); }
+.ds-on { border-color: var(--ds-accent) !important; background: var(--ds-accent-soft) !important; }
+.ds-primary { background: var(--ds-accent) !important; border-color: var(--ds-accent) !important; color: #fff !important; }
+.ds-big { padding: 0.65rem 1.1rem; font-size: 1.05em; border: 1px solid var(--ds-line); border-radius: 8px; background: transparent; color: inherit; text-align: left; }
+.ds-big:hover:not(:disabled) { border-color: var(--ds-accent); }
+.ds-link { border: none; background: none; color: var(--ds-accent); padding: 0.2rem 0.4rem; }
+.ds-input { padding: 0.35rem 0.5rem; border: 1px solid var(--ds-line); border-radius: 6px; background: transparent; color: inherit; font: inherit; max-width: 100%; }
+.ds-input option { color: #111; }
+.ds-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; margin: 0.5rem 0; }
+.ds-seg { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+.ds-seg .ds-btn { padding: 0.25rem 0.6rem; }
+.ds-check { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.9em; }
+.ds-chip { display: inline-block; padding: 0.08rem 0.5rem; margin: 0.15rem 0.25rem 0 0; border: 1px solid var(--ds-line); border-radius: 999px; background: var(--ds-chip); font-size: 0.82em; }
+.ds-cost { float: right; font-size: 0.85em; opacity: 0.85; }
+
+/* 首頁 */
+.ds-hero { display: grid; grid-template-columns: minmax(0, 20rem) 1fr; gap: 1rem; align-items: center; margin-bottom: 0.9rem; }
+.ds-hero-art svg { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 0 24px rgba(60, 255, 176, 0.18); }
+@media (max-width: 640px) { .ds-hero { grid-template-columns: 1fr; } }
+
+/* 戰役地圖卡 */
+.ds-maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.7rem; }
+.ds-map { position: relative; border-radius: 10px; padding: 0.7rem 0.8rem; color: #e8f4ef; background: linear-gradient(135deg, var(--ds-mb), #0b0d10); border: 1px solid var(--ds-mc); box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.35); }
+.ds-map h3 { margin: 0 0 0.2rem; color: #fff; }
+.ds-map-no { position: absolute; right: 0.7rem; top: 0.45rem; font-size: 1.6em; font-weight: bold; color: var(--ds-mc); opacity: 0.55; }
+.ds-map-mech { margin: 0.1rem 0; color: var(--ds-mc); font-weight: bold; }
+.ds-map p { margin: 0.25rem 0; }
+.ds-map .ds-btn { color: #fff; border-color: var(--ds-mc); }
+.ds-locked { filter: grayscale(0.85); opacity: 0.6; }
+.ds-done { box-shadow: 0 0 0 2px var(--ds-mc), inset 0 0 20px rgba(0, 0, 0, 0.35); }
+
+/* 圖鑑 */
+.ds-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 0.55rem; margin-bottom: 0.6rem; }
+.ds-card { border: 1px solid var(--ds-line); border-radius: 8px; padding: 0.5rem 0.65rem; background: var(--ds-card); }
+.ds-card p { margin: 0.25rem 0; }
+
+/* 遊戲畫面 */
+.ds-hud { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; padding: 0.4rem 0.7rem; margin-bottom: 0.5rem; border-radius: 8px; background: #0c1513; color: #d8fff0; font-variant-numeric: tabular-nums; border: 1px solid rgba(60, 255, 176, 0.25); }
+.ds-hudi { white-space: nowrap; }
+.ds-danger { color: #ff6b6b; font-weight: bold; animation: ds-blink 0.8s infinite alternate; }
+@keyframes ds-blink { from { opacity: 1; } to { opacity: 0.45; } }
+.ds-game { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: 0.8rem; align-items: start; }
+@media (max-width: 960px) { .ds-game { grid-template-columns: 1fr; } }
+.ds-stage { position: relative; height: min(70vh, 660px); min-height: 320px; border-radius: 10px; overflow: hidden; background: #070b0a; touch-action: none; user-select: none; -webkit-user-select: none; }
+@media (max-width: 960px) { .ds-stage { height: 64vh; } }
+.ds-canvas { display: block; width: 100%; height: 100%; }
+.ds-loading { color: #9fe; }
+.ds-cam { position: absolute; right: 0.5rem; bottom: 0.5rem; display: flex; gap: 0.25rem; z-index: 2; }
+.ds-iconbtn { width: 2.1rem; height: 2.1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(8, 14, 12, 0.7); color: #dff; padding: 0; }
+.ds-iconbtn:hover { border-color: #3cffb0; }
+.ds-mechtag { position: absolute; left: 0.5rem; bottom: 0.5rem; z-index: 2; padding: 0.2rem 0.6rem; border-radius: 6px; background: rgba(8, 14, 12, 0.72); color: var(--ds-mc); border: 1px solid var(--ds-mc); font-size: 0.82em; pointer-events: none; }
+.ds-toasts { position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; pointer-events: none; width: 90%; }
+.ds-toast { padding: 0.3rem 0.9rem; border-radius: 999px; background: rgba(8, 14, 12, 0.82); color: #e8fff6; border: 1px solid rgba(60, 255, 176, 0.45); font-size: 0.92em; transition: opacity 0.45s, transform 0.45s; text-align: center; }
+.ds-t-big { font-size: 1.15em; font-weight: bold; border-color: #ffd04a; color: #ffe9a8; }
+.ds-t-good { border-color: #3cffb0; }
+.ds-t-bad { border-color: #ff5566; color: #ffd0d4; }
+.ds-t-warn { border-color: #ffb03c; color: #ffe2b0; }
+.ds-out { opacity: 0; transform: translateY(-6px); }
+.ds-endbox { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+.ds-endbox[hidden] { display: none; }
+.ds-endcard { max-width: 26rem; margin: 1rem; padding: 1rem 1.2rem; border-radius: 12px; background: #0e1714; color: #e8fff6; border: 2px solid #3cffb0; text-align: center; }
+.ds-endcard.ds-lose { border-color: #ff5566; }
+.ds-endcard h2 { margin: 0 0 0.5rem; }
+.ds-endcard .ds-actions { justify-content: center; }
+.ds-endcard .ds-btn { color: #e8fff6; }
+.ds-keys { margin-top: 0.4rem; }
+
+/* 側欄 */
+.ds-side .ds-panel { margin-bottom: 0.6rem; padding: 0.6rem 0.7rem; }
+.ds-next-wave b { display: block; margin-bottom: 0.2rem; }
+.ds-pieces { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ds-piece { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.3rem; border: 1px solid var(--ds-line); border-radius: 8px; background: #0f1a17; color: #dff; min-width: 5.2rem; }
+.ds-piece:hover { border-color: var(--ds-accent); }
+.ds-piece.ds-on { box-shadow: 0 0 0 2px var(--ds-accent); background: #12302a !important; }
+.ds-piece-cv { display: block; }
+.ds-piece-mod { font-size: 0.72em; max-width: 6rem; line-height: 1.2; }
+.ds-towers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
+.ds-tw { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.05rem; padding: 0.35rem 0.2rem; border: 1px solid var(--ds-line); border-radius: 8px; background: transparent; color: inherit; font-size: 0.85em; }
+.ds-tw:hover:not(:disabled) { border-color: var(--ds-accent); }
+.ds-tw.ds-elec { background: linear-gradient(180deg, rgba(53, 224, 255, 0.08), transparent); }
+.ds-tw-ic { font-size: 1.35em; line-height: 1.2; }
+.ds-tw-n { text-align: center; line-height: 1.2; }
+.ds-tw-c { opacity: 0.85; font-size: 0.9em; }
+.ds-tw kbd { position: absolute; left: 0.25rem; top: 0.15rem; font-size: 0.7em; opacity: 0.5; font-family: inherit; }
+.ds-desc p { margin: 0.25rem 0; }
+.ds-tw-head { display: flex; align-items: center; gap: 0.4rem; }
+.ds-tw-head b { flex: 1 1 auto; }
+.ds-twp p { margin: 0.3rem 0; }
+.ds-evos { display: grid; gap: 0.4rem; }
+.ds-evo { border: 1px solid rgba(255, 208, 74, 0.5); border-radius: 8px; padding: 0.4rem 0.55rem; background: rgba(255, 208, 74, 0.06); }
+.ds-evo p { margin: 0.2rem 0; }
+.ds-plist { margin: 0; padding-left: 1.1rem; line-height: 1.7; }
+.ds-dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; }
+
+/* 大廳 */
+.ds-lobby { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.ds-qr { background: #fff; border-radius: 6px; }
+.ds-url { width: min(30rem, 100%); }
