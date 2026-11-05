@@ -174,7 +174,7 @@
     var capN = { slash: 3, thrust: 3, spin: 2, whip: 2, wave: 2, pulse: 2, beam: 3, charge: 3, aura: 1, flame: 2, zone: 4, trail: 2 }[p.kind];
     p.n += st.amount;
     if (capN && p.n > capN) { p.dmg *= 1 + 0.15 * (p.n - capN); p.n = capN; }
-    p.dmg *= st.might;
+    p.dmg *= st.might * (1 + comboBonus(P));
     p.area *= st.area;
     p.cd *= Math.max(0.25, 1 - st.cdr);
     p.dur *= st.dur;
@@ -182,6 +182,9 @@
     p.knock *= st.knock;
     return p;
   }
+
+  // 連斬加成：每 50 連斬 +5%（最多 +30%），攻擊與拾取的錢都套用
+  function comboBonus(P) { return Math.min(0.3, Math.floor((P.cb || 0) / 50) * 0.05); }
 
   // ---------------- 升級三選一 ----------------
   function makeOpts(s, P) {
@@ -354,7 +357,11 @@
   function killEnemy(s, P, e, p) {
     e.hp = 0;
     s.kills++;
-    if (P) { P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9)); }
+    if (P) {
+      P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9));
+      P.cb = (P.cb || 0) + 1; P.cbT = 3; if (P.cb > (P.cbMax || 0)) P.cbMax = P.cb;
+      if (P.cb % 100 === 0) msg(s, "combo", P.pid, P.cb);
+    }
     var def = D.ENEMIES[e.k] || {};
     var sx = e.xp * (e.el ? 6 : 1);
     dropGem(s, e.x, e.z, sx);
@@ -538,6 +545,14 @@
     if (k === "river") {
       s.ev.warashi -= dt;
       if (s.ev.warashi <= 0) { s.ev.warashi = 55; var wa2 = rnd(s) * 6.28; dropItem(s, "warashi", P.x + Math.cos(wa2) * 9, P.z + Math.sin(wa2) * 9, { a: rnd(s) * 6.28, life: 25 }); msg(s, "feat", "", "warashi"); }
+    }
+    // 每關都有：祠（站在旁邊 3 秒得到隨機祝福）
+    s.ev.hokora = (s.ev.hokora === undefined ? 70 : s.ev.hokora) - dt;
+    if (s.ev.hokora <= 0) {
+      s.ev.hokora = 100 + rnd(s) * 40;
+      var ha = rnd(s) * 6.28;
+      dropItem(s, "hokora", P.x + Math.cos(ha) * 11, P.z + Math.sin(ha) * 11, { p: 0, life: 45 });
+      msg(s, "feat", "", "hokora");
     }
     // 每關都有：燈籠（打破掉料理或錢）
     s.ev.lantern -= dt;
@@ -748,6 +763,13 @@
     else if (u === "kori") s.freeze = 5;
     else if (u === "tenrai") P.buf.tenrai = 6;
     else if (u === "kekkai") players(s).forEach(function (o) { o.buf.kek = 10; });
+    else if (u === "kage") {   // 影分身：5 秒無敵＋四周射出 16 枚手裏劍
+      P.iv = Math.max(P.iv, 5); P.buf.speed = 5;
+      for (var k2 = 0; k2 < 16; k2++) s.S.push({ id: nid(s), k: "shuriken", o: P.pid, x: P.x, z: P.z, vx: Math.cos(k2 * 0.3927) * 15, vz: Math.sin(k2 * 0.3927) * 15, spd: 15, life: 1.4, mode: "bounce", dmg: dmg * 0.5, r: 0.5, pierce: 4, hit: {}, p: {}, a: 0 });
+    } else if (u === "ikki") {   // 一騎討：對附近最強的敵人一記重擊
+      var tg = strongest(s, P, 16);
+      if (tg) { hitEnemy(s, P, tg, dmg * 6, null); addFx(s, "bolt", tg.x, tg.z, 0, 2.5, P.pid, 2); addFx(s, "boom", tg.x, tg.z, 0, 3, P.pid, 1); }
+    }
     calcStats(P, s);
     return true;
   }
@@ -793,6 +815,7 @@
     });
     if (!P.st) calcStats(P, s);
     if (P.iv > 0) P.iv -= dt;
+    if (P.cbT > 0) { P.cbT -= dt; if (P.cbT <= 0) P.cb = 0; }
     if (P.down) {
       // 隊友站在旁邊 3 秒就能扶起
       var helper = players(s).some(function (o) { return o !== P && !o.down && dist2(o.x, o.z, P.x, P.z) < 2.5 * 2.5; });
@@ -803,7 +826,7 @@
     P.sp = moveSpeed(s, P);
     if (P.local) stepMove(s, P, P.mvx, P.mvz, dt, P.sp);
     // 升級選項：有待選次數就出三選一；連線中 15 秒沒選就自動選第一個
-    if (P.pend > 0 && !P.opts) { P.opts = makeOpts(s, P); P.optT = 0; }
+    if (P.pend > 0 && !P.opts) { P.opts = makeOpts(s, P); P.optT = 0; pushAway(s, P, 2.8); }
     if (P.opts) {
       P.optT += dt;
       if (P.optT > 15) choose(s, P, 0);
@@ -972,6 +995,10 @@
       if (e.line) { dx = e.lx; dz = e.lz; }
       if (e.flee) { dx = -dx; dz = -dz; spd *= 1.1; }
       if (e.boss) { bossAI(s, e, T, tdist, dt); continue; }
+      if (T.opts && !e.line) {   // 目標正在選升級：保持一小步距離
+        var keep = 2.6 + e.r;
+        if (tdist < keep) { dx = -dx; dz = -dz; spd *= 0.6; } else if (tdist < keep + 0.6) spd = 0;
+      }
       var def = D.ENEMIES[e.k] || {}, f = def.f || {};
       // 衝鋒：蓄力 0.6 秒後三倍速衝 0.7 秒
       if (f.charge) {
@@ -1104,6 +1131,17 @@
         d.life -= dt; if (d.life <= 0) return false;
         d.a += (rnd(s) - 0.5) * dt * 2; d.x = clamp(d.x + Math.cos(d.a) * 1.5 * dt, -AR, AR); d.z = clamp(d.z + Math.sin(d.a) * 1.5 * dt, -AR, AR);
       }
+      if (d.k === "hokora") {
+        d.life -= dt;
+        if (d.life <= 0) return false;
+        var pr = null;
+        for (var h = 0; h < ps.length; h++) if (dist2(d.x, d.z, ps[h].x, ps[h].z) < 2.4 * 2.4) pr = ps[h];
+        d.p = pr ? d.p + dt : Math.max(0, d.p - dt * 0.5);
+        if (d.p < 3) return true;
+        bless(s, pr);
+        addFx(s, "pick", d.x, d.z, 0, 2, pr.pid, 3);
+        return false;
+      }
       if (d.k === "lantern" || d.k === "anvil") {
         // 被武器打到才會壞：用附近的投射物／近戰特效判定太麻煩，改成「玩家靠近 1.2 以內或被範圍攻擊波及」
         var hitBy = null;
@@ -1126,12 +1164,26 @@
       if (d.k === "coin") {
         var dx = T.x - d.x, dz = T.z - d.z, dd = Math.sqrt(dx * dx + dz * dz);
         if (dd > 0.6) { d.x += dx / dd * 12 * dt; d.z += dz / dd * 12 * dt; return true; }
-        players(s).forEach(function (P) { P.gold += d.v * P.st.greed; });
+        players(s).forEach(function (P) { P.gold += d.v * P.st.greed * (1 + comboBonus(T)); });
         return false;
       }
       pickup(s, T, d);
       return false;
     });
+  }
+  var BLESS = ["might", "speed", "magnet", "heal", "ult", "gold", "inv", "luck"];
+  function bless(s, P) {
+    var b = pick(s, BLESS);
+    if (b === "might") P.buf.might = 30;
+    else if (b === "speed") P.buf.speed = 30;
+    else if (b === "magnet") s.G.forEach(function (g) { g.m = P.pid; });
+    else if (b === "heal") players(s).forEach(function (o) { if (!o.down) o.hp = o.mhp; });
+    else if (b === "ult") P.ult = Math.min(100, P.ult + 50);
+    else if (b === "gold") players(s).forEach(function (o) { o.gold += 60 * o.st.greed; });
+    else if (b === "inv") P.iv = Math.max(P.iv, 8);
+    else if (b === "luck") P.buf.luck = 40;
+    calcStats(P, s);
+    msg(s, "bless", P.pid, b);
   }
   function gainExp(s, P, v) {
     if (P.down) v *= 0.5;
@@ -1173,11 +1225,24 @@
   }
 
   // ---------------- 意圖（玩家操作）----------------
+  // 選升級時把貼在身邊的敵人推到 R 以外（單機暫停時也不會一解除就被圍毆）
+  function pushAway(s, P, R) {
+    for (var i = 0; i < s.E.length; i++) {
+      var e = s.E[i];
+      if (e.boss || e.hp <= 0) continue;
+      var dx = e.x - P.x, dz = e.z - P.z, d = Math.sqrt(dx * dx + dz * dz);
+      var need = R + e.r;
+      if (d >= need) continue;
+      if (d < 0.01) { var a = rnd(s) * 6.28; dx = Math.cos(a); dz = Math.sin(a); d = 1; }
+      e.x = P.x + dx / d * need; e.z = P.z + dz / d * need;
+    }
+  }
   function choose(s, P, i) {
     if (!P || !P.opts) return false;
     var o = P.opts[i] || P.opts[0];
     applyOpt(s, P, o);
     P.opts = null;
+    P.iv = Math.max(P.iv, 1);   // 選完再無敵 1 秒
     P.pend = Math.max(0, P.pend - 1);
     msg(s, "pick", P.pid, o);
     return true;
@@ -1198,7 +1263,7 @@
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
-        dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev,
+        dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0,
         W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
         op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: P.meta
       };
@@ -1213,12 +1278,12 @@
     s.S.forEach(function (sh) { o.S.push(sh.id, sh.k, r1(sh.x), r1(sh.z), Math.round((sh.a || 0) * 10) / 10, r1(sh.h || 0), sh.mode === "drop" ? r1(Math.max(0, sh.life)) : -1); });
     s.B.forEach(function (b) { o.B.push(b.id, r1(b.x), r1(b.z), b.k === "orb" ? 1 : 0); });
     s.G.slice(-200).forEach(function (g) { o.G.push(g.id, r1(g.x), r1(g.z), g.v >= 20 ? 2 : g.v >= 5 ? 1 : 0); });
-    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.big ? 1 : 0); });
+    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.big ? 1 : 0); });
     s.Z.forEach(function (z) { o.Z.push({ id: z.id, k: z.k, x: r1(z.x), z: r1(z.z), r: r1(z.r), t: r1(z.t), c: z.c }); });
     s.W.forEach(function (w) { o.W.push({ id: w.id, k: w.k, x: r1(w.x), z: r1(w.z), r: r1(w.r), p: Math.round((1 - w.t / w.T) * 100) / 100 }); });
     return o;
   }
-  var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi"];
+  var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora"];
   var FXK = ["slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
   var FXI = {}; FXK.forEach(function (k, i) { FXI[k] = i; });
   // 只送最近 0.7 秒的特效（畫面依 id 只播一次）
@@ -1242,7 +1307,7 @@
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {
-        pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re,
+        pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm,
         W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
         opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m || {}
       };
@@ -1258,7 +1323,7 @@
     var B = o.B || [];
     for (i = 0; i < B.length; i += 4) v.B.push({ id: B[i], x: B[i + 1], z: B[i + 2], k: B[i + 3] ? "orb" : "ball" });
     var Dd = o.D || [];
-    for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4] });
+    for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4], p: DK[Dd[i + 1]] === "hokora" ? Dd[i + 4] / 10 : 0 });
     var G = o.G || [];
     for (i = 0; i < G.length; i += 4) v.G.push({ id: G[i], x: G[i + 1], z: G[i + 2], v: G[i + 3] === 2 ? 20 : G[i + 3] === 1 ? 5 : 1 });
     return v;
@@ -1268,7 +1333,7 @@
 
   window.PriTestYukimuraCore = {
     create: create, addPlayer: addPlayer, removePlayer: removePlayer, step: step, applyIntent: applyIntent, players: players,
-    calcStats: calcStats, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
+    calcStats: calcStats, comboBonus: comboBonus, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
     snap: snap, unsnap: unsnap, serialize: serialize, deserialize: deserialize, xpNeed: xpNeed, baseStats: baseStats,
     _rnd: rnd
   };

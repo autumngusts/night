@@ -135,17 +135,27 @@
     V3.load().then(function () { var u = V3.portrait(value, 240); if (u) img.src = u; }).catch(function () { img.style.display = "none"; });
     var filter = el("input", { class: "yk-input", placeholder: t("yk_dm_search"), value: ui.dmFilter || "" });
     var grid = el("div", { class: "yk-dmgrid" });
+    var kinds = el("div", { class: "yk-seg" });
+    function fillKinds() {
+      kinds.innerHTML = "";
+      [[-1, t("yk_dm_all")]].concat(D.DM_KINDS.map(function (k, i) { return [i, L(k) + "（" + D.DAIMYO.filter(function (x) { return x.k === i; }).length + "）"]; })).forEach(function (it) {
+        kinds.appendChild(btn(it[1], function () { ui.dmKind = it[0]; fillKinds(); fill(); }, "yk-btn" + ((ui.dmKind === undefined ? -1 : ui.dmKind) === it[0] ? " yk-on" : "")));
+      });
+    }
     function fill() {
       grid.innerHTML = "";
-      var q = String(filter.value || "").trim();
+      var q = String(filter.value || "").trim(), kd = ui.dmKind === undefined ? -1 : ui.dmKind;
       D.DAIMYO.forEach(function (x) {
+        if (kd >= 0 && x.k !== kd) return;
         if (q && (L(x.name) + x.name.ja + x.name.zh + L(x.title)).indexOf(q) < 0) return;
         grid.appendChild(el("button", { type: "button", class: "yk-dmcard" + (x.i === value ? " yk-on" : ""), title: L(x.title), onclick: function () { ui.dmFilter = filter.value; onpick(x.i); } }, [crestBadge(x), el("span", { class: "yk-dmcard-name" }, [L(x.name)]), el("span", { class: "yk-dmcard-w" }, [D.WEAPONS[x.start].icon])]));
       });
     }
     filter.addEventListener("input", fill);
+    fillKinds();
     fill();
     wrap.appendChild(el("div", { class: "yk-field" }, [t("yk_dm_count", { n: D.DAIMYO.length }), filter]));
+    wrap.appendChild(el("div", { class: "yk-field" }, [kinds]));
     wrap.appendChild(grid);
     return wrap;
   }
@@ -201,7 +211,7 @@
     if (c === "daimyo") {
       body.push(el("p", { class: "yk-small yk-muted" }, [t("yk_dm_count", { n: D.DAIMYO.length })]));
       body.push(el("div", { class: "yk-cxgrid" }, D.DAIMYO.map(function (d) {
-        return el("div", { class: "yk-cx" }, [el("div", { class: "yk-dmhead" }, [crestBadge(d), el("div", null, [el("strong", null, [L(d.name)]), el("div", { class: "yk-small yk-muted" }, [L(d.title)])])]),
+        return el("div", { class: "yk-cx" }, [el("div", { class: "yk-dmhead" }, [crestBadge(d), el("div", null, [el("strong", null, [L(d.name)]), " ", el("span", { class: "yk-chip" }, [L(D.DM_KINDS[d.k])]), el("div", { class: "yk-small yk-muted" }, [L(d.title)])])]),
           el("div", { class: "yk-small" }, [D.WEAPONS[d.start].icon, " ", L(D.WEAPONS[d.start].name), "・", statText(d.trait[0], d.trait[1])]),
           el("div", { class: "yk-small" }, [D.ULTS[d.ult].icon, " ", L(D.ULTS[d.ult].name)])]);
       })));
@@ -609,11 +619,13 @@
       btn("🚪", function (ev) { ev.stopPropagation(); quitGame(); }, "yk-hbtn")
     ]);
     h.feat = el("div", { class: "yk-feat yk-hidden" });
+    h.combo = el("div", { class: "yk-combo" });
     h.modal = el("div", { class: "yk-modal yk-hidden" });
     h.pause = el("div", { class: "yk-modal yk-hidden" });
     h.root.appendChild(h.xp);
     h.root.appendChild(el("div", { class: "yk-hudtop" }, [el("div", { class: "yk-hudleft" }, [h.hp, h.info, h.feat]), h.timer, h.menu]));
     h.root.appendChild(h.boss);
+    h.root.appendChild(h.combo);
     h.root.appendChild(h.items);
     h.root.appendChild(h.team);
     h.root.appendChild(h.toast);
@@ -662,6 +674,8 @@
     if (m.k === "ult") return D.ULTS[m.a].icon + " " + t("yk_msg_ult", { n: nm, u: L(D.ULTS[m.a].name) });
     if (m.k === "warashi") return "👧 " + t("yk_msg_warashi", { n: nm });
     if (m.k === "feat") return t("yk_feat_" + m.a);
+    if (m.k === "combo") return "🔥 " + t("yk_msg_combo", { n: nm, c: m.a });
+    if (m.k === "bless") return "⛩ " + t("yk_msg_bless", { n: nm, b: t("yk_bless_" + m.a) });
     if (m.k === "chest" && mine) {
       return "🎁 " + t("yk_msg_chest") + (m.a || []).map(function (r) {
         if (r.t === "evo") return " ★" + weaponName(r.id, true);
@@ -736,7 +750,16 @@
     else hud.boss.classList.add("yk-hidden");
     // 關卡特色
     var fe = v.fe || {};
-    if (fe.on) { hud.feat.classList.remove("yk-hidden"); var ft = D.FEATS[fe.k].icon + " " + t("yk_feat_" + fe.k); if (hud.feat.textContent !== ft) hud.feat.textContent = ft; } else hud.feat.classList.add("yk-hidden");
+    var ft = "";
+    if (fe.on) ft = D.FEATS[fe.k].icon + " " + t("yk_feat_" + fe.k);
+    // 正在祠旁祈願：顯示進度
+    if (me && !me.down) (v.D || []).forEach(function (d) {
+      if (d.k === "hokora" && (d.x - me.x) * (d.x - me.x) + (d.z - me.z) * (d.z - me.z) < 2.4 * 2.4) ft = "⛩ " + t("yk_praying", { n: Math.min(100, Math.round((sess.host ? d.p : d.p) / 3 * 100)) });
+    });
+    if (ft) { hud.feat.classList.remove("yk-hidden"); if (hud.feat.textContent !== ft) hud.feat.textContent = ft; } else hud.feat.classList.add("yk-hidden");
+    // 連斬
+    var cbt = me && me.cb >= 10 ? t("yk_combo", { n: me.cb, p: Math.round(Core.comboBonus(me) * 100) }) : "";
+    if (hud.combo.textContent !== cbt) hud.combo.textContent = cbt;
     // 隊伍
     var pids = Object.keys(v.P);
     var tsig = pids.map(function (p) { var P = v.P[p]; return p + Math.round(P.hp / P.mhp * 20) + P.down + P.lv; }).join("|");
@@ -834,7 +857,7 @@
     saveProgress(pg);
     lastResult = {
       won: won, quit: quit, t: v ? v.t : 0, stage: v ? v.stage : 0, diff: v ? v.diff : "normal", dur: v ? v.dur : 900, gold: gold,
-      players: v ? Object.keys(v.P).map(function (pid) { var P = v.P[pid]; return { me: pid === sess.pid, name: P.name, dm: P.dm, lv: P.lv, kills: P.kills, dmg: P.dmg, W: P.W, A: P.A }; }) : []
+      players: v ? Object.keys(v.P).map(function (pid) { var P = v.P[pid]; return { me: pid === sess.pid, name: P.name, dm: P.dm, lv: P.lv, kills: P.kills, cbMax: P.cbMax || 0, dmg: P.dmg, W: P.W, A: P.A }; }) : []
     };
     setTimeout(function () {
       if (ui.room && !sess.solo) {
@@ -853,9 +876,9 @@
       el("p", null, [t("yk_stage_n", { n: r.stage + 1 }), " ", L(st.name), "・", L(D.DIFFS[r.diff].name), "・", t("yk_survived", { t: mmss(r.t) })]),
       el("p", null, [t("yk_gold_got", { n: r.gold, b: Math.floor(progress().bank) })]),
       r.won && r.dur >= 900 && r.stage + 1 < D.STAGES.length ? el("p", { class: "yk-good" }, [t("yk_next_unlocked", { n: L(D.STAGES[r.stage + 1].name) })]) : null,
-      el("table", { class: "yk-table" }, [el("tr", null, [t("yk_col_name"), t("yk_col_lv"), t("yk_col_kills"), t("yk_col_dmg"), t("yk_col_build")].map(function (x) { return el("th", null, [x]); }))].concat(r.players.map(function (p) {
+      el("table", { class: "yk-table" }, [el("tr", null, [t("yk_col_name"), t("yk_col_lv"), t("yk_col_kills"), t("yk_col_combo"), t("yk_col_dmg"), t("yk_col_build")].map(function (x) { return el("th", null, [x]); }))].concat(r.players.map(function (p) {
         var d = D.DAIMYO[p.dm];
-        return el("tr", { class: p.me ? "yk-me" : "" }, [el("td", null, [crestBadge(d), " ", p.name || L(d.name)]), el("td", null, [String(p.lv)]), el("td", null, [String(p.kills)]), el("td", null, [String(Math.round(p.dmg || 0))]),
+        return el("tr", { class: p.me ? "yk-me" : "" }, [el("td", null, [crestBadge(d), " ", p.name || L(d.name)]), el("td", null, [String(p.lv)]), el("td", null, [String(p.kills)]), el("td", null, [String(p.cbMax || 0)]), el("td", null, [String(Math.round(p.dmg || 0))]),
           el("td", { class: "yk-small" }, [p.W.map(function (w) { return D.WEAPONS[w.id].icon + (w.evo ? "★" : w.lv); }).join(" ") + "　" + p.A.map(function (a) { return D.STATS[D.ACCS[a.id].s].icon + a.lv; }).join(" ")])]);
       }))),
       el("div", { class: "yk-actions yk-next" }, [

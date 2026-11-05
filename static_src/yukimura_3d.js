@@ -238,6 +238,7 @@
     chest: function () { return [part(prim("box", 0.9, 0.55, 0.6), 0x8a1a1a, [0, 0, 0]), part(prim("box", 0.94, 0.12, 0.64), 0xe0b030, [0, 0.2, 0]), part(prim("box", 0.16, 0.18, 0.04), 0xe0b030, [0, 0.05, 0.31]), part(prim("cyl", 0.3, 0.3, 0.9, 10, 1), 0x8a1a1a, [0, 0.28, 0], [0, 0, Math.PI / 2], [1, 1, 0.66])]; },
     lantern: function () { return PROPS.lantern(); },
     anvil: function () { return PROPS.anvil(); },
+    hokora: function () { return [part(prim("box", 1.3, 0.3, 1.1), 0x8a8a84, [0, 0.15, 0]), part(prim("box", 0.8, 0.8, 0.7), 0xb04030, [0, 0.7, 0]), part(prim("box", 0.42, 0.5, 0.05), 0x2a1a10, [0, 0.62, 0.36]), part(prim("cone", 0.85, 0.5, 4), 0x2a2a30, [0, 1.35, 0], [0, Math.PI / 4, 0], [1.05, 1, 0.9]), part(prim("box", 0.06, 0.06, 0.4), 0xffffff, [0, 1.0, 0.38], [0, 0, 0.4]), part(prim("cyl", 0.06, 0.06, 1.4, 6), 0xd03020, [-0.75, 0.7, 0.6]), part(prim("cyl", 0.06, 0.06, 1.4, 6), 0xd03020, [0.75, 0.7, 0.6]), part(prim("box", 1.8, 0.1, 0.12), 0xd03020, [0, 1.45, 0.6])]; },
     warashi: function () { return humanoid({ cloth: 0xd03040, pants: 0xd03040, skin: 0xf8e0d0, h: 0.7 }).concat([part(prim("box", 0.44, 0.26, 0.34), 0x111111, [0, 0.95, -0.03])]); }
   };
 
@@ -301,7 +302,8 @@
     var head = new T.Group();
     head.position.set(0, 1.66, 0);
     head.add(mesh(new T.SphereGeometry(0.2, 12, 10), cSkin, 0, 0, 0));
-    head.add(mesh(new T.BoxGeometry(0.3, 0.14, 0.1), cDark, 0, -0.08, 0.15));   // 面頰
+    var menpo = mesh(new T.BoxGeometry(0.3, 0.14, 0.1), cDark, 0, -0.08, 0.15);   // 面頰
+    head.add(menpo);
     var kabuto = mesh(new T.SphereGeometry(0.27, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), cDark, 0, 0.04, 0);
     head.add(kabuto);
     var shikoro = mesh(new T.CylinderGeometry(0.29, 0.4, 0.22, 12, 1, true, Math.PI * 0.25, Math.PI * 1.5), cMain, 0, -0.04, 0);
@@ -322,6 +324,22 @@
     else if (d.crest === "star") crest.add(mesh(new T.OctahedronGeometry(0.14, 0), gold, 0, 0.18, 0));
     else if (d.crest === "flame") { crest.add(mesh(new T.ConeGeometry(0.1, 0.4, 6), mat(0xff6020, { emissive: new T.Color(0x802000) }), 0, 0.24, 0)); }
     else if (d.crest === "ebosi") { kabuto.visible = false; shikoro.visible = false; crest.add(mesh(new T.CylinderGeometry(0.12, 0.2, 0.55, 8), cDark, 0, 0.12, -0.22)); }
+    // 女武將：不戴兜，鉢卷＋長髮馬尾
+    if (d.crest === "hachi") {
+      kabuto.visible = false; shikoro.visible = false; menpo.visible = false;
+      var hair = mat(0x18120e);
+      head.add(mesh(new T.SphereGeometry(0.215, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, 0, 0.01, -0.01));
+      head.add(mesh(new T.BoxGeometry(0.14, 0.62, 0.08), hair, 0, -0.28, -0.2));
+      addR(head, mesh(new T.TorusGeometry(0.205, 0.03, 6, 18), mat(d.accent), 0, 0.07, 0), Math.PI / 2 - 0.15);
+      head.add(mesh(new T.BoxGeometry(0.03, 0.25, 0.1), mat(d.accent), 0.08, -0.05, -0.22));
+    }
+    // 忍者：頭巾、不背指物
+    if (d.crest === "zukin") {
+      kabuto.visible = false; shikoro.visible = false;
+      head.add(mesh(new T.SphereGeometry(0.23, 12, 10), cMain, 0, 0.01, -0.01));
+      head.add(mesh(new T.BoxGeometry(0.3, 0.05, 0.04), cSkin, 0, 0.02, 0.21));
+      head.add(mesh(new T.BoxGeometry(0.06, 0.3, 0.02), mat(d.accent), 0.12, -0.1, -0.22));
+    }
     head.add(crest);
     body.add(head);
     // 背旗（指物）
@@ -330,6 +348,7 @@
     var emb = mesh(new T.CylinderGeometry(0.13, 0.13, 0.03, 12), gold, 0.015, 2.15, -0.54);
     emb.rotation.z = Math.PI / 2;
     body.add(pole, flag, emb);
+    if (d.crest === "zukin") { pole.visible = false; flag.visible = false; emb.visible = false; }
     g.userData = { body: body, legL: legL, legR: legR, armL: armL, armR: armR, head: head, flag: flag, phase: 0 };
     return g;
   }
@@ -506,11 +525,57 @@
     function pkPool(k) {
       if (pickPools[k]) return pickPools[k];
       var p = pool(merge(PICKS[k]()), k.slice(0, 3) === "gem" ? 340 : 120, k.slice(0, 3) === "gem" ? { emissive: new T.Color(k === "gem0" ? 0x103060 : k === "gem1" ? 0x105020 : 0x601020) } : k === "coin" ? { emissive: new T.Color(0x503800) } : null);
-      if (k === "chest" || k === "lantern" || k === "anvil" || k === "warashi") p.castShadow = !low;
+      if (k === "chest" || k === "lantern" || k === "anvil" || k === "warashi" || k === "hokora") p.castShadow = !low;
       pickPools[k] = p;
       return p;
     }
     var bulletPool = sPool("orb");
+
+    // ---- 方向指示針：畫面外的隊友、首領、寶箱、祠 ----
+    var pinLayer = document.createElement("div");
+    pinLayer.className = "yk-pins";
+    box.appendChild(pinLayer);
+    var pins = {}, _pv = new T.Vector3();
+    function pinEl(key, cls, label) {
+      var p = pins[key];
+      if (!p) {
+        p = pins[key] = document.createElement("div");
+        p.innerHTML = '<span class="yk-pin-arr">➤</span><span class="yk-pin-ic"></span><span class="yk-pin-d"></span>';
+        pinLayer.appendChild(p);
+      }
+      p.className = "yk-pin " + cls;
+      if (p.children[1].textContent !== label) p.children[1].textContent = label;
+      p._seen = frameNo;
+      return p;
+    }
+    function updatePins(v, me) {
+      if (!me) return;
+      var W = box.clientWidth, H = box.clientHeight, list = [];
+      Object.keys(v.P).forEach(function (pid) {
+        if (pid === opts.me) return;
+        var P = v.P[pid], d = D.DAIMYO[P.dm] || D.DAIMYO[0];
+        list.push({ key: "p" + pid, x: P.x, z: P.z, cls: P.down ? "yk-pin-down" : "yk-pin-ally", label: P.down ? "💀" : D.L(d.name).charAt(0), color: P.down ? null : "#" + ("000000" + d.color.toString(16)).slice(-6) });
+      });
+      v.E.forEach(function (e) { if (e.boss) list.push({ key: "b" + e.id, x: e.x, z: e.z, cls: "yk-pin-boss", label: "👹" }); });
+      v.D.forEach(function (d) { if (d.k === "chest") list.push({ key: "c" + d.id, x: d.x, z: d.z, cls: "yk-pin-chest", label: "🎁" }); else if (d.k === "hokora") list.push({ key: "h" + d.id, x: d.x, z: d.z, cls: "yk-pin-hokora", label: "⛩" }); });
+      list.forEach(function (t) {
+        _pv.set(t.x, 1, t.z).project(camera);
+        var behind = _pv.z > 1;
+        var nx = behind ? -_pv.x : _pv.x, ny = behind ? -_pv.y : _pv.y;
+        if (!behind && Math.abs(nx) < 0.94 && Math.abs(ny) < 0.9) return;   // 在畫面內就不顯示
+        var ang = Math.atan2(-ny, nx), m = 30;
+        var cx = W / 2, cy = H / 2, dx = Math.cos(ang), dy = Math.sin(ang);
+        var kx = dx ? (W / 2 - m) / Math.abs(dx) : 1e9, ky = dy ? (H / 2 - m) / Math.abs(dy) : 1e9, k2 = Math.min(kx, ky);
+        var p = pinEl(t.key, t.cls, t.label);
+        p.style.left = (cx + dx * k2) + "px"; p.style.top = (cy + dy * k2) + "px";
+        if (t.color) p.style.setProperty("--yk-pin-c", t.color); else p.style.removeProperty("--yk-pin-c");
+        p.children[0].style.transform = "rotate(" + (ang * 180 / Math.PI) + "deg)";
+        var dist = Math.round(Math.sqrt((t.x - me.x) * (t.x - me.x) + (t.z - me.z) * (t.z - me.z)));
+        var ds = dist + "m";
+        if (p.children[2].textContent !== ds) p.children[2].textContent = ds;
+      });
+      Object.keys(pins).forEach(function (k3) { if (pins[k3]._seen !== frameNo) { pinLayer.removeChild(pins[k3]); delete pins[k3]; } });
+    }
     // 敵人腳下的深色影子（白色地面上也看得清楚）；首領另外有紅圈
     var shadowGeo = new T.CircleGeometry(1, 18);
     shadowGeo.rotateX(-Math.PI / 2);
@@ -897,7 +962,7 @@
         if (dpool.count >= dpool.instanceMatrix.count) continue;
         var dob = sm("d" + dr.id, dr.x, dr.z, Math.min(1, k * 2));
         var dy = dk === "coin" ? 0.4 : dk === "food" ? 0.45 + Math.sin(tAcc * 3 + dr.id) * 0.1 : dk === "chest" ? 0.3 : 0;
-        var ds = dk === "chest" && dr.big ? 1.4 : dk === "food" ? 1.1 : 1;
+        var ds = dk === "chest" && dr.big ? 1.4 : dk === "food" ? 1.1 : dk === "hokora" ? 1 + (dr.p || 0) * 0.08 : 1;
         _m.compose(_v.set(dob.x, dy, dob.z), _q.setFromEuler(_e.set(0, dk === "coin" || dk === "food" ? tAcc * 2.5 + dr.id : dk === "warashi" ? dob.a : 0, 0)), _s.set(ds, ds, ds));
         dpool.setMatrixAt(dpool.count++, _m);
       }
@@ -949,6 +1014,7 @@
       // 清掉沒用到的平滑資料
       if (frameNo % 90 === 0) Object.keys(smooth).forEach(function (id) { if (frameNo - smooth[id].seen > 60) delete smooth[id]; });
 
+      if (frameNo % 2 === 0) updatePins(v, me);
       renderer.render(scene, camera);
     }
     raf = requestAnimationFrame(frame);
@@ -965,6 +1031,7 @@
       resize: resize,
       toWorldDir: function () { return 0; },
       destroy: function () {
+        if (pinLayer.parentNode) pinLayer.parentNode.removeChild(pinLayer);
         dead = true;
         cancelAnimationFrame(raf);
         window.removeEventListener("resize", resize);

@@ -207,12 +207,15 @@
     kaen: { icon: "🔥", name: C("火計", "火計"), desc: C("身邊燃起火環 8 秒", "8 秒間、周囲に炎の輪") },
     kori: { icon: "❄️", name: C("凍結", "凍結"), desc: C("凍住全部敵人 5 秒", "敵すべてを 5 秒凍らせる") },
     tenrai: { icon: "🌩️", name: C("天雷", "天雷"), desc: C("連續劈下 24 道雷", "雷を 24 回落とす") },
-    kekkai: { icon: "⛩️", name: C("結界", "結界"), desc: C("全隊防禦 +10、10 秒", "味方全員 防御 +10・10 秒") }
+    kekkai: { icon: "⛩️", name: C("結界", "結界"), desc: C("全隊防禦 +10、10 秒", "味方全員 防御 +10・10 秒") },
+    kage: { icon: "🥷", name: C("影分身", "影分身"), desc: C("5 秒無敵加速，四周射出 16 枚手裏劍", "5 秒無敵・加速、四方に手裏剣 16 枚") },
+    ikki: { icon: "🗡️", name: C("一騎討", "一騎討ち"), desc: C("對附近最強的敵人一記重擊", "近くの最強の敵に渾身の一撃") }
   };
 
   // ---------------- 大名（60+）----------------
   // [名, 家色, 副色, 前立, 起始攻擊方式, 起始藩, 特性能力, 值, 采配, 稱號 zh, 稱號 ja]
-  // 前立：moon 三日月／horns 鍬形／sun 日輪／rokumon 六文錢／antler 鹿角／ai 愛／fan 扇／star 星／flame 火焰／ebosi 烏帽子
+  // 前立：moon 三日月／horns 鍬形／sun 日輪／rokumon 六文錢／antler 鹿角／ai 愛／fan 扇／star 星／flame 火焰／ebosi 烏帽子／hachi 鉢卷＋長髮（女武將）／zukin 頭巾（忍者）
+  // 最後一欄 k：0 大名（省略）、1 武將、2 女武將、3 忍者
   var A = {}; ARCHES.forEach(function (a, i) { A[a.k] = i; });
   var VI = {}; VARIANTS.forEach(function (v, i) { VI[v.k] = i; });
   var DM_RAW = [
@@ -287,12 +290,62 @@
     ["本多忠勝", 0x1a1a1a, 0xe0c060, "antler", "yari", "aizu", "armor", 2, "muso", "蜻蛉切與鹿角兜", "蜻蛉切と鹿角の兜"],
     ["今川義元", 0xd0b0e0, 0xffffff, "ebosi", "ofuda", "hiraizumi", "luck", 0.12, "ougon", "海道第一弓取", "海道一の弓取り"],
     ["明智光秀", 0x3a5a8a, 0xd0d0d0, "star", "teppo", "shonai", "crit", 0.07, "kaen", "桔梗紋的智將", "桔梗紋の智将"],
-    ["大友宗麟", 0x4a2a5a, 0xe0c060, "star", "ozutsu", "hiraizumi", "critDmg", 0.25, "toki", "國崩之主", "国崩しの主"]
+    ["大友宗麟", 0x4a2a5a, 0xe0c060, "star", "ozutsu", "hiraizumi", "critDmg", 0.25, "toki", "國崩之主", "国崩しの主"],
+    // ---- 武將（k:1）、女武將（k:2）、忍者（k:3）----
+    ["鬼庭綱元", 0x2a3a5c, 0xd0d0d0, "moon", "yari", "date", "maxHp", 25, "kekkai", "伊達家的宿老", "伊達家の宿老", 1],
+    ["原田宗時", 0x30385a, 0xe0c060, "horns", "tachi", "date", "might", 0.1, "muso", "伊達的猛將", "伊達の猛将", 1],
+    ["後藤信康", 0x2a2a48, 0xffffff, "sun", "kiba", "date", "speed", 0.08, "toki", "黃後藤", "黄後藤", 1],
+    ["支倉常長", 0x3a4a7a, 0xe0c060, "star", "teppo", "date", "pspd", 0.15, "engun", "慶長遣歐使節", "慶長遣欧使節", 1],
+    ["白石宗実", 0x34406a, 0xc0c0c0, "fan", "yumi", "date", "luck", 0.1, "kekkai", "白石城代", "白石城代", 1],
+    ["氏家守棟", 0x3a6a46, 0xd0d0d0, "fan", "shikigami", "mogami", "cdr", 0.07, "kekkai", "最上的智囊", "最上の知恵袋", 1],
+    ["志村光安", 0x407048, 0xe0c060, "horns", "teppo", "mogami", "crit", 0.07, "engun", "長谷堂城的守將", "長谷堂城の守将", 1],
+    ["楯岡満茂", 0x467a50, 0xc0c0c0, "sun", "naginata", "mogami", "area", 0.1, "jishin", "本城豐前守", "本城豊前守", 1],
+    ["北信愛", 0x3a302a, 0xc0c0c0, "sun", "hata", "nanbu", "regen", 0.5, "kekkai", "南部的長老", "南部の長老", 1],
+    ["八戸政栄", 0x463830, 0xe0c060, "fan", "yumi", "nanbu", "growth", 0.1, "ougon", "根城南部家", "根城南部家", 1],
+    ["沼田祐光", 0x5a3a80, 0xd0d0d0, "star", "ofuda", "tsugaru", "elem", 0.2, "kori", "津輕的軍師", "津軽の軍師", 1],
+    ["森岡信元", 0x6a4a8a, 0xe0c060, "horns", "kusarigama", "tsugaru", "steal", 0.2, "kaen", "津輕的猛將", "津軽の猛将", 1],
+    ["金上盛備", 0x1d5a5a, 0xd0d0d0, "fan", "juzu", "aizu", "armor", 1.5, "kekkai", "蘆名的執權", "蘆名の執権", 1],
+    ["前田慶次", 0x8a1a3a, 0xffd060, "flame", "yari", "aizu", "might", 0.12, "ikki", "天下第一的傾奇者", "天下一の傾奇者", 1],
+    ["水原親憲", 0x3a4a2a, 0xd0d0d0, "sun", "teppo", "mogami", "critDmg", 0.2, "engun", "上杉的鐵砲大將", "上杉の鉄砲大将", 1],
+    ["甘粕景継", 0x34442a, 0xe0c060, "horns", "tachi", "aizu", "crit", 0.07, "muso", "上杉的殿軍", "上杉の殿", 1],
+    ["山県昌景", 0xc02020, 0xffffff, "horns", "kiba", "soma", "speed", 0.1, "ikki", "赤備之將", "赤備えの将", 1],
+    ["馬場信春", 0x7a1a1a, 0xd0d0d0, "sun", "yari", "nanbu", "armor", 2, "kekkai", "不死身的鬼美濃", "不死身の鬼美濃", 1],
+    ["高坂昌信", 0x6a2a2a, 0xe0c060, "fan", "hata", "mogami", "dur", 0.15, "kekkai", "逃彈正", "逃げ弾正", 1],
+    ["山本勘助", 0x4a3a2a, 0xd0d0d0, "ebosi", "horoku", "tono", "area", 0.1, "kaen", "武田的軍師", "武田の軍師", 1],
+    ["柿崎景家", 0x3a4a2a, 0xffffff, "horns", "naginata", "tsugaru", "might", 0.1, "toki", "越後第一猛將", "越後一の猛将", 1],
+    ["竹中半兵衛", 0x2a4a4a, 0xe0e0e0, "ebosi", "shikigami", "hiraizumi", "cdr", 0.08, "kekkai", "今孔明", "今孔明", 1],
+    ["可児才蔵", 0x4a3a2a, 0x7ab040, "horns", "yari", "akita", "might", 0.1, "ikki", "笹之才藏", "笹の才蔵", 1],
+    ["福島正則", 0x5a2a1a, 0xe0c060, "horns", "yari", "nanbu", "maxHp", 30, "toki", "賤岳七本槍之首", "賤ヶ岳七本槍の筆頭", 1],
+    ["井伊直政", 0xd02020, 0xffd040, "horns", "kiba", "aizu", "might", 0.1, "muso", "井伊的赤鬼", "井伊の赤鬼", 1],
+    ["榊原康政", 0x3a3a3a, 0xe0c060, "sun", "yari", "mogami", "speed", 0.08, "engun", "德川四天王", "徳川四天王", 1],
+    ["酒井忠次", 0x2a3a2a, 0xd0d0d0, "fan", "taiko", "mogami", "knock", 0.25, "jishin", "德川四天王筆頭", "徳川四天王筆頭", 1],
+    ["雑賀孫一", 0x2a2a2a, 0xe0a030, "star", "teppo", "akita", "amount", 0.5, "engun", "雜賀眾的鐵砲頭領", "雑賀衆の鉄砲頭", 1],
+    ["柳生宗矩", 0x3a3a4a, 0xc0c0c0, "ebosi", "tachi", "tsugaru", "crit", 0.1, "ikki", "柳生新陰流", "柳生新陰流", 1],
+    ["鍋島直茂", 0x4a2a2a, 0xe0c060, "sun", "hata", "hiraizumi", "greed", 0.2, "ougon", "肥前的智將", "肥前の智将", 1],
+    ["大谷吉継", 0xe8e8e8, 0x3a3a3a, "ebosi", "ofuda", "shonai", "elem", 0.25, "kekkai", "義之白頭巾", "義の白頭巾", 1],
+    ["島左近", 0x3a2a2a, 0xffffff, "horns", "yari", "shonai", "might", 0.1, "toki", "三成過分之人", "三成に過ぎたる者", 1],
+    ["後藤又兵衛", 0x2a2a3a, 0xe0c060, "horns", "yari", "soma", "maxHp", 30, "ikki", "槍之又兵衛", "槍の又兵衛", 1],
+    ["毛利勝永", 0x5a3a3a, 0xd0d0d0, "sun", "tachi", "soma", "cdr", 0.07, "muso", "大坂之陣的勇將", "大坂の陣の勇将", 1],
+    ["木村重成", 0x3a2a4a, 0xf0e0ff, "star", "yari", "date", "luck", 0.1, "ikki", "大坂之陣的貴公子", "大坂の陣の貴公子", 1],
+    ["真田大助", 0xb02a2d, 0xe8c547, "rokumon", "yumi", "soma", "growth", 0.12, "engun", "幸村之子", "幸村の嫡男", 1],
+    ["甲斐姫", 0xd04070, 0xffe0f0, "hachi", "naginata", "soma", "speed", 0.1, "muso", "忍城的女武者", "忍城の女武者", 2],
+    ["立花誾千代", 0x4a5aa0, 0xffffff, "hachi", "kaminari", "date", "crit", 0.08, "tenrai", "立花城的女城主", "立花城の女城主", 2],
+    ["大祝鶴姫", 0x2a6aa0, 0xd0f0ff, "hachi", "naginata", "tsugaru", "pspd", 0.15, "kori", "瀨戶內的聖女", "瀬戸内のジャンヌ", 2],
+    ["井伊直虎", 0xc03030, 0xffe0e0, "hachi", "hata", "aizu", "cdr", 0.08, "kekkai", "女城主", "女城主", 2],
+    ["小松姫", 0xa02a40, 0xe8c547, "hachi", "yumi", "nanbu", "armor", 1.5, "kekkai", "真田信之之妻", "真田信之の妻", 2],
+    ["愛姫", 0xe080a0, 0xffffff, "hachi", "ofuda", "soma", "regen", 0.6, "kaifuku", "政宗的正室", "政宗の正室", 2],
+    ["義姫", 0x4a8a50, 0xffffff, "hachi", "juzu", "mogami", "maxHp", 25, "kaifuku", "最上御前", "最上御前", 2],
+    ["駒姫", 0xf0a0c0, 0xffffff, "hachi", "shikigami", "mogami", "luck", 0.12, "ougon", "東國第一美女", "東国一の美少女", 2],
+    ["服部半蔵", 0x1a1a24, 0xc0c0c0, "zukin", "kunai", "date", "speed", 0.1, "kage", "伊賀眾的首領", "伊賀衆の頭領", 3],
+    ["風魔小太郎", 0x222018, 0xc04030, "zukin", "shuriken", "soma", "pspd", 0.2, "kage", "風魔一黨", "風魔一党", 3],
+    ["猿飛佐助", 0x2a3a2a, 0xe0c060, "zukin", "shuriken", "tono", "speed", 0.1, "kage", "真田十勇士", "真田十勇士", 3],
+    ["霧隠才蔵", 0x2a2a3a, 0xa0c0ff, "zukin", "makibishi", "tsugaru", "dur", 0.15, "kage", "真田十勇士・霧之術", "真田十勇士・霧の術", 3],
+    ["黒脛巾組", 0x202020, 0xd0a040, "zukin", "kunai", "date", "cdr", 0.07, "kage", "伊達的忍者集團", "伊達の忍び集団", 3]
   ];
   var DAIMYO = DM_RAW.map(function (r, i) {
     return {
       i: i, name: N(r[0]), color: r[1], accent: r[2], crest: r[3], start: A[r[4]] * 10 + VI[r[5]],
-      trait: [r[6], r[7]], ult: r[8], title: C(r[9], r[10])
+      trait: [r[6], r[7]], ult: r[8], title: C(r[9], r[10]), k: r[11] | 0
     };
   });
 
@@ -423,7 +476,7 @@
   window.PriTestYukimuraData = {
     C: C, L: L, STATS: STATS, STAT: STAT, PREFS: PREFS, VARIANTS: VARIANTS, ARCHES: ARCHES, WEAPONS: WEAPONS, WLV: WLV,
     MAX_WLV: MAX_WLV, MAX_ALV: MAX_ALV, MAX_W: MAX_W, MAX_A: MAX_A, CRAFTS: CRAFTS, ACCS: ACCS, accStats: accStats,
-    FOODS: FOODS, ULTS: ULTS, DAIMYO: DAIMYO, ENEMIES: ENEMIES, BOSSES: BOSSES, MAPS: MAPS, STAGES: STAGES, FEATS: FEATS,
+    FOODS: FOODS, ULTS: ULTS, DAIMYO: DAIMYO, DM_KINDS: [C("大名", "大名"), C("武將", "武将"), C("女武將", "女武将"), C("忍者", "忍者")], ENEMIES: ENEMIES, BOSSES: BOSSES, MAPS: MAPS, STAGES: STAGES, FEATS: FEATS,
     META: META, DIFFS: DIFFS, ARENA: 60
   };
 })();

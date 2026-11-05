@@ -11,13 +11,13 @@ _FEATS_ZH = {
     "blizzard": "吹雪來襲！視野變差、腳步變慢", "vents": "地獄噴氣", "iron": "南部鐵甲", "river": "河流拖慢腳步",
     "gold": "黃金鄉", "darkness": "入夜了…生剝鬼來了！", "wind": "天狗之風！", "gunners": "鐵砲隊列陣！",
     "siege": "軍勢推進！", "eruption": "火山彈", "warashi": "👧 座敷童子出現了，快去摸她！",
-    "ochimusha": "💰 帶著軍資金的落武者在逃跑！", "ikki": "🌾 一揆衆蜂擁而來！",
+    "ochimusha": "💰 帶著軍資金的落武者在逃跑！", "hokora": "⛩ 附近出現了祠，站在旁邊 3 秒可以祈願", "ikki": "🌾 一揆衆蜂擁而來！",
 }
 _FEATS_JA = {
     "blizzard": "吹雪だ！視界が悪く足が鈍る", "vents": "地獄の噴気", "iron": "南部鉄の鎧", "river": "川で足が鈍る",
     "gold": "黄金郷", "darkness": "夜が来た…なまはげが来る！", "wind": "天狗の風！", "gunners": "鉄砲隊が布陣！",
     "siege": "軍勢が押し寄せる！", "eruption": "火山弾", "warashi": "👧 座敷わらしが現れた、触れてみよう！",
-    "ochimusha": "💰 軍資金を持った落ち武者が逃げていく！", "ikki": "🌾 一揆衆が押し寄せる！",
+    "ochimusha": "💰 軍資金を持った落ち武者が逃げていく！", "hokora": "⛩ 近くに祠が現れた。そばに 3 秒立つと祈願できる", "ikki": "🌾 一揆衆が押し寄せる！",
 }
 _PAT_ZH = {"charge": "衝撞", "ring": "彈幕環", "aim": "瞄準連射", "slam": "重擊預警", "summon": "召喚", "rain": "隨機轟擊", "nova": "大範圍爆發"}
 _PAT_JA = {"charge": "突進", "ring": "弾幕の輪", "aim": "狙い撃ち", "slam": "叩きつけ", "summon": "召喚", "rain": "降り注ぐ攻撃", "nova": "広範囲爆発"}
@@ -25,6 +25,21 @@ _LVUP_ZH = {2: "投射數 +1", 3: "傷害 +25%", 4: "範圍 +20%", 5: "投射數
 _LVUP_JA = {2: "投射数 +1", 3: "ダメージ +25%", 4: "範囲 +20%", 5: "投射数 +1", 6: "クールダウン -15%", 7: "ダメージ +30%", 8: "投射数 +1・範囲 +15%（最大）"}
 
 YUKIMURA_ZH: dict[str, str] = {
+    "yk_dm_all": "全部",
+    "yk_dm_count": "共 {n} 位大名・武將",
+    "yk_combo": "🔥 {n} 連斬（攻擊・錢 +{p}%）",
+    "yk_praying": "祈願中 {n}%",
+    "yk_msg_combo": "{n} 達成 {c} 連斬！",
+    "yk_msg_bless": "{n} 得到祠的祝福：{b}",
+    "yk_bless_might": "攻擊 +40%（30 秒）",
+    "yk_bless_speed": "加速（30 秒）",
+    "yk_bless_magnet": "吸取全部經驗珠",
+    "yk_bless_heal": "全隊體力全滿",
+    "yk_bless_ult": "采配 +50%",
+    "yk_bless_gold": "全隊 +60 錢",
+    "yk_bless_inv": "無敵 8 秒",
+    "yk_bless_luck": "幸運 +50%（40 秒）",
+    "yk_col_combo": "最高連斬",
     "yk_title": "大名幸村",
     "yk_back": "← 返回",
     "yk_home": "回首頁",
@@ -45,8 +60,7 @@ YUKIMURA_ZH: dict[str, str] = {
     "yk_quality": "畫質",
     "yk_q_high": "高（陰影）",
     "yk_q_low": "低（手機省電）",
-    "yk_pick_daimyo": "選擇大名",
-    "yk_dm_count": "共 {n} 位大名",
+    "yk_pick_daimyo": "選擇大名・武將",
     "yk_dm_search": "搜尋名字…",
     "yk_dm_start": "起始武器：",
     "yk_dm_trait": "特性：",
@@ -99,7 +113,7 @@ YUKIMURA_ZH: dict[str, str] = {
     "yk_rule_5": "地緣：武器的藩、飾品的工藝各屬於一個縣；同一縣湊 3 件得到第一段加成，湊 5 件加成加強並多一項。",
     "yk_rule_6": "幸運 ≥ 130% 時，升級會出現 4 個選項；本陣強化的「重抽」可以重新抽選項。",
     "yk_rule_7": "燈籠：走過去就能打破，掉出料理或錢。精英敵人（體型大、發金光）會掉寶箱或料理。",
-    "yk_rule_8": "多人：經驗全隊共享、錢每人各自全額；選升級時角色無敵（15 秒沒選會自動選第一個）。中途加入的人會依隊伍平均等級補發升級次數。",
+    "yk_rule_8": "多人：經驗全隊共享、錢每人各自全額；選升級時角色無敵、敵人不會貼近，選完再無敵 1 秒（15 秒沒選會自動選第一個）。中途加入的人會依隊伍平均等級補發升級次數。",
     "yk_fd_heal": "回復 {n}",
     "yk_fd_full": "全回復",
     "yk_fd_magnet": "吸取全部經驗珠",
@@ -172,6 +186,21 @@ YUKIMURA_ZH: dict[str, str] = {
 }
 
 YUKIMURA_JA: dict[str, str] = {
+    "yk_dm_all": "すべて",
+    "yk_dm_count": "全 {n} 人の大名・武将",
+    "yk_combo": "🔥 {n} 連斬（攻撃・銭 +{p}%）",
+    "yk_praying": "祈願中 {n}%",
+    "yk_msg_combo": "{n} が {c} 連斬を達成！",
+    "yk_msg_bless": "{n} が祠の加護を得た：{b}",
+    "yk_bless_might": "攻撃 +40%（30 秒）",
+    "yk_bless_speed": "加速（30 秒）",
+    "yk_bless_magnet": "経験珠をすべて回収",
+    "yk_bless_heal": "全員の体力全快",
+    "yk_bless_ult": "采配 +50%",
+    "yk_bless_gold": "全員 +60 銭",
+    "yk_bless_inv": "無敵 8 秒",
+    "yk_bless_luck": "幸運 +50%（40 秒）",
+    "yk_col_combo": "最高連斬",
     "yk_title": "大名幸村",
     "yk_back": "← 戻る",
     "yk_home": "ホームへ",
@@ -192,8 +221,7 @@ YUKIMURA_JA: dict[str, str] = {
     "yk_quality": "画質",
     "yk_q_high": "高（影あり）",
     "yk_q_low": "低（スマホ省電力）",
-    "yk_pick_daimyo": "大名を選ぶ",
-    "yk_dm_count": "全 {n} 人の大名",
+    "yk_pick_daimyo": "大名・武将を選ぶ",
     "yk_dm_search": "名前で検索…",
     "yk_dm_start": "初期武器：",
     "yk_dm_trait": "特性：",
@@ -246,7 +274,7 @@ YUKIMURA_JA: dict[str, str] = {
     "yk_rule_5": "地縁：武器の藩・飾りの工芸はそれぞれ一つの県に属する。同じ県を 3 個で第一段階、5 個で強化＋もう一つのボーナス。",
     "yk_rule_6": "幸運 130% 以上でレベルアップの選択肢が 4 つに。本陣強化の「引き直し」で選択肢を引き直せる。",
     "yk_rule_7": "灯籠：歩いてぶつかると壊れ、料理か銭が出る。精鋭の敵（大きく金色に光る）は宝箱か料理を落とす。",
-    "yk_rule_8": "マルチ：経験値はパーティ共有、銭は各自満額。レベルアップを選んでいる間は無敵（15 秒で自動的に一つ目を選ぶ）。途中参加の人にはパーティ平均レベルに応じてレベルアップ回数を補充。",
+    "yk_rule_8": "マルチ：経験値はパーティ共有、銭は各自満額。レベルアップを選んでいる間は無敵で敵も近づかず、選んだ後も 1 秒無敵（15 秒で自動的に一つ目を選ぶ）。途中参加の人にはパーティ平均レベルに応じてレベルアップ回数を補充。",
     "yk_fd_heal": "回復 {n}",
     "yk_fd_full": "全回復",
     "yk_fd_magnet": "経験珠をすべて回収",
@@ -324,7 +352,7 @@ YUKIMURA_EN: dict[str, str] = {
 
 # 首頁卡片（project_yukimura_* 不以 yk_ 開頭，留在共用 i18n.js）
 YUKIMURA_PROJECT: dict[str, dict[str, str]] = {
-    "zh": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戰國類倖存者：72 位大名擇一，在 15 分鐘內活下來並打倒魔王。240 種武器、500 種東北工藝飾品，升級三選一、奧義進化、地緣與元素反應；十大關卡各有機制、20 張東北地圖，3D 建模，手機搖桿操作，多人可中途加入"},
-    "ja": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戦国サバイバー：72 人の大名から選び、15 分生き延びて魔王を討て。240 種の武器と 500 種の東北工芸の飾り、三択レベルアップ・奥義進化・地縁と元素反応。ギミック付き 10 ステージと東北マップ 20 枚、3D モデル、スマホはスティック操作、マルチは途中参加可"},
-    "en": {"project_yukimura_name": "Daimyo Yukimura", "project_yukimura_desc": "Sengoku survivor-like set in Tohoku: pick one of 72 daimyo, survive 15 minutes and defeat the final boss. 240 weapons, 500 craft accessories, pick-1-of-3 level ups, evolutions and synergies; 10 stages with unique mechanics, 20 Tohoku maps, 3D models, mobile joystick, drop-in/drop-out co-op"},
+    "zh": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戰國類倖存者：121 位大名・武將擇一，在 15 分鐘內活下來並打倒魔王。240 種武器、500 種東北工藝飾品，升級三選一、奧義進化、地緣與元素反應；十大關卡各有機制、20 張東北地圖，3D 建模，手機搖桿操作，多人可中途加入"},
+    "ja": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戦国サバイバー：121 人の大名・武将から選び、15 分生き延びて魔王を討て。240 種の武器と 500 種の東北工芸の飾り、三択レベルアップ・奥義進化・地縁と元素反応。ギミック付き 10 ステージと東北マップ 20 枚、3D モデル、スマホはスティック操作、マルチは途中参加可"},
+    "en": {"project_yukimura_name": "Daimyo Yukimura", "project_yukimura_desc": "Sengoku survivor-like set in Tohoku: pick one of 121 daimyo and generals, survive 15 minutes and defeat the final boss. 240 weapons, 500 craft accessories, pick-1-of-3 level ups, evolutions and synergies; 10 stages with unique mechanics, 20 Tohoku maps, 3D models, mobile joystick, drop-in/drop-out co-op"},
 }
