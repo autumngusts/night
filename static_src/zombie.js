@@ -262,12 +262,35 @@
     if (!s) { app.appendChild(panel(null, [el("p", { class: "zm-muted" }, [t("zm_waiting_state")])])); return; }
     app.appendChild(topBar(s));
     if (s.phase === "end") return screenEnd(s);
-    if (!me(s)) app.appendChild(el("p", { class: "zm-hint" }, [t("zm_spectator")]));
+    memberBar(s);
     offlineBar(s);
     if (s.phase === "plan") return screenPlan(s);
     if (s.phase === "explore") return screenExplore(s);
     if (s.phase === "night") return screenNightPrep(s);
     if (s.phase === "dawn") return screenDawn(s);
+  }
+
+  // 中途加入／離開（2026-11-05）：不在這一局的人可以加入；在這一局的人（不是最後一人）可以離開，倖存者交給隊友
+  function memberBar(s) {
+    if (!ui.room) return;
+    var night = s.phase === "night";
+    if (!me(s)) {
+      var full = s.players.length >= Core.MAX_PLAYERS, back = !!(s.leftPlayers && s.leftPlayers[sess.pid]);
+      app.appendChild(el("div", { class: "zm-hint zm-actions", id: "zm-join-bar" }, [
+        el("span", null, [t(back ? "zm_join_back_hint" : "zm_spectator", { n: Core.JOIN_SURV })]),
+        btn("➕ " + t(back ? "zm_rejoin_game" : "zm_join_game"), function () {
+          sess.send({ a: "join", name: lsGet(NAME_KEY) || ui.room.me.name || "", special: ui.room.me.special || "" });
+        }, "zm-btn zm-primary", { id: "zm-join-game", disabled: night || full }),
+        night || full ? el("span", { class: "zm-small zm-muted" }, [t(full ? "zm_join_full" : "zm_join_night", { n: Core.MAX_PLAYERS })]) : null
+      ]));
+      return;
+    }
+    if (s.players.length < 2) return;
+    app.appendChild(el("div", { class: "zm-actions zm-leave-bar" }, [
+      btn("🚪 " + t("zm_leave_game"), function () {
+        if (window.confirm(t("zm_leave_confirm"))) sess.send({ a: "leave" });
+      }, "zm-link", { id: "zm-leave-game", disabled: night, title: night ? t("zm_leave_night") : "" })
+    ]));
   }
 
   // 連線時有人離線：房主可以不等他繼續（規劃、外出投票、清晨都適用）
@@ -282,7 +305,8 @@
     if (!off.length || ["plan", "explore", "dawn"].indexOf(s.phase) < 0) return;
     app.appendChild(el("div", { class: "zm-hint zm-actions" }, [
       el("span", null, ["📴 " + t("zm_offline", { n: off.map(function (pid) { return pname(s, pid); }).join("、") })]),
-      sess.host ? btn(t("zm_skip_offline"), function () { sess.send({ a: "skip", who: off }); }, "zm-btn", { id: "zm-skip-offline" }) : el("span", { class: "zm-small zm-muted" }, [t("zm_skip_offline_host")])
+      sess.host ? btn(t("zm_skip_offline"), function () { sess.send({ a: "skip", who: off }); }, "zm-btn", { id: "zm-skip-offline" }) : el("span", { class: "zm-small zm-muted" }, [t("zm_skip_offline_host")]),
+      sess.host && me(s) ? btn(t("zm_kick_offline"), function () { if (window.confirm(t("zm_kick_confirm"))) sess.send({ a: "kick", who: off }); }, "zm-btn", { id: "zm-kick-offline" }) : null
     ]));
   }
 

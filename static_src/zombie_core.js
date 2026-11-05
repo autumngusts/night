@@ -165,6 +165,9 @@
   function applyIntent(s, pid, it) {
     if (!s || s.end || !it) return false;
     if (!s.votes) s.votes = {};
+    // 中途加入（不在 s.players 裡的人也能送）／中途離開（2026-11-05 使用者指定）
+    if (it.a === "join") return addPlayer(s, pid, it.name, it.special);
+    if (it.a === "leave") return removePlayer(s, pid);
     var me = s.players.filter(function (p) { return p.pid === pid; })[0];
     if (!me) return false;
     var v = it.sid ? survById(s, it.sid) : null;
@@ -218,6 +221,10 @@
       case "answer":
         if (s.phase !== "explore") return false;
         return voteCard(s, pid, it.ex || pid, it.c | 0);
+      case "kick":
+        // 讓離線的人退出這一局（房主在畫面上按；倖存者交給留下來的人）
+        return (Array.isArray(it.who) ? it.who : []).filter(function (w) { return w !== pid; })
+          .map(function (w) { return removePlayer(s, w); }).some(Boolean);
       case "skip":
         // 不等離線的人（房主在畫面上按；連線時有人斷線，不要讓整局卡住）：
         //   規劃＝當作他準備好了、外出＝他那一隊用目前的票決定（沒人投就投第一個可選的）、清晨＝當作他看完了
@@ -230,6 +237,68 @@
       default:
         return false;
     }
+  }
+  // ---------------- 中途加入／離開（2026-11-05 使用者「其他玩家要能夠中途加入，也能夠中途離開」） ----------------
+  // 加入：夜晚即時防守中不行（夜晚模擬開始時就固定了防守的人），最多 MAX_PLAYERS 人。
+  //   第一次加入＝帶著 JOIN_SURV 個同伴前來投靠（各自帶一點物資）；
+  //   離開後再回來＝領回自己原本、還活著的倖存者（不會再多送人，避免離開再加入刷人頭）。
+  // 離開：倖存者（含外出中的隊伍）交給留下來、倖存者最少的人；外出中的事件卡用目前的票決定完；最後一人不能離開。
+  var MAX_PLAYERS = 4, JOIN_SURV = 2;
+  function addPlayer(s, pid, name, special) {
+    if (!/^[a-z0-9]{1,40}$/i.test(String(pid)) || s.phase === "night" || s.phase === "end") return false;
+    if (s.players.some(function (p) { return p.pid === pid; }) || s.players.length >= MAX_PLAYERS) return false;
+    s.leftPlayers = s.leftPlayers || {};
+    var nm = String(name || "").slice(0, 16), back = s.leftPlayers[pid];
+    s.players.push({ pid: pid, name: nm });
+    s.plans[pid] = { district: "", build: "repair", craft: "", ready: false };
+    if (s.ack && s.phase === "dawn") s.ack[pid] = false;
+    if (back) {
+      var got = 0;
+      (back.surv || []).forEach(function (id) {
+        var v = survById(s, id);
+        if (!v || !v.alive || onExpedition(s, v)) return;
+        v.owner = pid; if (v.assign === "scavenge") v.assign = "rest"; got++;
+      });
+      delete s.leftPlayers[pid];
+      s.log.push(line("zm_log_rejoin", { name: nm || "?", n: got }));
+    } else {
+      for (var k = 0; k < JOIN_SURV; k++) makeSurvivor(s, pid, k === 0 && D.SPECIALS[special] ? special : null);
+      resGain(s, "food", 3); resGain(s, "water", 3);
+      s.stats.recruits += JOIN_SURV;
+      s.log.push(line("zm_log_join", { name: nm || "?", n: JOIN_SURV }));
+    }
+    return true;
+  }
+  function onExpedition(s, v) {
+    return s.phase === "explore" && Object.keys(s.explore || {}).some(function (k) { var ex = s.explore[k]; return !ex.done && ex.team.indexOf(v.id) >= 0; });
+  }
+  function removePlayer(s, pid) {
+    if (s.phase === "night" || s.phase === "end") return false;
+    var idx = -1;
+    s.players.forEach(function (p, i) { if (p.pid === pid) idx = i; });
+    if (idx < 0 || s.players.length <= 1) return false;
+    var who = s.players[idx];
+    // 外出中：他那一隊的事件卡先依目前的票決定完（和「不等離線的人」相同）
+    if (s.phase === "explore" && s.explore[pid] && !s.explore[pid].done) skipPlayers(s, pid, [pid]);
+    s.players.splice(idx, 1);
+    delete s.plans[pid];
+    if (s.ack) delete s.ack[pid];
+    Object.keys(s.votes || {}).forEach(function (k) { delete s.votes[k][pid]; });
+    var mine = s.surv.filter(function (v) { return v.alive && v.owner === pid; });
+    s.leftPlayers = s.leftPlayers || {};
+    s.leftPlayers[pid] = { name: who.name, surv: mine.map(function (v) { return v.id; }) };
+    mine.forEach(function (v) {
+      var to = s.players.slice().sort(function (a, b) {
+        return alive(s).filter(function (x) { return x.owner === a.pid; }).length - alive(s).filter(function (x) { return x.owner === b.pid; }).length;
+      })[0].pid;
+      v.owner = to;
+    });
+    s.log.push(line("zm_log_leave", { name: who.name || "?", n: mine.length }));
+    // 剩下的人都準備好了／看完了：照常往下走
+    if (s.phase === "plan" && !s.gate && allReady(s)) startExplore(s);
+    else if (s.phase === "explore" && Object.keys(s.explore).every(function (k) { return s.explore[k].done; })) endDay(s);
+    else if (s.phase === "dawn" && s.players.every(function (p) { return s.ack[p.pid]; })) startDay(s);
+    return true;
   }
   function canScavenge(v) { return v.alive && v.hp > 3 && v.sta >= 2; }
   function allReady(s) { return s.players.every(function (p) { return s.plans[p.pid] && s.plans[p.pid].ready; }); }
@@ -929,6 +998,7 @@
   }
 
   window.PriTestZombieCore = {
+    addPlayer: addPlayer, removePlayer: removePlayer, MAX_PLAYERS: MAX_PLAYERS, JOIN_SURV: JOIN_SURV,
     VERSION: VERSION, MAX_HP: MAX_HP, MAX_STA: MAX_STA, WALL_HP: WALL_HP, CORE_HP: CORE_HP, EVAC_DAYS: EVAC_DAYS,
     newGame: newGame, applyIntent: applyIntent, votesOf: votesOf, voteKeyGate: voteKeyGate, voteKeyCard: voteKeyCard, endNight: endNight, nightSetup: nightSetup, currentCard: currentCard, reqOk: reqOk,
     alive: alive, survById: survById, stat: stat, weaponOf: weaponOf, has: has, progress: progress, heatOf: heatOf, cureNeed: cureNeed,

@@ -324,6 +324,29 @@ function fakeFirebase() {
   await B.waitForFunction(function () { return window.PriTestZombie.sess.s.day === 2 && window.PriTestZombie.sess.s.phase === "plan"; }, null, { timeout: 10000 });
   await noMissingKeys(B, "coop day 2");
   await B.screenshot({ path: path.join(SHOT_DIR, "coop_day2_guest.png"), fullPage: true });
+  // 中途加入／離開（2026-11-05）：第三個人在第 2 天加入，帶著同伴前來；再離開，倖存者交給留下來的人
+  var ctxC = await browser.newContext({ viewport: { width: 1100, height: 950 } });
+  await fb.attach(ctxC);
+  var C = await ctxC.newPage();
+  watch(C, "late");
+  await C.goto(BASE); await fb.sync(C);
+  await C.evaluate(function () { localStorage.setItem("pritest-lang", "zh"); localStorage.setItem("pritest-zombie-name", "路人"); });
+  await C.goto(url); await fb.sync(C);
+  // 遊戲進行中進房間會直接進遊戲畫面（觀戰），上面有「中途加入」
+  await C.waitForSelector("#zm-join-game", { timeout: 10000 });
+  await C.evaluate(function () { document.getElementById("zm-join-game").click(); });
+  await C.waitForSelector(".zm-surv.zm-mine", { timeout: 10000 });
+  var late = await A.evaluate(function () { var s = window.PriTestZombie.sess.s; return { n: s.players.length, alive: s.surv.filter(function (v) { return v.alive; }).length }; });
+  assert.strictEqual(late.n, 3, "中途加入後 3 人");
+  assert.strictEqual(await C.evaluate(function () { return document.querySelectorAll(".zm-surv.zm-mine").length; }), 2, "帶著 2 個同伴");
+  await noMissingKeys(C, "late join");
+  await C.evaluate(function () { document.getElementById("zm-leave-game").click(); });
+  await A.waitForFunction(function () { return window.PriTestZombie.sess.s.players.length === 2; }, null, { timeout: 10000 });
+  assert.strictEqual(await A.evaluate(function () { var s = window.PriTestZombie.sess.s; return s.surv.filter(function (v) { return v.alive; }).length; }), late.alive, "離開後倖存者還在（交給留下來的人）");
+  await C.waitForSelector("#zm-join-game", { timeout: 10000 });
+  assert.ok((await C.textContent("#zm-join-bar")).indexOf("領回") >= 0, "離開的人看到可以回來");
+  await C.evaluate(function () { window.PriTestZombie.ui.room.close(); });
+  await ctxC.close();
   // 客人重新整理：同一個 pid、還是自己的倖存者
   var bPid = await B.evaluate(function () { return window.PriTestZombie.sess.pid; });
   assert.ok(/room=g[0-9a-f]{32}/.test(await B.evaluate(function () { return location.href; })), "加入後網址帶著房間（重新整理才回得到）");

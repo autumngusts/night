@@ -347,3 +347,12 @@
 .gs-recipe-mat.gs-open { background: rgba(212, 172, 13, 0.18); }
 .gs-recipe-mat:disabled { opacity: 0.8; cursor: default; }
 .gs-recipe-mat .gs-art svg { width: 24px; height: 24px; }
+
+/* 玩家（中途加入／離開）與超級控制 */
+.gs-members { list-style: none; padding: 0; margin: 0.25rem 0; }
+.gs-members li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.25rem 0; border-bottom: 1px dashed #ddd; }
+.gs-members li.gs-current { font-weight: bold; }
+.gs-members li.gs-left { opacity: 0.55; }
+.gs-member-btn { font-size: 0.85em; padding: 0.1rem 0.5rem; }
+.gs-super { margin-top: 0.5rem; }
+.gs-super-badge { color: #c0392b; }

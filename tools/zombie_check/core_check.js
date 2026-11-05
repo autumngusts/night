@@ -328,4 +328,41 @@ console.log("9. 存檔 OK");
   assert.ok(Core.applyIntent(s, "p0", { a: "skip", who: ["p1"] }) && s.phase === "plan" && s.day === 2, "清晨：當作離線的人看完了");
 })();
 console.log("10. 不等離線的人 OK");
+// ---------------- 11. 中途加入／離開（2026-11-05） ----------------
+(function () {
+  var s = game(2);
+  s.gate = null;
+  var food0 = s.res.food, n0 = Core.alive(s).length;
+  assert.ok(Core.applyIntent(s, "p9", { a: "join", name: "新人" }), "中途加入");
+  assert.strictEqual(s.players.length, 3);
+  assert.strictEqual(mine(s, "p9").length, Core.JOIN_SURV, "帶著同伴前來");
+  assert.ok(s.res.food > food0 && Core.alive(s).length === n0 + Core.JOIN_SURV);
+  assert.ok(!Core.applyIntent(s, "p9", { a: "join", name: "新人" }), "已經在局裡不能再加入");
+  assert.ok(Core.applyIntent(s, "p9", { a: "assign", sid: mine(s, "p9")[0].id, job: "build" }), "加入後可以操作自己的人");
+  // 離開：倖存者交給留下來的人，準備狀態照算
+  Core.applyIntent(s, "p0", { a: "ready", v: true });
+  Core.applyIntent(s, "p1", { a: "ready", v: true });
+  var had = mine(s, "p9").map(function (v) { return v.id; });
+  assert.ok(Core.applyIntent(s, "p9", { a: "leave" }), "中途離開");
+  assert.strictEqual(s.players.length, 2);
+  assert.strictEqual(mine(s, "p9").length, 0, "倖存者交出去了");
+  assert.ok(s.phase === "explore" || s.phase === "night", "剩下的人都準備好了＝照常往下走（沒人外出時直接入夜）");
+  // 再回來：領回還活著的人，不會多送
+  Core.applyIntent(s, "p0", { a: "skip", who: ["p1"] });
+  while (s.phase === "explore") { Object.keys(s.explore).forEach(function (k) { if (!s.explore[k].done) Core.applyIntent(s, "p0", { a: "skip", who: [k] }) || Core.applyIntent(s, k, { a: "force", k: k }); }); }
+  assert.ok(!Core.applyIntent(s, "p9", { a: "join" }) || s.phase !== "night", "夜晚不能加入");
+  if (s.phase === "night") Core.endNight(s, Night.create(s.night).runToEnd());
+  var nAlive = Core.alive(s).length;
+  assert.ok(Core.applyIntent(s, "p9", { a: "join", name: "新人" }), "回到這一局");
+  assert.ok(mine(s, "p9").every(function (v) { return had.indexOf(v.id) >= 0; }) && Core.alive(s).length === nAlive, "領回原本的人，沒有多送");
+  assert.ok(s.phase === "dawn" && s.ack.p9 === false, "清晨加入要一起看完");
+  // 最後一人不能離開；離線的人可以被房主請出去
+  assert.ok(Core.applyIntent(s, "p0", { a: "kick", who: ["p1", "p9"] }) && s.players.length === 1, "讓離線的人退出");
+  assert.ok(!Core.applyIntent(s, "p0", { a: "leave" }), "最後一人不能離開");
+  JSON.parse(JSON.stringify(s));
+  // 上限 4 人
+  var s2 = game(4);
+  assert.ok(!Core.applyIntent(s2, "p8", { a: "join" }), "滿 4 人不能加入");
+})();
+console.log("11. 中途加入／離開 OK");
 console.log("zombie core_check OK");

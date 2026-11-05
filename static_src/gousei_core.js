@@ -219,10 +219,68 @@
     }
     next.log.push(entry);
     if (!finished) {
-      next.turn += 1;
-      if (next.turn >= next.players.length) { next.turn = 0; next.round += 1; }
+      advanceTurn(next);
     }
     return { state: next, entry: entry };
+  }
+
+  // 換下一位：跳過已離開的人（2026-11-05 中途離開）；繞回第一位時輪數 +1
+  function advanceTurn(next) {
+    var n = next.players.length;
+    for (var i = 0; i < n; i++) {
+      next.turn += 1;
+      if (next.turn >= n) { next.turn = 0; next.round += 1; }
+      if (!next.players[next.turn].left) return;
+    }
+  }
+  function activeCount(state) { return state.players.filter(function (p) { return !p.left; }).length; }
+
+  // ---------------- 中途加入／離開（2026-11-05 使用者指定） ----------------
+  // 座位不刪除（連線手機以座位編號辨識自己），離開＝ players[i].left = true，輪流時跳過；回來＝取消標記。
+  // 新玩家排在最後一個座位：對戰模式另外抽 3 個沒人用過的任務（中階 1＋高階 2，亂數序列 "join:<seed>:<座位>"），
+  //   合作模式沒有個人任務。上一步的快照也一起改，復原不會把人變回來或趕出去。
+  function addPlayer(theme, state, name) {
+    if (state.winner) throw new Error("game-over");
+    if (state.players.length >= MAX_PLAYERS) throw new Error("gs_join_err_full");
+    var next = clone(state), idx = next.players.length;
+    var targets = [];
+    if (!next.coop) {
+      var used = {};
+      next.players.forEach(function (p) { p.targets.forEach(function (id) { used[id] = true; }); });
+      var rng = makeRng("join:" + next.seed + ":" + idx);
+      var pick = function (range, k) {
+        return shuffle(theme.items.filter(function (it) {
+          return it.cat !== "basic" && !theme.junkSet[it.id] && !used[it.id] && next.pool.indexOf(it.id) < 0 && inRange(it.tier, range);
+        }).map(function (it) { return it.id; }), rng).slice(0, k);
+      };
+      targets = pick(MID_TIERS, 1).concat(pick(HIGH_TIERS, 2));
+      if (targets.length < 3) throw new Error("gs_not_enough_targets");
+    }
+    var p = { id: "p" + (idx + 1), name: String(name || "").slice(0, 20), targets: targets, done: [], joinedRound: next.round };
+    next.players.push(p);
+    if (next.prev) next.prev.players.push(clone(p));
+    if (!next.baseCount) next.baseCount = state.players.length;
+    if (next.prev && !next.prev.baseCount) next.prev.baseCount = next.baseCount;
+    return { state: next, index: idx };
+  }
+  function setLeft(state, index, left) {
+    if (state.winner) throw new Error("game-over");
+    var p = state.players[index];
+    if (!p || !!p.left === !!left) throw new Error("gs_join_err_seat");
+    if (left && activeCount(state) <= 1) throw new Error("gs_leave_err_last");
+    var next = clone(state);
+    next.players[index].left = !!left;
+    if (next.prev && next.prev.players[index]) next.prev.players[index].left = !!left;
+    if (left && next.turn === index) advanceTurn(next);
+    return { state: next };
+  }
+  // 超級控制（密碼由畫面端檢查）：直接指定輪到誰
+  function setTurn(state, index) {
+    if (state.winner) throw new Error("game-over");
+    if (!state.players[index] || state.players[index].left) throw new Error("gs_join_err_seat");
+    var next = clone(state);
+    next.turn = index;
+    return { state: next };
   }
 
   // 合作模式提前結算：以目前的達成數計分（可復原一層）
@@ -383,8 +441,10 @@
   }
 
   // 分別裝置模式：手機只需要主題、seed、人數、自己的編號，就能算出自己的任務（不同步）
+  // 中途加入的座位（index ≥ 開局人數）一律搭配房間使用，人數寫目前的人數；原本的座位維持開局人數，手機算出的任務不變
   function joinParam(state, index) {
-    return [state.themeId, state.seed, state.players.length, index].join(".");
+    var base = state.baseCount || state.players.length;
+    return [state.themeId, state.seed, index < base ? base : state.players.length, index].join(".");
   }
 
   function parseJoin(str) {
@@ -715,6 +775,10 @@
     COOP_WINNER: COOP_WINNER,
     endCoop: endCoop,
     coopScore: coopScore,
+    addPlayer: addPlayer,
+    setLeft: setLeft,
+    setTurn: setTurn,
+    activeCount: activeCount,
     HINT_EVERY_FAILS: HINT_EVERY_FAILS,
     coopHints: coopHints,
     useCoopHint: useCoopHint,

@@ -33,7 +33,8 @@
   var state = null;
   var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false, online: false };
   var ui = { revealedFor: null, revealed: false, slots: [null, null], trioChoice: null, lastEntry: null, search: "", cat: "all",
-    qrFor: null, confirmNew: false, confirmEnd: false, recipeOpen: {}, hintConfirm: null, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
+    qrFor: null, confirmNew: false, confirmEnd: false, recipeOpen: {}, hintConfirm: null,
+    showMembers: false, joinName: "", newcomer: false, superCtl: false, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
   var join = null;
   // 連線同步的房間：{ id, hostId, me: 手機的玩家編號（主機為 null）, loaded, missing, unsubscribe }
   var room = null;
@@ -48,6 +49,16 @@
   }
 
   function t(key, params) { return window.I18N.t(key, params); }
+
+  // ---------------- 超級控制（2026-11-05 使用者指定：輸入密碼 nightnight 可以直接控制其他玩家） ----------------
+  // 只存在這個分頁（sessionStorage）。開啟後：任何人的回合都能合成、能指定輪到誰、能替別人加入／離開。
+  var SUPER_KEY = "pritest-gousei-super", SUPER_PASS = "nightnight";
+  function loadSuper() { try { return sessionStorage.getItem(SUPER_KEY) === "1"; } catch (e) { return false; } }
+  function setSuper(on) {
+    ui.superCtl = on;
+    try { if (on) sessionStorage.setItem(SUPER_KEY, "1"); else sessionStorage.removeItem(SUPER_KEY); } catch (e) { /* 只是記不住 */ }
+  }
+  ui.superCtl = loadSuper();
 
   function loadClientId() {
     var id = null;
@@ -195,7 +206,7 @@
     var list = el("ul", { class: "gs-progress" });
     state.players.forEach(function (p, i) {
       list.appendChild(el("li", { class: i === state.turn && !state.winner ? "gs-current" : "", "data-player": p.id,
-        text: t("gs_progress", { name: p.name, done: p.done.length, total: p.targets.length }) }));
+        text: t("gs_progress", { name: p.name, done: p.done.length, total: p.targets.length }) + (p.left ? t("gs_member_left") : "") }));
     });
     return el("div", { class: "gs-panel" }, [el("h2", { text: t("gs_progress_heading") }), list]);
   }
@@ -290,7 +301,9 @@
 
   function isHost() { return !room || room.hostId === clientId; }
   // 手機只能在自己的回合操作；主機（與離線）可以替任何人操作
-  function canAct() { return !room || room.me === null || (!!state && state.turn === room.me); }
+  function canAct() { return !room || room.me === null || ui.superCtl || (!!state && state.turn === room.me); }
+  // 可以管理座位（加人、請人離開／回來）：離線、主機裝置，或超級控制中
+  function canManage() { return !room || room.me === null || ui.superCtl; }
 
   function createRoom(initial) {
     var id = Storage.generateCloudGameId();
@@ -578,11 +591,11 @@
       chosen = options[0];
     }
     ui.trioChoice = null;
-    var logLen = state.log.length, me = room ? room.me : null;
+    var logLen = state.log.length, me = room ? room.me : null, superOn = !!ui.superCtl;
     mutate(function (s) {
       // 按下之後別台先合成了（紀錄變了）就作廢，請玩家看過新畫面再操作
       if (s.log.length !== logLen) throw new Error("gs_err_stale");
-      if (me !== null && s.turn !== me) throw new Error("gs_err_turn");
+      if (me !== null && s.turn !== me && !superOn) throw new Error("gs_err_turn");
       return isTrio ? Core.applyCombineTrio(theme, s, filled[0], filled[1], filled[2], chosen)
         : Core.applyCombine(theme, s, filled[0], filled[1]);
     }, function (res) {
@@ -671,6 +684,99 @@
     return el("details", { class: "gs-panel" }, [el("summary", { text: t("gs_log") }), list]);
   }
 
+  function superButton() {
+    return el("div", { class: "gs-actions gs-super" }, [
+      ui.superCtl ? el("span", { id: "gs-super-on", class: "gs-badge gs-super-badge", text: "🔑 " + t("gs_super_on") }) : null,
+      el("button", { id: "gs-super", type: "button", class: "gs-link", text: ui.superCtl ? t("gs_super_off") : "🔑 " + t("gs_super"),
+        onclick: function () {
+          if (ui.superCtl) { setSuper(false); render(); return; }
+          var pw = window.prompt(t("gs_super_prompt"));
+          if (pw === null) return;
+          if (pw === SUPER_PASS) { setSuper(true); ui.showMembers = true; }
+          else ui.playError = t("gs_super_wrong");
+          render();
+        } })
+    ]);
+  }
+
+  // 玩家（座位）：中途加入、離開、回來；超級控制時可以指定輪到誰
+  function renderMembers(theme) {
+    var manage = canManage(), over = !!state.winner;
+    var list = el("ul", { id: "gs-members", class: "gs-members" });
+    state.players.forEach(function (p, i) {
+      list.appendChild(el("li", { "data-player": p.id, class: (p.left ? "gs-left" : "") + (i === state.turn && !over ? " gs-current" : "") }, [
+        el("span", { text: (i === state.turn && !over ? "▶ " : "") + p.name + (p.left ? t("gs_member_left") : "") + (room && room.me === i ? t("gs_member_you") : "") }),
+        manage && !over ? el("button", { type: "button", class: "gs-member-btn", "data-seat": String(i), disabled: ui.busy,
+          text: t(p.left ? "gs_member_back" : "gs_member_leave"),
+          onclick: function () {
+            if (!p.left && !window.confirm(t("gs_member_leave_confirm", { name: p.name }))) return;
+            mutate(function (s2) { return Core.setLeft(s2, i, !p.left); }, function () { resetTurnUi(); save(); render(); });
+          } }) : null,
+        ui.superCtl && !over && !p.left && i !== state.turn ? el("button", { type: "button", class: "gs-member-btn", "data-turn": String(i), disabled: ui.busy,
+          text: t("gs_member_turn"), onclick: function () {
+            mutate(function (s2) { return Core.setTurn(s2, i); }, function () { resetTurnUi(); save(); render(); });
+          } }) : null
+      ]));
+    });
+    var box = el("div", { id: "gs-members-panel", class: "gs-panel" }, [el("h2", { text: t("gs_members_heading") }), list]);
+    if (manage && !over && state.players.length < Core.MAX_PLAYERS) {
+      var nameIn = el("input", { id: "gs-join-name", type: "text", class: "gs-name-input", maxlength: 20, value: ui.joinName,
+        placeholder: t("gs_player_default", { n: state.players.length + 1 }), oninput: function (e) { ui.joinName = e.target.value; } });
+      box.appendChild(el("div", { class: "gs-actions" }, [nameIn,
+        el("button", { id: "gs-join-add", type: "button", disabled: ui.busy, text: "➕ " + t("gs_member_add"), onclick: function () {
+          var nm = ui.joinName.trim() || t("gs_player_default", { n: state.players.length + 1 });
+          mutate(function (s2) { return Core.addPlayer(theme, s2, nm); }, function () { ui.joinName = ""; save(); render(); });
+        } })]));
+      if (room) {
+        var url = newcomerUrl();
+        var canvas = el("canvas", { id: "gs-newjoin-qr", class: "gs-qr" });
+        window.PriTestQRCode.renderToCanvas(canvas, url, { level: "L", scale: 4, margin: 2 });
+        box.appendChild(el("p", { class: "gs-muted", text: t("gs_member_link_hint") }));
+        box.appendChild(canvas);
+        box.appendChild(el("input", { id: "gs-newjoin-url", type: "text", readonly: true, value: url, class: "gs-qr-url" }));
+      }
+    }
+    box.appendChild(superButton());
+    return box;
+  }
+  function newcomerUrl() { return window.location.origin + window.location.pathname + "?room=" + room.id + "&newjoin=1"; }
+
+  // 用「中途加入」連結打開的手機：先輸入名字加入，拿到自己的座位
+  function renderNewcomer(theme) {
+    var full = state.players.length >= Core.MAX_PLAYERS || !!state.winner;
+    var nameIn = el("input", { id: "gs-newcomer-name", type: "text", class: "gs-name-input", maxlength: 20, value: ui.joinName,
+      oninput: function (e) { ui.joinName = e.target.value; } });
+    var seats = el("div", { class: "gs-actions" });
+    state.players.forEach(function (p, i) {
+      if (!p.left) return;
+      seats.appendChild(el("button", { type: "button", "data-reclaim": String(i), disabled: ui.busy, text: t("gs_newcomer_reclaim", { name: p.name }),
+        onclick: function () { mutate(function (s2) { return Core.setLeft(s2, i, false); }, function () { takeSeat(i); }); } }));
+    });
+    app.appendChild(el("div", { id: "gs-newcomer", class: "gs-panel" }, [
+      el("h2", { text: t("gs_newcomer_heading") }),
+      el("p", { class: "gs-muted", text: t(state.coop ? "gs_newcomer_hint_coop" : "gs_newcomer_hint") }),
+      full ? el("p", { class: "gs-error", text: t("gs_join_err_full") }) : el("div", { class: "gs-actions" }, [
+        nameIn,
+        el("button", { id: "gs-newcomer-join", type: "button", class: "gs-primary", disabled: ui.busy, text: t("gs_newcomer_join"), onclick: function () {
+          var nm = ui.joinName.trim() || t("gs_player_default", { n: state.players.length + 1 });
+          var idx = null;
+          mutate(function (s2) { var r = Core.addPlayer(theme, s2, nm); idx = r.index; return r; }, function () { takeSeat(idx); });
+        } })
+      ]),
+      seats.childNodes.length ? el("p", { class: "gs-muted", text: t("gs_newcomer_reclaim_hint") }) : null,
+      seats.childNodes.length ? seats : null,
+      ui.playError ? el("p", { class: "gs-error", text: ui.playError }) : null
+    ]));
+  }
+  function takeSeat(i) {
+    room.me = i;
+    ui.newcomer = false;
+    ui.joinName = "";
+    // 網址換成這個座位的連結：重新整理還是同一個人
+    try { window.history.replaceState(null, "", joinUrl(i)); } catch (e) { /* 改不了網址也沒關係 */ }
+    render();
+  }
+
   function renderFooter() {
     var seed = el("p", { class: "gs-muted", text: t("gs_seed", { seed: state.seed }) });
     if (!isHost()) return el("div", {}, [seed]);
@@ -749,6 +855,11 @@
       app.appendChild(progressPanel());
     }
     app.appendChild(renderLog(theme));
+    // 玩家（中途加入／離開、超級控制）：預設收起
+    app.appendChild(el("div", { class: "gs-actions" }, [el("button", { id: "gs-members-toggle", type: "button",
+      text: "👥 " + t(ui.showMembers ? "gs_members_hide" : "gs_members_show", { n: Core.activeCount(state), m: state.players.length }),
+      onclick: function () { ui.showMembers = !ui.showMembers; render(); } })]));
+    if (ui.showMembers) app.appendChild(renderMembers(theme));
     app.appendChild(renderFooter());
   }
 
@@ -889,14 +1000,32 @@
   }
 
   // 連線同步的手機：自己的任務（預設收起）＋輪到自己時的提示
+  function seatButton() {
+    var me = state.players[room.me];
+    if (state.winner || !me) return null;
+    return el("button", { id: "gs-my-seat", type: "button", class: me.left ? "gs-primary" : "gs-link", disabled: ui.busy,
+      text: t(me.left ? "gs_my_back" : "gs_my_leave"), onclick: function () {
+        if (!me.left && !window.confirm(t("gs_my_leave_confirm"))) return;
+        var i = room.me;
+        mutate(function (s2) { return Core.setLeft(s2, i, !me.left); }, function () { resetTurnUi(); render(); });
+      } });
+  }
   function renderMyTargets(theme) {
     var me = state.players[room.me];
+    if (!me) return el("div", { id: "gs-my-targets", class: "gs-panel" }, [el("p", { class: "gs-error", text: t("gs_join_err_seat") })]);
+    if (me.left) {
+      return el("div", { id: "gs-my-targets", class: "gs-panel" }, [
+        el("h2", { text: t("gs_online_me", { name: me.name }) }),
+        el("p", { class: "gs-muted", text: t("gs_my_left") }), seatButton()
+      ]);
+    }
     var mine = !state.winner && state.turn === room.me;
     if (state.coop) {
       // 合作模式沒有個人任務：共同目標在下方公開，這裡只顯示身分與輪到自己的提示
       return el("div", { id: "gs-my-targets", class: "gs-panel" + (mine ? " gs-current" : "") }, [
         el("h2", { text: t("gs_online_me", { name: me.name }) }),
-        mine ? el("p", { class: "gs-big", text: t("gs_your_turn") }) : null
+        mine ? el("p", { class: "gs-big", text: t("gs_your_turn") }) : null,
+        seatButton()
       ]);
     }
     var box = el("div", { id: "gs-my-targets", class: "gs-panel" + (mine ? " gs-current" : "") }, [
@@ -904,7 +1033,8 @@
       mine ? el("p", { class: "gs-big", text: t("gs_your_turn") }) : null,
       el("p", { class: "gs-muted", text: t("gs_progress_short", { done: me.done.length, total: me.targets.length }) }),
       el("button", { id: "gs-join-toggle", type: "button", text: t(ui.revealed ? "gs_hide_targets" : "gs_show_targets"),
-        onclick: function () { ui.revealed = !ui.revealed; render(); } })
+        onclick: function () { ui.revealed = !ui.revealed; render(); } }),
+      seatButton()
     ]);
     if (ui.revealed) box.appendChild(targetList(theme, me, "gs-join-targets"));
     return box;
@@ -1008,6 +1138,7 @@
       app.appendChild(el("p", { class: "gs-muted", text: ui.error || t("gs_loading") }));
       return;
     }
+    if (ui.newcomer && room && room.me === null) { renderNewcomer(theme); return; }
     if (ui.screen === "qr") renderQrScreen(theme);
     else if (state.confirm) renderConfirm(theme);
     else renderPlay(theme);
@@ -1506,6 +1637,9 @@
       render();
       return;
     }
+    // 中途加入的連結：?room=<id>&newjoin=1（先輸入名字拿座位，不會變成主機）
+    var nj = params.get("room");
+    if (params.has("newjoin") && nj && ROOM_RE.test(nj)) { ui.newcomer = true; enterRoom(nj, null); return; }
     var savedRoom = null;
     try { savedRoom = localStorage.getItem(ROOM_KEY); } catch (e) { /* 忽略 */ }
     if (savedRoom && ROOM_RE.test(savedRoom)) { enterRoom(savedRoom, null); return; }
