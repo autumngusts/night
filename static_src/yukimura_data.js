@@ -348,8 +348,8 @@
   // ---------------- 東北地圖 20 張 ----------------
   // g＝地面三色、sky、fog、prop 裝飾權重（yukimura_3d.js 依名稱建模）、river 河流數、snow 下雪、ash 火山灰
   var MAPS = [
-    { name: N("弘前城下・雪桜"), pref: "aomori", g: [0xd8e0ea, 0xbccad8, 0xa4b4c6], sky: 0xbcd0e6, fog: 0xdfe8f2, prop: { snowpine: 6, sakura: 3, lantern: 2, house: 2, castle: 1, rock: 2 }, snow: 1 },
-    { name: N("八甲田山・樹氷原"), pref: "aomori", g: [0xdde5ee, 0xc4d0dd, 0xa8b8ca], sky: 0xc7d6e6, fog: 0xeef3f8, prop: { snowpine: 10, juhyo: 5, rock: 3 }, snow: 1 },
+    { name: N("弘前城下・雪桜"), pref: "aomori", g: [0xc4cfdc, 0xaab8c9, 0x8e9fb4], sky: 0xbcd0e6, fog: 0xdfe8f2, prop: { snowpine: 6, sakura: 3, lantern: 2, house: 2, castle: 1, rock: 2 }, snow: 1 },
+    { name: N("八甲田山・樹氷原"), pref: "aomori", g: [0xc8d3e0, 0xadbccd, 0x92a4b8], sky: 0xc7d6e6, fog: 0xeef3f8, prop: { snowpine: 10, juhyo: 5, rock: 3 }, snow: 1 },
     { name: N("恐山・宇曽利湖"), pref: "aomori", g: [0xa9a596, 0x8e8a7e, 0xc8c2a4], sky: 0x8c8f99, fog: 0xa8a8a0, prop: { rock: 8, grave: 6, jizo: 4, kazaguruma: 4, torii: 1 }, sulfur: 1 },
     { name: N("下北・仏ヶ浦"), pref: "aomori", g: [0xd8d6cc, 0xbdbbb0, 0x8fb0b8], sky: 0x9fb8c8, fog: 0xc4d0d4, prop: { pillar: 8, rock: 6, grave: 2 } },
     { name: N("盛岡城跡・岩手山麓"), pref: "iwate", g: [0x7a9a5a, 0x66854a, 0x8a8a6a], sky: 0x9cc0e0, fog: 0xc8d8e0, prop: { pine: 6, rock: 5, castle: 1, house: 2, anvil: 3 } },

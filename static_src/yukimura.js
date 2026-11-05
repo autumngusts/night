@@ -637,9 +637,14 @@
     if (toasts.length > 5) toasts.shift();
     if (hud) renderToasts();
   }
+  // 內容有變才重畫（每次重畫會讓淡入動畫重播，看起來一直閃）
+  var toastSig = "";
   function renderToasts() {
     var now = performance.now();
     toasts = toasts.filter(function (x) { return now - x.t < 4000; });
+    var sig = toasts.map(function (x) { return x.t; }).join(",");
+    if (sig === toastSig) return;
+    toastSig = sig;
     hud.toast.innerHTML = "";
     toasts.forEach(function (x) { hud.toast.appendChild(el("div", { class: "yk-toast" }, [x.text])); });
   }
@@ -685,7 +690,8 @@
     // 時間
     var remain = v.dur - v.t;
     hud.timer.textContent = remain > 0 ? mmss(remain) : "👹 " + mmss(v.t);
-    hud.timer.className = "yk-timer" + (remain <= 60 && remain > 0 ? " yk-warn" : "");
+    var tc = "yk-timer" + (remain <= 60 && remain > 0 ? " yk-warn" : "");
+    if (hud.timer.className !== tc) hud.timer.className = tc;
     var st = D.STAGES[v.stage];
     if (me) {
       var xpf = me.xn ? Math.min(1, me.xp / me.xn) : 0;
@@ -697,7 +703,8 @@
       var u = D.ULTS[D.DAIMYO[me.dm].ult];
       hud.ult.firstChild.textContent = u.icon;
       hud.ult.lastChild.textContent = me.ult >= 100 ? L(u.name) : Math.floor(me.ult) + "%";
-      hud.ult.className = "yk-ult" + (me.ult >= 100 ? " yk-ult-ready" : "");
+      var uc = "yk-ult" + (me.ult >= 100 ? " yk-ult-ready" : "");
+      if (hud.ult.className !== uc) hud.ult.className = uc;
       hud.ult.style.setProperty("--yk-ult", (Math.min(100, me.ult) * 3.6) + "deg");
       // 武器與飾品（有變化才重畫）
       var sig = JSON.stringify([me.W, me.A]);
@@ -729,7 +736,7 @@
     else hud.boss.classList.add("yk-hidden");
     // 關卡特色
     var fe = v.fe || {};
-    if (fe.on) { hud.feat.classList.remove("yk-hidden"); hud.feat.textContent = D.FEATS[fe.k].icon + " " + t("yk_feat_" + fe.k); } else hud.feat.classList.add("yk-hidden");
+    if (fe.on) { hud.feat.classList.remove("yk-hidden"); var ft = D.FEATS[fe.k].icon + " " + t("yk_feat_" + fe.k); if (hud.feat.textContent !== ft) hud.feat.textContent = ft; } else hud.feat.classList.add("yk-hidden");
     // 隊伍
     var pids = Object.keys(v.P);
     var tsig = pids.map(function (p) { var P = v.P[p]; return p + Math.round(P.hp / P.mhp * 20) + P.down + P.lv; }).join("|");

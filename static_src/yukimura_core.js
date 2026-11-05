@@ -595,25 +595,29 @@
     }
     if (k === "slash") {
       // 半月斬：正面，再來一刀在背面（n≥2）、第三刀左右
+      // 飛斬：近身半月斬＋向前飛出的月牙刃（貫穿）；n≥2 背面、n≥3 側面再一道
       for (i = 0; i < p.n; i++) {
         var a = fxa + (i === 1 ? Math.PI : i === 2 ? Math.PI / 2 : 0);
-        sector(s, P, P.x, P.z, a, p.area, 1.25, p.dmg, p);
-        addFx(s, "slash", P.x, P.z, a, p.area, P.pid, w.evo ? 2 : 0);
+        sector(s, P, P.x, P.z, a, p.area * 0.6, 1.25, p.dmg, p);
+        addFx(s, "slash", P.x, P.z, a, p.area * 0.6, P.pid, w.evo ? 2 : 0);
+        fly(s, P, p, a, "tachi", 13, p.area * 2.3, 0.75 * Math.sqrt(p.area / 2.6) + 0.3, null, { skipNear: p.area * 0.6 });
       }
     } else if (k === "thrust") {
+      // 擲槍：槍頭向前高速飛出，貫穿一整排
       for (i = 0; i < p.n; i++) {
-        var ta = fxa + (i - (p.n - 1) / 2) * 0.35;
-        line(s, P, P.x, P.z, Math.cos(ta), Math.sin(ta), p.area, 0.7, p.dmg, p);
-        addFx(s, "thrust", P.x, P.z, ta, p.area, P.pid, w.evo ? 2 : 0);
+        var ta = fxa + (i - (p.n - 1) / 2) * 0.3;
+        fly(s, P, p, ta, "yari", 24, p.area * 1.5, 0.7);
       }
     } else if (k === "spin") {
       near(s, P.x, P.z, p.area, function (e2) { var d = Math.sqrt(dist2(e2.x, e2.z, P.x, P.z)) || 1; hitEnemy(s, P, e2, p.dmg * (1 + 0.2 * (p.n - 1)), p, (e2.x - P.x) / d, (e2.z - P.z) / d); });
       addFx(s, "spin", P.x, P.z, fxa, p.area, P.pid, w.evo ? 2 : 0);
+      // 看得見的旋轉刀刃（只做畫面，傷害在上面一次結算）
+      for (i = 0; i < p.n; i++) s.S.push({ id: nid(s), k: "naginata", o: P.pid, x: P.x, z: P.z, a: fxa + i * Math.PI, life: 0.4, T: 0.4, mode: "spin", r0: p.area * 0.85, dmg: 0, hit: {}, p: {} });
     } else if (k === "whip") {
+      // 鎖鎌：鎌刃往左右甩出再收回（去程、回程各打一次）
       for (i = 0; i < p.n; i++) {
         var side = i % 2 === 0 ? (P.fx >= 0 ? 0 : Math.PI) : (P.fx >= 0 ? Math.PI : 0);
-        line(s, P, P.x, P.z, Math.cos(side), Math.sin(side), p.area, 1.1, p.dmg, p);
-        addFx(s, "whip", P.x, P.z, side, p.area, P.pid, w.evo ? 2 : 0);
+        fly(s, P, p, side, "kusarigama", 16, p.area * 1.4, 0.9, "boom");
       }
     } else if (k === "arrow" || k === "gun" || k === "fan" || k === "bounce" || k === "homing" || k === "boomerang") {
       e = nearest(s, P.x, P.z, 16);
@@ -642,9 +646,8 @@
       for (i = 0; i < p.n; i++) {
         e = randomNear(s, P, 13);
         if (!e) break;
-        var lx = e.x, lz = e.z;
-        near(s, lx, lz, p.area, function (e2) { hitEnemy(s, P, e2, p.dmg, p); });
-        addFx(s, "bolt", lx, lz, 0, p.area, P.pid, w.evo ? 2 : 0);
+        // 雷從天而降（0.25 秒後落地）
+        s.S.push({ id: nid(s), k: "kaminari", o: P.pid, w: w.id, x: e.x, z: e.z, life: 0.25 + i * 0.06, T: 0.25, mode: "drop", dmg: p.dmg, r: p.area, p: pack(p), a: 0 });
       }
     } else if (k === "flame") {
       w.ft = p.dur;
@@ -676,10 +679,10 @@
     } else if (k === "beam") {
       e = nearest(s, P.x, P.z, 18);
       var ba = e ? Math.atan2(e.z - P.z, e.x - P.x) : fxa;
+      // 破魔矢：發光的箭貫穿畫面
       for (i = 0; i < p.n; i++) {
         var bb = ba + (i - (p.n - 1) / 2) * 0.5;
-        line(s, P, P.x, P.z, Math.cos(bb), Math.sin(bb), 18, p.area, p.dmg, p);
-        addFx(s, "beam", P.x, P.z, bb, 18, P.pid, w.evo ? 2 : 0);
+        fly(s, P, p, bb, "hamaya", 34, 20, p.area * 0.6 + 0.35);
       }
     } else if (k === "charge") {
       for (i = 0; i < p.n; i++) {
@@ -687,6 +690,16 @@
         s.S.push({ id: nid(s), k: "kiba", o: P.pid, w: w.id, x: ox, z: oz, vx: Math.cos(ca) * p.spd, vz: Math.sin(ca) * p.spd, life: 28 / p.spd, mode: "proj", dmg: p.dmg, r: p.area, pierce: 999, hit: {}, p: pack(p), a: ca });
       }
     }
+  }
+  // 直線飛行、貫穿的投射物（飛斬、擲槍、鎖鎌、破魔矢）。mode "boom" 會飛回來
+  function fly(s, P, p, ang, vis, spd, dist, r, mode, extra) {
+    spd *= P.st ? P.st.pspd : 1;
+    var life = dist / spd;
+    var sh = { id: nid(s), k: vis, o: P.pid, x: P.x, z: P.z, vx: Math.cos(ang) * spd, vz: Math.sin(ang) * spd, spd: spd, life: mode === "boom" ? life * 2 : life, T: mode === "boom" ? life * 2 : life, mode: mode || "proj", dmg: p.dmg, r: r, pierce: 999, hit: {}, p: pack(p), a: ang };
+    // 近身斬已經打過的敵人，飛斬就不再重複打
+    if (extra && extra.skipNear) near(s, P.x, P.z, extra.skipNear, function (e) { sh.hit[e.id] = 1; });
+    s.S.push(sh);
+    return sh;
   }
   function pack(p) { return { st: p.st, knock: p.knock, crit: p.crit, gold: p.gold, pierce: p.pierce, n: p.n, area: p.area }; }
   function shoot(s, P, p, ang, k) {
@@ -852,9 +865,13 @@
       } else if (sh.mode === "drop") {
         if (sh.life <= 0) {
           near(s, sh.x, sh.z, sh.r, function (e) { hitEnemy(s, P, e, sh.dmg, st); });
-          addFx(s, sh.k === "tsurara" ? "ice" : "arrowhit", sh.x, sh.z, 0, sh.r, sh.o);
+          addFx(s, sh.k === "tsurara" ? "ice" : sh.k === "kaminari" ? "bolt" : "arrowhit", sh.x, sh.z, 0, sh.r, sh.o);
           continue;
         }
+      } else if (sh.mode === "spin") {
+        if (sh.life <= 0) continue;
+        sh.a += dt * 16;
+        sh.x = P.x + Math.cos(sh.a) * sh.r0; sh.z = P.z + Math.sin(sh.a) * sh.r0;
       } else {
         if (sh.life <= 0) continue;
         if (sh.mode === "homing") {
@@ -871,7 +888,8 @@
           if (sh.retHit !== 1) { sh.hit = {}; sh.retHit = 1; }
         }
         sh.x += sh.vx * dt; sh.z += sh.vz * dt;
-        sh.a = Math.atan2(sh.vz, sh.vx);
+        if (sh.mode !== "boom" || sh.k !== "kusarigama") sh.a = Math.atan2(sh.vz, sh.vx);
+        else sh.a += dt * 14;
         if (Math.abs(sh.x) > AR + 6 || Math.abs(sh.z) > AR + 6) continue;
         var dead = false;
         near(s, sh.x, sh.z, sh.r, function (e) {

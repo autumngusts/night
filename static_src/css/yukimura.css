@@ -106,8 +106,7 @@
 .yk-hpfill { height: 100%; background: linear-gradient(90deg, #c0262d, #ff6a50); transition: width 0.15s; }
 .yk-hptext { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 14px; }
 .yk-info { font-size: 13px; }
-.yk-feat { font-size: 13px; color: #ffe080; animation: yk-blink 1s infinite alternate; }
-@keyframes yk-blink { from { opacity: 0.6; } to { opacity: 1; } }
+.yk-feat { font-size: 13px; color: #ffe080; }
 .yk-timer { flex: none; font-size: 26px; font-weight: bold; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; padding: 0 0.4rem; }
 .yk-hudbtns { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 6px; }
 .yk-hbtn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(0, 0, 0, 0.45); color: #fff; }
@@ -118,7 +117,7 @@
 .yk-slot { position: relative; width: 30px; height: 30px; border-radius: 6px; border: 2px solid rgba(255, 255, 255, 0.5); background: rgba(0, 0, 0, 0.5); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
 .yk-slot b { position: absolute; right: -3px; bottom: -4px; font-size: 10px; background: #000; border-radius: 4px; padding: 0 2px; }
 .yk-slot-evo { box-shadow: 0 0 8px #ffd040; border-color: #ffd040 !important; }
-.yk-slot-ready { animation: yk-blink 0.6s infinite alternate; box-shadow: 0 0 6px #ffd040; }
+.yk-slot-ready { box-shadow: 0 0 6px 1px #ffd040; border-color: #ffe890 !important; }
 .yk-slot-acc { border-radius: 50%; }
 .yk-slot-sep { height: 4px; }
 .yk-pb { color: #ffe080; background: rgba(0, 0, 0, 0.5); border-color: #ffd040; font-size: 10px; }
@@ -138,8 +137,7 @@
 .yk-ult span { position: relative; z-index: 1; }
 .yk-ult-icon { font-size: 28px; line-height: 1; }
 .yk-ult-pct { font-size: 11px; max-width: 70px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.yk-ult-ready { animation: yk-pulse 0.8s infinite alternate; }
-@keyframes yk-pulse { from { box-shadow: 0 0 6px 2px #ffb020; } to { box-shadow: 0 0 22px 8px #ff6020; } }
+.yk-ult-ready { box-shadow: 0 0 16px 5px #ff9020; }
 .yk-joy { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.08); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
 .yk-joy-on { opacity: 1; }
 .yk-joy-knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); transform: translate(-50%, -50%); }

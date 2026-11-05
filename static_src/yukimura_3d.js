@@ -220,9 +220,15 @@
     ice: function () { return [part(prim("cone", 0.22, 1.2, 6), 0xbfe8ff, [0, 0, 0], [Math.PI, 0, 0])]; },
     rainarrow: function () { return [part(prim("cyl", 0.02, 0.02, 1.0, 4), 0x8a6a3a, [0, 0.5, 0]), part(prim("cone", 0.05, 0.16, 4), 0xd0d0d8, [0, -0.05, 0], [Math.PI, 0, 0])]; },
     orb: function () { return [part(prim("sph", 0.2, 8, 6), 0xff5050, [0, 0, 0])]; },
+    crescent: function () { return [part(prim("tor", 0.85, 0.12, 16, Math.PI), 0x9fd4ff, [0, 0, 0], [Math.PI / 2, 0, -Math.PI / 2], [1, 1, 0.35]), part(prim("tor", 0.7, 0.06, 16, Math.PI), 0x4aa0ff, [-0.08, 0, 0], [Math.PI / 2, 0, -Math.PI / 2], [1, 1, 0.3])]; },
+    spear: function () { return [part(prim("cyl", 0.035, 0.035, 1.8, 5), 0x6a4a2a, [-0.5, 0, 0], [0, 0, Math.PI / 2]), part(prim("cone", 0.09, 0.5, 4), 0xe8ecf4, [0.6, 0, 0], [0, 0, -Math.PI / 2]), part(prim("box", 0.06, 0.18, 0.18), 0xd0a040, [0.3, 0, 0]), part(prim("box", 0.6, 0.02, 0.2), 0xffffff, [-1.5, 0, 0], [0, 0, 0], [1, 1, 0.6])]; },
+    kama: function () { return [part(prim("cyl", 0.03, 0.03, 0.5, 5), 0x5a3a22, [0, 0, 0], [0, 0, Math.PI / 2]), part(prim("tor", 0.32, 0.05, 10, Math.PI * 0.75), 0xdde2ea, [0.25, 0, 0], [Math.PI / 2, 0, 0], [1, 1, 0.4]), part(prim("tor", 0.08, 0.015, 6), 0x8a8a90, [-0.3, 0, 0], [0, Math.PI / 2, 0])]; },
+    hamaya: function () { return [part(prim("cyl", 0.03, 0.03, 1.2, 5), 0xf0e0b0, [0, 0, 0], [0, 0, Math.PI / 2]), part(prim("cone", 0.08, 0.26, 4), 0xffe060, [0.7, 0, 0], [0, 0, -Math.PI / 2]), part(prim("box", 0.24, 0.16, 0.02), 0xffffff, [-0.55, 0, 0]), part(prim("box", 0.14, 0.04, 0.03), 0xd02020, [-0.2, 0, 0]), part(prim("sph", 0.16, 8, 6), 0xfff0a0, [0.75, 0, 0])]; },
+    nagi: function () { return [part(prim("cyl", 0.03, 0.03, 1.4, 5), 0x5a3a22, [-0.3, 0, 0], [0, 0, Math.PI / 2]), part(prim("box", 0.7, 0.04, 0.18), 0xe8ecf4, [0.6, 0, 0.05], [0, 0.25, 0])]; },
+    bolt: function () { return [part(prim("box", 0.18, 1.2, 0.18), 0xfff080, [0, 0.6, 0], [0, 0, 0.35]), part(prim("box", 0.16, 1.2, 0.16), 0xfff8c0, [0.1, 1.7, 0], [0, 0, -0.4]), part(prim("box", 0.14, 1.2, 0.14), 0xfff080, [-0.05, 2.8, 0], [0, 0, 0.35])]; },
     ofuda: function () { return [part(prim("box", 0.24, 0.5, 0.02), 0xf8f0d8, [0, 0, 0]), part(prim("box", 0.04, 0.36, 0.025), 0xd02020, [0, 0, 0])]; }
   };
-  var VIS2SHOT = { yumi: "arrow", teppo: "bullet", shuriken: "star", kunai: "kunai", horoku: "bomb", ozutsu: "ball", shikigami: "bird", tessen: "fan", kiba: "horse", tsurara: "ice", yanoame: "rainarrow" };
+  var VIS2SHOT = { tachi: "crescent", yari: "spear", kusarigama: "kama", hamaya: "hamaya", naginata: "nagi", kaminari: "bolt", yumi: "arrow", teppo: "bullet", shuriken: "star", kunai: "kunai", horoku: "bomb", ozutsu: "ball", shikigami: "bird", tessen: "fan", kiba: "horse", tsurara: "ice", yanoame: "rainarrow" };
   var PICKS = {
     gem0: function () { return [part(prim("oct", 0.2), 0x40a0ff, [0, 0, 0])]; },
     gem1: function () { return [part(prim("oct", 0.26), 0x40e070, [0, 0, 0])]; },
@@ -370,15 +376,15 @@
     scene.background = sky;
     scene.fog = new T.Fog(fogC, 26, 60);
     var camera = new T.PerspectiveCamera(42, W0 / H0, 0.5, 200);
-    var hemi = new T.HemisphereLight(0xffffff, new T.Color(MAP.g[1]), 0.75);
+    var hemi = new T.HemisphereLight(0xffffff, new T.Color(MAP.g[1]), 0.5);
     scene.add(hemi);
-    var sun = new T.DirectionalLight(0xfff2dd, 1.05);
+    var sun = new T.DirectionalLight(0xfff2dd, 0.62);
     sun.castShadow = !low;
     sun.shadow.mapSize.set(1024, 1024);
     var sc = sun.shadow.camera; sc.left = -22; sc.right = 22; sc.top = 22; sc.bottom = -22; sc.near = 1; sc.far = 80;
     sun.shadow.bias = -0.0008;
     scene.add(sun, sun.target);
-    var amb = new T.AmbientLight(0xffffff, 0.15);
+    var amb = new T.AmbientLight(0xffffff, 0.08);
     scene.add(amb);
 
     // 地面：頂點色的雜訊（三色）＋場外較暗
@@ -492,7 +498,7 @@
     var sPools = {};
     function sPool(k) {
       if (sPools[k]) return sPools[k];
-      var p = pool(merge((SHOTS[k] || SHOTS.orb)()), k === "horse" ? 40 : 300, k === "orb" ? { emissive: new T.Color(0x801010) } : k === "ice" ? { emissive: new T.Color(0x204060) } : null);
+      var p = pool(merge((SHOTS[k] || SHOTS.orb)()), k === "horse" ? 40 : 300, k === "orb" ? { emissive: new T.Color(0x801010) } : k === "ice" ? { emissive: new T.Color(0x204060) } : k === "crescent" ? { emissive: new T.Color(0x5080b0), transparent: true, opacity: 0.88 } : k === "hamaya" || k === "bolt" ? { emissive: new T.Color(0x806020) } : k === "spear" || k === "kama" || k === "nagi" ? { emissive: new T.Color(0x303038) } : null);
       sPools[k] = p;
       return p;
     }
@@ -505,6 +511,13 @@
       return p;
     }
     var bulletPool = sPool("orb");
+    // 敵人腳下的深色影子（白色地面上也看得清楚）；首領另外有紅圈
+    var shadowGeo = new T.CircleGeometry(1, 18);
+    shadowGeo.rotateX(-Math.PI / 2);
+    var shadowPool = new T.InstancedMesh(shadowGeo, new T.MeshBasicMaterial({ color: 0x10080a, transparent: true, opacity: 0.42, depthWrite: false }), 320);
+    shadowPool.count = 0; shadowPool.frustumCulled = false; shadowPool.renderOrder = 1;
+    shadowPool.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    scene.add(shadowPool);
 
     // ---- 首領（獨立網格）----
     var bossMeshes = {};
@@ -687,11 +700,11 @@
       scene.fog.far += (tgtFar - scene.fog.far) * dt * 2;
       scene.fog.near += (tgtNear - scene.fog.near) * dt * 2;
       var lightK = night ? 0.35 : 1;
-      hemi.intensity += (0.75 * lightK - hemi.intensity) * dt * 2;
-      sun.intensity += ((night ? 0.25 : 1.05) - sun.intensity) * dt * 2;
+      hemi.intensity += (0.5 * lightK - hemi.intensity) * dt * 2;
+      sun.intensity += ((night ? 0.2 : 0.62) - sun.intensity) * dt * 2;
       if (night) { scene.fog.color.lerp(new T.Color(0x0a0c18), dt * 2); scene.background.lerp(new T.Color(0x0a0c18), dt * 2); }
       else { scene.fog.color.lerp(bliz ? new T.Color(0xf0f4f8) : fogC, dt * 2); scene.background.lerp(bliz ? new T.Color(0xe8eef4) : sky, dt * 2); }
-      if (v.freeze) { amb.color.setHex(0x80c0ff); amb.intensity = 0.5; } else { amb.color.setHex(0xffffff); amb.intensity = night ? 0.25 : 0.15; }
+      if (v.freeze) { amb.color.setHex(0x80c0ff); amb.intensity = 0.5; } else { amb.color.setHex(0xffffff); amb.intensity = night ? 0.2 : 0.08; }
       if (weather) {
         var wpA = weather.geometry.attributes.position.array, wspd = bliz ? 9 : 3, wwx = (fe.wx || 0) + (bliz ? 6 : 0.5);
         for (var wi2 = 0; wi2 < wpA.length; wi2 += 3) {
@@ -707,6 +720,7 @@
 
       // 敵人
       Object.keys(ePools).forEach(function (m) { ePools[m].count = 0; });
+      shadowPool.count = 0;
       var bossSeen = {};
       for (var i = 0; i < v.E.length; i++) {
         var e = v.E[i];
@@ -732,6 +746,11 @@
         var tilt = Math.sin(o.ph) * 0.08;
         _m.compose(_v.set(o.x, bob + fly, o.z), _q.setFromEuler(_e.set(0, o.a, tilt)), _s.set(sc3, sc3 * (1 - bob * 0.5), sc3));
         p.setMatrixAt(idx, _m);
+        if (shadowPool.count < 320) {
+          var shR = (D.ENEMIES[e.k] ? D.ENEMIES[e.k].r : 0.5) * sc3 * 1.25 + 0.1;
+          _m.compose(_v.set(o.x, 0.03, o.z), _q.identity(), _s.set(shR, 1, shR));
+          shadowPool.setMatrixAt(shadowPool.count++, _m);
+        }
         var sf = e.sf || 0;
         if (e.hf > 0 || sf & 4) tint.setRGB(3, 3, 3);
         else if (sf & 64) tint.setRGB(1.4, 1.4, 0.6);
@@ -744,6 +763,7 @@
         p.setColorAt(idx, tint);
         p.count++;
       }
+      shadowPool.instanceMatrix.needsUpdate = true;
       Object.keys(ePools).forEach(function (m) { var p = ePools[m]; p.instanceMatrix.needsUpdate = true; if (p.instanceColor) p.instanceColor.needsUpdate = true; });
       Object.keys(bossMeshes).forEach(function (id) { if (!bossSeen[id]) { scene.remove(bossMeshes[id].mesh); delete bossMeshes[id]; } });
 
@@ -773,7 +793,8 @@
         ud.flag.rotation.y = Math.sin(tAcc * 4 + px) * 0.15;
         if (P.down) { ud.body.rotation.x = -Math.PI / 2 + 0.2; ud.body.position.y = 0.25; } else ud.body.rotation.x = 0;
         // 無敵閃爍
-        pm.g.visible = !(P.iv && !P.down && Math.floor(tAcc * 14) % 2 === 0 && !(P.buf && P.buf.muso));
+        pm.ring.material.color.setHex(P.iv && !P.down ? 0xffffff : isMe ? 0xffd040 : 0x60c0ff);
+        pm.ring.material.opacity = P.iv && !P.down ? 0.95 : 0.7;
         // 采配光環、復活進度
         var buff = P.buf && (P.buf.muso || P.buf.kek || P.buf.kaze || P.buf.kaen);
         pm.aura.material.opacity = buff ? 0.35 + Math.sin(tAcc * 8) * 0.15 : 0;
@@ -838,10 +859,11 @@
         if (sp === orbPool) continue;
         if (sp.count >= sp.instanceMatrix.count) continue;
         var so = sm("s" + sh.id, sh.x, sh.z, Math.min(1, k * 2));
-        var sy = sk === "ice" || sk === "rainarrow" ? 0.5 + Math.max(0, (sh.dl !== undefined && sh.dl >= 0 ? sh.dl : 0.3)) * 18 : sk === "horse" ? 0 : 0.9 + (sh.h || 0);
+        var sy = sk === "bolt" ? Math.max(0, (sh.dl !== undefined && sh.dl >= 0 ? sh.dl : 0.1)) * 30 : sk === "ice" || sk === "rainarrow" ? 0.5 + Math.max(0, (sh.dl !== undefined && sh.dl >= 0 ? sh.dl : 0.3)) * 18 : sk === "horse" ? 0 : 0.9 + (sh.h || 0);
         var rotY = -(sh.a || 0), rotX = 0;
         if (sk === "star" || sk === "fan") rotY = tAcc * 18;
-        var ssc = sk === "horse" ? 1.1 : sk === "ball" ? 1 : 1.2;
+        if (sk === "kama") rotY = tAcc * 16;
+        var ssc = sk === "horse" ? 1.1 : sk === "ball" ? 1 : sk === "crescent" ? 1.5 : sk === "bolt" ? 1.4 : 1.2;
         _m.compose(_v.set(so.x, sy, so.z), _q.setFromEuler(_e.set(rotX, rotY, 0)), _s.set(ssc, ssc, ssc));
         sp.setMatrixAt(sp.count++, _m);
       }
