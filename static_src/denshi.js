@@ -392,7 +392,13 @@
         btn("⟳", function () { if (view3) view3.rotate(Math.PI / 8); }, "ds-iconbtn", { title: t("ds_cam_rot") }),
         btn("＋", function () { if (view3) view3.zoom(0.85); }, "ds-iconbtn"),
         btn("－", function () { if (view3) view3.zoom(1.18); }, "ds-iconbtn"),
-        btn("⌂", function () { if (view3) view3.resetCam(); }, "ds-iconbtn", { title: t("ds_cam_reset") })
+        btn("⌂", function () { if (view3) view3.resetCam(); }, "ds-iconbtn", { title: t("ds_cam_reset") }),
+        btn("📘", function () {
+          var lg = app.querySelector(".ds-legend");
+          if (!lg) return;
+          lg.open = true; setPref({ legend: 1 });
+          try { lg.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { lg.scrollIntoView(); }
+        }, "ds-iconbtn", { title: t("ds_legend"), id: "ds-legend-btn" })
       ]),
       refs.mech = el("div", { class: "ds-mechtag", style: "--ds-mc:" + hex(m.glow) }, [mechText(s)]),
       refs.skills = el("div", { class: "ds-skills" }, Object.keys(D.SKILLS).map(function (k) {
@@ -439,25 +445,59 @@
   function updatePopup(s, p) {
     var pop = refs.pop;
     if (!pop) return;
-    var at = ui.pending, show = at && p && !s.end && ((ui.mode === "piece" && p.pieces[ui.pi]) || (ui.mode === "build" && ui.bt));
+    var picking = ui.pick && s.pl && s.pl[ui.pick] && s.phase === "build";
+    var at = picking ? ui.pickAt : ui.pending, show = at && p && !s.end && (picking || (ui.mode === "piece" && p.pieces[ui.pi]) || (ui.mode === "build" && ui.bt));
     if (!show) { if (!pop.hidden) { pop.hidden = true; popKey = ""; } return; }
-    var ok, why = "", title, cost = 0;
+    if (picking) {
+      var rec = s.pl[ui.pick], ntw = rec.cells.filter(function (ci) { return Core.towerAt(s, ci % Core.W, Math.floor(ci / Core.W)); }).length;
+      var pkey = "pick|" + ui.pick + "|" + ntw + "|" + window.I18N.getLang();
+      if (pkey !== popKey) {
+        popKey = pkey;
+        pop.innerHTML = "";
+        pop.appendChild(el("div", { class: "ds-pop-t" }, [t("ds_pick_title")]));
+        pop.appendChild(el("div", { class: "ds-pop-info" }, [[t("ds_pick_note")].concat(ntw ? [t("ds_pick_towers", { n: ntw })] : []).join(" ")]));
+        pop.appendChild(el("div", { class: "ds-pop-b" }, [
+          btn("↺ " + t("ds_pick_btn"), function () { pickupNow(ui.pick); }, "ds-btn ds-primary", { id: "ds-pop-pick" }),
+          btn("✕", function () { ui.pick = 0; }, "ds-btn", { id: "ds-pop-cancel" })
+        ]));
+      }
+      pop.hidden = false;
+      placePop(pop, at);
+      return;
+    }
+    var ok, why = "", title, cost = 0, info;
     if (ui.mode === "piece") {
       var gc = pieceGhost(s, p, at);
       ok = gc.ok; why = gc.why ? t("ds_place_" + gc.why) : "";
       title = t("ds_pop_piece");
+      var info = [];
+      if (gc.paths) {
+        // 最短路徑長度變化（只列下一波會出怪的入口）
+        var used = Core.waveSpawns(s, s.phase === "wave" ? s.wave : s.wave + 1);
+        gc.paths.forEach(function (pp, i) {
+          if (s.spawns.length > 1 && !used[i]) return;
+          var a = Core.pathFrom(s, s.spawns[i][0], s.spawns[i][1]).length - 1, b = pp.length - 1;
+          info.push((s.spawns.length > 1 ? t("ds_pop_gate", { n: i + 1 }) : "") + t("ds_pop_path", { a: a, b: b, d: (b - a >= 0 ? "+" : "") + (b - a) }));
+        });
+      }
+      var pmods = p.pieces[ui.pi].m || {};
+      var mcount = {};
+      Object.keys(pmods).forEach(function (k) { mcount[pmods[k]] = (mcount[pmods[k]] || 0) + 1; });
+      Object.keys(mcount).forEach(function (k) { var md = D.MODS[k]; if (md) info.push(md.icon + " " + L(md.name) + (mcount[k] > 1 ? " ×" + mcount[k] : "") + "：" + L(md.desc)); });
     } else {
       cost = D.TOWERS[ui.bt].cost;
       ok = canBuildAt(s, at[0], at[1]) && p.cash >= cost;
       why = !s.fo[Core.idx(at[0], at[1])] ? t("ds_need_found") : Core.towerAt(s, at[0], at[1]) ? t("ds_pop_occupied") : p.cash < cost ? t("ds_no_cash") : "";
       title = D.TOWERS[ui.bt].icon + " " + L(D.TOWERS[ui.bt].name) + "　💠" + cost;
     }
-    var key = [ui.mode, ui.bt, ui.pi, ui.rot, at.join(","), ok, why, window.I18N.getLang()].join("|");
+    info = info || [];
+    var key = [ui.mode, ui.bt, ui.pi, ui.rot, at.join(","), ok, why, info.join(";"), window.I18N.getLang()].join("|");
     if (key !== popKey) {
       popKey = key;
       pop.innerHTML = "";
       pop.appendChild(el("div", { class: "ds-pop-t" }, [title]));
       if (why) pop.appendChild(el("div", { class: "ds-pop-why" }, [why]));
+      info.forEach(function (x) { pop.appendChild(el("div", { class: "ds-pop-info" }, [x])); });
       pop.appendChild(el("div", { class: "ds-pop-b" }, [
         btn("✔ " + t("ds_pop_place"), confirmPending, "ds-btn ds-primary", { id: "ds-pop-place", disabled: ok ? null : true }),
         ui.mode === "piece" ? btn("↻ " + t("ds_rotate"), function () { ui.rot = (ui.rot + 1) % 4; panelSig = ""; }, "ds-btn", { id: "ds-pop-rot" }) : null,
@@ -465,12 +505,27 @@
       ]));
     }
     pop.hidden = false;
+    placePop(pop, at);
+  }
+  function placePop(pop, at) {
     var pt = view3 && view3.project(at[0] + 0.5, at[1] + 0.5, 0.9);
     if (!pt) return;
     var W2 = refs.stage.clientWidth, w = pop.offsetWidth, h = pop.offsetHeight;
     var x = Math.max(4, Math.min(W2 - w - 4, pt.x - w / 2)), y = pt.y - h - 18;
     if (y < 4) y = pt.y + 30;   // 太靠上就改放在殘影下方
     pop.style.transform = "translate(" + Math.round(x) + "px," + Math.round(y) + "px)";
+  }
+  function pickupNow(id) {
+    var s = sess && sess.s, rec = s && s.pl && s.pl[id];
+    if (!rec) return;
+    sess.send({ a: "pickup", id: id });
+    ui.pick = 0; ui.sel = 0;
+    var p = me();
+    if (sess.solo || sess.host) {
+      // 拿回手上後直接進入放置模式，殘影停在原位置、原方向，方便微調
+      setMode("piece"); ui.pi = p.pieces.length - 1; ui.rot = rec.r; ui.pending = [rec.x, rec.y]; ui.hover = [rec.x, rec.y];
+    } else setMode(null);
+    panelSig = "";
   }
   function confirmPending() {
     var s = sess && sess.s, p = me(), at = ui.pending;
@@ -524,11 +579,16 @@
     if (ui.mode === "piece" && p && p.pieces[ui.pi] && at) {
       var gc = pieceGhost(s, p, at);
       out.ghost = gc.cells; out.ghostOk = gc.ok;
+      if (gc.paths) { out.ghostPaths = gc.paths; out.ghostPathKey = gc.key; }
     } else if (ui.mode === "build" && ui.bt && at) {
       var can = canBuildAt(s, at[0], at[1]);
       out.towerGhost = { ty: ui.bt, x: at[0], y: at[1], ok: can };
       var st = Core.stats(s, { ty: ui.bt, lv: 0, x: at[0], y: at[1], o: sess.pid });
       if (st.range && !wave) out.range = { x: at[0], y: at[1], r: st.range, bad: !can, ghost: true };
+    }
+    if (ui.pick) {
+      var rec = s.pl && s.pl[ui.pick];
+      if (!rec || s.phase !== "build") ui.pick = 0; else out.pickCells = rec.cells;
     }
     if (ui.sel && !out.range && !wave) {
       var tw = Core.towerById(s, ui.sel);
@@ -542,7 +602,7 @@
     var key = s.gv + "|" + ui.pi + "|" + ui.rot + "|" + at.join(",") + "|" + JSON.stringify(p.pieces[ui.pi]) + "|" + s.enemies.length;
     if (key !== ghostCache.key || s.phase === "wave") {
       var cells = Core.pieceCells(p.pieces[ui.pi], ui.rot, at[0], at[1]), why = Core.checkPlace(s, cells);
-      ghostCache = { key: key, cells: cells, ok: !why, why: why };
+      ghostCache = { key: key, cells: cells, ok: !why, why: why, paths: why ? null : Core.previewPaths(s, cells) };
     }
     return ghostCache;
   }
@@ -553,6 +613,10 @@
   function onCell(x, y) {
     var s = sess && sess.s, p = me();
     if (!s || !p || s.end) return;
+    ui.pick = 0;
+    // 地基上本來就不能放方塊：放置模式下點到自己這回合放的方塊，就當作要「拿起」
+    var plAt = Core.placementAt(s, x, y);
+    if (ui.mode === "piece" && plAt && s.pl[plAt].o === sess.pid && !Core.towerAt(s, x, y)) { ui.pending = null; ui.pick = plAt; ui.pickAt = [x, y]; return; }
     if (ui.mode === "piece" && p.pieces[ui.pi]) { ui.pending = [x, y]; ui.hover = [x, y]; return; }
     var tw = Core.towerAt(s, x, y);
     if (ui.mode === "build" && ui.bt) {
@@ -561,7 +625,12 @@
       return;
     }
     if (tw) { ui.sel = tw.id; setMode(null); }
-    else if (s.fo[Core.idx(x, y)]) { ui.sel = 0; toast(t("ds_pick_tower"), ""); }
+    else if (s.fo[Core.idx(x, y)]) {
+      ui.sel = 0;
+      var pid = Core.placementAt(s, x, y);
+      if (pid && s.pl[pid].o === sess.pid) { ui.pick = pid; ui.pickAt = [x, y]; }
+      else toast(t("ds_pick_tower"), "");
+    }
     else ui.sel = 0;
     panelSig = "";
   }
@@ -659,7 +728,7 @@
     var aff = p ? D.BUILD_ORDER.map(function (k) { return p.cash >= D.TOWERS[k].cost ? 1 : 0; }).join("") : "";
     var sig = [s.phase, s.wave, s.end ? 1 : 0, ui.mode, ui.pi, ui.rot, ui.bt, ui.sel, aff, p ? JSON.stringify(p.pieces) : "", p ? p.ready : "", p ? (p.cash >= Core.buyCost(p) ? 1 : 0) + "" + (p.cash >= 15 ? 1 : 0) : "",
       tw ? tw.ty + tw.lv + tw.mode + (p && p.cash >= (Core.upgradeCost(tw, p) || 1e9) ? 1 : 0) + (D.TOWERS[tw.ty].evo ? D.TOWERS[tw.ty].evo.map(function (k) { return p && p.cash >= Core.evoCost(k, p) ? 1 : 0; }).join("") : "") + (s.tv || 0) + "g" + s.gv : "",
-      p ? p.role : "", s.wave === 0 ? 1 : 0,
+      p ? p.role : "", s.wave === 0 ? 1 : 0, s.pl ? Object.keys(s.pl).join(".") : "",
       s.auto, s.speed, ui.paused, s.order.map(function (k) { return k + s.players[k].ready; }).join(","), sess.host ? 1 : 0, window.I18N.getLang()].join("|");
     if (sig === panelSig) return;
     panelSig = sig;
@@ -672,6 +741,7 @@
     side.appendChild(piecePanel(s, p));
     side.appendChild(tw ? towerPanel(s, p, tw) : buildPanel(s, p));
     if (s.order.length > 1) side.appendChild(playersPanel(s));
+    side.appendChild(legendPanel(s));
   }
 
   function wavePanel(s, p) {
@@ -774,6 +844,8 @@
     Core.combosOf(s, tw).forEach(function (x) { kids.push(el("p", { class: "ds-small ds-combo" }, ["🔗 " + L(x.c.name) + "：" + L(x.c.desc)])); });
     var maybe = D.COMBOS.filter(function (c) { return (c.a.indexOf(tw.ty) >= 0 || c.b.indexOf(tw.ty) >= 0) && !Core.combosOf(s, tw).some(function (x) { return x.c.id === c.id; }); });
     if (maybe.length) kids.push(el("p", { class: "ds-small ds-muted" }, ["💡 " + t("ds_combo_hint", { n: maybe.map(function (c) { var other = c.a.indexOf(tw.ty) >= 0 ? c.b : c.a; return other.map(function (k) { return L(D.TOWERS[k].name); }).join("／") + "→" + L(c.name); }).join("、") })]));
+    var plid = Core.placementAt(s, tw.x, tw.y);
+    if (plid && s.pl[plid].o === sess.pid) kids.push(el("div", { class: "ds-actions" }, [btn("↺ " + t("ds_pick_btn"), function () { pickupNow(plid); }, "ds-btn", { id: "ds-tw-pick" }), el("span", { class: "ds-small ds-muted" }, [t("ds_pick_note")])]));
     refs.selStats = el("p", { class: "ds-small ds-muted" }, [""]);
     kids.push(refs.selStats);
     if (!mine) { var op = s.players[tw.o]; kids.push(el("p", { class: "ds-small ds-muted" }, [t("ds_owner", { n: op ? op.name || t("ds_noname") : "?" })])); }
@@ -798,6 +870,29 @@
       } else if (d.cat === "base") kids.push(el("p", { class: "ds-small ds-muted" }, [t("ds_evolve_note")]));
     }
     return panel(null, kids, "ds-twp");
+  }
+  // 格子說明（遊戲中隨時可以展開；展開狀態記在偏好裡）
+  function legendPanel(s) {
+    var m = D.MAPS[s.map];
+    function sw(col, extra) { return el("i", { class: "ds-sw" + (extra ? " " + extra : ""), style: "background:" + col }); }
+    var rows = Object.keys(D.MODS).filter(function (k) { return !D.MODS[k].lock || (s.unl && s.unl[D.MODS[k].lock]); }).map(function (k) {
+      var md = D.MODS[k];
+      return el("li", null, [sw(hex(md.color)), el("b", null, [md.icon + " " + L(md.name)]), "：" + L(md.desc)]);
+    });
+    var more = [
+      [hex(m.glow), t("ds_lg_power")],
+      ["#3cffb0", t("ds_lg_ghost")],
+      ["#ff3d7f", t("ds_lg_path")],
+      ["#ffd04a", t("ds_lg_pick")],
+      ["#ff1a3a", t("ds_lg_bad")]
+    ].map(function (r) { return el("li", null, [sw(r[0]), r[1]]); });
+    var d = el("details", { class: "ds-panel ds-legend", open: pref().legend ? true : null, ontoggle: function (e) { setPref({ legend: e.target.open ? 1 : 0 }); } }, [
+      el("summary", null, ["📘 " + t("ds_legend")]),
+      el("p", { class: "ds-small ds-muted" }, [t("ds_lg_mods_note")]),
+      el("ul", { class: "ds-lg" }, rows),
+      el("ul", { class: "ds-lg" }, more)
+    ]);
+    return d;
   }
   function playersPanel(s) {
     return panel(null, [el("h3", null, [t("ds_players")]), el("ul", { class: "ds-plist" }, s.order.map(function (k) {
