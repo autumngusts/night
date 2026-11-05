@@ -142,9 +142,10 @@
     splitter: { hp: 70, spd: 0.9, bounty: 6, cost: 3, from: 8, split: 2, color: 0xff3a55, name: C("分裂病毒", "分裂ウイルス"), desc: C("被消滅時分裂成 2 隻位元蟲。", "倒すとビットバグ 2 体に分裂。") },
     trojan: { hp: 60, spd: 1.2, stealth: true, bounty: 8, cost: 3, from: 9, color: 0xc0c8ff, name: C("隱形木馬", "ステルストロイ"), desc: C("隱形：只有在砲塔射程一半以內才會被瞄準（振盪器、法拉第籠、中繼器 Lv3 可看破）。", "ステルス：射程の半分以内でしか狙われない（発振器・ファラデー・リレー Lv3 で看破）。") },
     healer: { hp: 80, spd: 0.8, heal: 0.05, bounty: 10, cost: 4, from: 11, color: 0x6bffcf, name: C("修復節點", "修復ノード"), desc: C("每秒修復周圍敵人 5% 生命。被 EMP 打到會停擺。", "毎秒周囲の敵を 5% 回復。EMP で停止。") },
-    kernel: { hp: 2400, spd: 0.45, armor: 3, shield: 500, bounty: 150, cost: 0, boss: true, leak: 10, color: 0xff2244, name: C("核心恐慌", "カーネルパニック"), desc: C("首領：厚重的裝甲與護盾。", "ボス：重装甲とシールド。") },
-    daemon: { hp: 4200, spd: 0.5, fly: true, bounty: 220, cost: 0, boss: true, leak: 10, summon: 5, color: 0xff8a00, name: C("背景惡魔程序", "デーモンプロセス"), desc: C("首領（飛行）：每 5 秒放出 2 架無人機。", "ボス（飛行）：5 秒ごとにドローンを 2 機放出。") },
-    singularity: { hp: 9000, spd: 0.4, armor: 5, shield: 1500, bounty: 400, cost: 0, boss: true, leak: 20, emp: 8, color: 0x9a55ff, name: C("奇異點", "シンギュラリティ"), desc: C("最終首領：每 8 秒發出電磁脈衝，讓周圍砲塔停機 2 秒。", "最終ボス：8 秒ごとに電磁パルスで周囲の砲塔を 2 秒停止。") }
+    kernel: { hp: 2400, spd: 0.45, armor: 3, shield: 500, bounty: 150, cost: 0, boss: true, leak: 10, eat: 5, color: 0xff2244, name: C("核心恐慌", "カーネルパニック"), desc: C("首領：厚重的裝甲與護盾，每 5 秒啃掉身邊一格沒有砲塔的地基（迷宮會被打開）。", "ボス：重装甲とシールド。5 秒ごとに隣の砲塔のない地盤を 1 マス食べる（迷路が開く）。") },
+    daemon: { hp: 4200, spd: 0.5, fly: true, bounty: 220, cost: 0, boss: true, leak: 10, summon: 5, splitInto: "shard", color: 0xff8a00, name: C("背景惡魔程序", "デーモンプロセス"), desc: C("首領（飛行）：每 5 秒放出 2 架無人機；被擊破時分裂成 3 個碎片程序。", "ボス（飛行）：5 秒ごとにドローン 2 機。撃破すると 3 つの断片に分裂。") },
+    shard: { hp: 500, spd: 0.9, fly: true, bounty: 30, cost: 0, leak: 3, color: 0xffb040, name: C("碎片程序", "断片プロセス"), desc: C("背景惡魔程序被擊破後分裂出的碎片（飛行）。", "デーモン撃破時に分裂する断片（飛行）。") },
+    singularity: { hp: 9000, spd: 0.4, armor: 5, shield: 1500, bounty: 400, cost: 0, boss: true, leak: 20, emp: 8, phases: true, color: 0x9a55ff, name: C("奇異點", "シンギュラリティ"), desc: C("最終首領（三階段）：①每 8 秒電磁脈衝讓周圍砲塔停機；②生命 66% 時護盾重生並召喚木馬；③生命 33% 時加速、脈衝更頻繁、會吞噬地基。", "最終ボス（3 段階）：①8 秒ごとに EMP で周囲停止 ②HP66% でシールド再生＋トロイ召喚 ③HP33% で加速・EMP 頻発・地盤を飲み込む。") }
   };
   var BOSS_BY_WAVE = { 10: "kernel", 20: "daemon", 30: "singularity" };
 
@@ -188,21 +189,98 @@
     { id: "v3", w: 4, cells: [[0, 0], [1, 0], [0, 1]] },
     { id: "X", w: 2, cells: [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]] },
     { id: "U", w: 2, cells: [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]] },
-    { id: "P", w: 2, cells: [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]] }
+    { id: "P", w: 2, cells: [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]] },
+    // 解鎖後才會出現的 6 格大方塊（UNLOCKS.six）
+    { id: "R6", w: 2, lock: "six", cells: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]] },
+    { id: "S6", w: 2, lock: "six", cells: [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1], [4, 1]] },
+    { id: "T6", w: 2, lock: "six", cells: [[0, 0], [1, 0], [2, 0], [3, 0], [1, 1], [2, 1]] }
   ];
   // 特殊格：蓋在上面的砲塔得到加成
   var MODS = {
     sc: { color: 0xc06bff, icon: "◆", name: C("超導格", "超伝導マス"), desc: C("傷害 +25%", "威力 +25%") },
     cap: { color: 0x35e0ff, icon: "◎", name: C("電容格", "コンデンサマス"), desc: C("射程 +0.6", "射程 +0.6") },
     fan: { color: 0xf2f6ff, icon: "✣", name: C("散熱格", "放熱マス"), desc: C("射速 +25%", "連射 +25%") },
-    au: { color: 0xffc83c, icon: "$", name: C("鍍金格", "金メッキマス"), desc: C("擊殺資金 +2、拆除全額退費", "撃破資金 +2・売却全額返金") }
+    au: { color: 0xffc83c, icon: "$", name: C("鍍金格", "金メッキマス"), desc: C("擊殺資金 +2、拆除全額退費", "撃破資金 +2・売却全額返金") },
+    // 以下兩種要解鎖（UNLOCKS.gnd／UNLOCKS.qb）
+    gnd: { color: 0x7dff6a, icon: "⏚", lock: "gnd", name: C("接地格", "アースマス"), desc: C("不會被 EMP、落雷、訊號干擾弄停機", "EMP・落雷・電波妨害で停止しない") },
+    qb: { color: 0xff6af0, icon: "ψ", lock: "qb", name: C("量子位元格", "量子ビットマス"), desc: C("每發 15% 機率三倍傷害", "1 発ごと 15% で 3 倍ダメージ") }
   };
+
+  // ---------------- 元件組合技（兩座砲塔在周圍 8 格內相鄰就觸發） ----------------
+  // a／b：砲塔種類（任一列出的種類都算）；ea／eb：各自得到的效果
+  // 效果鍵：dm（傷害倍率加成）、rm（射速加成）、ra（射程加成）、chain、pierce、stun、splash、refract（折射到第二目標的傷害比例）、rampM（蓄力速度倍率）、income（收入倍率加成）
+  var COMBOS = [
+    { id: "cascade", a: ["tesla"], b: ["capacitor"], ea: { chain: 2, dm: 0.3 }, eb: { stun: 0.3 },
+      name: C("放電串連", "放電カスケード"), desc: C("特斯拉線圈＋電容放電砲：特斯拉連鎖 +2、傷害 +30%；電容麻痺 +0.3 秒", "テスラ＋コンデンサ：テスラの連鎖 +2・威力 +30%、コンデンサのマヒ +0.3 秒") },
+    { id: "refract", a: ["laser"], b: ["relay"], ea: { refract: 0.5 }, eb: {},
+      name: C("光束折射", "ビーム屈折"), desc: C("雷射二極體＋訊號中繼器：光束折射到第二個目標（50% 傷害）", "レーザー＋リレー：ビームが 2 体目に屈折（50%）") },
+    { id: "boost", a: ["coilgun"], b: ["transformer"], ea: { pierce: 3, dm: 0.25 }, eb: {},
+      name: C("高壓加速", "高圧加速"), desc: C("電磁線圈槍＋變壓器：貫穿 +3、傷害 +25%", "コイルガン＋変圧器：貫通 +3・威力 +25%") },
+    { id: "resonance", a: ["osc"], b: ["transistor"], ea: { dm: 0.3 }, eb: { rampM: 2 },
+      name: C("振盪放大", "発振増幅"), desc: C("石英振盪器＋電晶體放大器：振盪器傷害 +30%；電晶體蓄力速度 ×2", "発振器＋トランジスタ：発振器の威力 +30%、トランジスタの増幅速度 2 倍") },
+    { id: "maglev", a: ["accel"], b: ["supercond", "frost"], ea: { rm: 0.35 }, eb: { ra: 0.4 },
+      name: C("超導磁軌", "超伝導レール"), desc: C("粒子加速器＋冷凍類：加速器射速 +35%；冷凍射程 +0.4", "粒子加速器＋冷却系：加速器の連射 +35%、冷却の射程 +0.4") },
+    { id: "shield", a: ["emp"], b: ["faraday"], ea: { splash: 0.5 }, eb: { ra: 0.6 },
+      name: C("電磁屏蔽", "電磁シールド"), desc: C("EMP＋法拉第籠：EMP 範圍 +0.5；法拉第籠射程 +0.6", "EMP＋ファラデー：EMP の範囲 +0.5、ファラデーの射程 +0.6") },
+    { id: "smartgrid", a: ["solar"], b: ["transformer", "relay"], ea: { income: 0.5 }, eb: {},
+      name: C("智慧電網", "スマートグリッド"), desc: C("太陽能板＋變壓器／中繼器：太陽能收入 +50%", "ソーラー＋変圧器／リレー：ソーラー収入 +50%") },
+    { id: "gatling", a: ["gun"], b: ["cannon"], ea: { rm: 0.15 }, eb: { dm: 0.15 },
+      name: C("交叉火網", "クロスファイア"), desc: C("脈衝機槍＋電漿迫擊砲：機槍射速 +15%；迫擊砲傷害 +15%", "機銃＋迫撃砲：機銃の連射 +15%、迫撃砲の威力 +15%") }
+  ];
+
+  // ---------------- 合作分工（單機也能選） ----------------
+  var ROLES = {
+    general: { icon: "🧑‍🔧", name: C("通才", "ジェネラリスト"), desc: C("沒有特別專長，但技能冷卻 -25%", "特技なし。ただしスキルのクールダウン -25%") },
+    engineer: { icon: "🧱", name: C("工程師", "エンジニア"), desc: C("購買方塊半價、重抽只要 5；每 3 波多拿一塊方塊", "ブロック購入半額・引き直し 5。3 ウェーブごとに追加ブロック") },
+    gunner: { icon: "🎯", name: C("火力手", "ガンナー"), desc: C("自己的砲塔傷害 +15%，升級與強化費用 -10%", "自分の砲塔の威力 +15%、強化費用 -10%") },
+    power: { icon: "🔋", name: C("電源師", "電源技師"), desc: C("太陽能收入 ×2；自己的變壓器／中繼器效果 ×1.5；電路網加成 ×1.5", "ソーラー収入 2 倍・自分の変圧器／リレー効果 1.5 倍・回路網ボーナス 1.5 倍") }
+  };
+
+  // ---------------- 玩家主動技能（只在波次進行中可用；冷卻以遊戲時間計） ----------------
+  var SKILLS = {
+    emp: { icon: "💥", key: "Z", cd: 90, name: C("全場 EMP", "全域 EMP"), desc: C("所有敵人護盾 -60%、麻痺 1.5 秒（首領 0.5 秒）", "全敵のシールド -60%・1.5 秒マヒ（ボス 0.5 秒）") },
+    oc: { icon: "🚀", key: "X", cd: 60, name: C("超頻", "オーバークロック"), desc: C("自己的砲塔 8 秒內射速 ×1.5、不會過熱", "自分の砲塔が 8 秒間 連射 1.5 倍・過熱しない") },
+    fix: { icon: "🩹", key: "C", cd: 150, name: C("緊急修復", "緊急修復"), desc: C("核心耐久 +3（不超過上限）", "コア耐久 +3（上限まで）") }
+  };
+
+  // ---------------- 解鎖（戰役星數） ----------------
+  // 每張戰役地圖通關得 1〜3 星（剩餘耐久 ≥15：3 星、≥8：2 星、其他 1 星）
+  var UNLOCKS = [
+    { id: "six", stars: 3, name: C("6 格大方塊", "6 マス大型ブロック"), desc: C("方塊池加入 3 種 6 格方塊", "ブロックに 6 マス型 3 種を追加") },
+    { id: "gnd", stars: 6, name: C("接地格", "アースマス"), desc: C("特殊格加入「接地格」", "特殊マスに「アース」を追加") },
+    { id: "qb", stars: 10, name: C("量子位元格", "量子ビットマス"), desc: C("特殊格加入「量子位元格」", "特殊マスに「量子ビット」を追加") },
+    { id: "cash", stars: 15, name: C("創業基金", "起業資金"), desc: C("起始資金 +60", "初期資金 +60") },
+    { id: "skill", stars: 22, name: C("快速充能", "急速充電"), desc: C("技能冷卻 -15%", "スキルのクールダウン -15%") }
+  ];
+
+  // ---------------- 成就 ----------------
+  var ACHIEVEMENTS = [
+    { id: "first_win", icon: "🏆", name: C("初次守住", "初防衛"), desc: C("任一模式守住核心", "いずれかのモードでコアを守る") },
+    { id: "boss_kernel", icon: "🟥", name: C("核心除錯", "カーネルデバッグ"), desc: C("擊敗核心恐慌", "カーネルパニックを撃破") },
+    { id: "boss_daemon", icon: "🟧", name: C("終止程序", "プロセス終了"), desc: C("擊敗背景惡魔程序", "デーモンプロセスを撃破") },
+    { id: "boss_singularity", icon: "🟪", name: C("事件視界", "事象の地平線"), desc: C("擊敗奇異點", "シンギュラリティを撃破") },
+    { id: "combo", icon: "🔗", name: C("電路設計師", "回路設計者"), desc: C("觸發任一組合技", "コンボを発動する") },
+    { id: "combo_all", icon: "🧩", name: C("全組合", "フルコンボ"), desc: C("累計觸發過所有組合技", "すべてのコンボを発動") },
+    { id: "evo_all", icon: "🔬", name: C("電子工程博士", "電子工学博士"), desc: C("累計做過全部 8 種電子強化", "8 種の電子強化をすべて行う") },
+    { id: "net20", icon: "🕸️", name: C("大電網", "大回路網"), desc: C("一片通電的地基達到 20 格", "通電した地盤を 20 マス連結") },
+    { id: "skills", icon: "🎮", name: C("手動操作", "マニュアル操作"), desc: C("一局內用 10 次技能", "1 戦でスキルを 10 回使う") },
+    { id: "perfect", icon: "💎", name: C("零失誤", "ノーミス"), desc: C("核心沒有受損就守住", "コア無傷で防衛") },
+    { id: "endless40", icon: "♾️", name: C("無盡的夜", "終わらない夜"), desc: C("無盡模式撐到第 40 波", "エンドレスで第 40 ウェーブ到達") },
+    { id: "campaign", icon: "🗺️", name: C("十大地圖制霸", "全マップ制覇"), desc: C("戰役 10 張地圖全部通關", "キャンペーン 10 マップをすべてクリア") },
+    { id: "stars30", icon: "⭐", name: C("滿星", "パーフェクトスター"), desc: C("戰役拿到 30 顆星", "キャンペーンで星 30 個") },
+    { id: "daily", icon: "📅", name: C("每日工程師", "デイリーエンジニア"), desc: C("完成一次每日挑戰", "デイリーチャレンジを完了") },
+    { id: "coop", icon: "👥", name: C("團隊合作", "チームワーク"), desc: C("合作連線守住核心", "協力プレイでコアを守る") }
+  ];
+
+  // 無盡模式每 10 波混入的機制（不依賴地形的那幾種）
+  var MIXABLE = ["psu", "heat", "ram", "quantum", "antenna", "grid", "aicore"];
 
   var DIFFS = { easy: { hp: 0.75, cash: 1.2, name: C("簡單", "やさしい") }, normal: { hp: 1, cash: 1, name: C("普通", "ふつう") }, hard: { hp: 1.35, cash: 0.9, name: C("困難", "むずかしい") } };
   var PLAYER_COLORS = [0x35e0ff, 0xff8a3c, 0xb36bff, 0x6bff8a];
 
   window.PriTestDenshiData = {
     C: C, L: L, TOWERS: TOWERS, BUILD_ORDER: BUILD_ORDER, ENEMIES: ENEMIES, BOSS_BY_WAVE: BOSS_BY_WAVE,
-    MAPS: MAPS, PIECES: PIECES, MODS: MODS, DIFFS: DIFFS, PLAYER_COLORS: PLAYER_COLORS, W: 20, H: 12
+    MAPS: MAPS, PIECES: PIECES, MODS: MODS, DIFFS: DIFFS, PLAYER_COLORS: PLAYER_COLORS, W: 20, H: 12,
+    COMBOS: COMBOS, ROLES: ROLES, SKILLS: SKILLS, UNLOCKS: UNLOCKS, ACHIEVEMENTS: ACHIEVEMENTS, MIXABLE: MIXABLE
   };
 })();

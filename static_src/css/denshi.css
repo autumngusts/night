@@ -135,3 +135,24 @@
 .ds-lobby { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 .ds-qr { background: #fff; border-radius: 6px; }
 .ds-url { width: min(30rem, 100%); }
+
+/* 技能列（舞台上方中間偏下） */
+.ds-skills { position: absolute; left: 50%; bottom: 3.1rem; transform: translateX(-50%); z-index: 2; display: flex; gap: 0.35rem; }
+.ds-skill { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; min-width: 4.2rem; padding: 0.3rem 0.4rem 0.25rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(8, 14, 12, 0.78); color: #e8fff6; font-size: 0.78em; }
+.ds-skill-ic { font-size: 1.35em; line-height: 1.1; }
+.ds-skill kbd { position: absolute; right: 0.25rem; top: 0.1rem; font-size: 0.75em; opacity: 0.6; font-family: inherit; }
+.ds-skill-cd { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(0, 0, 0, 0.6); color: #fff; font-style: normal; font-weight: bold; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.ds-skill.ds-ready { border-color: #ffd04a; box-shadow: 0 0 10px rgba(255, 208, 74, 0.55); }
+.ds-skill.ds-wait { opacity: 0.6; }
+@media (max-width: 640px) { .ds-skills { bottom: 2.9rem; } .ds-skill { min-width: 3.4rem; } .ds-skill-n { display: none; } }
+
+.ds-full { flex-basis: 100%; margin: 0; }
+.ds-good { color: var(--ds-good); }
+.ds-combo { color: #b88a00; font-weight: bold; }
+@media (prefers-color-scheme: dark) { .ds-combo { color: #ffd04a; } }
+.ds-got { border-color: #ffd04a; }
+.ds-dim { opacity: 0.55; }
+.ds-board { margin: 0; padding-left: 1.6rem; line-height: 1.8; }
+.ds-board .ds-me { background: var(--ds-accent-soft); border-radius: 4px; }
+.ds-stars { font-size: 1.6em; letter-spacing: 0.2em; margin: 0.2rem 0; color: #ffd04a; }
+.ds-newach { margin: 0.4rem auto; padding: 0.4rem 0.6rem; border-radius: 8px; border: 1px solid #ffd04a; background: rgba(255, 208, 74, 0.08); max-width: 18rem; }

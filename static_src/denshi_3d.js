@@ -210,7 +210,7 @@
 
     // ---------------- 地形（晶片、匯流排、散熱片、輸送帶、光纖、壞軌、入口、核心） ----------------
     var terGroup = new T.Group(); scene.add(terGroup);
-    var terKey = "", beltTex = null, badMeshes = [], portals = [];
+    var terKey = "", beltTex = null, badMeshes = [], portals = [], pinRings = [];
     function chipMesh(x, y, big) {
       var g = new T.Group(), sz = 0.82;
       var body = G.box(sz, 0.22, sz, M(0x15161a, { m: 0.15, r: 0.55 }));
@@ -242,7 +242,7 @@
       if (key === terKey) return;
       terKey = key;
       while (terGroup.children.length) terGroup.remove(terGroup.children[0]);
-      badMeshes = []; portals = [];
+      badMeshes = []; portals = []; pinRings = [];
       var x, y, i;
       for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
         i = y * W + x;
@@ -270,6 +270,14 @@
         } else if (t === "f") {
           var fb = G.box(0.9, 0.04, 0.12, glowM(0x35e0ff)); G.at(fb, px, 0.02, pz); terGroup.add(fb);
           var fb2 = G.box(0.12, 0.04, 0.9, glowM(0x35e0ff)); G.at(fb2, px, 0.02, pz); terGroup.add(fb2);
+        } else if (t === "p") {
+          // 電源排針：黑色塑膠座＋2×3 根鍍金針腳，底下一圈發光
+          var hdr = G.box(0.62, 0.12, 0.42, M(0x111214, { r: 0.6 })); G.at(hdr, px, 0.06, pz); terGroup.add(hdr);
+          for (var pr = 0; pr < 6; pr++) { var pin2 = G.box(0.06, 0.34, 0.06, GOLD); G.at(pin2, px - 0.2 + (pr % 3) * 0.2, 0.25, pz - 0.1 + Math.floor(pr / 3) * 0.2); terGroup.add(pin2); }
+          var pring = new T.Mesh(new T.RingGeometry(0.4, 0.47, 32), M(0xffd04a, { e: 0xffd04a, ei: 1.5, t: 0.8, ds: true }));
+          pring.rotation.x = -Math.PI / 2; G.at(pring, px, 0.015, pz); terGroup.add(pring); pinRings.push(pring);
+          var plab = new T.Mesh(new T.PlaneGeometry(0.9, 0.9), new T.MeshBasicMaterial({ map: modTextureChar("⚡", "#ffd04a"), transparent: true, depthWrite: false }));
+          plab.rotation.x = -Math.PI / 2; G.at(plab, px, 0.012, pz); terGroup.add(plab);
         } else if (t === "x") {
           var bad = new T.Mesh(new T.BoxGeometry(0.94, 0.1, 0.94), new T.MeshStandardMaterial({ color: 0x400010, emissive: 0xff1a3a, emissiveIntensity: 0.8, roughness: 0.6 }));
           G.at(bad, px, 0.05, pz); terGroup.add(bad); badMeshes.push(bad);
@@ -311,6 +319,15 @@
     // ---------------- 地基 ----------------
     var foundGroup = new T.Group(); scene.add(foundGroup);
     var foundKey = "", foundMeshes = {}, modTex = {};
+    function modTextureChar(ch, col) {
+      var key = "c:" + ch + col;
+      if (modTex[key]) return modTex[key];
+      var c = document.createElement("canvas"); c.width = c.height = 64;
+      var g = c.getContext("2d");
+      g.fillStyle = col; g.globalAlpha = 0.35; g.font = "bold 40px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(ch, 32, 34);
+      var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding;
+      modTex[key] = t; return t;
+    }
     function modTexture(mod) {
       if (modTex[mod]) return modTex[mod];
       var c = document.createElement("canvas"); c.width = c.height = 64;
@@ -320,13 +337,20 @@
       var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding;
       modTex[mod] = t; return t;
     }
-    function foundationMesh(mod, ownerColor) {
+    function foundationMesh(mod, ownerColor, powered) {
       var g = new T.Group();
       var slab = G.box(0.96, 0.16, 0.96, M(0x2d3138, { m: 0.55, r: 0.4 })); slab.position.y = 0.08; g.add(slab);
       var top = G.box(0.84, 0.02, 0.84, M(0x14361f, { m: 0.2, r: 0.6 })); top.position.y = 0.17; g.add(top);
       [[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]].forEach(function (p) { var pad = G.box(0.12, 0.02, 0.12, GOLD); G.at(pad, p[0], 0.17, p[1]); g.add(pad); });
       var edge = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(0.96, 0.16, 0.96)), new T.LineBasicMaterial({ color: ownerColor, transparent: true, opacity: 0.55 }));
       edge.position.y = 0.08; g.add(edge);
+      if (powered) {
+        // 通電：表面多一條發光走線＋側邊亮條
+        var tr = G.box(0.86, 0.012, 0.08, M(theme.glow, { e: theme.glow, ei: 1.8 })); tr.position.y = 0.186; g.add(tr);
+        var tr2 = G.box(0.08, 0.012, 0.86, M(theme.glow, { e: theme.glow, ei: 1.8 })); tr2.position.y = 0.186; g.add(tr2);
+        var side = G.box(1.0, 0.04, 1.0, M(theme.glow, { e: theme.glow, ei: 2, t: 0.75 })); side.position.y = 0.12; g.add(side);
+        g.userData.pw = [tr, tr2];
+      }
       if (mod) {
         var mc = D.MODS[mod].color;
         var icon = new T.Mesh(new T.PlaneGeometry(0.7, 0.7), new T.MeshBasicMaterial({ map: modTexture(mod), transparent: true, depthWrite: false }));
@@ -336,17 +360,18 @@
       return g;
     }
     function rebuildFound(s) {
-      var key = s.fo.join(",") + "|" + s.fm.join(",");
+      var key = s.fo.join(",") + "|" + s.fm.join(",") + "|" + s.ter.join("");
       if (key === foundKey) return;
       foundKey = key;
-      var seen = {};
+      var seen = {}, net = window.PriTestDenshiCore.nets(s);
       for (var i = 0; i < s.fo.length; i++) {
         if (!s.fo[i]) continue;
-        var k = i + ":" + s.fm[i] + ":" + s.fo[i];
+        var cpw = net.comp[i] >= 0 && net.info[net.comp[i]].pw;
+        var k = i + ":" + s.fm[i] + ":" + s.fo[i] + ":" + (cpw ? 1 : 0);
         seen[k] = 1;
         if (foundMeshes[k]) continue;
         var p = s.players[s.fo[i]], col = D.PLAYER_COLORS[p ? p.ci : 0];
-        var m = foundationMesh(s.fm[i], col);
+        var m = foundationMesh(s.fm[i], col, cpw);
         var x = i % W, y = (i - x) / W;
         G.at(m, wx(x) + 0.5, 1.2, wz(y) + 0.5);
         m.userData.drop = 1.2;
@@ -678,7 +703,8 @@
         o.ang += da * 0.35;
         o.m.head.rotation.y = -o.ang;
         if (o.m.spin) { if (tw.ty === "gun" || tw.ty === "transistor") o.m.spin.rotation.x += (tw.cd > 0 ? 0.6 : 0.05); else o.m.spin.rotation.y += 0.03; if (tw.ty === "accel") o.m.spin.rotation.x = Math.PI / 2; }
-        var off = tw.dis > s.time || tw.oh || window.PriTestDenshiCore.jammed(s, tw);
+        var off = tw.oh || window.PriTestDenshiCore.offline(s, tw);
+        var ocOn = p && p.ocU > s.time;
         var hot = tw.heat || 0;
         o.m.glows.forEach(function (gm) {
           if (gm.isSprite) { gm.visible = !off; gm.material.opacity = 0.6 + Math.sin(clock * 20 + tw.id) * 0.3; return; }
@@ -693,11 +719,12 @@
         var age = clock - o.born;
         if (age < 0.35) { var k = age / 0.35; o.m.g.scale.setScalar(0.6 + 0.4 * k); o.m.g.position.y += (1 - k) * 0.8; } else o.m.g.scale.setScalar(1);
         if (!o.status) { o.status = glowOwn(0xff4030, 0.6); o.status.position.y = 1.0; o.m.g.add(o.status); }
-        o.status.visible = off || hot > 0.5 || tw.chg > s.time;
+        var hiStat = tw.chg > s.time || ocOn;
+        o.status.visible = off || hot > 0.5 || hiStat;
         if (o.status.visible) {
-          o.status.material.color.setHex(tw.chg > s.time ? 0x9fd8ff : off ? 0x888888 : 0xff5030);
-          o.status.material.opacity = tw.chg > s.time ? 0.9 : off ? 0.5 + Math.sin(clock * 12) * 0.3 : hot;
-          o.status.scale.setScalar(tw.chg > s.time ? 1.2 + Math.sin(clock * 30) * 0.3 : 0.6);
+          o.status.material.color.setHex(ocOn ? 0xffa030 : tw.chg > s.time ? 0x9fd8ff : off ? 0x888888 : 0xff5030);
+          o.status.material.opacity = hiStat ? 0.9 : off ? 0.5 + Math.sin(clock * 12) * 0.3 : hot;
+          o.status.scale.setScalar(hiStat ? 1.2 + Math.sin(clock * 30) * 0.3 : 0.6);
         }
         // 雷射光束
         if (tw.bt) {
@@ -716,14 +743,25 @@
             b.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), to.clone().sub(from).normalize());
             b.visible = true; b.userData.glow.visible = true; b.userData.glow.position.copy(to);
             b.userData.seen = clock;
+            // 光束折射：從第一個目標折到第二個目標
+            var e2 = tw.bt2 && enemyObjs[tw.bt2];
+            var rb = b.userData.refr;
+            if (e2) {
+              if (!rb) { rb = b.userData.refr = new T.Mesh(new T.CylinderGeometry(0.02, 0.02, 1, 6, 1, true), new T.MeshBasicMaterial({ color: 0xff88aa, transparent: true, opacity: 0.8, blending: T.AdditiveBlending, depthWrite: false })); scene.add(rb); }
+              var to2 = new T.Vector3(e2.g.position.x, e2.body.position.y + 0.3, e2.g.position.z);
+              rb.position.copy(to).add(to2).multiplyScalar(0.5);
+              rb.scale.set(1, to.distanceTo(to2), 1);
+              rb.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), to2.clone().sub(to).normalize());
+              rb.visible = true;
+            } else if (rb) rb.visible = false;
           }
         }
       });
       Object.keys(towerObjs).forEach(function (id) { if (!seen[id]) { scene.remove(towerObjs[id].m.g); delete towerObjs[id]; } });
       Object.keys(beamObjs).forEach(function (id) {
         var b = beamObjs[id];
-        if (b.userData.seen !== clock) { b.visible = false; b.userData.glow.visible = false; }
-        if (!seen[id]) { scene.remove(b); scene.remove(b.userData.glow); delete beamObjs[id]; }
+        if (b.userData.seen !== clock) { b.visible = false; b.userData.glow.visible = false; if (b.userData.refr) b.userData.refr.visible = false; }
+        if (!seen[id]) { scene.remove(b); scene.remove(b.userData.glow); if (b.userData.refr) scene.remove(b.userData.refr); delete beamObjs[id]; }
       });
     }
 
@@ -938,6 +976,45 @@
           break;
         }
         case "surge": { flashLight = 0.8; break; }
+        case "skill": {
+          if (f.s === "emp") {
+            o = ringObj(0x9fd8ff, 0.1); o.position.set(0, 0.3, 0);
+            addFx({ obj: o, t0: clock, dur: 0.9, kind: "ring", r: 14 });
+            var o3 = ringObj(0xffffff, 0.1); o3.position.set(0, 0.6, 0);
+            addFx({ obj: o3, t0: clock + 0.1, dur: 0.8, kind: "ring", r: 12 });
+            flashLight = 1.2; shake = 0.2;
+          } else if (f.s === "oc") {
+            s.towers.forEach(function (tw) {
+              if (tw.o !== f.o) return;
+              var r3 = ringObj(0xffa030, 0.5); r3.position.copy(v3(tw.x + 0.5, tw.y + 0.5, 0.1));
+              addFx({ obj: r3, t0: clock + Math.random() * 0.2, dur: 0.6, kind: "rise", r: 0.5 });
+            });
+          } else if (f.s === "fix" && coreObj) {
+            var cg2 = glowOwn(0x6bff8a, 1); cg2.position.copy(coreObj.g.position); cg2.position.y = 1;
+            addFx({ obj: cg2, t0: clock, dur: 0.8, kind: "grow", r: 4 });
+            for (var fr2 = 0; fr2 < 3; fr2++) { var hr = ringObj(0x6bff8a, 0.6); hr.position.copy(coreObj.g.position); hr.position.y = 0.1; addFx({ obj: hr, t0: clock + fr2 * 0.15, dur: 0.7, kind: "rise", r: 0.8 }); }
+          }
+          break;
+        }
+        case "phase": {
+          var pg2 = glowOwn(f.n === 3 ? 0xff3060 : 0xb070ff, 1); pg2.position.copy(v3(f.x, f.y, 0.8));
+          addFx({ obj: pg2, t0: clock, dur: 0.9, kind: "grow", r: 7 });
+          var pr2 = ringObj(0xb070ff, 0.1); pr2.position.copy(v3(f.x, f.y, 0.1));
+          addFx({ obj: pr2, t0: clock, dur: 1, kind: "ring", r: 5 });
+          flashLight = 1.5; shake = 0.35;
+          break;
+        }
+        case "eat": case "split": {
+          c = f.k === "eat" ? 0xff3355 : 0xffb040;
+          for (var q2 = 0; q2 < 14; q2++) {
+            var chunk = new T.Mesh(new T.BoxGeometry(0.12, 0.05, 0.12), new T.MeshBasicMaterial({ color: q2 % 2 ? c : 0x2d3138, transparent: true }));
+            chunk.position.copy(v3(f.x, f.y, 0.2));
+            var a3 = Math.random() * Math.PI * 2, sp3 = 1 + Math.random() * 2;
+            addFx({ obj: chunk, t0: clock, dur: 0.8, kind: "debris", vx: Math.cos(a3) * sp3, vz: Math.sin(a3) * sp3, vy: 2 + Math.random() * 2 });
+          }
+          shake = 0.15;
+          break;
+        }
       }
       void s;
     }
@@ -1051,6 +1128,39 @@
       if (u.hover) hoverTile.position.set(wx(u.hover[0]) + 0.5, 0.2, wz(u.hover[1]) + 0.5);
     }
 
+    // ---------------- 組合技連線（兩座砲塔之間跳動的弧線） ----------------
+    var comboGroup = new T.Group(); scene.add(comboGroup);
+    var comboKey = "", comboLines = [];
+    function updateCombos(s) {
+      var key = (s.tv || 0) + "|" + s.towers.length + "|" + s.towers.map(function (t) { return t.ty; }).join(",");
+      if (key !== comboKey) {
+        comboKey = key;
+        while (comboGroup.children.length) comboGroup.remove(comboGroup.children[0]);
+        comboLines = [];
+        var done = {};
+        s.towers.forEach(function (tw) {
+          window.PriTestDenshiCore.combosOf(s, tw).forEach(function (x) {
+            var o = window.PriTestDenshiCore.towerById(s, x.with);
+            if (!o) return;
+            var pk = Math.min(tw.id, o.id) + "-" + Math.max(tw.id, o.id) + x.c.id;
+            if (done[pk]) return;
+            done[pk] = 1;
+            var a = v3(tw.x + 0.5, tw.y + 0.5, 0.75), b = v3(o.x + 0.5, o.y + 0.5, 0.75);
+            var mid = a.clone().add(b).multiplyScalar(0.5); mid.y += 0.45;
+            var curve = new T.QuadraticBezierCurve3(a, mid, b);
+            var ln = new T.Mesh(new T.TubeGeometry(curve, 20, 0.03, 6, false), new T.MeshBasicMaterial({ color: 0xffd04a, transparent: true, opacity: 0.8, blending: T.AdditiveBlending, depthWrite: false }));
+            comboGroup.add(ln);
+            var mk = glowOwn(0xffd04a, 0.35); mk.position.copy(mid); comboGroup.add(mk);
+            comboLines.push({ ln: ln, mk: mk, curve: curve });
+          });
+        });
+      }
+      comboLines.forEach(function (c, i) {
+        c.ln.material.opacity = 0.45 + Math.sin(clock * 5 + i) * 0.3;
+        c.mk.position.copy(c.curve.getPoint((clock * 0.8 + i * 0.3) % 1));
+      });
+    }
+
     // 天線陣列的干擾波
     var jamBand = new T.Mesh(new T.BoxGeometry(3, 2.2, H), new T.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.12, blending: T.AdditiveBlending, depthWrite: false }));
     jamBand.visible = false; jamBand.position.y = 1.1; scene.add(jamBand);
@@ -1090,6 +1200,8 @@
         var hot = s.phase === "wave" ? 1 : (u.nextSpawns && u.nextSpawns[p.i] ? 1 : 0.35);
         p.gl.material.opacity = hot * (0.6 + Math.sin(clock * 4) * 0.2);
       });
+      updateCombos(s);
+      pinRings.forEach(function (r, i) { r.material.opacity = 0.5 + Math.abs(Math.sin(clock * 3 + i)) * 0.5; });
       badMeshes.forEach(function (b, i) { b.material.emissiveIntensity = 0.5 + Math.abs(Math.sin(clock * 7 + i * 1.3)) * 0.8; });
       if (beltTex) beltTex.offset.x -= dt * 1.2;
       if (coreObj) {
@@ -1102,13 +1214,13 @@
         coreObj.gl.material.color.setHex(coreObj.flash > 0.1 || hr < 0.3 ? 0xff3040 : theme.glow);
         coreObj.gl.scale.setScalar(2.2 + Math.sin(clock * 3) * 0.3 + coreObj.flash * 2);
       }
-      if (s.theme === "antenna" && s.phase === "wave") {
+      if (window.PriTestDenshiCore.has(s, "antenna") && s.phase === "wave") {
         var jx = window.PriTestDenshiCore.jamX(s);
         jamBand.visible = jamLine.visible = true;
         jamBand.position.x = wx(0) + jx; jamLine.position.set(wx(0) + jx, 0.05 + Math.abs(Math.sin(clock * 9)) * 2, 0);
       } else jamBand.visible = jamLine.visible = false;
       flashLight = Math.max(0, flashLight - dt * 3);
-      var surge = s.theme === "psu" && s.m && s.m.surgeU > s.time;
+      var surge = window.PriTestDenshiCore.has(s, "psu") && s.m && s.m.surgeU > s.time;
       sun.intensity = 1.1 + flashLight * 2.5;
       rim.intensity = 0.35 + (surge ? 0.8 + Math.sin(clock * 25) * 0.3 : 0);
       // 鏡頭

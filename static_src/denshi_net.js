@@ -3,7 +3,7 @@
 // 路徑：games/<roomId>/rtState/ds/...（沿用 game_storage.js 的 rtSet / rtSubscribe，database.rules.json 不用改）
 //   meta        { v: 1, host: cid, status: "lobby" | "game" }
 //   on/<cid>    true（onDisconnect 自動移除＝在線）
-//   pl/<cid>    { pid, name, at }
+//   pl/<cid>    { pid, name, role, at }
 //   cfg         JSON 字串（房主的設定：模式、地圖、波數、難度）
 //   st          JSON 字串 { s: 整局狀態（Core.serialize）, q: { pid: 已處理到的意圖序號 }, rev }
 //   in/<pid>    JSON 字串 [{ n: 序號, it: 意圖 }]（每個玩家自己的意圖，只留最近 40 筆）
@@ -44,7 +44,7 @@
     var subs = [], stopPresence = null;
     var room = {
       id: roomId, cid: cid, pid: myPid(), creating: creating, loaded: false, missing: false, closed: false,
-      meta: null, online: {}, players: {}, cfg: opts.cfg || null, wrap: null, me: { name: opts.name || "", at: 0 }
+      meta: null, online: {}, players: {}, cfg: opts.cfg || null, wrap: null, me: { name: opts.name || "", role: opts.role || "", at: 0 }
     };
     var inSeq = 0, inList = [], seenIn = {};
 
@@ -59,10 +59,10 @@
     room.list = function () {
       return Object.keys(room.players).filter(function (k) { return room.online[k]; }).map(function (k) {
         var p = room.players[k] || {};
-        return { cid: k, pid: String(p.pid || ""), name: String(p.name || "").slice(0, 16), at: Number(p.at) || 0 };
+        return { cid: k, pid: String(p.pid || ""), name: String(p.name || "").slice(0, 16), role: String(p.role || ""), at: Number(p.at) || 0 };
       }).filter(function (p) { return /^p[0-9a-f]{16}$/.test(p.pid); }).sort(function (x, y) { return (x.at - y.at) || (x.cid < y.cid ? -1 : 1); });
     };
-    function pushMe() { return set("pl/" + cid, { pid: room.pid, name: room.me.name || "", at: room.me.at }); }
+    function pushMe() { return set("pl/" + cid, { pid: room.pid, name: room.me.name || "", role: room.me.role || "", at: room.me.at }); }
     room.update = function (patch) { Object.keys(patch).forEach(function (k) { room.me[k] = patch[k]; }); return pushMe(); };
     room.setCfg = function (cfg) { if (!room.isHost()) return; room.cfg = cfg; set("cfg", JSON.stringify(cfg)); };
 
@@ -166,7 +166,50 @@
     return m ? m[1] : null;
   }
 
+  // ---------------- 每日挑戰排行榜 ----------------
+  // 日期一律用臺灣時間（UTC+8）切換，全世界同一天玩同一張圖。
+  // 排行榜存在「由日期雜湊出的固定房號」底下：games/<id>/rtState/dsd/<pid> = { name, score, wave, hp, role, at }
+  function dailyKey(now) {
+    var d = new Date((now || Date.now()) + 8 * 3600 * 1000);
+    return d.getUTCFullYear() + "-" + ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + d.getUTCDate()).slice(-2);
+  }
+  function fnv(str, salt) {
+    var h = (0x811c9dc5 ^ salt) >>> 0;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0;
+  }
+  function dailySeed(key) { return fnv("denshi-daily-" + key, 7) || 1; }
+  function dailyRoom(key) {
+    var hex = "";
+    for (var k = 0; k < 4; k++) hex += ("0000000" + fnv("denshi-daily-board-" + key, k * 977 + 13).toString(16)).slice(-8);
+    return "g" + hex;
+  }
+  function dailyWatch(key, fn) {
+    var G = GS();
+    if (!G) { fn(null); return function () {}; }
+    return G.rtSubscribe(dailyRoom(key), CLOUD, "dsd", function (v) {
+      var list = Object.keys(v || {}).map(function (pid) {
+        var e = v[pid] || {};
+        return { pid: pid, name: String(e.name || "").slice(0, 16), score: Number(e.score) || 0, wave: Number(e.wave) || 0, hp: Number(e.hp) || 0, role: String(e.role || ""), at: Number(e.at) || 0 };
+      }).filter(function (e) { return /^p[0-9a-f]{16}$/.test(e.pid); });
+      list.sort(function (a, b) { return (b.score - a.score) || (a.at - b.at); });
+      fn(list);
+    });
+  }
+  // 只有比自己之前的分數高才寫入（transaction，同時多個分頁也不會蓋掉較高分）
+  function dailySubmit(key, entry) {
+    var G = GS();
+    if (!G) return Promise.resolve(null);
+    var pid = myPid();
+    entry.at = G.serverNow();
+    return G.rtTransaction(dailyRoom(key), CLOUD, "dsd/" + pid, function (cur) {
+      if (cur && Number(cur.score) >= entry.score) return;
+      return entry;
+    });
+  }
+
   window.PriTestDenshiNet = {
+    dailyKey: dailyKey, dailySeed: dailySeed, dailyRoom: dailyRoom, dailyWatch: dailyWatch, dailySubmit: dailySubmit,
     open: open, roomFromUrl: roomFromUrl, myPid: myPid, validRoomId: function (id) { return ROOM_RE.test(String(id || "")); }
   };
 })();

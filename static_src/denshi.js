@@ -19,7 +19,23 @@
   function jget(k, d) { try { return JSON.parse(lsGet(k) || "null") || d; } catch (e) { return d; } }
   function pref() { return jget(PREF_KEY, {}); }
   function setPref(p) { var o = pref(); Object.keys(p).forEach(function (k) { o[k] = p[k]; }); lsSet(PREF_KEY, JSON.stringify(o)); }
-  function progress() { return jget(PROG_KEY, { cleared: {}, best: {}, games: 0, wins: 0 }); }
+  function progress() {
+    var pg = jget(PROG_KEY, {});
+    ["cleared", "best", "stars", "ach", "combo", "evo"].forEach(function (k) { if (!pg[k] || typeof pg[k] !== "object") pg[k] = {}; });
+    return pg;
+  }
+  function totalStars(pg) { var n = 0; Object.keys(pg.stars || {}).forEach(function (k) { n += pg.stars[k] || 0; }); return n; }
+  // 依戰役星數解鎖的內容（每日挑戰不套用，大家條件相同）
+  function myUnl() {
+    var st = totalStars(progress()), u = {};
+    D.UNLOCKS.forEach(function (x) { if (st >= x.stars) u[x.id] = 1; });
+    return u;
+  }
+  function soloPlayers() { return [{ pid: "me", name: lsGet(NAME_KEY), role: ui.role }]; }
+  function rolePicker(value, onpick) {
+    return el("div", { class: "ds-field" }, [t("ds_role"), seg(Object.keys(D.ROLES).map(function (k) { return [k, D.ROLES[k].icon + " " + L(D.ROLES[k].name)]; }), value, onpick),
+      el("p", { class: "ds-small ds-muted ds-full" }, [L(D.ROLES[value] ? D.ROLES[value].desc : D.ROLES.general.desc)])]);
+  }
 
   function el(tag, attrs, children) {
     var e = document.createElement(tag);
@@ -50,7 +66,8 @@
   var ui = {
     screen: "home", mode: null, pi: 0, rot: 0, bt: null, sel: 0, hover: null, paused: false, speed: 1, room: null,
     setup: { map: p0.map === undefined ? -1 : p0.map, waves: p0.waves === undefined ? 30 : p0.waves, diff: p0.diff || "normal" },
-    camp: { diff: p0.cdiff || "normal" }, toast: [], lastFx: -1, recorded: false, quality: p0.quality || "high"
+    camp: { diff: p0.cdiff || "normal" }, toast: [], lastFx: -1, recorded: false, quality: p0.quality || "high",
+    role: D.ROLES[p0.role] ? p0.role : "general", board: null, boardKey: "", boardStop: null
   };
   var sess = null, view3 = null, acc = 0, lastSave = 0, lastPush = 0, dirty = false, panelSig = "";
 
@@ -87,6 +104,7 @@
   // ---------------- 畫面切換 ----------------
   function go(screen) {
     if (view3) { view3.dispose(); view3 = null; }
+    if (screen !== "daily" && ui.boardStop) { ui.boardStop(); ui.boardStop = null; ui.boardKey = ""; }
     refs = {};
     ui.screen = screen;
     render();
@@ -101,6 +119,8 @@
     else if (ui.screen === "campaign") renderCampaign();
     else if (ui.screen === "codex") renderCodex();
     else if (ui.screen === "lobby") renderLobby();
+    else if (ui.screen === "daily") renderDaily();
+    else if (ui.screen === "ach") renderAch();
   }
   function topBar() {
     return el("div", { class: "ds-top" }, [
@@ -123,11 +143,13 @@
         btn("🎲 " + t("ds_menu_random"), function () { go("setup"); }, "ds-big" + (saved ? "" : " ds-primary")),
         btn("🗺️ " + t("ds_menu_campaign"), function () { go("campaign"); }, "ds-big"),
         btn("👥 " + t("ds_menu_coop"), function () { enterRoom(null); }, "ds-big"),
+        btn("📅 " + t("ds_menu_daily"), function () { go("daily"); }, "ds-big"),
+        btn("🏅 " + t("ds_menu_ach"), function () { go("ach"); }, "ds-big"),
         btn("📖 " + t("ds_menu_codex"), function () { go("codex"); }, "ds-big")
       ]),
-      el("p", { class: "ds-muted ds-small" }, [t("ds_home_meta", { g: pg.games || 0, w: pg.wins || 0, c: Object.keys(pg.cleared || {}).length })])
+      el("p", { class: "ds-muted ds-small" }, [t("ds_home_meta", { g: pg.games || 0, w: pg.wins || 0, c: Object.keys(pg.cleared || {}).length }) + "・⭐" + totalStars(pg) + "・🏅" + Object.keys(pg.ach).length + "/" + D.ACHIEVEMENTS.length])
     ]));
-    app.appendChild(panel(t("ds_how_title"), [el("ol", { class: "ds-rules" }, [1, 2, 3, 4, 5, 6].map(function (i) { return el("li", null, [t("ds_help_" + i)]); }))]));
+    app.appendChild(panel(t("ds_how_title"), [el("ol", { class: "ds-rules" }, [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return el("li", null, [t("ds_help_" + i)]); }))]));
   }
   function heroSvg() {
     var svg = '<svg viewBox="0 0 320 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="dsg" x1="0" x2="1"><stop offset="0" stop-color="#0b3a29"/><stop offset="1" stop-color="#140f2e"/></linearGradient></defs>' +
@@ -164,10 +186,12 @@
   function renderSetup() {
     var cfg = ui.setup;
     app.appendChild(panel(t("ds_menu_random"), setupFields(cfg, function () { setPref({ map: cfg.map, waves: cfg.waves, diff: cfg.diff }); render(); }).concat([
+      rolePicker(ui.role, function (v) { ui.role = v; setPref({ role: v }); render(); }),
+      unlockNote(),
       el("p", { class: "ds-muted ds-small" }, [t("ds_random_note")]),
       el("div", { class: "ds-actions ds-next" }, [btn(t("ds_start"), function () {
         lsSet(SAVE_KEY, null);
-        startSolo(Core.newGame({ seed: Core.newSeed(), mode: "random", map: cfg.map, waves: cfg.waves, diff: cfg.diff, players: [{ pid: "me", name: lsGet(NAME_KEY) }] }));
+        startSolo(Core.newGame({ seed: Core.newSeed(), mode: "random", map: cfg.map, waves: cfg.waves, diff: cfg.diff, players: soloPlayers(), unl: myUnl() }));
       }, "ds-big ds-primary")])
     ])));
   }
@@ -179,26 +203,106 @@
     app.appendChild(panel(t("ds_menu_campaign"), [
       el("p", { class: "ds-muted" }, [t("ds_campaign_note")]),
       el("label", { class: "ds-field" }, [t("ds_diff"), seg(Object.keys(D.DIFFS).map(function (k) { return [k, L(D.DIFFS[k].name)]; }), cfg.diff, function (v) { cfg.diff = v; setPref({ cdiff: v }); render(); })]),
+      rolePicker(ui.role, function (v) { ui.role = v; setPref({ role: v }); render(); }),
+      el("p", { class: "ds-small" }, ["⭐ " + t("ds_stars_total", { n: totalStars(pg), m: D.MAPS.length * 3 }) + "　" + t("ds_star_rule")]),
       el("div", { class: "ds-maps" }, D.MAPS.map(function (m, i) {
         var open = i === 0 || (pg.cleared && pg.cleared[D.MAPS[i - 1].id]), done = pg.cleared && pg.cleared[m.id];
         return el("div", { class: "ds-map" + (open ? "" : " ds-locked") + (done ? " ds-done" : ""), style: "--ds-mc:" + hex(m.glow) + ";--ds-mb:" + hex(m.board) }, [
           el("div", { class: "ds-map-no" }, [String(i + 1)]),
-          el("h3", null, [L(m.name), done ? " ✅" : ""]),
+          el("h3", null, [L(m.name), done ? " " + "⭐".repeat(pg.stars[m.id] || 1) : ""]),
           el("p", { class: "ds-map-mech" }, ["⚙️ " + L(m.mech)]),
           el("p", { class: "ds-small" }, [L(m.mdesc)]),
           pg.best && pg.best[m.id] ? el("p", { class: "ds-small ds-muted" }, [t("ds_best", { n: pg.best[m.id] })]) : null,
           open ? btn(t("ds_play"), function () {
             lsSet(SAVE_KEY, null);
-            startSolo(Core.newGame({ seed: campaignSeed(i), mode: "campaign", map: i, waves: 20, diff: cfg.diff, players: [{ pid: "me", name: lsGet(NAME_KEY) }] }));
+            startSolo(Core.newGame({ seed: campaignSeed(i), mode: "campaign", map: i, waves: 20, diff: cfg.diff, players: soloPlayers(), unl: myUnl() }));
           }, "ds-btn ds-primary") : el("p", { class: "ds-small ds-muted" }, ["🔒 " + t("ds_locked")])
         ]);
       }))
     ]));
   }
 
+  function unlockNote() {
+    var u = myUnl(), names = D.UNLOCKS.filter(function (x) { return u[x.id]; }).map(function (x) { return L(x.name); });
+    return names.length ? el("p", { class: "ds-small ds-hint" }, ["🔓 " + t("ds_unlocked_now", { n: names.join("、") })]) : null;
+  }
+
+  // ---------------- 每日挑戰 ----------------
+  function dailyCfg() {
+    var key = Net.dailyKey(), seed = Net.dailySeed(key);
+    var o = { rs: seed };
+    // 跟 Core 一樣的 mulberry32：決定今天的地圖與額外混搭機制
+    function r() { o.rs = (o.rs + 0x6D2B79F5) >>> 0; var x = o.rs; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }
+    var map = Math.floor(r() * D.MAPS.length);
+    var pool = D.MIXABLE.filter(function (id) { return id !== D.MAPS[map].id; });
+    return { key: key, seed: seed, map: map, mix: pool[Math.floor(r() * pool.length)] };
+  }
+  function startDaily() {
+    var c = dailyCfg();
+    var s = Core.newGame({ seed: c.seed, mode: "daily", map: c.map, waves: 20, diff: "normal", players: soloPlayers(), unl: {}, daily: c.key });
+    s.mix = [c.mix];
+    lsSet(SAVE_KEY, null);
+    startSolo(s);
+  }
+  function mapName(id) { var m = D.MAPS.filter(function (x) { return x.id === id; })[0]; return m ? L(m.name) + "・" + L(m.mech) : id; }
+  function renderDaily() {
+    var c = dailyCfg(), pg = progress(), m = D.MAPS[c.map];
+    var mine = pg.daily && pg.daily[c.key];
+    app.appendChild(panel("📅 " + t("ds_menu_daily") + "・" + c.key, [
+      el("p", null, [t("ds_daily_note")]),
+      el("div", { class: "ds-map", style: "--ds-mc:" + hex(m.glow) + ";--ds-mb:" + hex(m.board) }, [
+        el("h3", null, [L(m.name)]),
+        el("p", { class: "ds-map-mech" }, ["⚙️ " + L(m.mech) + "：" + L(m.mdesc)]),
+        el("p", { class: "ds-map-mech" }, ["➕ " + t("ds_daily_mix", { n: mapName(c.mix) })])
+      ]),
+      rolePicker(ui.role, function (v) { ui.role = v; setPref({ role: v }); render(); }),
+      el("p", { class: "ds-small" }, [mine ? t("ds_daily_mine", { n: mine }) : t("ds_daily_none")]),
+      el("div", { class: "ds-actions ds-next" }, [btn(t("ds_start"), startDaily, "ds-big ds-primary")])
+    ]));
+    var boardBox = el("div", null, [el("p", { class: "ds-muted ds-small" }, [t("ds_connecting")])]);
+    app.appendChild(panel("🏆 " + t("ds_board"), [boardBox]));
+    function draw(list) {
+      boardBox.innerHTML = "";
+      if (!list) { boardBox.appendChild(el("p", { class: "ds-muted ds-small" }, [t("ds_board_offline")])); return; }
+      if (!list.length) { boardBox.appendChild(el("p", { class: "ds-muted ds-small" }, [t("ds_board_empty")])); return; }
+      var myPid = Net.myPid();
+      boardBox.appendChild(el("ol", { class: "ds-board" }, list.slice(0, 50).map(function (e) {
+        var r = D.ROLES[e.role];
+        return el("li", { class: e.pid === myPid ? "ds-me" : "" }, [el("b", null, [e.name || t("ds_noname")]), " " + (r ? r.icon : "") + "　" + t("ds_board_row", { s: e.score, w: e.wave, hp: e.hp })]);
+      })));
+    }
+    if (ui.boardKey !== c.key) {
+      if (ui.boardStop) ui.boardStop();
+      ui.board = undefined; ui.boardKey = c.key;
+      try { ui.boardStop = Net.dailyWatch(c.key, function (list) { ui.board = list; if (ui.screen === "daily") draw(list); }); } catch (e) { ui.board = null; }
+      setTimeout(function () { if (ui.board === undefined && ui.screen === "daily") draw(null); }, 8000);
+    }
+    if (ui.board !== undefined) draw(ui.board);
+  }
+
+  // ---------------- 成就與解鎖 ----------------
+  function renderAch() {
+    var pg = progress(), st = totalStars(pg);
+    app.appendChild(panel("⭐ " + t("ds_unlocks"), [
+      el("p", null, [t("ds_stars_total", { n: st, m: D.MAPS.length * 3 }) + "　" + t("ds_star_rule")]),
+      el("div", { class: "ds-cards" }, D.UNLOCKS.map(function (u) {
+        var ok = st >= u.stars;
+        return el("div", { class: "ds-card" + (ok ? " ds-got" : " ds-dim") }, [el("b", null, [(ok ? "🔓 " : "🔒 ") + L(u.name)]), el("span", { class: "ds-cost" }, ["⭐" + u.stars]), el("p", { class: "ds-small" }, [L(u.desc)])]);
+      })),
+      el("p", { class: "ds-small ds-muted" }, [D.MAPS.map(function (m, i) { return (i + 1) + "." + L(m.name) + " " + (pg.stars[m.id] ? "⭐".repeat(pg.stars[m.id]) : "—"); }).join("　")])
+    ]));
+    app.appendChild(panel("🏅 " + t("ds_menu_ach") + "（" + Object.keys(pg.ach).length + "/" + D.ACHIEVEMENTS.length + "）", [
+      el("div", { class: "ds-cards" }, D.ACHIEVEMENTS.map(function (a) {
+        var ok = pg.ach[a.id];
+        return el("div", { class: "ds-card" + (ok ? " ds-got" : " ds-dim") }, [el("b", null, [a.icon + " " + L(a.name)]), ok ? el("span", { class: "ds-cost" }, ["✅"]) : null, el("p", { class: "ds-small" }, [L(a.desc)])]);
+      })),
+      el("p", { class: "ds-small ds-muted" }, [t("ds_ach_combo", { n: Object.keys(pg.combo).length, m: D.COMBOS.length }) + "・" + t("ds_ach_evo", { n: Object.keys(pg.evo).length })])
+    ]));
+  }
+
   // ---------------- 圖鑑 ----------------
-  function statLine(def, lv, skipBasic) {
-    var b = def.lv[lv], out = [];
+  function statLine(def, lv, skipBasic, eff) {
+    var b = eff || def.lv[lv], out = [];
     if (!skipBasic) {
       if (b.dmg) out.push((def.kind === "beam" ? t("ds_st_dps") : t("ds_st_dmg")) + " " + fmt(b.dmg));
       if (b.rate && def.kind !== "beam" && def.kind !== "aura") out.push(t("ds_st_rate") + " " + fmt(b.rate) + "/s");
@@ -229,6 +333,16 @@
         ]);
       }))]);
     })));
+    app.appendChild(panel("🔗 " + t("ds_codex_combos"), [el("p", { class: "ds-small ds-muted" }, [t("ds_combo_note")]), el("div", { class: "ds-cards" }, D.COMBOS.map(function (c) {
+      return el("div", { class: "ds-card", style: "border-left:4px solid #ffd04a" }, [el("b", null, [L(c.name)]), el("p", { class: "ds-small" }, [L(c.desc)])]);
+    }))]));
+    app.appendChild(panel("🧑‍🤝‍🧑 " + t("ds_codex_roles"), [el("div", { class: "ds-cards" }, Object.keys(D.ROLES).map(function (k) {
+      var r = D.ROLES[k];
+      return el("div", { class: "ds-card" }, [el("b", null, [r.icon + " " + L(r.name)]), el("p", { class: "ds-small" }, [L(r.desc)])]);
+    })), el("h3", null, [t("ds_codex_skills")]), el("div", { class: "ds-cards" }, Object.keys(D.SKILLS).map(function (k) {
+      var sk = D.SKILLS[k];
+      return el("div", { class: "ds-card" }, [el("b", null, [sk.icon + " " + L(sk.name) + "（" + sk.key + "）"]), el("span", { class: "ds-cost" }, ["⏱" + sk.cd + "s"]), el("p", { class: "ds-small" }, [L(sk.desc)])]);
+    })), el("p", { class: "ds-small ds-muted" }, [t("ds_net_note")])]));
     app.appendChild(panel(t("ds_codex_enemies"), [el("div", { class: "ds-cards" }, Object.keys(D.ENEMIES).map(function (k) {
       var e = D.ENEMIES[k];
       return el("div", { class: "ds-card", style: "border-left:4px solid " + hex(e.color) }, [
@@ -242,7 +356,7 @@
     }))]));
     app.appendChild(panel(t("ds_codex_mods"), [el("div", { class: "ds-cards" }, Object.keys(D.MODS).map(function (k) {
       var m = D.MODS[k];
-      return el("div", { class: "ds-card", style: "border-left:4px solid " + hex(m.color) }, [el("b", null, [m.icon + " " + L(m.name)]), el("p", { class: "ds-small" }, [L(m.desc)])]);
+      return el("div", { class: "ds-card", style: "border-left:4px solid " + hex(m.color) }, [el("b", null, [m.icon + " " + L(m.name) + (m.lock ? " 🔒" : "")]), el("p", { class: "ds-small" }, [L(m.desc)])]);
     })), el("p", { class: "ds-small ds-muted" }, [t("ds_mods_note")])]));
   }
 
@@ -280,7 +394,14 @@
         btn("－", function () { if (view3) view3.zoom(1.18); }, "ds-iconbtn"),
         btn("⌂", function () { if (view3) view3.resetCam(); }, "ds-iconbtn", { title: t("ds_cam_reset") })
       ]),
-      refs.mech = el("div", { class: "ds-mechtag", style: "--ds-mc:" + hex(m.glow) }, ["⚙️ " + L(m.name) + "・" + L(m.mech)]),
+      refs.mech = el("div", { class: "ds-mechtag", style: "--ds-mc:" + hex(m.glow) }, [mechText(s)]),
+      refs.skills = el("div", { class: "ds-skills" }, Object.keys(D.SKILLS).map(function (k) {
+        var sk = D.SKILLS[k];
+        var b = el("button", { type: "button", class: "ds-skill", "data-skill": k, title: L(sk.name) + "：" + L(sk.desc), onclick: function () { useSkill(k); } }, [
+          el("span", { class: "ds-skill-ic" }, [sk.icon]), el("span", { class: "ds-skill-n" }, [L(sk.name)]), el("kbd", null, [sk.key]), el("i", { class: "ds-skill-cd" })
+        ]);
+        return b;
+      })),
       refs.endBox = el("div", { class: "ds-endbox", hidden: true })
     ]);
     refs.side = el("div", { class: "ds-side" });
@@ -306,6 +427,31 @@
         onFrame: onFrame
       });
     }, function () { loadingMsg.textContent = t("ds_no_webgl"); });
+  }
+
+  function mechText(s) {
+    var m = D.MAPS[s.map];
+    return "⚙️ " + L(m.name) + "・" + L(m.mech) + (s.mix && s.mix.length ? "　➕ " + s.mix.map(function (id) { var mm = D.MAPS.filter(function (x) { return x.id === id; })[0]; return mm ? L(mm.mech) : id; }).join("・") : "");
+  }
+  function useSkill(k) {
+    var s = sess && sess.s, p = me();
+    if (!s || !p) return;
+    if (s.phase !== "wave") { toast(t("ds_skill_wave_only"), "bad"); return; }
+    if ((p.cd[k] || 0) > s.time) { toast(t("ds_skill_cd", { n: Math.ceil(p.cd[k] - s.time) }), "bad"); return; }
+    sess.send({ a: "skill", k: k });
+  }
+  function updateSkills(s, p) {
+    if (!refs.skills || !p) return;
+    Array.prototype.forEach.call(refs.skills.children, function (b) {
+      var k = b.getAttribute("data-skill"), left = Math.max(0, (p.cd[k] || 0) - s.time), full = Core.skillCd(s, p, k);
+      var ready = s.phase === "wave" && left <= 0;
+      b.classList.toggle("ds-ready", ready);
+      b.classList.toggle("ds-wait", s.phase !== "wave" || left > 0);
+      var bar = b.lastChild, pct = left > 0 ? Math.round(left / full * 100) + "%" : "0%";
+      if (bar.style.height !== pct) bar.style.height = pct;
+      var tt = left > 0 ? Math.ceil(left) + "s" : "";
+      if (bar.textContent !== tt) bar.textContent = tt;
+    });
   }
 
   // 預覽（3D 每影格呼叫）
@@ -384,8 +530,8 @@
     readFx(s);
     updateHud();
     updatePanel();
-    updateLive(s);
     if (s.end && !ui.recorded) recordEnd(s);
+    updateLive(s);
   }
 
   function readFx(s) {
@@ -399,6 +545,11 @@
       else if (f.k === "surge") toast(t("ds_toast_surge"), "warn");
       else if (f.k === "leak") toast(t("ds_toast_leak", { n: f.n }), "bad");
       else if (f.k === "emp") toast(t("ds_toast_emp"), "warn");
+      else if (f.k === "mix") toast(t("ds_toast_mix", { n: mapName(f.id) }), "big");
+      else if (f.k === "phase") toast(t("ds_toast_phase" + f.n), "big");
+      else if (f.k === "eat") toast(t("ds_toast_eat"), "warn");
+      else if (f.k === "split") toast(t("ds_toast_split"), "warn");
+      else if (f.k === "skill") { var sp = s.players[f.o], sk = D.SKILLS[f.s]; if (sk) toast(sk.icon + " " + (sp && s.order.length > 1 ? (sp.name || t("ds_noname")) + "：" : "") + L(sk.name), "good"); }
     });
     ui.lastFx = maxId;
   }
@@ -423,10 +574,14 @@
       ["❤️", s.hp + "/" + s.mhp],
       ["☠️", String(s.kills)]
     ];
-    if (s.theme === "psu") parts.push(["🔌", t("ds_hud_volt", { v: Math.round(s.m.volt * 100) }) + (s.m.surgeU > s.time ? " ⚡" : "")]);
-    if (s.theme === "aicore") parts.push(["🧠", t("ds_hud_res", { k: Math.round(s.m.res.kin * 100), e: Math.round(s.m.res.en * 100) })]);
+    if (Core.has(s, "psu")) parts.push(["🔌", t("ds_hud_volt", { v: Math.round(s.m.volt * 100) }) + (s.m.surgeU > s.time ? " ⚡" : "")]);
+    if (Core.has(s, "aicore")) parts.push(["🧠", t("ds_hud_res", { k: Math.round(s.m.res.kin * 100), e: Math.round(s.m.res.en * 100) })]);
     if (s.phase === "wave") parts.push(["👾", t("ds_hud_left", { n: s.enemies.length + s.wq.length })]);
     else if (s.auto && s.autoT > 0) parts.push(["⏱", t("ds_hud_auto", { n: Math.ceil(s.autoT) })]);
+    if (p) parts.push([D.ROLES[p.role] ? D.ROLES[p.role].icon : "", L((D.ROLES[p.role] || D.ROLES.general).name)]);
+    updateSkills(s, p);
+    var mt = mechText(s);
+    if (refs.mech && refs.mech.textContent !== mt) refs.mech.textContent = mt;
     var txt = parts.map(function (x) { return x[0] + " " + x[1]; }).join("　");
     if (refs.hud.textContent !== txt) {
       refs.hud.innerHTML = "";
@@ -436,7 +591,7 @@
   function updateLive(s) {
     if (refs.selStats && ui.sel) {
       var tw = Core.towerById(s, ui.sel);
-      if (tw) { var tx = t("ds_tw_record", { d: Math.round(tw.dmg || 0), k: tw.kills || 0 }) + (tw.oh ? "・🔥" + t("ds_overheat") : tw.heat > 0.05 ? "・🌡" + Math.round(tw.heat * 100) + "%" : "") + (tw.dis > s.time || Core.jammed(s, tw) ? "・📵" + t("ds_offline") : "") + (tw.chg > s.time ? "・⚡" + t("ds_charged") : ""); if (refs.selStats.textContent !== tx) refs.selStats.textContent = tx; }
+      if (tw) { var tx = t("ds_tw_record", { d: Math.round(tw.dmg || 0), k: tw.kills || 0 }) + (tw.oh ? "・🔥" + t("ds_overheat") : tw.heat > 0.05 ? "・🌡" + Math.round(tw.heat * 100) + "%" : "") + (Core.offline(s, tw) ? "・📵" + t("ds_offline") : "") + (Core.grounded(s, tw) ? "・⏚" : "") + (tw.chg > s.time ? "・⚡" + t("ds_charged") : ""); if (refs.selStats.textContent !== tx) refs.selStats.textContent = tx; }
     }
     if (s.end && refs.endBox && refs.endBox.hidden) showEnd(s);
   }
@@ -449,7 +604,8 @@
     if (ui.sel && !tw) ui.sel = 0;
     var aff = p ? D.BUILD_ORDER.map(function (k) { return p.cash >= D.TOWERS[k].cost ? 1 : 0; }).join("") : "";
     var sig = [s.phase, s.wave, s.end ? 1 : 0, ui.mode, ui.pi, ui.rot, ui.bt, ui.sel, aff, p ? JSON.stringify(p.pieces) : "", p ? p.ready : "", p ? (p.cash >= Core.buyCost(p) ? 1 : 0) + "" + (p.cash >= 15 ? 1 : 0) : "",
-      tw ? tw.ty + tw.lv + tw.mode + (p && p.cash >= (Core.upgradeCost(tw) || 1e9) ? 1 : 0) + (D.TOWERS[tw.ty].evo ? D.TOWERS[tw.ty].evo.map(function (k) { return p && p.cash >= D.TOWERS[k].cost ? 1 : 0; }).join("") : "") : "",
+      tw ? tw.ty + tw.lv + tw.mode + (p && p.cash >= (Core.upgradeCost(tw, p) || 1e9) ? 1 : 0) + (D.TOWERS[tw.ty].evo ? D.TOWERS[tw.ty].evo.map(function (k) { return p && p.cash >= Core.evoCost(k, p) ? 1 : 0; }).join("") : "") + (s.tv || 0) + "g" + s.gv : "",
+      p ? p.role : "", s.wave === 0 ? 1 : 0,
       s.auto, s.speed, ui.paused, s.order.map(function (k) { return k + s.players[k].ready; }).join(","), sess.host ? 1 : 0, window.I18N.getLang()].join("|");
     if (sig === panelSig) return;
     panelSig = sig;
@@ -458,6 +614,7 @@
     refs.selStats = null;
     if (!p) { side.appendChild(panel(null, [el("p", { class: "ds-muted" }, [t("ds_joining")])])); return; }
     side.appendChild(wavePanel(s, p));
+    if (s.wave === 0 && !s.end) side.appendChild(panel(null, [rolePicker(p.role, function (v) { sess.send({ a: "role", r: v }); ui.role = v; setPref({ role: v }); if (ui.room) ui.room.update({ role: v }); panelSig = ""; })]));
     side.appendChild(piecePanel(s, p));
     side.appendChild(tw ? towerPanel(s, p, tw) : buildPanel(s, p));
     if (s.order.length > 1) side.appendChild(playersPanel(s));
@@ -524,7 +681,7 @@
     var act = [];
     if (ui.mode === "piece" && p.pieces[ui.pi]) {
       act.push(btn("↻ " + t("ds_rotate"), function () { ui.rot = (ui.rot + 1) % 4; panelSig = ""; }, "ds-btn"));
-      act.push(btn("🎲 " + t("ds_reroll"), function () { sess.send({ a: "reroll", i: ui.pi }); panelSig = ""; }, "ds-btn", { disabled: p.cash < 15 ? true : null }));
+      act.push(btn("🎲 " + t("ds_reroll", { c: Core.rerollCost(p) }), function () { sess.send({ a: "reroll", i: ui.pi }); panelSig = ""; }, "ds-btn", { disabled: p.cash < Core.rerollCost(p) ? true : null }));
       act.push(btn("🗑 " + t("ds_drop"), function () { sess.send({ a: "drop", i: ui.pi }); ui.pi = 0; if (p.pieces.length <= 1) ui.mode = null; panelSig = ""; }, "ds-btn"));
     }
     if (p.pieces.length < 3) act.push(btn("➕ " + t("ds_buy_piece", { c: Core.buyCost(p) }), function () { sess.send({ a: "buy" }); panelSig = ""; }, "ds-btn", { disabled: p.cash < Core.buyCost(p) ? true : null }));
@@ -556,15 +713,19 @@
     if (st.dmg) lines.push((d.kind === "beam" ? t("ds_st_dps") : t("ds_st_dmg")) + " " + fmt(st.dmg) + (st.dm > 1.001 ? " (+" + Math.round((st.dm - 1) * 100) + "%)" : st.dm < 0.999 ? " (" + Math.round((st.dm - 1) * 100) + "%)" : ""));
     if (st.rate && ["beam", "aura", "support", "eco"].indexOf(d.kind) < 0) lines.push(t("ds_st_rate") + " " + fmt(st.rate) + "/s");
     if (st.range) lines.push(t("ds_st_range") + " " + fmt(st.range));
-    var extra = statLine(d, tw.lv, true);
+    var extra = statLine(d, tw.lv, true, st);
     kids.push(el("p", { class: "ds-small ds-mono" }, [lines.concat(extra ? [extra] : []).join("・")]));
     if (mod) kids.push(el("p", { class: "ds-small" }, [D.MODS[mod].icon + " " + L(D.MODS[mod].name) + "：" + L(D.MODS[mod].desc)]));
+    kids.push(el("p", { class: "ds-small " + (st.net > 0 ? "ds-good" : "ds-muted") }, [st.net > 0 ? "⚡ " + t("ds_net_on", { n: Math.round(st.net * 100) }) : "🔌 " + t("ds_net_off")]));
+    Core.combosOf(s, tw).forEach(function (x) { kids.push(el("p", { class: "ds-small ds-combo" }, ["🔗 " + L(x.c.name) + "：" + L(x.c.desc)])); });
+    var maybe = D.COMBOS.filter(function (c) { return (c.a.indexOf(tw.ty) >= 0 || c.b.indexOf(tw.ty) >= 0) && !Core.combosOf(s, tw).some(function (x) { return x.c.id === c.id; }); });
+    if (maybe.length) kids.push(el("p", { class: "ds-small ds-muted" }, ["💡 " + t("ds_combo_hint", { n: maybe.map(function (c) { var other = c.a.indexOf(tw.ty) >= 0 ? c.b : c.a; return other.map(function (k) { return L(D.TOWERS[k].name); }).join("／") + "→" + L(c.name); }).join("、") })]));
     refs.selStats = el("p", { class: "ds-small ds-muted" }, [""]);
     kids.push(refs.selStats);
     if (!mine) { var op = s.players[tw.o]; kids.push(el("p", { class: "ds-small ds-muted" }, [t("ds_owner", { n: op ? op.name || t("ds_noname") : "?" })])); }
     if (["support", "eco", "aura"].indexOf(d.kind) < 0) kids.push(el("div", { class: "ds-field" }, [t("ds_target"), seg([["first", t("ds_t_first")], ["last", t("ds_t_last")], ["strong", t("ds_t_strong")], ["near", t("ds_t_near")]], tw.mode || "first", function (v) { sess.send({ a: "mode", id: tw.id, m: v }); panelSig = ""; })]));
     if (mine) {
-      var act = [], uc = Core.upgradeCost(tw);
+      var act = [], uc = Core.upgradeCost(tw, p);
       if (uc) act.push(btn("⬆ " + t("ds_upgrade", { c: uc }), function () { sess.send({ a: "up", id: tw.id }); panelSig = ""; }, "ds-btn ds-primary", { disabled: p.cash < uc ? true : null, id: "ds-up" }));
       act.push(btn("💱 " + t("ds_sell", { c: Core.refundOf(s, tw) }), function () { sess.send({ a: "sell", id: tw.id }); ui.sel = 0; panelSig = ""; }, "ds-btn", { id: "ds-sell" }));
       kids.push(el("div", { class: "ds-actions" }, act));
@@ -577,7 +738,7 @@
             el("b", null, [e.icon + " " + L(e.name)]),
             el("p", { class: "ds-small" }, [L(e.desc)]),
             el("p", { class: "ds-small ds-mono" }, [statLine(e, 0)]),
-            btn(t("ds_evolve_btn", { c: e.cost }), function () { sess.send({ a: "evo", id: tw.id, to: k }); panelSig = ""; }, "ds-btn ds-primary", { disabled: p.cash < e.cost ? true : null, "data-evo": k })
+            btn(t("ds_evolve_btn", { c: Core.evoCost(k, p) }), function () { sess.send({ a: "evo", id: tw.id, to: k }); panelSig = ""; }, "ds-btn ds-primary", { disabled: p.cash < Core.evoCost(k, p) ? true : null, "data-evo": k })
           ]);
         })));
       } else if (d.cat === "base") kids.push(el("p", { class: "ds-small ds-muted" }, [t("ds_evolve_note")]));
@@ -599,7 +760,38 @@
     if (s.end.win) pg.wins = (pg.wins || 0) + 1;
     pg.best = pg.best || {}; pg.cleared = pg.cleared || {};
     pg.best[m.id] = Math.max(pg.best[m.id] || 0, s.end.score);
-    if (s.end.win && s.mode === "campaign") pg.cleared[m.id] = 1;
+    if (s.end.win && s.mode === "campaign") {
+      pg.cleared[m.id] = 1;
+      var star = s.hp >= 15 ? 3 : s.hp >= 8 ? 2 : 1;
+      pg.stars[m.id] = Math.max(pg.stars[m.id] || 0, star);
+      ui.lastStars = star;
+    } else ui.lastStars = 0;
+    // 成就
+    var rec = s.rec || { boss: {}, evo: {}, combo: {} }, before = Object.keys(pg.ach).length, got = [];
+    Object.keys(rec.combo || {}).forEach(function (k) { pg.combo[k] = 1; });
+    Object.keys(rec.evo || {}).forEach(function (k) { pg.evo[k] = 1; });
+    function gain(id, cond) { if (cond && !pg.ach[id]) { pg.ach[id] = 1; got.push(id); } }
+    gain("first_win", s.end.win);
+    ["kernel", "daemon", "singularity"].forEach(function (b) { gain("boss_" + b, rec.boss && rec.boss[b]); });
+    gain("combo", Object.keys(pg.combo).length > 0);
+    gain("combo_all", Object.keys(pg.combo).length >= D.COMBOS.length);
+    gain("evo_all", Object.keys(pg.evo).length >= 8);
+    gain("net20", (rec.net || 0) >= 20);
+    gain("skills", (rec.skills || 0) >= 10);
+    gain("perfect", s.end.win && s.leaks === 0);
+    gain("endless40", !s.waves && s.end.wave >= 40);
+    gain("campaign", Object.keys(pg.cleared).length >= D.MAPS.length);
+    gain("stars30", totalStars(pg) >= 30);
+    gain("daily", s.mode === "daily");
+    gain("coop", s.end.win && s.order.length > 1);
+    ui.newAch = got;
+    void before;
+    if (s.mode === "daily" && sess.solo) {
+      pg.daily = pg.daily || {};
+      pg.daily[s.daily] = Math.max(pg.daily[s.daily] || 0, s.end.score);
+      var me0 = s.players.me;
+      try { Net.dailySubmit(s.daily, { name: lsGet(NAME_KEY) || "", score: s.end.score, wave: s.end.wave, hp: s.hp, role: me0 ? me0.role : "" }); } catch (e) { /* 離線就只記在本機 */ }
+    }
     lsSet(PROG_KEY, JSON.stringify(pg));
   }
   function showEnd(s) {
@@ -610,10 +802,14 @@
     box.appendChild(el("div", { class: "ds-endcard " + (s.end.win ? "ds-win" : "ds-lose") }, [
       el("h2", null, [s.end.win ? "🏆 " + t("ds_win") : "💥 " + t("ds_lose")]),
       el("p", null, [t("ds_end_stats", { w: s.end.wave, k: s.kills, hp: s.hp, sc: s.end.score })]),
+      ui.lastStars ? el("p", { class: "ds-stars" }, ["⭐".repeat(ui.lastStars) + "☆".repeat(3 - ui.lastStars)]) : null,
+      ui.newAch && ui.newAch.length ? el("div", { class: "ds-newach" }, [el("b", null, [t("ds_new_ach")])].concat(ui.newAch.map(function (id) { var a = D.ACHIEVEMENTS.filter(function (x) { return x.id === id; })[0]; return el("div", null, [a.icon + " " + L(a.name)]); }))) : null,
+      s.mode === "daily" ? el("p", { class: "ds-small" }, [t("ds_daily_sent")]) : null,
       s.order.length > 1 ? el("ul", { class: "ds-plist" }, s.order.map(function (k) { var p = s.players[k]; return el("li", null, [(p.name || t("ds_noname")) + "：" + t("ds_end_player", { d: Math.round(p.dmg), k: p.kills })]); })) : null,
       el("div", { class: "ds-actions" }, [
-        sess.solo && next >= 0 ? btn(t("ds_next_map", { n: L(D.MAPS[next].name) }), function () { startSolo(Core.newGame({ seed: campaignSeed(next), mode: "campaign", map: next, waves: 20, diff: s.diff, players: [{ pid: "me", name: lsGet(NAME_KEY) }] })); }, "ds-btn ds-primary") : null,
-        sess.solo ? btn(t("ds_again"), function () { startSolo(Core.newGame({ seed: s.mode === "campaign" ? s.seed : Core.newSeed(), mode: s.mode, map: s.mode === "campaign" ? s.map : ui.setup.map, waves: s.waves, diff: s.diff, players: [{ pid: "me", name: lsGet(NAME_KEY) }] })); }, "ds-btn") : null,
+        sess.solo && next >= 0 ? btn(t("ds_next_map", { n: L(D.MAPS[next].name) }), function () { startSolo(Core.newGame({ seed: campaignSeed(next), mode: "campaign", map: next, waves: 20, diff: s.diff, players: soloPlayers(), unl: myUnl() })); }, "ds-btn ds-primary") : null,
+        sess.solo && s.mode === "daily" ? btn(t("ds_board"), function () { go("daily"); }, "ds-btn ds-primary") : null,
+        sess.solo ? btn(t("ds_again"), function () { if (s.mode === "daily") { startDaily(); return; } startSolo(Core.newGame({ seed: s.mode === "campaign" ? s.seed : Core.newSeed(), mode: s.mode, map: s.mode === "campaign" ? s.map : ui.setup.map, waves: s.waves, diff: s.diff, players: soloPlayers(), unl: myUnl() })); }, "ds-btn") : null,
         ui.room ? btn(t("ds_back_lobby"), function () { if (ui.room.isHost()) ui.room.backToLobby(); go("lobby"); }, "ds-btn ds-primary") : btn(t("ds_back_home"), function () { go("home"); }, "ds-btn")
       ])
     ]));
@@ -632,6 +828,7 @@
     else if (e.key === "e" || e.key === "E") { if (view3) view3.rotate(Math.PI / 8); }
     else if (e.key === "f" || e.key === "F") { if (p.pieces.length) { ui.mode = "piece"; ui.pi = (ui.mode === "piece" ? (ui.pi + 1) : 0) % p.pieces.length; ui.sel = 0; panelSig = ""; } }
     else if (/^[1-9]$/.test(e.key)) { var k = D.BUILD_ORDER[+e.key - 1]; if (k) { ui.mode = "build"; ui.bt = k; ui.sel = 0; panelSig = ""; } }
+    else if (/^[zxcZXC]$/.test(e.key)) { var sk = { z: "emp", x: "oc", c: "fix" }[e.key.toLowerCase()]; useSkill(sk); }
     else if (e.key === "u" || e.key === "U") { if (ui.sel) sess.send({ a: "up", id: ui.sel }); panelSig = ""; }
   });
 
@@ -641,7 +838,7 @@
     if (!Net) return;
     if (ui.room) leaveRoom();
     var room = Net.open({
-      roomId: roomId, name: lsGet(NAME_KEY), cfg: { mode: "random", map: -1, waves: 30, diff: "normal" },
+      roomId: roomId, name: lsGet(NAME_KEY), role: ui.role, cfg: { mode: "random", map: -1, waves: 30, diff: "normal" },
       onChange: function () { onRoomChange(); },
       onIntent: function (pid, it) {
         if (!room.isHost() || !sess || !sess.s) return;
@@ -668,7 +865,7 @@
     if (st === "game" && ui.screen === "lobby" && sess.s && !sess.s.end && ui.autoJoin) { ui.autoJoin = false; resetGameUi(); go("game"); return; }
     if (st === "lobby" && ui.screen === "game") { go("lobby"); return; }
     // 自己還不在這一局裡：請房主把我加進去
-    if (ui.screen === "game" && sess.s && !sess.s.players[sess.pid] && Date.now() - joinSent > 3000) { joinSent = Date.now(); sess.send({ a: "join", name: lsGet(NAME_KEY) || room.me.name || "" }); }
+    if (ui.screen === "game" && sess.s && !sess.s.players[sess.pid] && Date.now() - joinSent > 3000) { joinSent = Date.now(); sess.send({ a: "join", name: lsGet(NAME_KEY) || room.me.name || "", role: ui.role }); }
     if (ui.screen === "lobby") render();
     else if (ui.screen === "game" && !view3) render();
   }
@@ -698,7 +895,8 @@
     ]));
     var list = room.list(), s = sess.s;
     app.appendChild(panel(t("ds_players"), [
-      el("ul", { class: "ds-plist" }, list.map(function (p) { return el("li", null, [(p.cid === room.meta.host ? "👑 " : "") + (p.name || t("ds_noname")) + (p.cid === room.cid ? t("ds_you") : "")]); })),
+      el("ul", { class: "ds-plist" }, list.map(function (p) { var r = D.ROLES[p.role] || D.ROLES.general; return el("li", null, [(p.cid === room.meta.host ? "👑 " : "") + (p.name || t("ds_noname")) + (p.cid === room.cid ? t("ds_you") : "") + "・" + r.icon + L(r.name)]); })),
+      rolePicker(room.me.role || ui.role, function (v) { ui.role = v; setPref({ role: v }); room.update({ role: v }); if (sess.s && sess.s.players[sess.pid] && sess.s.wave === 0) sess.send({ a: "role", r: v }); render(); }),
       list.length > 4 ? el("p", { class: "ds-warn ds-small" }, [t("ds_room_full")]) : null
     ]));
     var cfg = room.cfg || {};
@@ -708,9 +906,9 @@
       host ? el("div", { class: "ds-actions ds-next" }, [
         s && !s.end ? btn(t("ds_resume_coop"), function () { room.startGame(Core.serialize(s)); resetGameUi(); go("game"); }, "ds-big ds-primary") : null,
         btn(t("ds_start_coop"), function () {
-          var ps = list.slice(0, 4).map(function (p) { return { pid: p.pid, name: p.name }; });
+          var ps = list.slice(0, 4).map(function (p) { return { pid: p.pid, name: p.name, role: p.role }; });
           var camp = cfg.mode === "campaign";
-          var ns = Core.newGame({ seed: camp ? campaignSeed(cfg.map) : Core.newSeed(), mode: camp ? "campaign" : "random", map: cfg.map, waves: camp ? 20 : cfg.waves, diff: cfg.diff, players: ps });
+          var ns = Core.newGame({ seed: camp ? campaignSeed(cfg.map) : Core.newSeed(), mode: camp ? "campaign" : "random", map: cfg.map, waves: camp ? 20 : cfg.waves, diff: cfg.diff, players: ps, unl: myUnl() });
           sess.s = ns;
           room.startGame(Core.serialize(ns));
           resetGameUi();
@@ -728,7 +926,8 @@
     panelSig = "";
     if (ui.screen !== "game") { render(); return; }
     var s = sess && sess.s;
-    if (s && refs.mech) refs.mech.textContent = "⚙️ " + L(D.MAPS[s.map].name) + "・" + L(D.MAPS[s.map].mech);
+    if (s && refs.mech) refs.mech.textContent = mechText(s);
+    if (refs.skills) Array.prototype.forEach.call(refs.skills.children, function (b) { var sk = D.SKILLS[b.getAttribute("data-skill")]; b.children[1].textContent = L(sk.name); });
     if (s && s.end && refs.endBox) showEnd(s);
     updatePanel();
   });

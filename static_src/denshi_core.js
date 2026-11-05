@@ -16,6 +16,8 @@
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function idx(x, y) { return y * W + x; }
+  // 這張地圖有沒有某種機制（本身的主題，或無盡模式混進來的）
+  function has(s, id) { return s.theme === id || (!!s.mix && s.mix.indexOf(id) >= 0); }
   function inb(x, y) { return x >= 0 && y >= 0 && x < W && y < H; }
 
   // ---------------- 亂數（mulberry32，狀態存在 s.rs 以便存檔／接手） ----------------
@@ -38,7 +40,7 @@
 
   // ---------------- 地形與距離場 ----------------
   function walkable(s, i) { var t = s.ter[i]; return t !== "#" && t !== "x" && !s.fo[i]; }
-  function buildableTer(t) { return t === "." || t === "b" || t === "c" || t === "f"; }
+  function buildableTer(t) { return t === "." || t === "b" || t === "c" || t === "f" || t === "p"; }
 
   function distField(s) {
     if (s._d && s._dv === s.gv) return s._d;
@@ -135,6 +137,13 @@
         }
       }
     }
+    // 電源排針：地基連成一片接上排針（或核心、匯流排）就通電，整片砲塔得到電路網加成
+    var npin = 2 + rint(s, 2), pt = 0;
+    while (npin > 0 && pt++ < 60) {
+      var px = 4 + rint(s, W - 8), py = 1 + rint(s, H - 2), pi = idx(px, py);
+      if (ter[pi] !== "." || near(px, py, 2)) continue;
+      ter[pi] = "p"; npin--;
+    }
     // 晶片／電容（障礙）
     var shapes = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [2, 0]]];
     var want = 7 + rint(s, 5), tries = 0, placed = 0;
@@ -191,10 +200,13 @@
     return rc.map(function (c, i) { return { x: ax - rc[pv][0] + c[0], y: ay - rc[pv][1] + c[1], m: (p.m && p.m[i]) || "" }; });
   }
   function newPiece(s) {
-    var def = pickW(s, D.PIECES, function (p) { return p.w; });
+    var pool = D.PIECES.filter(function (p) { return !p.lock || (s.unl && s.unl[p.lock]); });
+    var def = pickW(s, pool, function (p) { return p.w; });
     var p = { k: def.id, c: def.cells.map(function (c) { return [c[0], c[1]]; }), m: {} };
     var r = rngNext(s), nm = r < 0.1 ? 2 : r < 0.5 ? 1 : 0;
     var mk = ["sc", "sc", "sc", "cap", "cap", "cap", "fan", "fan", "fan", "au"];
+    if (s.unl && s.unl.gnd) mk.push("gnd", "gnd");
+    if (s.unl && s.unl.qb) mk.push("qb", "qb");
     for (var k = 0; k < nm; k++) p.m[rint(s, p.c.length)] = mk[rint(s, mk.length)];
     return p;
   }
@@ -225,7 +237,8 @@
       diff: D.DIFFS[opts.diff] ? opts.diff : "normal", phase: "build", wave: 0, time: 0, wt: 0, wq: [],
       towers: [], enemies: [], proj: [], fx: [], fxId: 0, tid: 0, eid: 0,
       hp: 20, mhp: 20, players: {}, order: [], auto: false, autoT: 0, speed: 1, end: null,
-      kills: 0, leaks: 0, m: { volt: 1, surgeU: 0, surgeT: 0, res: { kin: 0, en: 0 }, wd: { kin: 0, en: 0 }, boltT: 0 }
+      kills: 0, leaks: 0, m: { volt: 1, surgeU: 0, surgeT: 0, res: { kin: 0, en: 0 }, wd: { kin: 0, en: 0 }, boltT: 0 },
+      unl: opts.unl || {}, mix: [], daily: opts.daily || "", rec: { boss: {}, evo: {}, combo: {}, skills: 0, net: 0 }
     };
     s.rs = s.seed;
     var mi = opts.map;
@@ -233,14 +246,17 @@
     s.map = mi;
     s.theme = D.MAPS[mi].id;
     genMap(s, s.theme);
-    (opts.players || [{ pid: "me", name: "" }]).forEach(function (p) { addPlayer(s, p.pid, p.name); });
+    (opts.players || [{ pid: "me", name: "" }]).forEach(function (p) { addPlayer(s, p.pid, p.name, p.role); });
     return s;
   }
-  function addPlayer(s, pid, name) {
+  function addPlayer(s, pid, name, role) {
     if (s.players[pid]) { if (name) s.players[pid].name = String(name).slice(0, 16); return; }
     var ci = s.order.length % D.PLAYER_COLORS.length;
-    var cash = Math.round((s.wave ? 160 + 35 * s.wave : 260) * D.DIFFS[s.diff].cash);
-    s.players[pid] = { name: String(name || "").slice(0, 16), ci: ci, cash: cash, pieces: [], bought: 0, ready: false, dmg: 0, kills: 0 };
+    var cash = Math.round((s.wave ? 160 + 35 * s.wave : 260) * D.DIFFS[s.diff].cash) + (s.unl && s.unl.cash ? 60 : 0);
+    s.players[pid] = {
+      name: String(name || "").slice(0, 16), ci: ci, cash: cash, pieces: [], bought: 0, ready: false, dmg: 0, kills: 0,
+      role: D.ROLES[role] ? role : "general", cd: { emp: 0, oc: 0, fix: 0 }, ocU: 0, skillN: 0
+    };
     s.order.push(pid);
     s.players[pid].pieces.push(newPiece(s));
     if (!s.wave) s.players[pid].pieces.push(newPiece(s));
@@ -248,7 +264,7 @@
 
   // ---------------- 波次 ----------------
   function hpMul(s, w) {
-    var m = 1 + 0.11 * (w - 1) + 0.006 * (w - 1) * (w - 1);
+    var m = 1 + 0.12 * (w - 1) + 0.006 * (w - 1) * (w - 1);
     if (w > 30) m *= Math.pow(1.05, w - 30);
     return m * D.DIFFS[s.diff].hp * (1 + 0.6 * (s.order.length - 1));
   }
@@ -322,18 +338,18 @@
     s.wt = 0;
     s.autoT = 0;
     s.order.forEach(function (pid) { s.players[pid].ready = false; });
-    if (s.theme === "psu") { var vs = [0.8, 0.9, 1, 1, 1.1, 1.25]; s.m.volt = vs[rint(s, vs.length)]; s.m.surgeT = 0; }
-    if (s.theme === "ram" && s.wave > 1) flipBits(s, 3, 2);
+    if (has(s, "psu")) { var vs = [0.8, 0.9, 1, 1, 1.1, 1.25]; s.m.volt = vs[rint(s, vs.length)]; s.m.surgeT = 0; }
+    if (has(s, "ram") && s.wave > 1) flipBits(s, 3, 2);
     fx(s, { k: "wave", w: s.wave });
   }
   function endWave(s) {
     var w = s.wave, cm = D.DIFFS[s.diff].cash;
     s.order.forEach(function (pid) { s.players[pid].cash += Math.round((20 + 2 * w) * cm); });
     s.towers.forEach(function (tw) {
-      var st = D.TOWERS[tw.ty].lv[tw.lv];
-      if (st.income && s.players[tw.o]) s.players[tw.o].cash += st.income;
+      if (!D.TOWERS[tw.ty].lv[tw.lv].income || !s.players[tw.o]) return;
+      s.players[tw.o].cash += Math.round(stats(s, tw).income);
     });
-    if (s.theme === "aicore") {
+    if (has(s, "aicore")) {
       var wd = s.m.wd, hi = wd.kin >= wd.en ? "kin" : "en", lo = hi === "kin" ? "en" : "kin";
       if (wd.kin + wd.en > 0) { s.m.res[hi] = Math.min(0.6, s.m.res[hi] + 0.15); s.m.res[lo] = Math.max(0, s.m.res[lo] - 0.1); }
       s.m.wd = { kin: 0, en: 0 };
@@ -342,10 +358,14 @@
     if (s.waves && w >= s.waves) { finish(s, true); return; }
     s.phase = "build";
     s.order.forEach(function (pid) {
-      var p = s.players[pid];
-      if (p.pieces.length < 3) p.pieces.push(newPiece(s));
-      else p.cash += 25;
+      var p = s.players[pid], n = p.role === "engineer" && w % 3 === 0 ? 2 : 1;
+      for (var k = 0; k < n; k++) { if (p.pieces.length < 3) p.pieces.push(newPiece(s)); else p.cash += 25; }
     });
+    // 無盡模式：每 10 波混入一種別張地圖的機制
+    if (!s.waves && w % 10 === 0) {
+      var pool = D.MIXABLE.filter(function (id) { return id !== s.theme && s.mix.indexOf(id) < 0; });
+      if (pool.length) { var mx = pool[rint(s, pool.length)]; s.mix.push(mx); fx(s, { k: "mix", id: mx }); }
+    }
     if (s.auto) s.autoT = 6;
     fx(s, { k: "clear", w: w });
   }
@@ -356,9 +376,15 @@
   }
 
   // ---------------- 砲塔數值 ----------------
+  // 砲塔格子索引（組合技／支援砲塔每次查鄰格，不能每次線性掃描）；砲塔增減時 s.tv 會變
   function towerAt(s, x, y) {
-    for (var i = 0; i < s.towers.length; i++) if (s.towers[i].x === x && s.towers[i].y === y) return s.towers[i];
-    return null;
+    if (!inb(x, y)) return null;
+    if (!s._tg || s._tgv !== s.tv || s._tgn !== s.towers.length) {
+      var g = new Array(N);
+      for (var i = 0; i < s.towers.length; i++) g[idx(s.towers[i].x, s.towers[i].y)] = s.towers[i];
+      s._tg = g; s._tgv = s.tv; s._tgn = s.towers.length;
+    }
+    return s._tg[idx(x, y)] || null;
   }
   function towerById(s, id) {
     for (var i = 0; i < s.towers.length; i++) if (s.towers[i].id === id) return s.towers[i];
@@ -372,19 +398,42 @@
     if (mod === "sc") dm += 0.25;
     if (mod === "cap") ra += 0.6;
     if (mod === "fan") rm += 0.25;
-    if (ter === "b" && s.theme === "mobo") rm += 0.25;
-    if (ter === "f" && s.theme === "fiber") ra += 0.8;
+    if (ter === "b" && has(s, "mobo")) rm += 0.25;
+    if (ter === "f" && has(s, "fiber")) ra += 0.8;
     var buff = 0, rbuff = 0, rateB = 0;
     for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
       if (!dx && !dy) continue;
       var o = towerAt(s, tw.x + dx, tw.y + dy);
       if (!o || D.TOWERS[o.ty].kind !== "support") continue;
-      var ob = D.TOWERS[o.ty].lv[o.lv];
-      buff += ob.buff || 0; rbuff += ob.rbuff || 0; rateB += ob.rateBuff || 0;
+      var ob = D.TOWERS[o.ty].lv[o.lv], op = s.players[o.o], pm = op && op.role === "power" ? 1.5 : 1;
+      buff += (ob.buff || 0) * pm; rbuff += (ob.rbuff || 0) * pm; rateB += (ob.rateBuff || 0) * pm;
       if (ob.see) see = true;
     }
     dm += Math.min(0.9, buff); ra += Math.min(2.4, rbuff); rm += Math.min(0.3, rateB);
-    if (s.theme === "psu") dm *= s.m.volt * (s.m.surgeU > s.time ? 1.5 : 1);
+    var nb = netBonus(s, tw);
+    if (nb > 0) { dm += nb; rm += 0.05; }
+    st.net = nb;
+    var owner = s.players[tw.o];
+    if (owner && owner.role === "gunner") dm += 0.15;
+    if (owner && owner.ocU > s.time) rm += 0.5;
+    st.combos = [];
+    combosOf(s, tw).forEach(function (x) {
+      var e = x.side === "a" ? x.c.ea : x.c.eb;
+      st.combos.push(x.c.id);
+      if (s.rec) s.rec.combo[x.c.id] = 1;
+      if (e.dm) dm += e.dm;
+      if (e.rm) rm += e.rm;
+      if (e.ra) ra += e.ra;
+      if (e.chain && st.chain) st.chain += e.chain;
+      if (e.pierce && st.pierce) st.pierce += e.pierce;
+      if (e.stun && st.stun) st.stun += e.stun;
+      if (e.splash && st.splash) st.splash += e.splash;
+      if (e.refract) st.refract = e.refract;
+      if (e.rampM && st.ramp) st.ramp *= e.rampM;
+      if (e.income && st.income) st.income *= 1 + e.income;
+    });
+    if (st.income && owner && owner.role === "power") st.income *= 2;
+    if (has(s, "psu")) dm *= s.m.volt * (s.m.surgeU > s.time ? 1.5 : 1);
     if (tw.chg > s.time) dm *= 2;
     st.dmg = (st.dmg || 0) * dm;
     st.rate = (st.rate || 1) * rm;
@@ -393,12 +442,73 @@
     st.dm = dm; st.rm = rm; st.ra = ra;
     return st;
   }
+  // 模擬用：同一座砲塔的數值每 0.25 秒（或砲塔／地基變動時）才重算一次
+  function stepStats(s, tw) {
+    var key = (s.tv || 0) + "|" + s.gv + "|" + Math.floor(s.time * 4) + "|" + tw.ty + tw.lv;
+    if (tw._sk !== key) { tw._st = stats(s, tw); tw._sk = key; }
+    return tw._st;
+  }
   function spentOn(tw) {
     var def = D.TOWERS[tw.ty];
     return tw.spent || def.cost;
   }
   function refundOf(s, tw) { return Math.round(spentOn(tw) * (s.fm[idx(tw.x, tw.y)] === "au" ? 1 : 0.7)); }
-  function upgradeCost(tw) { var lv = D.TOWERS[tw.ty].lv[tw.lv + 1]; return lv ? lv.c : 0; }
+  function upgradeCost(tw, p) { var lv = D.TOWERS[tw.ty].lv[tw.lv + 1]; return lv ? Math.round(lv.c * (p && p.role === "gunner" ? 0.9 : 1)) : 0; }
+  function evoCost(to, p) { return Math.round(D.TOWERS[to].cost * (p && p.role === "gunner" ? 0.9 : 1)); }
+  function rerollCost(p) { return p && p.role === "engineer" ? 5 : 15; }
+  function skillCd(s, p, k) { return D.SKILLS[k].cd * (p.role === "general" ? 0.75 : 1) * (s.unl && s.unl.skill ? 0.85 : 1); }
+  function grounded(s, tw) { return s.fm[idx(tw.x, tw.y)] === "gnd"; }
+  function offline(s, tw) { return !grounded(s, tw) && (tw.dis > s.time || jammed(s, tw)); }
+
+  // ---------------- 電路網（同一個玩家相連的地基；接上排針／匯流排／核心就通電） ----------------
+  function nets(s) {
+    if (s._n && s._nv === s.gv) return s._n;
+    var comp = new Array(N), info = [], i, k;
+    for (i = 0; i < N; i++) comp[i] = -1;
+    var cIdx = idx(s.core[0], s.core[1]);
+    for (i = 0; i < N; i++) {
+      if (!s.fo[i] || comp[i] >= 0) continue;
+      var id = info.length, q = [i], h = 0, own = s.fo[i], pw = false;
+      comp[i] = id;
+      while (h < q.length) {
+        var c = q[h++], cx = c % W, cy = (c - cx) / W;
+        if (s.ter[c] === "p" || s.ter[c] === "b") pw = true;
+        for (k = 0; k < 4; k++) {
+          var nx = cx + DIRS[k][0], ny = cy + DIRS[k][1];
+          if (!inb(nx, ny)) continue;
+          var ni = idx(nx, ny);
+          if (ni === cIdx || s.ter[ni] === "p") pw = true;
+          if (s.fo[ni] === own && comp[ni] < 0) { comp[ni] = id; q.push(ni); }
+        }
+      }
+      info.push({ size: q.length, pw: pw, o: own });
+      if (pw && s.rec && q.length > s.rec.net) s.rec.net = q.length;
+    }
+    s._n = { comp: comp, info: info }; s._nv = s.gv;
+    return s._n;
+  }
+  function netBonus(s, tw) {
+    var n = nets(s), c = n.comp[idx(tw.x, tw.y)];
+    if (c < 0 || !n.info[c].pw) return 0;
+    var p = s.players[tw.o];
+    return Math.min(0.3, 0.015 * n.info[c].size) * (p && p.role === "power" ? 1.5 : 1);
+  }
+  // 這座砲塔觸發中的組合技（回傳 [{ c: 組合, side: "a"|"b" }]）
+  function combosOf(s, tw) {
+    var out = [];
+    D.COMBOS.forEach(function (cb) {
+      var inA = cb.a.indexOf(tw.ty) >= 0, inB = cb.b.indexOf(tw.ty) >= 0;
+      if (!inA && !inB) return;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        var o = towerAt(s, tw.x + dx, tw.y + dy);
+        if (!o) continue;
+        if (inA && cb.b.indexOf(o.ty) >= 0) { out.push({ c: cb, side: "a", with: o.id }); return; }
+        if (inB && cb.a.indexOf(o.ty) >= 0) { out.push({ c: cb, side: "b", with: o.id }); return; }
+      }
+    });
+    return out;
+  }
 
   // ---------------- 傷害 ----------------
   function fx(s, o) {
@@ -407,8 +517,9 @@
   }
   function hurt(s, e, amt, dtype, tw, shieldMul) {
     if (e.dead || amt <= 0) return;
-    if (s.theme === "aicore") amt *= 1 - (s.m.res[dtype] || 0);
-    if (s.theme === "quantum" && tw && rngNext(s) < 0.15) amt *= 2;
+    if (has(s, "aicore")) amt *= 1 - (s.m.res[dtype] || 0);
+    if (has(s, "quantum") && tw && rngNext(s) < 0.15) amt *= 2;
+    if (tw && s.fm[idx(tw.x, tw.y)] === "qb" && rngNext(s) < 0.15) amt *= 3;
     var dealt = 0;
     if (e.sh > 0) {
       var mul = shieldMul || (dtype === "en" ? 1.5 : 1), ab = Math.min(e.sh, amt * mul);
@@ -433,6 +544,11 @@
     }
     fx(s, { k: "die", x: e.x, y: e.y, ty: e.ty, b: e.boss ? 1 : 0, f: e.fly ? 1 : 0 });
     var def = D.ENEMIES[e.ty];
+    if (def.boss && s.rec) s.rec.boss[e.ty] = 1;
+    if (def.splitInto) {
+      for (var q = 0; q < 3; q++) spawnEnemy(s, def.splitInto, 0, e.hm, { x: e.x + Math.cos(q * 2.1) * 0.4, y: e.y + Math.sin(q * 2.1) * 0.4, nx: e.nx, ny: e.ny });
+      fx(s, { k: "split", x: e.x, y: e.y });
+    }
     if (def.split) for (var k = 0; k < def.split; k++) {
       var c = spawnEnemy(s, "bit", 0, e.hm * 0.8, { x: e.x + (k ? 0.15 : -0.15), y: e.y, nx: e.nx, ny: e.ny });
       c.rew = Math.max(1, Math.round(c.rew / 2));
@@ -480,7 +596,7 @@
   }
 
   function jammed(s, tw) {
-    if (s.theme !== "antenna" || s.phase !== "wave") return false;
+    if (!has(s, "antenna") || s.phase !== "wave") return false;
     return Math.abs(tw.x + 0.5 - jamX(s)) < 1.5;
   }
   function jamX(s) { var p = 15; return ((s.wt % p) / p) * (W + 6) - 3; }
@@ -488,14 +604,15 @@
   function towerStep(s, tw, dt) {
     var def = D.TOWERS[tw.ty];
     if (def.kind === "support" || def.kind === "eco") return;
-    if (s.theme === "heat") {
+    if (has(s, "heat")) {
       var cool = s.ter[idx(tw.x, tw.y)] === "c" ? 3 : 1;
       tw.heat = Math.max(0, (tw.heat || 0) - 0.12 * cool * dt);
       if (tw.oh && tw.heat <= 0.3) tw.oh = 0;
     }
-    tw.bt = 0;
-    if (tw.dis > s.time || tw.oh || jammed(s, tw)) { tw.held = 0; return; }
-    var st = stats(s, tw), cx = tw.x + 0.5, cy = tw.y + 0.5;
+    tw.bt = 0; tw.bt2 = 0;
+    if (tw.oh || offline(s, tw)) { tw.held = 0; return; }
+    var ocOn = s.players[tw.o] && s.players[tw.o].ocU > s.time;
+    var st = stepStats(s, tw), cx = tw.x + 0.5, cy = tw.y + 0.5;
     var air = def.air;
     if (def.kind === "aura") {
       inRange(s, tw, st, true).forEach(function (e) {
@@ -514,8 +631,15 @@
       tw.tg = cur.id; tw.bt = cur.id;
       tw.held = (tw.held || 0) + dt;
       tw.ang = Math.atan2(cur.y - cy, cur.x - cx);
-      hurt(s, cur, st.dmg * dt * (1 + Math.min(st.rampMax, st.ramp * tw.held)), def.dtype, tw);
-      if (s.theme === "heat") heatUp(tw, dt * 0.16);
+      var bd = st.dmg * dt * (1 + Math.min(st.rampMax, st.ramp * tw.held));
+      hurt(s, cur, bd, def.dtype, tw);
+      if (st.refract) {
+        // 光束折射：打到離目標最近的另一個敵人
+        var r2 = null, rd = 2.6 * 2.6;
+        for (var ri = 0; ri < s.enemies.length; ri++) { var ro = s.enemies[ri]; if (ro === cur || ro.dead) continue; var d2r = dist2(ro.x, ro.y, cur.x, cur.y); if (d2r < rd) { rd = d2r; r2 = ro; } }
+        if (r2) { tw.bt2 = r2.id; hurt(s, r2, bd * st.refract, def.dtype, tw); }
+      }
+      if (has(s, "heat") && !ocOn) heatUp(tw, dt * 0.16);
       return;
     }
     tw.cd = (tw.cd || 0) - dt;
@@ -525,7 +649,7 @@
     var tg = pickTarget(s, tw, list);
     tw.ang = Math.atan2(tg.y - cy, tg.x - cx);
     tw.cd = 1 / st.rate;
-    if (s.theme === "heat") heatUp(tw, def.kind === "bullet" && st.rate > 2 ? 0.045 : 0.09);
+    if (has(s, "heat") && !ocOn) heatUp(tw, def.kind === "bullet" && st.rate > 2 ? 0.045 : 0.09);
     if (def.kind === "bullet") {
       var dmg = st.dmg;
       if (st.ramp) {
@@ -631,10 +755,28 @@
       for (var k = 0; k < 2; k++) { var c = spawnEnemy(s, "drone", 0, e.hm * 0.35, { x: e.x, y: e.y + (k ? 0.3 : -0.3), nx: e.nx, ny: e.ny }); c.rew = 2; }
       fx(s, { k: "summon", x: e.x, y: e.y });
     }
-    if (def.emp && e.ab >= def.emp) {
+    if (def.phases) {
+      e.ph = e.ph || 1;
+      if (e.ph === 1 && e.hp < e.mhp * 0.66) {
+        e.ph = 2; e.sh = Math.max(e.sh, e.msh * 0.6);
+        for (var t2 = 0; t2 < 4; t2++) spawnEnemy(s, "trojan", 0, e.hm * 0.5, { x: e.x, y: e.y, nx: e.nx, ny: e.ny });
+        fx(s, { k: "phase", n: 2, x: e.x, y: e.y });
+      } else if (e.ph === 2 && e.hp < e.mhp * 0.33) {
+        e.ph = 3; e.spd *= 1.5;
+        fx(s, { k: "phase", n: 3, x: e.x, y: e.y });
+      }
+    }
+    var empEvery = def.emp ? (e.ph === 3 ? 4 : e.ph === 2 ? 6 : def.emp) : 0;
+    if (empEvery && e.ab >= empEvery) {
       e.ab = 0;
-      s.towers.forEach(function (tw) { if (dist2(tw.x + 0.5, tw.y + 0.5, e.x, e.y) < 6.25) tw.dis = s.time + 2; });
+      s.towers.forEach(function (tw) { if (!grounded(s, tw) && dist2(tw.x + 0.5, tw.y + 0.5, e.x, e.y) < 6.25) tw.dis = s.time + 2; });
       fx(s, { k: "emp", x: e.x, y: e.y, r: 2.5 });
+    }
+    // 吞噬地基（核心恐慌；奇異點第三階段）
+    var eatEvery = def.eat || (e.ph === 3 ? 4 : 0);
+    if (eatEvery && !e.fly) {
+      e.eatT = (e.eatT || 0) + dt;
+      if (e.eatT >= eatEvery) { e.eatT = 0; eatAround(s, e); }
     }
     var sp = e.spd * (e.slowU > s.time ? 1 - e.slowA : 1);
     if (e.fly) {
@@ -656,7 +798,7 @@
       e.pdx = n[0] - e.nx; e.pdy = n[1] - e.ny;
       e.nx = n[0]; e.ny = n[1];
     }
-    if (s.theme === "quantum" && rngNext(s) < 0.035 * dt * 1) {
+    if (has(s, "quantum") && rngNext(s) < 0.035 * dt * 1) {
       // 量子穿隧：往前跳 2 格
       var x = e.nx, y = e.ny, ok = true;
       for (var j = 0; j < 2; j++) {
@@ -673,6 +815,24 @@
       }
     }
   }
+  function eatAround(s, e) {
+    var cx = Math.floor(e.x), cy = Math.floor(e.y), cand = [], busy = [];
+    for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+      var x = cx + dx, y = cy + dy;
+      if (!inb(x, y) || !s.fo[idx(x, y)]) continue;
+      var tw = towerAt(s, x, y);
+      if (tw) busy.push(tw); else cand.push([x, y]);
+    }
+    if (cand.length) {
+      var c = cand[rint(s, cand.length)], ci = idx(c[0], c[1]);
+      s.fo[ci] = ""; s.fm[ci] = "";
+      touched(s);
+      fx(s, { k: "eat", x: c[0] + 0.5, y: c[1] + 0.5 });
+    } else if (busy.length) {
+      busy.forEach(function (tw) { if (!grounded(s, tw)) tw.dis = s.time + 3; });
+      fx(s, { k: "emp", x: e.x, y: e.y, r: 1.5 });
+    }
+  }
   function leak(s, e) {
     e.dead = true;
     s.leaks++;
@@ -682,10 +842,10 @@
   }
 
   function mapStep(s, dt) {
-    if (s.theme === "psu") {
+    if (has(s, "psu")) {
       s.m.surgeT += dt;
       if (s.m.surgeT >= 20) { s.m.surgeT = 0; s.m.surgeU = s.time + 3; fx(s, { k: "surge" }); }
-    } else if (s.theme === "grid") {
+    } else if (has(s, "grid")) {
       s.m.boltT += dt;
       if (s.m.boltT >= 4) {
         s.m.boltT = 0;
@@ -694,7 +854,7 @@
         else if (r < 0.75 && s.enemies.length) { var e = s.enemies[rint(s, s.enemies.length)]; bx = e.x; by = e.y; }
         else { bx = rint(s, W) + 0.5; by = rint(s, H) + 0.5; }
         var hit = towerAt(s, Math.floor(bx), Math.floor(by));
-        if (hit) { if (hit.ty === "tesla") hit.chg = s.time + 5; else hit.dis = s.time + 2; }
+        if (hit) { if (hit.ty === "tesla") hit.chg = s.time + 5; else if (!grounded(s, hit)) hit.dis = s.time + 2; }
         var dmg = 30 * hpMul(s, s.wave) / D.DIFFS[s.diff].hp;
         s.enemies.forEach(function (o) { if (!o.dead && dist2(o.x, o.y, bx, by) <= 1.1) hurt(s, o, dmg, "en", null); });
         fx(s, { k: "bolt", x: bx, y: by, tw: hit ? hit.id : 0 });
@@ -729,7 +889,7 @@
   // ---------------- 意圖（玩家操作；單機直接套用，連線由房主套用） ----------------
   function applyIntent(s, pid, it) {
     if (!it || !it.a) return false;
-    if (it.a === "join") { addPlayer(s, pid, it.name); return true; }
+    if (it.a === "join") { addPlayer(s, pid, it.name, it.role); return true; }
     var p = s.players[pid];
     if (!p || s.end) return false;
     var tw, cost;
@@ -749,6 +909,7 @@
         var def = D.TOWERS[it.t], bi = idx(it.x | 0, it.y | 0);
         if (!def || def.cat === "evo" || !inb(it.x, it.y) || !s.fo[bi] || towerAt(s, it.x, it.y) || p.cash < def.cost) return false;
         p.cash -= def.cost;
+        s.tv = (s.tv || 0) + 1;
         s.towers.push({ id: ++s.tid, ty: it.t, x: it.x | 0, y: it.y | 0, lv: 0, o: pid, spent: def.cost, cd: 0, mode: "first", dmg: 0, kills: 0, heat: 0, ang: Math.PI });
         fx(s, { k: "build", x: it.x + 0.5, y: it.y + 0.5 });
         return true;
@@ -756,7 +917,7 @@
       case "up": {
         tw = towerById(s, it.id);
         if (!tw || tw.o !== pid) return false;
-        cost = upgradeCost(tw);
+        cost = upgradeCost(tw, p);
         if (!cost || p.cash < cost) return false;
         p.cash -= cost; tw.spent += cost; tw.lv++;
         fx(s, { k: "up", x: tw.x + 0.5, y: tw.y + 0.5 });
@@ -765,8 +926,12 @@
       case "evo": {
         tw = towerById(s, it.id);
         var bd = tw && D.TOWERS[tw.ty], to = D.TOWERS[it.to];
-        if (!tw || tw.o !== pid || !bd || bd.cat !== "base" || tw.lv !== bd.lv.length - 1 || !to || bd.evo.indexOf(it.to) < 0 || p.cash < to.cost) return false;
-        p.cash -= to.cost; tw.spent += to.cost; tw.ty = it.to; tw.lv = 0; tw.held = 0; tw.tg = 0;
+        if (!tw || tw.o !== pid || !bd || bd.cat !== "base" || tw.lv !== bd.lv.length - 1 || !to || bd.evo.indexOf(it.to) < 0) return false;
+        cost = evoCost(it.to, p);
+        if (p.cash < cost) return false;
+        s.tv = (s.tv || 0) + 1;
+        p.cash -= cost; tw.spent += cost; tw.ty = it.to; tw.lv = 0; tw.held = 0; tw.tg = 0;
+        if (s.rec) s.rec.evo[it.to] = 1;
         fx(s, { k: "evo", x: tw.x + 0.5, y: tw.y + 0.5 });
         return true;
       }
@@ -774,6 +939,7 @@
         tw = towerById(s, it.id);
         if (!tw || tw.o !== pid) return false;
         p.cash += refundOf(s, tw);
+        s.tv = (s.tv || 0) + 1;
         s.towers.splice(s.towers.indexOf(tw), 1);
         fx(s, { k: "sell", x: tw.x + 0.5, y: tw.y + 0.5 });
         return true;
@@ -792,8 +958,8 @@
         return true;
       }
       case "reroll": {
-        if (!p.pieces[it.i] || p.cash < 15) return false;
-        p.cash -= 15;
+        if (!p.pieces[it.i] || p.cash < rerollCost(p)) return false;
+        p.cash -= rerollCost(p);
         p.pieces[it.i] = newPiece(s);
         return true;
       }
@@ -810,10 +976,27 @@
       }
       case "auto": { s.auto = !!it.v; if (s.auto && s.phase === "build") s.autoT = 6; return true; }
       case "name": { p.name = String(it.name || "").slice(0, 16); return true; }
+      case "role": {
+        if (s.wave > 0 || !D.ROLES[it.r]) return false;
+        p.role = it.r;
+        return true;
+      }
+      case "skill": {
+        var sk = D.SKILLS[it.k];
+        if (!sk || s.phase !== "wave" || (p.cd[it.k] || 0) > s.time) return false;
+        p.cd[it.k] = s.time + skillCd(s, p, it.k);
+        p.skillN = (p.skillN || 0) + 1;
+        if (s.rec) s.rec.skills = Math.max(s.rec.skills, p.skillN);
+        if (it.k === "emp") s.enemies.forEach(function (e) { e.sh *= 0.4; e.stunU = Math.max(e.stunU, s.time + (e.boss ? 0.5 : 1.5)); });
+        else if (it.k === "oc") p.ocU = s.time + 8;
+        else if (it.k === "fix") s.hp = Math.min(s.mhp, s.hp + 3);
+        fx(s, { k: "skill", s: it.k, o: pid });
+        return true;
+      }
     }
     return false;
   }
-  function buyCost(p) { return 40 + 20 * (p.bought || 0); }
+  function buyCost(p) { return Math.round((40 + 20 * (p.bought || 0)) * (p.role === "engineer" ? 0.5 : 1)); }
 
   // 存檔／廣播：去掉 "_" 快取與飛行中的彈丸（彈丸只影響數十毫秒，接手時重新開火即可）
   function serialize(s, keepProj) {
@@ -827,6 +1010,8 @@
   function restore(json) {
     var s = typeof json === "string" ? JSON.parse(json) : json;
     if (!s || s.v !== 1 || !s.ter) return null;
+    s.mix = s.mix || []; s.unl = s.unl || {}; s.rec = s.rec || { boss: {}, evo: {}, combo: {}, skills: 0, net: 0 };
+    Object.keys(s.players || {}).forEach(function (k) { var p = s.players[k]; p.role = p.role || "general"; p.cd = p.cd || { emp: 0, oc: 0, fix: 0 }; p.ocU = p.ocU || 0; });
     s.proj = s.proj || [];
     s.fx = s.fx || [];
     return s;
@@ -837,6 +1022,7 @@
     serialize: serialize, restore: restore, distField: distField, pathFrom: pathFrom, pieceCells: pieceCells, rotCells: rotCells,
     checkPlace: checkPlace, stats: stats, towerAt: towerAt, towerById: towerById, refundOf: refundOf, upgradeCost: upgradeCost,
     buyCost: buyCost, wavePreview: wavePreview, waveSpawns: waveSpawns, activeSpawns: activeSpawns, jamX: jamX, jammed: jammed, bossOf: bossOf,
-    addPlayer: addPlayer, BIG: BIG
+    addPlayer: addPlayer, BIG: BIG, has: has, nets: nets, combosOf: combosOf, evoCost: evoCost, rerollCost: rerollCost,
+    skillCd: skillCd, offline: offline, grounded: grounded
   };
 })();
