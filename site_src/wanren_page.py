@@ -19,6 +19,8 @@ WANREN_SCRIPTS: tuple[str, ...] = (
     "wanren_data5.js",
     # 迷妹轉正、穿搭與房間、SNS、新成就（2026-11-05）
     "wanren_data6.js",
+    # 手機聊天與全肯定（2026-11-05）
+    "wanren_data7.js",
     "wanren_core.js",
     "firebase_config.js",
     "game_storage.js",

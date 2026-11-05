@@ -10,6 +10,7 @@ require(ROOT + "/static_src/wanren_data3.js");
 require(ROOT + "/static_src/wanren_data4.js");
 require(ROOT + "/static_src/wanren_data5.js");
 require(ROOT + "/static_src/wanren_data6.js");
+require(ROOT + "/static_src/wanren_data7.js");
 require(ROOT + "/static_src/wanren_core.js");
 var C = window.PriTestWanrenCore, D = window.PriTestWanrenData;
 function play(seed, strat, len, ng) {

@@ -101,13 +101,14 @@
     });
     if (!s.skills) s.skills = { cook: 0, sport: 0, art: 0, music: 0, talk: 0 };
     if (s.club === undefined) s.club = null;
-    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
+    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids", "chatSeq", "chatReplies", "affirmed", "nightTalks"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
     // 2026-11-05 擴充：轉正的迷妹、傳聞紀錄、穿搭、房間
     if (!s.promoted) s.promoted = [];
     if (!s.rumorLog) s.rumorLog = [];
     if (!s.outfits) s.outfits = { casual: 1 };
     if (!s.outfit) s.outfit = "casual";
     if (!s.room) s.room = {};
+    if (!s.chat) s.chat = {};   // 手機聊天
     if (!s.newAch) s.newAch = [];
     return s;
   }
@@ -191,6 +192,9 @@
     if (D.OUTFITS && D.OUTFITS.every(function (o) { return s.outfits[o.id]; })) unlock(s, "outfitAll");
     if ((m.pol || []).length >= 20) unlock(s, "polaroid20");
     if (s.sns >= 1000) unlock(s, "sns1000");
+    if (s.chatReplies >= 50) unlock(s, "chat50");
+    if (s.affirmed >= 30) unlock(s, "affirm30");
+    if (s.nightTalks >= 10) unlock(s, "nightTalk10");
     return takeNewAchievements(s);
   }
   // 隱藏女主角要解鎖後才會出現
@@ -392,7 +396,7 @@
     var real = h.aff - before;
     if (out) {
       if (real) out.push("（" + name(hid) + " 好感 " + (real > 0 ? "+" : "") + real + "）");
-      else if (n > 0 && h.aff >= cap && !ignoreCap) out.push("（" + name(hid) + " 的好感暫時到頂了，完成她的任務才能更進一步）");
+      else if (n > 0 && h.aff >= cap && cap < 100 && !ignoreCap) out.push("（" + name(hid) + " 的好感暫時到頂了，完成她的任務才能更進一步）");
     }
     return real;
   }
@@ -446,6 +450,7 @@
       combo: {}, enc: 0, meetup: null, clubDone: false, weather: weather(s), examWeek: examWeek(s), hunt: null
     };
     s.today.hunt = genHunt(s);   // 剪影尋人
+    if (s.chat) genChats(s);      // 她們傳來的訊息
     s.flags.pose = false;
     dayEvents(s, kind);
     // 隨機事件（有修羅場時優先）。2026-11-03 使用者要求事件更頻繁：0.38 → 0.55，另有 15% 再多一件
@@ -693,13 +698,16 @@
     var cnt = s.today.talked[hid] || 0;
     var pref = topicPref(hid, tid);
     h.known.topics[tid] = pref;
-    var out = ["你：" + D.TOPIC_BY_ID[tid].say, name(hid) + "：" + lineOf(s, hd.lines[pref])];
+    // 全肯定（2026-11-05）：關係極好的人，就算不是她喜歡的話題，通常也會肯定你
+    var affirm = pref !== "like" && rollAffirm(s, hid);
+    var out = ["你：" + D.TOPIC_BY_ID[tid].say, name(hid) + "：" + (affirm ? affirmLine(s, hid) : lineOf(s, hd.lines[pref]))];
+    if (affirm) { out.push("（🫶 她全肯定了你" + (pref === "bad" ? "，即使這不是她喜歡的話題" : "") + "）"); pref = "mid"; }
     // 連擊記在她身上：跨日保留，3 天沒聊就歸零
     var combo = s.day - (h.comboDay === undefined ? -99 : h.comboDay) <= 3 ? (h.combo || 0) : 0;
     // 隱藏對話：連擊 2 以上時，聊到她的特定話題
     var ht = D.HIDDEN_TALKS[hid];
     var hidden = ht && ht.topic === tid && combo >= 2 && !h.hiddenSeen && (!ht.needMet || s.h[ht.needMet].met);
-    var base = pref === "like" ? 8 : pref === "bad" ? -4 : 3;
+    var base = pref === "like" ? 8 : pref === "bad" ? -4 : affirm ? 5 : 3;
     if (base > 0) base *= 1 + s.stats.charm / 150;
     if (base > 0 && cnt >= 1) base *= 0.5;
     // 連擊：連續選中她喜歡的話題，加成越來越高；選到她討厭的就斷掉
@@ -1015,7 +1023,8 @@
       out.push("你展現了" + D.L(sk.name) + "的特技。" + (liked ? name(hid) + "看得目不轉睛。" : name(hid) + "好像沒什麼興趣……"));
     } else {
       pts = 1 + (key === hd.moment ? 5 : 0) + (key === mood.pref ? 4 : 0);
-      out.push(pts >= 8 ? name(hid) + "的臉紅了，靜靜地靠近了你。" : pts >= 5 ? name(hid) + "開心地笑了。" : name(hid) + "笑了笑，好像不太是她想聽的。");
+      if (pts < 8 && rollAffirm(s, hid)) { pts = Math.max(pts, 6); out.push(name(hid) + "：" + affirmLine(s, hid)); out.push("（🫶 她全肯定了你）"); }
+      else out.push(pts >= 8 ? name(hid) + "的臉紅了，靜靜地靠近了你。" : pts >= 5 ? name(hid) + "開心地笑了。" : name(hid) + "笑了笑，好像不太是她想聽的。");
     }
     run.score += pts;
     run.step++;
@@ -1081,10 +1090,17 @@
     if (optId === "message") {
       var h = s.h[arg];
       if (!h || !h.met || h.aff < 20) return null;
-      out = ["你傳了訊息給" + name(arg) + "，聊到深夜。"];
-      addAff(s, arg, h.dating ? 4 : 3, out);
+      out = ["你傳了訊息給" + name(arg) + "。（📱 手機裡繼續聊，總共 3 回合）"];
+      addAff(s, arg, h.dating ? 2 : 1, out);
       h.lastSeen = Math.max(h.lastSeen, s.day - 1);
       applyEff(s, { stamina: -3 }, out);
+      // 2026-11-05：改成實際在手機上聊天（3 回合）
+      if (D.CHAT_KINDS) {
+        var th = thread(s, arg);
+        if (th.pend) { th.pend = null; }
+        chatPush(s, arg, "m", pick(s, ["在做什麼？", "還沒睡？", "今天辛苦了。", "欸，問你喔——"]));
+        chatAsk(s, arg, "open", 1, 3, true);
+      }
     } else if (optId === "sns") {
       out = snsPost(s, arg);
       if (!out) return null;
@@ -1169,6 +1185,7 @@
     applyEff(s, { stamina: 20 + (s.room.bed ? 8 : 0) }, null);
     // 魅力 50 以上會慢慢下降，要靠打扮、健身等維持（每天最多 −0.25）
     if (s.stats.charm > 50) s.stats.charm = Math.round((s.stats.charm - 0.25 * (s.stats.charm - 50) / 50) * 100) / 100;
+    chatExpire(s, out);   // 沒回的訊息
     var lovers = loversOf(s);
     // 跟太多迷妹曖昧：女友吃醋
     if (lovers.length && s.today.flirt >= 3) {
@@ -1837,6 +1854,137 @@
     return out;
   }
 
+  // ======================================================================
+  // 2026-11-05 手機聊天與全肯定（資料在 wanren_data7.js）
+  // ======================================================================
+  // ---------------- 全肯定：好感 80 以上或交往中，通常（85%）會全盤肯定你 ----------------
+  function isClose(s, hid) { var h = s.h[hid]; return !!h && (h.dating || h.aff >= (D.AFFIRM_MIN_AFF || 80)); }
+  function rollAffirm(s, hid) { return !!D.AFFIRM && isClose(s, hid) && rand(s) < (D.AFFIRM_RATE || 0.85); }
+  function affirmLine(s, hid) {
+    var hd = D.HEROINE_BY_ID[hid], key = hd.persona || (D.MAIN_PERSONA || {})[hid];
+    var pool = (D.AFFIRM[key] || []).concat(D.AFFIRM.generic);
+    var y = (D.CAST_KIT && D.CAST_KIT.ADDRESS[hd.group]) || "你";
+    s.affirmed++;
+    return pick(s, pool).replace(/\{y\}/g, y);
+  }
+
+  // ---------------- 手機（LINE 風格） ----------------
+  // s.chat[hid] = { log: [{ f: "h"她／"m"你／"s"系統, t, p: 附照片, d: 天 }], unread, last, pend: { kind, opts, round, max, ev } }
+  var CHAT_LOG_MAX = 40;
+  function thread(s, hid) {
+    var c = s.chat[hid];
+    if (!c) c = s.chat[hid] = { log: [], unread: 0, last: 0, pend: null };
+    return c;
+  }
+  function chatPush(s, hid, f, t, photo) {
+    var c = thread(s, hid);
+    c.log.push({ f: f, t: t, p: photo ? 1 : 0, d: s.day });
+    if (c.log.length > CHAT_LOG_MAX) c.log.splice(0, c.log.length - CHAT_LOG_MAX);
+    c.last = ++s.chatSeq;
+    if (f === "h") c.unread++;
+  }
+  function chatKind(id) { return (D.CHAT_KINDS || []).filter(function (k) { return k.id === id; })[0]; }
+  function chatFill(s, hid, str) {
+    var hd = D.HEROINE_BY_ID[hid];
+    var tp = D.TOPIC_BY_ID[hd.topics.like[Math.floor(rand(s) * hd.topics.like.length)]] || D.TOPICS[0];
+    var lc = D.LOC_BY_ID[hd.spots[Math.floor(rand(s) * hd.spots.length)]] || D.LOCATIONS[0];
+    return str.replace(/\{t\}/g, D.L(tp.name)).replace(/\{l\}/g, D.L(lc.name));
+  }
+  // 她傳來一則訊息（有回覆選項）
+  function chatAsk(s, hid, kindId, round, max, ev) {
+    var k = chatKind(kindId);
+    if (!k) return false;
+    var her = chatFill(s, hid, pick(s, k.her));
+    chatPush(s, hid, "h", her, k.photo);
+    var opts = {};
+    Object.keys(k.opts).forEach(function (tone) { opts[tone] = chatFill(s, hid, k.opts[tone]); });
+    thread(s, hid).pend = { kind: kindId, opts: opts, round: round || 1, max: max || 1, ev: !!ev };
+    return true;
+  }
+  function chatOk(s, hid, k) {
+    var h = s.h[hid], nd = k.need || {};
+    if (k.ev) return false;
+    if (nd.minAff && h.aff < nd.minAff) return false;
+    if (nd.lover && !h.dating) return false;
+    if (nd.flirt && !(s.today && s.today.flirt > 0)) return false;
+    return true;
+  }
+  // 早上：0〜2 位（女友多的話更多）主動傳訊息來
+  function genChats(s) {
+    if (!D.CHAT_KINDS) return;
+    var cand = metList(s, function (h, hd) { return h.aff >= 25 && available(s, hd.id) && !(s.chat[hd.id] && s.chat[hd.id].pend); });
+    if (!cand.length) return;
+    var n = (rand(s) < 0.6 ? 1 : 0) + (rand(s) < 0.25 ? 1 : 0) + (loversOf(s).length && rand(s) < 0.4 ? 1 : 0);
+    for (var i = 0; i < n && cand.length; i++) {
+      // 女友、好感高的人比較常傳
+      var w = cand.map(function (x) { var h = s.h[x]; return (h.dating ? 3 : 1) * (0.5 + h.aff / 100); });
+      var tot = w.reduce(function (a, b) { return a + b; }, 0), r = rand(s) * tot, j = 0;
+      for (; j < cand.length - 1; j++) { r -= w[j]; if (r < 0) break; }
+      var hid = cand.splice(j, 1)[0];
+      var kinds = D.CHAT_KINDS.filter(function (k) { return chatOk(s, hid, k); });
+      var kw = kinds.map(function (k) { return k.w || 1; }), kt = kw.reduce(function (a, b) { return a + b; }, 0), kr = rand(s) * kt, q = 0;
+      for (; q < kinds.length - 1; q++) { kr -= kw[q]; if (kr < 0) break; }
+      chatAsk(s, hid, kinds[q].id, 1, 1, false);
+    }
+  }
+  // 回覆：tone＝romantic／funny／earnest，"ignore"＝已讀不回
+  function chatReply(s, hid, tone) {
+    var c = s.chat[hid], p = c && c.pend;
+    if (!p || !s.h[hid]) return null;
+    var hd = D.HEROINE_BY_ID[hid], h = s.h[hid], k = chatKind(p.kind), out = [];
+    c.pend = null; c.unread = 0;
+    if (tone === "ignore") {
+      chatPush(s, hid, "s", "（已讀不回）");
+      if (h.dating || h.aff >= 50) { addAff(s, hid, h.dating ? -3 : -1, out); }
+      out.forEach(function (x) { chatPush(s, hid, "s", x); });
+      return out;
+    }
+    chatPush(s, hid, "m", p.opts[tone]);
+    s.chatReplies++;
+    var mood = moodOf(s, hid);
+    var pts = 1 + (tone === hd.moment ? 3 : 0) + (tone === mood.pref ? 2 : 0) + ((k.bonus || {})[tone] || 0);
+    var affirm = rollAffirm(s, hid);
+    if (affirm) {
+      pts = Math.max(pts, 5);
+      chatPush(s, hid, "h", affirmLine(s, hid));
+      chatPush(s, hid, "s", "（被全肯定了。心情變好了）");
+      applyEff(s, { stamina: 2 }, out);
+    } else {
+      chatPush(s, hid, "h", pts >= 5 ? lineOf(s, hd.lines.like) : pts >= 3 ? lineOf(s, hd.lines.mid) : lineOf(s, D.CHAT_MEH));
+    }
+    if (h.dating && pts >= 4 && rand(s) < 0.4) chatPush(s, hid, "h", lineOf(s, hd.lines.lover));
+    addAff(s, hid, Math.round(pts * (p.ev ? 0.8 : 0.7)), out);
+    h.lastSeen = Math.max(h.lastSeen, s.day - 1);
+    out.forEach(function (x) { chatPush(s, hid, "s", x); });
+    // 晚上的聊天：繼續下一回合
+    if (p.ev && p.round < p.max) {
+      var next = D.CHAT_KINDS.filter(function (x) { return !x.ev && x.id !== "jealous" && x.id !== "night" && chatOk(s, hid, x); });
+      chatAsk(s, hid, p.round + 1 === p.max && isClose(s, hid) ? "night" : pick(s, next).id, p.round + 1, p.max, true);
+    } else if (p.ev) {
+      s.nightTalks++;
+      chatPush(s, hid, "h", "「……啊，已經這麼晚了。今天聊得好開心。晚安！」");
+    }
+    c.unread = 0;
+    return out;
+  }
+  function chatRead(s, hid) { if (s.chat[hid]) s.chat[hid].unread = 0; }
+  function chatUnread(s) { return Object.keys(s.chat || {}).reduce(function (a, k) { var c = s.chat[k]; return a + (c.pend ? 1 : 0); }, 0); }
+  // 一天結束：沒回的訊息算已讀不回
+  function chatExpire(s, out) {
+    Object.keys(s.chat || {}).forEach(function (hid) {
+      var c = s.chat[hid], h = s.h[hid];
+      if (!c.pend || !h) return;
+      var ev = c.pend.ev;
+      c.pend = null;
+      chatPush(s, hid, "s", "（沒有回覆）");
+      if (!ev && (h.dating || h.aff >= 50)) {
+        var n = h.dating ? -3 : -1;
+        if (out) out.push("📱 " + name(hid) + "的訊息你一直沒回……");
+        addAff(s, hid, n, out);
+      }
+    });
+  }
+
   // ---------------- 存讀檔 ----------------
   function save(s) {
     try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(s)); return true; } catch (e) { return false; }
@@ -1890,6 +2038,7 @@
     report: report, fmt: fmt,
     // 2026-11-05 擴充
     PHOTO_POOL: PHOTO_POOL, photoOf: photoOf, photoOfAdmirer: photoOfAdmirer, circleOf: circleOf,
-    buyOutfit: buyOutfit, buyFurniture: buyFurniture, comfort: comfort, outfitFits: outfitFits
+    buyOutfit: buyOutfit, buyFurniture: buyFurniture, comfort: comfort, outfitFits: outfitFits,
+    chatReply: chatReply, chatRead: chatRead, chatUnread: chatUnread, isClose: isClose
   };
 })();

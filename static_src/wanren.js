@@ -177,6 +177,7 @@
     topEl.appendChild(el("div", { class: "wr-topbtns" }, [
       btn("🧑‍🎓 " + t("wr_me"), function () { ui.modal = { type: "me" }; renderModal(); }, "wr-btn wr-btn-ghost"),
       btn("👭 " + t("wr_people"), function () { ui.modal = { type: "people" }; renderModal(); }, "wr-btn wr-btn-ghost"),
+      phoneBtn("wr-btn wr-btn-ghost"),
       btn("📔 " + t("wr_album"), function () { ui.modal = { type: "album", tab: "ach" }; renderModal(); }, "wr-btn wr-btn-ghost"),
       btn((ui.net ? "🟢 " : "🌐 ") + t("wr_online"), function () { ui.modal = { type: "net" }; renderModal(); }, "wr-btn wr-btn-ghost"),
       btn("🎒 " + t("wr_bag"), function () { ui.modal = { type: "bag" }; renderModal(); }, "wr-btn wr-btn-ghost"),
@@ -431,6 +432,7 @@
     var left = S.today.admirers.filter(function (a) { return a.choice === null; }).length;
     panelEl.appendChild(section(t("wr_morning_title", { n: S.today.admirers.length }), [
       el("p", { class: "wr-small wr-muted" }, [t("wr_morning_note")]),
+      C.chatUnread(S) ? el("div", { class: "wr-row" }, [phoneBtn("wr-btn wr-btn-sm wr-btn-pink")]) : null,
       list,
       el("div", { class: "wr-row" }, [btn((left ? "🙈 " + t("wr_ignore_rest", { n: left }) + " → " : "") + t(S.today.kind === "weekday" ? "wr_go_class" : S.today.kind === "midterm" || S.today.kind === "final" ? "wr_go_exam" : "wr_go_free"), function () {
         act(function () { C.finishMorning(S); if (view) view.teleport(S.phase === "free" ? "gate" : "classroom"); return null; });
@@ -699,7 +701,11 @@
       var tg = D.HEROINES.filter(function (hd) { return S.h[hd.id].met && S.h[hd.id].aff >= 20; });
       panelEl.appendChild(section("💬 " + t("wr_msg_pick"), [
         tg.length ? el("div", { class: "wr-cast-row" }, tg.map(function (hd) {
-          return btn(el("span", { class: "wr-pickface" }, [face(hd, 40), L(hd.name)]), function () { ui.eveningPick = null; act(function () { return C.doEvening(S, "message", hd.id); }); }, "wr-btn wr-btn-card");
+          return btn(el("span", { class: "wr-pickface" }, [face(hd, 40), L(hd.name)]), function () {
+            ui.eveningPick = null;
+            // 2026-11-05：直接打開手機，在聊天室裡聊 3 回合
+            act(function () { var r = C.doEvening(S, "message", hd.id); if (r) ui.modal = { type: "phone", hid: hd.id }; return null; });
+          }, "wr-btn wr-btn-card");
         })) : el("p", { class: "wr-muted" }, [t("wr_msg_none")]),
         btn(t("wr_back"), function () { ui.eveningPick = null; render(); }, "wr-btn wr-btn-ghost")
       ]));
@@ -728,6 +734,7 @@
     var next = S.day + 1 >= S.length ? t("wr_to_report") : yearEnd ? t("wr_to_year_report") : t("wr_sleep");
     panelEl.appendChild(section("🌃 " + t("wr_night_title"), [
       el("p", { class: "wr-small wr-muted" }, [t("wr_night_note")]),
+      C.chatUnread(S) ? el("div", { class: "wr-row" }, [phoneBtn("wr-btn wr-btn-pink"), el("span", { class: "wr-small wr-muted" }, [t("wr_phone_before_sleep")])]) : null,
       el("div", { class: "wr-row" }, [btn("😴 " + next, function () {
         C.endDay(S);
         ui.loc = null; ui.focus = null; ui.topicFor = null; ui.giftFor = null;
@@ -820,6 +827,7 @@
     else if (m.type === "album") body = albumView(m.tab || "ach");
     else if (m.type === "club") body = clubView();
     else if (m.type === "net") body = netView();
+    else if (m.type === "phone") body = phoneView(m.hid);
     var box = el("div", { class: "wr-modal" }, [el("button", { class: "wr-modal-x", type: "button", onclick: close, "aria-label": t("wr_close") }, ["✕"]), body]);
     var back = el("div", { class: "wr-modal-back", onclick: function (e) { if (e.target === back) close(); } }, [box]);
     modalEl.appendChild(back);
@@ -1076,6 +1084,50 @@
           st === "now" && C.questLock(S, i) ? el("span", {}, [el("b", {}, [q.title]), el("br"), el("small", {}, [t("wr_quest_term", { t: C.questLock(S, i) })])]) : el("span", {}, [el("b", {}, [q.title]), st === "done" ? " ✅" : "", el("br"), el("small", {}, [st === "now" ? q.desc + "（" + C.reqText(q.req) + "）" : q.done])])
         ]);
       })), h.quest >= hd.quests.length && !h.dating ? el("p", { class: "wr-small" }, [t("wr_confess_hint") + (C.confessReq(S, hid).length ? "（" + C.confessReq(S, hid).join("、") + "）" : "")]) : null]) : null
+    ]);
+  }
+  // ---------------- 手機（2026-11-05） ----------------
+  function phoneBtn(cls) {
+    var n = S ? C.chatUnread(S) : 0;
+    return btn(el("span", {}, ["📱 " + t("wr_phone"), n ? el("i", { class: "wr-phone-badge" }, [n]) : null]), function () { ui.modal = { type: "phone" }; renderModal(); }, cls);
+  }
+  function phoneView(hid) {
+    var hd = hid && D.HEROINE_BY_ID[hid];
+    if (hd && S.h[hid]) {
+      C.chatRead(S, hid);
+      var c = S.chat[hid] || { log: [], pend: null }, close = C.isClose(S, hid);
+      var log = el("div", { class: "wr-chat-log" }, c.log.map(function (m) {
+        if (m.f === "s") return el("div", { class: "wr-chat-sys" }, [m.t]);
+        var mine = m.f === "m";
+        return el("div", { class: "wr-chat-row" + (mine ? " me" : "") }, [mine ? null : face(hd, 30),
+          el("div", { class: "wr-bubble" }, [m.p ? photoImg(C.photoOf(S.seed, hid), 132, function () { return el("span", {}, ["📷"]); }) : null, m.p ? el("br") : null, m.t])]);
+      }));
+      setTimeout(function () { log.scrollTop = log.scrollHeight; }, 0);
+      var p = c.pend, mood = C.moodOf(S, hid);
+      var done = function (tone) { return function () { C.chatReply(S, hid, tone); achievementToast(); save(); renderTop(); renderModal(); if (S.phase === "night" || S.phase === "morning") render(); }; };
+      var reply = p ? el("div", { class: "wr-chat-reply" }, D.CHAT_TONES.map(function (tn) {
+        return btn(el("span", {}, [el("small", {}, [tn.icon + " " + L(tn.name)]), " ", p.opts[tn.id]]), done(tn.id), "wr-btn wr-btn-opt");
+      }).concat([btn("🙈 " + t("wr_phone_ignore"), done("ignore"), "wr-btn wr-btn-ghost wr-btn-sm")])) : el("p", { class: "wr-small wr-muted" }, [t("wr_phone_wait")]);
+      return el("div", { class: "wr-phone" }, [
+        el("div", { class: "wr-chat-head" }, [btn("‹ " + t("wr_phone_back"), function () { ui.modal = { type: "phone" }; renderModal(); }, "wr-btn wr-btn-ghost wr-btn-sm"),
+          face(hd, 36), el("div", {}, [el("b", {}, [L(hd.name)]), el("div", { class: "wr-small wr-muted" }, [C.stageName(S, hid) + (close ? "・🫶 " + t("wr_phone_close") : "")])])]),
+        log,
+        p ? el("div", { class: "wr-small wr-muted wr-chat-mood" }, [mood.icon + " " + mood.hint + (p.ev ? "・" + t("wr_phone_round", { a: p.round, b: p.max }) : "")]) : null,
+        reply
+      ]);
+    }
+    var ids = Object.keys(S.chat || {}).filter(function (k) { return D.HEROINE_BY_ID[k] && S.h[k] && S.chat[k].log.length; })
+      .sort(function (a, b) { return (S.chat[b].pend ? 1 : 0) - (S.chat[a].pend ? 1 : 0) || S.chat[b].last - S.chat[a].last; });
+    return el("div", { class: "wr-phone" }, [el("h2", {}, ["📱 " + t("wr_phone")]),
+      el("p", { class: "wr-small wr-muted" }, [t("wr_phone_note")]),
+      ids.length ? el("div", { class: "wr-col" }, ids.map(function (k) {
+        var c = S.chat[k], last = c.log.filter(function (m) { return m.f !== "s"; }).slice(-1)[0];
+        return el("button", { type: "button", class: "wr-chat-item" + (c.pend ? " pend" : ""), onclick: function () { ui.modal = { type: "phone", hid: k }; renderModal(); } }, [
+          face(D.HEROINE_BY_ID[k], 40),
+          el("span", {}, [el("b", {}, [hname(k)]), el("small", {}, [last ? (last.f === "m" ? t("wr_phone_you") + "：" : "") + last.t : ""])]),
+          c.pend ? el("i", { class: "wr-phone-badge" }, ["!"]) : null
+        ]);
+      })) : el("p", { class: "wr-muted" }, [t("wr_phone_none")])
     ]);
   }
   function bagView() {
