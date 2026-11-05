@@ -15,7 +15,7 @@
   var BAL = D.BAL;
 
   // 行程種類：圖示與顏色（月曆、進度一覽共用；CSS 用 sv-k-<kind>）
-  var KIND_ICON = { course: "📚", train: "💪", rest: "💤", promo: "📣", job: "💼", audition: "🎤", project: "🌟" };
+  var KIND_ICON = { course: "📚", train: "💪", rest: "💤", promo: "📣", job: "💼", audition: "🎤", project: "🌟", fanmeet: "🤝", fanlive: "📱", merch: "🛍" };
 
   // ==== 設施圖 ====
   // 座標單位：寬 100、高 64（容器 aspect-ratio 100/64，所以 x、y 一單位等長）
@@ -38,7 +38,7 @@
   var ENTR_IN = { x: 76.5, y: 52 }, ENTR_OUT = { x: 83, y: 52 };
   var SPEED = 16;           // 單位／秒
   var COURSE_ROOM = { vocal: "studio", charm: "photo", dance: "practice", act: "classroom", talk: "classroom", sense: "classroom" };
-  var KIND_OUT = { job: 1, audition: 1, project: 1, promo: 1 };
+  var KIND_OUT = { job: 1, audition: 1, project: 1, promo: 1, fanmeet: 1, merch: 1 };
 
   Object.keys(ROOMS).forEach(function (k) {
     var r = ROOMS[k];

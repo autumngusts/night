@@ -94,6 +94,7 @@
   }
 
   // ---- 詳情 ----
+  var extraSections = [];   // 擴充區塊（starv_plus_ui.js 的心願、粉絲、人際）：fn(App, st, a) → { title, body }
   function section(title, body) { return el("div", { class: "sv-sec" }, [el("h3", { class: "sv-sec-title", text: title }), body]); }
   function meter(label, v, max, cls) {
     return el("div", { class: "sv-meter" }, [el("span", { class: "sv-small", text: label + " " + Math.round(v) }), UI.bar(v, max, cls)]);
@@ -239,12 +240,13 @@
         el("p", { class: "sv-small sv-muted", text: t("sv_policy_hint") })
       ])));
       box.appendChild(section(t("sv_actions"), actions(App, st, a, ui)));
+      extraSections.forEach(function (fn) { var sec = fn(App, st, a); if (sec) box.appendChild(section(sec.title, sec.body)); });
       box.appendChild(section(t("sv_trophies"), trophyList(a)));
       box.appendChild(section(t("sv_works"), worksList(App, a)));
     }, { live: true, cls: "sv-modal-detail" });
   }
 
-  window.PriTestStarvArtistsView = { openDetail: openDetail };
+  window.PriTestStarvArtistsView = { openDetail: openDetail, addSection: function (fn) { extraSections.push(fn); } };
 
   UI.register({
     id: "artists", order: 10, icon: "🌟", labelKey: "sv_tab_artists",

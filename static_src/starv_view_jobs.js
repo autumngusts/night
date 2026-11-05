@@ -10,6 +10,7 @@
   var TIER_RANK = { S: 0, A: 1, B: 2, C: 3, D: 4 };
   var view = { sub: "board", dir: "", tier: "" };
   var draft = { name: "", members: {} };
+  var tagHooks = [];   // 擴充標籤（starv_plus_ui.js 的續集、改編、對決）
 
   function fitStars(ratio) { var n = ratio >= 1.4 ? 5 : ratio >= 1.0 ? 4 : ratio >= 0.85 ? 3 : ratio >= 0.7 ? 2 : 1; return new Array(n + 1).join("★"); }
   function title(job) { return Core.jobTitle(job, UI.lang()); }
@@ -36,7 +37,7 @@
           job.audition ? el("span", { class: "sv-chip sv-chip-audition", text: t("sv_job_audition") }) : null,
           job.reservedFor ? el("span", { class: "sv-chip sv-chip-reserved", text: t("sv_job_reserved") }) : null,
           job.interest ? el("span", { class: "sv-chip sv-chip-interest", text: t("sv_job_interest", { rival: UI.rivalName(st, job.interest) }) }) : null
-        ])
+        ].concat(tagHooks.map(function (fn) { return fn(st, job); })))
       ])
     ]);
   }
@@ -185,4 +186,5 @@
       c.appendChild(view.sub === "board" ? board(st, App) : groups(st, App));
     }
   });
+  window.PriTestStarvJobsView = { addTag: function (fn) { tagHooks.push(fn); } };
 })();
