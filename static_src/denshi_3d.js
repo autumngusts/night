@@ -1061,11 +1061,12 @@
     var PATH_COL = 0xff3d7f, PATH_DOT = 0xfff07a;
     var pathPts = null, pathKey = "", paths = [], ribbonGroup = new T.Group(), ribbons = [];
     scene.add(ribbonGroup);
-    function rebuildPaths(s) {
-      var key = s.gv + "|" + s.spawns.length;
+    // alt：殘影預估的路徑（假設方塊已放下）；沒有就用目前地圖的路徑
+    function rebuildPaths(s, alt, altKey) {
+      var key = alt ? "g" + altKey : s.gv + "|" + s.spawns.length;
       if (key === pathKey) return;
       pathKey = key;
-      paths = s.spawns.map(function (p) { return window.PriTestDenshiCore.pathFrom(s, p[0], p[1]); });
+      paths = alt || s.spawns.map(function (p) { return window.PriTestDenshiCore.pathFrom(s, p[0], p[1]); });
       var n = 0; paths.forEach(function (p) { n += p.length * 2; });
       if (pathPts) { scene.remove(pathPts); pathPts.geometry.dispose(); }
       while (ribbonGroup.children.length) { var rc = ribbonGroup.children[0]; ribbonGroup.remove(rc); if (rc.geometry) rc.geometry.dispose(); }
@@ -1141,7 +1142,9 @@
     selBox.visible = false; scene.add(selBox);
     var hoverTile = new T.Mesh(new T.PlaneGeometry(0.96, 0.96), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false }));
     hoverTile.rotation.x = -Math.PI / 2; hoverTile.visible = false; scene.add(hoverTile);
-    var ghostKey = "";
+    var ghostKey = "", pickGroup = new T.Group(), pickKey = "";
+    scene.add(pickGroup);
+    var pickMat = new T.MeshBasicMaterial({ color: 0xffd04a, transparent: true, opacity: 0.4, depthWrite: false });
     function updateGhost(s, u) {
       var key = u.ghost ? JSON.stringify(u.ghost) + u.ghostOk : "";
       if (key !== ghostKey) {
@@ -1155,6 +1158,18 @@
         });
       }
       ghostGroup.position.y = Math.sin(clock * 6) * 0.03;
+      // 選中可以拿起的方塊：黃色框起來
+      var pk = u.pickCells ? u.pickCells.join(",") : "";
+      if (pk !== pickKey) {
+        pickKey = pk;
+        while (pickGroup.children.length) { var pc = pickGroup.children[0]; pickGroup.remove(pc); pc.geometry.dispose(); }
+        (u.pickCells || []).forEach(function (ci) {
+          var m = new T.Mesh(new T.BoxGeometry(1.02, 0.26, 1.02), pickMat);
+          m.position.set(wx(ci % W) + 0.5, 0.13, wz(Math.floor(ci / W)) + 0.5);
+          pickGroup.add(m);
+        });
+      }
+      pickMat.opacity = 0.3 + Math.abs(Math.sin(clock * 4)) * 0.3;
       if (u.range) {
         if (Math.abs(rangeR - u.range.r) > 0.01) buildDashes(u.range.r);
         rangeRing.visible = rangeDisc.visible = true;
@@ -1239,7 +1254,7 @@
       if (!s) return;
       rebuildTerrain(s);
       rebuildFound(s);
-      rebuildPaths(s);
+      rebuildPaths(s, u.ghostPaths, u.ghostPathKey);
       // 新的特效事件
       var maxId = 0;
       s.fx.forEach(function (f) { if (f.id > maxId) maxId = f.id; });

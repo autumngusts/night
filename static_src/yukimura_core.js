@@ -94,7 +94,16 @@
   }
   function players(s) { return Object.keys(s.P).sort().map(function (k) { return s.P[k]; }); }
   function alive(s) { return players(s).filter(function (P) { return !P.down; }); }
-  function newW(id) { return { id: id, lv: 1, cd: 0.5, evo: 0, ot: 0, ft: 0, tk: 0 }; }
+  function newW(id) { return { id: id, lv: 1, cd: 0.5, evo: 0, ot: 0, ft: 0, tk: 0, mods: [] }; }
+  // ---------------- 武器搭配與秘傳 ----------------
+  function ownedArch(P) { var o = {}; P.W.forEach(function (w) { o[D.ARCHES[D.WEAPONS[w.id].a].k] = 1; }); return o; }
+  function synergies(P) { var o = ownedArch(P); return D.SYNERGY.filter(function (y) { return o[y.a] && o[y.b]; }); }
+  // 這把武器實際有效的秘傳：自己學的＋搭配給的
+  function weaponMods(P, w) {
+    var list = (w.mods || []).slice(), ak = D.ARCHES[D.WEAPONS[w.id].a].k;
+    synergies(P).forEach(function (y) { if (y.give && y.a === ak && list.indexOf(y.give) < 0) list.push(y.give); });
+    return list;
+  }
   function xpNeed(lv) { return Math.round(5 + lv * 5.5 + Math.max(0, lv - 20) * 9 + Math.max(0, lv - 40) * 16); }
   function msg(s, k, pid, a, b) { s.msg.push({ id: nid(s), k: k, p: pid, a: a, b: b, t: s.t }); if (s.msg.length > 12) s.msg.shift(); }
 
@@ -131,6 +140,7 @@
     D.META.forEach(function (m) { var lv = (P.meta && P.meta[m.k]) | 0; if (lv && m.k !== "revive" && m.k !== "reroll") add(m.k, m.v * lv); });
     P.A.forEach(function (a) { var x = D.accStats(a.id, a.lv); Object.keys(x).forEach(function (k) { add(k, x[k]); }); });
     prefBonus(P).forEach(function (pb) { pb.b.forEach(function (b) { add(b[0], b[1]); }); });
+    synergies(P).forEach(function (y) { (y.st || []).forEach(function (b) { add(b[0], b[1]); }); });
     var buf = P.buf || {};
     if (buf.might > 0) o.might += 0.4;
     if (buf.speed > 0) o.speed += 0.35;
@@ -170,11 +180,19 @@
       if (g.cd) p.cd *= 1 + g.cd;
     }
     if (w.evo) { p.dmg *= 1.7; p.n += 1; p.area *= 1.2; p.cd *= 0.85; p.pierce += 2; }
+    // 秘傳
+    p.mods = weaponMods(P, w);
+    p.mods.forEach(function (m) {
+      if (m === "kyodai") { p.area *= 1.5; p.dmg *= 1.1; p.cd *= 1.15; }
+      else if (m === "shippu") { p.cd *= 0.72; p.dmg *= 0.85; }
+      else if (m === "kantsu") { p.pierce += 3; p.spd *= 1.2; }
+      else if (D.MOD_ST[m]) { if (!p.st) p.st = D.MOD_ST[m]; else if (p.st !== D.MOD_ST[m]) p.st2 = D.MOD_ST[m]; }
+    });
     // 單發型（太刀、長槍、薙刀、鎖鎌、法螺貝、陣太鼓、破魔矢、騎馬）的「數量」限制在 3 以內，多的轉成傷害
     var capN = { slash: 3, thrust: 3, spin: 2, whip: 2, wave: 2, pulse: 2, beam: 3, charge: 3, aura: 1, flame: 2, zone: 4, trail: 2 }[p.kind];
     p.n += st.amount;
     if (capN && p.n > capN) { p.dmg *= 1 + 0.15 * (p.n - capN); p.n = capN; }
-    p.dmg *= st.might;
+    p.dmg *= st.might * (1 + comboBonus(P));
     p.area *= st.area;
     p.cd *= Math.max(0.25, 1 - st.cdr);
     p.dur *= st.dur;
@@ -182,6 +200,9 @@
     p.knock *= st.knock;
     return p;
   }
+
+  // 連斬加成：每 50 連斬 +5%（最多 +30%），攻擊與拾取的錢都套用
+  function comboBonus(P) { return Math.min(0.3, Math.floor((P.cb || 0) / 50) * 0.05); }
 
   // ---------------- 升級三選一 ----------------
   function makeOpts(s, P) {
@@ -192,7 +213,13 @@
     var tries = 0;
     while (out.length < nOpt && tries++ < 60) {
       var r = rnd(s), o = null;
-      if (r < 0.42 && wUp.length) o = pick(s, wUp);
+      var mUp = P.W.map(function (w, i) { return w.lv >= 3 && (w.mods || []).length < D.MAX_MOD ? i : -1; }).filter(function (i) { return i >= 0; });
+      if (r < 0.34 && wUp.length) o = pick(s, wUp);
+      else if (r < 0.46 && mUp.length) {
+        var wi = pick(s, mUp), ww = P.W[wi], kind = D.WEAPONS[ww.id].kind, have = weaponMods(P, ww);
+        var cands = Object.keys(D.MODS).filter(function (m) { return have.indexOf(m) < 0 && (!D.MODS[m].proj || D.PROJ_KINDS[kind]) && (!D.MODS[m].straight || D.STRAIGHT_KINDS[kind]); });
+        if (cands.length) o = { t: "m", i: wi, id: ww.id, m: pick(s, cands) };
+      }
       else if (r < 0.62 && aUp.length) o = pick(s, aUp);
       else if (r < 0.82 && P.W.length < D.MAX_W) {
         // 新武器：先抽攻擊方式（避免重複），藩隨機；有地緣的話偏向同縣
@@ -212,7 +239,7 @@
         o = { t: "a", id: acc.id };
       }
       if (!o) continue;
-      var key = o.t + ":" + (o.i !== undefined ? o.i : o.id);
+      var key = o.t + ":" + (o.i !== undefined ? o.i : o.id) + (o.m ? ":" + o.m : "");
       if (used[key]) continue;
       used[key] = 1;
       out.push(o);
@@ -226,6 +253,7 @@
     else if (o.t === "au" && P.A[o.i]) P.A[o.i].lv = Math.min(D.MAX_ALV, P.A[o.i].lv + 1);
     else if (o.t === "w" && P.W.length < D.MAX_W) P.W.push(newW(o.id));
     else if (o.t === "a" && P.A.length < D.MAX_A) P.A.push({ id: o.id, lv: 1 });
+    else if (o.t === "m" && P.W[o.i] && D.MODS[o.m]) { var ws = P.W[o.i]; ws.mods = ws.mods || []; if (ws.mods.length < D.MAX_MOD && ws.mods.indexOf(o.m) < 0) ws.mods.push(o.m); }
     else if (o.t === "heal") P.hp = Math.min(P.mhp, P.hp + 30);
     else if (o.t === "gold") P.gold += 25;
     calcStats(P, s);
@@ -310,6 +338,7 @@
     var st = P ? P.st : baseStats();
     var crit = rnd(s) < st.crit + (p && p.crit || 0);
     if (crit) dmg *= st.critDmg;
+    if (hasMod(p, "shokei") && e.hp < e.mhp * 0.3) dmg *= 2;
     var armor = (e.armor || 0);
     dmg = Math.max(1, dmg - armor);
     if (e.boss && e.shieldT > 0) dmg *= 0.3;
@@ -318,6 +347,21 @@
     if (P) P.dmg += dmg;
     if (crit && dmg > 30) addFx(s, "crit", e.x, e.z, 0, Math.round(dmg), P ? P.pid : "");
     if (p && p.st) applyStatus(s, P, e, p.st, dmg);
+    if (p && p.st2) applyStatus(s, P, e, p.st2, dmg);
+    // 秘傳的連帶效果（附帶傷害不再觸發秘傳，避免連鎖無限）
+    if (p && p.mods) {
+      var sub = { knock: 0.5, crit: 0, st: p.st };
+      if (hasMod(p, "bakuretsu") && rnd(s) < 0.25) {
+        var bx = e.x, bz = e.z;
+        addFx(s, "boom", bx, bz, 0, 1.6, P ? P.pid : "", 0);
+        near(s, bx, bz, 1.6, function (o) { if (o !== e) hitEnemy(s, P, o, dmg * 0.5, sub); });
+      }
+      if (hasMod(p, "rensa") && rnd(s) < 0.3) {
+        var nc = 0, cx = e.x, cz = e.z;
+        near(s, cx, cz, 4, function (o) { if (o !== e && nc < 2 && o.hp > 0) { nc++; hitEnemy(s, P, o, dmg * 0.5, { knock: 0, crit: 0, st: "shock" }); addFx(s, "chain", cx, cz, Math.atan2(o.z - cz, o.x - cx), Math.sqrt(dist2(cx, cz, o.x, o.z)), P ? P.pid : ""); } });
+      }
+      if (hasMod(p, "kyukon") && e.hp <= 0 && P) P.hp = Math.min(P.mhp, P.hp + 1);
+    }
     if (kx !== undefined && !e.boss) {
       var kn = 0.35 * (p ? p.knock : 1) / (e.r * 1.6);
       e.kx = (e.kx || 0) + kx * kn; e.kz = (e.kz || 0) + kz * kn;
@@ -354,7 +398,11 @@
   function killEnemy(s, P, e, p) {
     e.hp = 0;
     s.kills++;
-    if (P) { P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9)); }
+    if (P) {
+      P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9));
+      P.cb = (P.cb || 0) + 1; P.cbT = 3; if (P.cb > (P.cbMax || 0)) P.cbMax = P.cb;
+      if (P.cb % 100 === 0) msg(s, "combo", P.pid, P.cb);
+    }
     var def = D.ENEMIES[e.k] || {};
     var sx = e.xp * (e.el ? 6 : 1);
     dropGem(s, e.x, e.z, sx);
@@ -539,6 +587,14 @@
       s.ev.warashi -= dt;
       if (s.ev.warashi <= 0) { s.ev.warashi = 55; var wa2 = rnd(s) * 6.28; dropItem(s, "warashi", P.x + Math.cos(wa2) * 9, P.z + Math.sin(wa2) * 9, { a: rnd(s) * 6.28, life: 25 }); msg(s, "feat", "", "warashi"); }
     }
+    // 每關都有：祠（站在旁邊 3 秒得到隨機祝福）
+    s.ev.hokora = (s.ev.hokora === undefined ? 70 : s.ev.hokora) - dt;
+    if (s.ev.hokora <= 0) {
+      s.ev.hokora = 100 + rnd(s) * 40;
+      var ha = rnd(s) * 6.28;
+      dropItem(s, "hokora", P.x + Math.cos(ha) * 11, P.z + Math.sin(ha) * 11, { p: 0, life: 45 });
+      msg(s, "feat", "", "hokora");
+    }
     // 每關都有：燈籠（打破掉料理或錢）
     s.ev.lantern -= dt;
     var nl = s.D.filter(function (d) { return d.k === "lantern"; }).length;
@@ -595,25 +651,29 @@
     }
     if (k === "slash") {
       // 半月斬：正面，再來一刀在背面（n≥2）、第三刀左右
+      // 飛斬：近身半月斬＋向前飛出的月牙刃（貫穿）；n≥2 背面、n≥3 側面再一道
       for (i = 0; i < p.n; i++) {
         var a = fxa + (i === 1 ? Math.PI : i === 2 ? Math.PI / 2 : 0);
-        sector(s, P, P.x, P.z, a, p.area, 1.25, p.dmg, p);
-        addFx(s, "slash", P.x, P.z, a, p.area, P.pid, w.evo ? 2 : 0);
+        sector(s, P, P.x, P.z, a, p.area * 0.6, 1.25, p.dmg, p);
+        addFx(s, "slash", P.x, P.z, a, p.area * 0.6, P.pid, w.evo ? 2 : 0);
+        fly(s, P, p, a, "tachi", 13, p.area * 2.3, 0.75 * Math.sqrt(p.area / 2.6) + 0.3, null, { skipNear: p.area * 0.6 });
       }
     } else if (k === "thrust") {
+      // 擲槍：槍頭向前高速飛出，貫穿一整排
       for (i = 0; i < p.n; i++) {
-        var ta = fxa + (i - (p.n - 1) / 2) * 0.35;
-        line(s, P, P.x, P.z, Math.cos(ta), Math.sin(ta), p.area, 0.7, p.dmg, p);
-        addFx(s, "thrust", P.x, P.z, ta, p.area, P.pid, w.evo ? 2 : 0);
+        var ta = fxa + (i - (p.n - 1) / 2) * 0.3;
+        fly(s, P, p, ta, "yari", 24, p.area * 1.5, 0.7);
       }
     } else if (k === "spin") {
       near(s, P.x, P.z, p.area, function (e2) { var d = Math.sqrt(dist2(e2.x, e2.z, P.x, P.z)) || 1; hitEnemy(s, P, e2, p.dmg * (1 + 0.2 * (p.n - 1)), p, (e2.x - P.x) / d, (e2.z - P.z) / d); });
       addFx(s, "spin", P.x, P.z, fxa, p.area, P.pid, w.evo ? 2 : 0);
+      // 看得見的旋轉刀刃（只做畫面，傷害在上面一次結算）
+      for (i = 0; i < p.n; i++) s.S.push({ id: nid(s), k: "naginata", o: P.pid, x: P.x, z: P.z, a: fxa + i * Math.PI, life: 0.4, T: 0.4, mode: "spin", r0: p.area * 0.85, dmg: 0, hit: {}, p: {} });
     } else if (k === "whip") {
+      // 鎖鎌：鎌刃往左右甩出再收回（去程、回程各打一次）
       for (i = 0; i < p.n; i++) {
         var side = i % 2 === 0 ? (P.fx >= 0 ? 0 : Math.PI) : (P.fx >= 0 ? Math.PI : 0);
-        line(s, P, P.x, P.z, Math.cos(side), Math.sin(side), p.area, 1.1, p.dmg, p);
-        addFx(s, "whip", P.x, P.z, side, p.area, P.pid, w.evo ? 2 : 0);
+        fly(s, P, p, side, "kusarigama", 16, p.area * 1.4, 0.9, "boom");
       }
     } else if (k === "arrow" || k === "gun" || k === "fan" || k === "bounce" || k === "homing" || k === "boomerang") {
       e = nearest(s, P.x, P.z, 16);
@@ -642,9 +702,8 @@
       for (i = 0; i < p.n; i++) {
         e = randomNear(s, P, 13);
         if (!e) break;
-        var lx = e.x, lz = e.z;
-        near(s, lx, lz, p.area, function (e2) { hitEnemy(s, P, e2, p.dmg, p); });
-        addFx(s, "bolt", lx, lz, 0, p.area, P.pid, w.evo ? 2 : 0);
+        // 雷從天而降（0.25 秒後落地）
+        s.S.push({ id: nid(s), k: "kaminari", o: P.pid, w: w.id, x: e.x, z: e.z, life: 0.25 + i * 0.06, T: 0.25, mode: "drop", dmg: p.dmg, r: p.area, p: pack(p), a: 0 });
       }
     } else if (k === "flame") {
       w.ft = p.dur;
@@ -676,10 +735,10 @@
     } else if (k === "beam") {
       e = nearest(s, P.x, P.z, 18);
       var ba = e ? Math.atan2(e.z - P.z, e.x - P.x) : fxa;
+      // 破魔矢：發光的箭貫穿畫面
       for (i = 0; i < p.n; i++) {
         var bb = ba + (i - (p.n - 1) / 2) * 0.5;
-        line(s, P, P.x, P.z, Math.cos(bb), Math.sin(bb), 18, p.area, p.dmg, p);
-        addFx(s, "beam", P.x, P.z, bb, 18, P.pid, w.evo ? 2 : 0);
+        fly(s, P, p, bb, "hamaya", 34, 20, p.area * 0.6 + 0.35);
       }
     } else if (k === "charge") {
       for (i = 0; i < p.n; i++) {
@@ -688,7 +747,18 @@
       }
     }
   }
-  function pack(p) { return { st: p.st, knock: p.knock, crit: p.crit, gold: p.gold, pierce: p.pierce, n: p.n, area: p.area }; }
+  // 直線飛行、貫穿的投射物（飛斬、擲槍、鎖鎌、破魔矢）。mode "boom" 會飛回來
+  function fly(s, P, p, ang, vis, spd, dist, r, mode, extra) {
+    spd *= P.st ? P.st.pspd : 1;
+    var life = dist / spd;
+    var sh = { id: nid(s), k: vis, o: P.pid, x: P.x, z: P.z, vx: Math.cos(ang) * spd, vz: Math.sin(ang) * spd, spd: spd, life: mode === "boom" ? life * 2 : life, T: mode === "boom" ? life * 2 : life, mode: mode || "proj", dmg: p.dmg, r: r, pierce: 999, hit: {}, p: pack(p), a: ang };
+    // 近身斬已經打過的敵人，飛斬就不再重複打
+    if (extra && extra.skipNear) near(s, P.x, P.z, extra.skipNear, function (e) { sh.hit[e.id] = 1; });
+    s.S.push(sh);
+    return sh;
+  }
+  function pack(p) { return { st: p.st, st2: p.st2, knock: p.knock, crit: p.crit, gold: p.gold, pierce: p.pierce, n: p.n, area: p.area, mods: p.mods && p.mods.length ? p.mods : undefined }; }
+  function hasMod(p, m) { return !!(p && p.mods && p.mods.indexOf(m) >= 0); }
   function shoot(s, P, p, ang, k) {
     var sh = { id: nid(s), k: p.vis, o: P.pid, x: P.x, z: P.z, vx: Math.cos(ang) * p.spd, vz: Math.sin(ang) * p.spd, life: k === "boomerang" ? 1.6 : k === "homing" ? 3 : 1.4, mode: k === "bounce" ? "bounce" : k === "homing" ? "homing" : k === "boomerang" ? "boom" : "proj", dmg: p.dmg, r: k === "gun" ? 0.35 : k === "boomerang" ? 0.8 * P.st.area : 0.45, pierce: p.pierce, hit: {}, p: pack(p), a: ang, spd: p.spd };
     if (k === "boomerang") sh.T = sh.life;
@@ -721,25 +791,37 @@
   function useUlt(s, P) {
     if (!P || P.down || P.ult < 100) return false;
     P.ult = 0;
-    var u = D.DAIMYO[P.dm].ult, st = P.st, dmg = 60 * st.might * (1 + s.t / s.dur * 3);
+    // 采配強化：每發動 3 次升一階（最多 3 階），威力 +40%／階、持續 +30%／階
+    var tier = ultTier(P), K = 1 + 0.3 * (tier - 1);
+    P.ultN = (P.ultN || 0) + 1;
+    if (ultTier(P) > tier) msg(s, "ultup", P.pid, ultTier(P));
+    var u = D.DAIMYO[P.dm].ult, st = P.st, dmg = 60 * st.might * (1 + s.t / s.dur * 3) * (1 + 0.4 * (tier - 1));
     addFx(s, "ult", P.x, P.z, 0, 8, P.pid, 0);
     msg(s, "ult", P.pid, u);
     if (u === "toki") near(s, P.x, P.z, 14, function (e) { hitEnemy(s, P, e, dmg * (e.boss ? 1.5 : 1), null); });
-    else if (u === "muso") { P.buf.muso = 6; P.iv = Math.max(P.iv, 6); }
+    else if (u === "muso") { P.buf.muso = 6 * K; P.iv = Math.max(P.iv, 6 * K); }
     else if (u === "kaifuku") players(s).forEach(function (o) { if (!o.down) o.hp = Math.min(o.mhp, o.hp + o.mhp * 0.5); });
-    else if (u === "engun") P.buf.engun = 8;
-    else if (u === "kaze") { P.buf.kaze = 8; s.G.forEach(function (g) { g.m = P.pid; }); }
+    else if (u === "engun") P.buf.engun = 8 * K;
+    else if (u === "kaze") { P.buf.kaze = 8 * K; s.G.forEach(function (g) { g.m = P.pid; }); }
     else if (u === "jishin") near(s, P.x, P.z, 12, function (e) { e.stun = 4; hitEnemy(s, P, e, dmg * 0.5, null); });
     else if (u === "ougon") { for (var i = 0; i < 20; i++) { var a = i * 0.314; dropItem(s, "coin", P.x + Math.cos(a) * 3, P.z + Math.sin(a) * 3, { v: 6 }); dropGem(s, P.x + Math.cos(a) * 4, P.z + Math.sin(a) * 4, 5 + s.t / 30); } }
-    else if (u === "kaen") P.buf.kaen = 8;
-    else if (u === "kori") s.freeze = 5;
-    else if (u === "tenrai") P.buf.tenrai = 6;
-    else if (u === "kekkai") players(s).forEach(function (o) { o.buf.kek = 10; });
+    else if (u === "kaen") P.buf.kaen = 8 * K;
+    else if (u === "kori") s.freeze = 5 * K;
+    else if (u === "tenrai") P.buf.tenrai = 6 * K;
+    else if (u === "kekkai") players(s).forEach(function (o) { o.buf.kek = 10 * K; });
+    else if (u === "kage") {   // 影分身：5 秒無敵＋四周射出 16 枚手裏劍
+      P.iv = Math.max(P.iv, 5); P.buf.speed = 5;
+      for (var k2 = 0; k2 < 16; k2++) s.S.push({ id: nid(s), k: "shuriken", o: P.pid, x: P.x, z: P.z, vx: Math.cos(k2 * 0.3927) * 15, vz: Math.sin(k2 * 0.3927) * 15, spd: 15, life: 1.4, mode: "bounce", dmg: dmg * 0.5, r: 0.5, pierce: 4, hit: {}, p: {}, a: 0 });
+    } else if (u === "ikki") {   // 一騎討：對附近最強的敵人一記重擊
+      var tg = strongest(s, P, 16);
+      if (tg) { hitEnemy(s, P, tg, dmg * 6, null); addFx(s, "bolt", tg.x, tg.z, 0, 2.5, P.pid, 2); addFx(s, "boom", tg.x, tg.z, 0, 3, P.pid, 1); }
+    }
     calcStats(P, s);
     return true;
   }
+  function ultTier(P) { return Math.min(3, 1 + Math.floor((P.ultN || 0) / 3)); }
   function ultTick(s, P, dt) {
-    var b = P.buf, dmg = 30 * P.st.might * (1 + s.t / s.dur * 3);
+    var b = P.buf, dmg = 30 * P.st.might * (1 + s.t / s.dur * 3) * (1 + 0.4 * (ultTier(P) - 1));
     if (b.engun > 0) { P._eg = (P._eg || 0) + dt; if (P._eg > 0.25) { P._eg = 0; var px = P.x + (rnd(s) - 0.5) * 16, pz = P.z + (rnd(s) - 0.5) * 16; s.S.push({ id: nid(s), k: "yanoame", o: P.pid, x: px, z: pz, life: 0.4, T: 0.4, mode: "drop", dmg: dmg * 0.6, r: 1.6, p: {}, a: 0 }); } }
     if (b.kaen > 0) { P._kn = (P._kn || 0) + dt; if (P._kn > 0.3) { P._kn = 0; near(s, P.x, P.z, 4.5, function (e) { hitEnemy(s, P, e, dmg * 0.3, { st: "burn", knock: 1, crit: 0 }); }); } }
     if (b.tenrai > 0) { P._tr = (P._tr || 0) + dt; if (P._tr > 0.25) { P._tr = 0; var e = randomNear(s, P, 15); if (e) { near(s, e.x, e.z, 1.6, function (e2) { hitEnemy(s, P, e2, dmg, { st: "shock", knock: 1, crit: 0 }); }); addFx(s, "bolt", e.x, e.z, 0, 1.6, P.pid, 2); } } }
@@ -780,6 +862,7 @@
     });
     if (!P.st) calcStats(P, s);
     if (P.iv > 0) P.iv -= dt;
+    if (P.cbT > 0) { P.cbT -= dt; if (P.cbT <= 0) P.cb = 0; }
     if (P.down) {
       // 隊友站在旁邊 3 秒就能扶起
       var helper = players(s).some(function (o) { return o !== P && !o.down && dist2(o.x, o.z, P.x, P.z) < 2.5 * 2.5; });
@@ -790,7 +873,7 @@
     P.sp = moveSpeed(s, P);
     if (P.local) stepMove(s, P, P.mvx, P.mvz, dt, P.sp);
     // 升級選項：有待選次數就出三選一；連線中 15 秒沒選就自動選第一個
-    if (P.pend > 0 && !P.opts) { P.opts = makeOpts(s, P); P.optT = 0; }
+    if (P.pend > 0 && !P.opts) { P.opts = makeOpts(s, P); P.optT = 0; pushAway(s, P, 2.8); }
     if (P.opts) {
       P.optT += dt;
       if (P.optT > 15) choose(s, P, 0);
@@ -806,7 +889,10 @@
       if (w.cd <= 0) {
         w.cd = p.cd + (p.kind === "orbit" ? p.dur : p.kind === "flame" ? p.dur : 0);
         fire(s, P, w, p);
+        if (hasMod(p, "nitou") && p.kind !== "orbit" && p.kind !== "flame") w.dbl = 0.2;
       }
+      // 二連：0.2 秒後再發動一次（威力 70%）
+      if (w.dbl > 0) { w.dbl -= dt; if (w.dbl <= 0) { w.dbl = 0; p.dmg *= 0.7; fire(s, P, w, p); } }
     }
   }
   function orbitTick(s, P, w, p, dt) {
@@ -852,11 +938,23 @@
       } else if (sh.mode === "drop") {
         if (sh.life <= 0) {
           near(s, sh.x, sh.z, sh.r, function (e) { hitEnemy(s, P, e, sh.dmg, st); });
-          addFx(s, sh.k === "tsurara" ? "ice" : "arrowhit", sh.x, sh.z, 0, sh.r, sh.o);
+          addFx(s, sh.k === "tsurara" ? "ice" : sh.k === "kaminari" ? "bolt" : "arrowhit", sh.x, sh.z, 0, sh.r, sh.o);
           continue;
         }
+      } else if (sh.mode === "spin") {
+        if (sh.life <= 0) continue;
+        sh.a += dt * 16;
+        sh.x = P.x + Math.cos(sh.a) * sh.r0; sh.z = P.z + Math.sin(sh.a) * sh.r0;
       } else {
         if (sh.life <= 0) continue;
+        if (sh.mode === "proj" && hasMod(sh.p, "tsuibi")) {   // 秘傳・追尾
+          var tg2 = nearest(s, sh.x, sh.z, 8, sh.hit);
+          if (tg2) {
+            var sp2 = Math.sqrt(sh.vx * sh.vx + sh.vz * sh.vz) || 1, ta2 = Math.atan2(tg2.z - sh.z, tg2.x - sh.x), ca2 = Math.atan2(sh.vz, sh.vx), da2 = ((ta2 - ca2 + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+            ca2 += clamp(da2, -4 * dt, 4 * dt);
+            sh.vx = Math.cos(ca2) * sp2; sh.vz = Math.sin(ca2) * sp2;
+          }
+        }
         if (sh.mode === "homing") {
           var tg = nearest(s, sh.x, sh.z, 9, sh.hit);
           if (tg) {
@@ -871,7 +969,8 @@
           if (sh.retHit !== 1) { sh.hit = {}; sh.retHit = 1; }
         }
         sh.x += sh.vx * dt; sh.z += sh.vz * dt;
-        sh.a = Math.atan2(sh.vz, sh.vx);
+        if (sh.mode !== "boom" || sh.k !== "kusarigama") sh.a = Math.atan2(sh.vz, sh.vx);
+        else sh.a += dt * 14;
         if (Math.abs(sh.x) > AR + 6 || Math.abs(sh.z) > AR + 6) continue;
         var dead = false;
         near(s, sh.x, sh.z, sh.r, function (e) {
@@ -879,6 +978,16 @@
           sh.hit[e.id] = 1;
           var sp = Math.sqrt(sh.vx * sh.vx + sh.vz * sh.vz) || 1;
           hitEnemy(s, P, e, sh.dmg, st, sh.vx / sp, sh.vz / sp);
+          // 秘傳・分裂：第一次命中後分成左右兩發
+          if (hasMod(st, "bunretsu") && !sh.child && !sh.split) {
+            sh.split = 1;
+            var a0 = Math.atan2(sh.vz, sh.vx);
+            [-0.5, 0.5].forEach(function (da) {
+              var ch = { id: nid(s), k: sh.k, o: sh.o, x: sh.x, z: sh.z, vx: Math.cos(a0 + da) * sp, vz: Math.sin(a0 + da) * sp, spd: sp, life: 0.6, mode: "proj", dmg: sh.dmg * 0.6, r: sh.r, pierce: 0, hit: {}, p: st, a: a0 + da, child: 1 };
+              ch.hit[e.id] = 1;
+              s.S.push(ch);
+            });
+          }
           if (sh.mode === "bounce") {
             var nx = nearest(s, sh.x, sh.z, 8, sh.hit);
             if (nx && sh.pierce > 0) { sh.pierce--; var na = Math.atan2(nx.z - sh.z, nx.x - sh.x); sh.vx = Math.cos(na) * sh.spd; sh.vz = Math.sin(na) * sh.spd; sh.life = Math.max(sh.life, 0.8); }
@@ -954,6 +1063,10 @@
       if (e.line) { dx = e.lx; dz = e.lz; }
       if (e.flee) { dx = -dx; dz = -dz; spd *= 1.1; }
       if (e.boss) { bossAI(s, e, T, tdist, dt); continue; }
+      if (T.opts && !e.line) {   // 目標正在選升級：保持一小步距離
+        var keep = 2.6 + e.r;
+        if (tdist < keep) { dx = -dx; dz = -dz; spd *= 0.6; } else if (tdist < keep + 0.6) spd = 0;
+      }
       var def = D.ENEMIES[e.k] || {}, f = def.f || {};
       // 衝鋒：蓄力 0.6 秒後三倍速衝 0.7 秒
       if (f.charge) {
@@ -1086,6 +1199,17 @@
         d.life -= dt; if (d.life <= 0) return false;
         d.a += (rnd(s) - 0.5) * dt * 2; d.x = clamp(d.x + Math.cos(d.a) * 1.5 * dt, -AR, AR); d.z = clamp(d.z + Math.sin(d.a) * 1.5 * dt, -AR, AR);
       }
+      if (d.k === "hokora") {
+        d.life -= dt;
+        if (d.life <= 0) return false;
+        var pr = null;
+        for (var h = 0; h < ps.length; h++) if (dist2(d.x, d.z, ps[h].x, ps[h].z) < 2.4 * 2.4) pr = ps[h];
+        d.p = pr ? d.p + dt : Math.max(0, d.p - dt * 0.5);
+        if (d.p < 3) return true;
+        bless(s, pr);
+        addFx(s, "pick", d.x, d.z, 0, 2, pr.pid, 3);
+        return false;
+      }
       if (d.k === "lantern" || d.k === "anvil") {
         // 被武器打到才會壞：用附近的投射物／近戰特效判定太麻煩，改成「玩家靠近 1.2 以內或被範圍攻擊波及」
         var hitBy = null;
@@ -1108,12 +1232,26 @@
       if (d.k === "coin") {
         var dx = T.x - d.x, dz = T.z - d.z, dd = Math.sqrt(dx * dx + dz * dz);
         if (dd > 0.6) { d.x += dx / dd * 12 * dt; d.z += dz / dd * 12 * dt; return true; }
-        players(s).forEach(function (P) { P.gold += d.v * P.st.greed; });
+        players(s).forEach(function (P) { P.gold += d.v * P.st.greed * (1 + comboBonus(T)); });
         return false;
       }
       pickup(s, T, d);
       return false;
     });
+  }
+  var BLESS = ["might", "speed", "magnet", "heal", "ult", "gold", "inv", "luck"];
+  function bless(s, P) {
+    var b = pick(s, BLESS);
+    if (b === "might") P.buf.might = 30;
+    else if (b === "speed") P.buf.speed = 30;
+    else if (b === "magnet") s.G.forEach(function (g) { g.m = P.pid; });
+    else if (b === "heal") players(s).forEach(function (o) { if (!o.down) o.hp = o.mhp; });
+    else if (b === "ult") P.ult = Math.min(100, P.ult + 50);
+    else if (b === "gold") players(s).forEach(function (o) { o.gold += 60 * o.st.greed; });
+    else if (b === "inv") P.iv = Math.max(P.iv, 8);
+    else if (b === "luck") P.buf.luck = 40;
+    calcStats(P, s);
+    msg(s, "bless", P.pid, b);
   }
   function gainExp(s, P, v) {
     if (P.down) v *= 0.5;
@@ -1155,11 +1293,24 @@
   }
 
   // ---------------- 意圖（玩家操作）----------------
+  // 選升級時把貼在身邊的敵人推到 R 以外（單機暫停時也不會一解除就被圍毆）
+  function pushAway(s, P, R) {
+    for (var i = 0; i < s.E.length; i++) {
+      var e = s.E[i];
+      if (e.boss || e.hp <= 0) continue;
+      var dx = e.x - P.x, dz = e.z - P.z, d = Math.sqrt(dx * dx + dz * dz);
+      var need = R + e.r;
+      if (d >= need) continue;
+      if (d < 0.01) { var a = rnd(s) * 6.28; dx = Math.cos(a); dz = Math.sin(a); d = 1; }
+      e.x = P.x + dx / d * need; e.z = P.z + dz / d * need;
+    }
+  }
   function choose(s, P, i) {
     if (!P || !P.opts) return false;
     var o = P.opts[i] || P.opts[0];
     applyOpt(s, P, o);
     P.opts = null;
+    P.iv = Math.max(P.iv, 1);   // 選完再無敵 1 秒
     P.pend = Math.max(0, P.pend - 1);
     msg(s, "pick", P.pid, o);
     return true;
@@ -1180,8 +1331,9 @@
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
-        dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev,
-        W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
+        dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0,
+        un: P.ultN || 0,
+        W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0, (w.mods || []).join(",")]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
         op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: P.meta
       };
     });
@@ -1195,13 +1347,13 @@
     s.S.forEach(function (sh) { o.S.push(sh.id, sh.k, r1(sh.x), r1(sh.z), Math.round((sh.a || 0) * 10) / 10, r1(sh.h || 0), sh.mode === "drop" ? r1(Math.max(0, sh.life)) : -1); });
     s.B.forEach(function (b) { o.B.push(b.id, r1(b.x), r1(b.z), b.k === "orb" ? 1 : 0); });
     s.G.slice(-200).forEach(function (g) { o.G.push(g.id, r1(g.x), r1(g.z), g.v >= 20 ? 2 : g.v >= 5 ? 1 : 0); });
-    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.big ? 1 : 0); });
+    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.big ? 1 : 0); });
     s.Z.forEach(function (z) { o.Z.push({ id: z.id, k: z.k, x: r1(z.x), z: r1(z.z), r: r1(z.r), t: r1(z.t), c: z.c }); });
     s.W.forEach(function (w) { o.W.push({ id: w.id, k: w.k, x: r1(w.x), z: r1(w.z), r: r1(w.r), p: Math.round((1 - w.t / w.T) * 100) / 100 }); });
     return o;
   }
-  var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi"];
-  var FXK = ["slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
+  var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora"];
+  var FXK = ["chain", "slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
   var FXI = {}; FXK.forEach(function (k, i) { FXI[k] = i; });
   // 只送最近 0.7 秒的特效（畫面依 id 只播一次）
   function packFx(s) {
@@ -1224,8 +1376,9 @@
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {
-        pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re,
-        W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
+        pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm,
+        ultN: p.un || 0,
+        W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4], mods: w[5] ? String(w[5]).split(",") : [] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
         opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m || {}
       };
       calcStats(v.P[pid], v);
@@ -1240,7 +1393,7 @@
     var B = o.B || [];
     for (i = 0; i < B.length; i += 4) v.B.push({ id: B[i], x: B[i + 1], z: B[i + 2], k: B[i + 3] ? "orb" : "ball" });
     var Dd = o.D || [];
-    for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4] });
+    for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4], p: DK[Dd[i + 1]] === "hokora" ? Dd[i + 4] / 10 : 0 });
     var G = o.G || [];
     for (i = 0; i < G.length; i += 4) v.G.push({ id: G[i], x: G[i + 1], z: G[i + 2], v: G[i + 3] === 2 ? 20 : G[i + 3] === 1 ? 5 : 1 });
     return v;
@@ -1250,7 +1403,7 @@
 
   window.PriTestYukimuraCore = {
     create: create, addPlayer: addPlayer, removePlayer: removePlayer, step: step, applyIntent: applyIntent, players: players,
-    calcStats: calcStats, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
+    calcStats: calcStats, comboBonus: comboBonus, synergies: synergies, weaponMods: weaponMods, ultTier: ultTier, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
     snap: snap, unsnap: unsnap, serialize: serialize, deserialize: deserialize, xpNeed: xpNeed, baseStats: baseStats,
     _rnd: rnd
   };
