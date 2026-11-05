@@ -6,8 +6,11 @@
 //   pl/<cid>    { pid, name, dm（大名）, meta（本陣強化 JSON）, at }
 //   cfg         JSON 字串（房主的設定：關卡、地圖、難度、時長）
 //   st          JSON 字串：壓縮快照（Core.snap，約每 0.14 秒）
-//   fu          JSON 字串 { s: 完整狀態, q: { pid: 已處理到的意圖序號 } }（約每 4 秒，給接手的新房主用）
-//   in/<pid>    JSON 字串 [{ n: 序號, it: 意圖 }]（升級選擇、采配；只留最近 30 筆）
+//   fu          JSON 字串 { s: 完整狀態, q: { pid: 已處理到的意圖序號 } }（約每 4 秒，給接手的新房主用；一般玩家不訂閱）
+//   in/<pid>    JSON 字串 [{ n: 序號（時間戳遞增，換房主也不會重複）, it: 意圖 }]（升級選擇、采配；只留最近 30 筆）
+//
+// 延遲對策（2026-11-05）：快照與位置的寫入都有「上一筆沒送完就跳過」的流量控制，網路慢時延遲不會越積越多；
+// 房主切到背景（手機鎖螢幕、切 App）時把房主交給下一位（handoff），模擬不會停。
 //   mv/<pid>    { x, z, fx, fz }：每個人自己的位置（自己算移動，畫面才順；房主採用）
 //
 // 中途加入：遊戲進行中開網址就會進房，房主在下一次快照把他加進戰場（等級依隊伍平均補發升級）。
@@ -50,7 +53,18 @@
       meta: null, online: {}, players: {}, cfg: opts.cfg || null, snap: null, full: null, moves: {},
       me: { name: opts.name || "", dm: opts.dm | 0, meta: JSON.stringify(opts.meta || {}), at: 0 }
     };
-    var inSeq = 0, inList = [], seenIn = {}, fullRev = 0;
+    var inSeq = 0, inList = [], seenIn = {}, fullRev = 0, fullSub = null;
+    // 流量控制：同一路徑上一筆還沒寫完就跳過（最多等 1.5 秒當作失敗）
+    var busy = {};
+    function setThrottled(key, p, v) {
+      var now = Date.now();
+      if (busy[key] && now - busy[key] < 1500) return false;
+      busy[key] = now;
+      var done = function () { busy[key] = 0; };
+      var pr = set(p, v);
+      if (pr && pr.then) pr.then(done, done); else done();
+      return true;
+    }
 
     function changed() { if (!room.closed && opts.onChange) opts.onChange(); }
     function path(p) { return "yk/" + p; }
@@ -77,7 +91,8 @@
     room.setCfg = function (cfg) { if (!room.isHost()) return; room.cfg = cfg; set("cfg", JSON.stringify(cfg)); };
 
     // ---- 房主 ----
-    room.writeSnap = function (snapObj) { if (room.isHost()) set("st", JSON.stringify(snapObj)); };
+    room.writeSnap = function (snapObj) { return room.isHost() ? setThrottled("st", "st", JSON.stringify(snapObj)) : false; };
+    room.snapBusy = function () { return !!busy.st && Date.now() - busy.st < 1500; };
     room.writeFull = function (sJson) {
       if (!room.isHost()) return;
       var q = {};
@@ -91,16 +106,41 @@
       set("meta", { v: 1, host: cid, status: "game" });
     };
     room.backToLobby = function () { if (room.isHost()) { set("meta", { v: 1, host: cid, status: "lobby" }); set("st", null); set("fu", null); } };
+    // 把房主交給在線的下一位（先寫好完整狀態）
+    room.handoff = function (sJson) {
+      if (!room.isHost()) return false;
+      var next = room.list().filter(function (p) { return p.cid !== cid; })[0];
+      if (!next) return false;
+      room.writeFull(sJson);
+      G.rtTransaction(roomId, CLOUD, path("meta"), function (m) {
+        if (!m || m.host !== cid) return;
+        m.host = next.cid;
+        return m;
+      });
+      return true;
+    };
+    // 只讀一次完整狀態（接手房主時用）
+    room.fetchFull = function (cb) {
+      var got = false;
+      var u = G.rtSubscribe(roomId, CLOUD, path("fu"), function (v) {
+        if (got) return;
+        got = true;
+        setTimeout(function () { u(); }, 0);
+        var w = parseJson(v);
+        if (w) room.full = w;
+        cb(w);
+      });
+    };
 
     // ---- 每個人 ----
     room.sendIntent = function (it) {
-      var done = (room.full && room.full.q && room.full.q[room.pid]) || 0;
-      inSeq = Math.max(inSeq, done) + 1;
+      inSeq = Math.max(inSeq + 1, Date.now());
       inList.push({ n: inSeq, it: it });
       if (inList.length > KEEP_IN) inList.splice(0, inList.length - KEEP_IN);
       set("in/" + room.pid, JSON.stringify(inList));
     };
-    room.sendMove = function (mv) { set("mv/" + room.pid, mv); };
+    room.sendMove = function (mv) { return setThrottled("mv", "mv/" + room.pid, mv); };
+    room.resetIntents = function () { inList = []; };
     room.close = function () {
       if (room.closed) return;
       room.closed = true;
@@ -124,7 +164,7 @@
       Object.keys(v).forEach(function (pid) {
         var list = parseJson(v[pid]);
         if (!Array.isArray(list)) return;
-        var done = seenIn[pid] !== undefined ? seenIn[pid] : ((room.full && room.full.q && room.full.q[pid]) || 0);
+        var done = seenIn[pid] !== undefined ? seenIn[pid] : 0;
         list.forEach(function (x) {
           if (!x || !(x.n > done)) return;
           done = x.n;
@@ -145,10 +185,14 @@
         var wasHost = room.isHost();
         room.meta = v;
         room.loaded = !!v;
-        if (!wasHost && room.isHost()) {
-          seenIn = {};
-          if (opts.onHost) opts.onHost();
-          if (room._in) onIn(room._in);
+        if (!wasHost && room.isHost() && room.status() === "game") {
+          // 接手房主：先讀最後一份完整狀態，再開始處理意圖
+          room.fetchFull(function (w) {
+            seenIn = {};
+            if (w && w.q) Object.keys(w.q).forEach(function (pid) { seenIn[pid] = w.q[pid]; });
+            if (opts.onHost) opts.onHost(w);
+            if (room._in) onIn(room._in);
+          });
         }
         maybeTakeHost();
         changed();
@@ -162,13 +206,7 @@
         room.snap = o;
         if (o && opts.onSnap) opts.onSnap(o);
       });
-      sub("fu", function (v) {
-        var w = parseJson(v);
-        if (room.isHost() && w && w.r <= fullRev) return;   // 自己剛寫的
-        room.full = w;
-        if (w && opts.onFull) opts.onFull(w);
-        changed();
-      });
+      // fu 不訂閱（太大）：房主開局時由 startGame 帶進來，接手時用 fetchFull 讀一次
       sub("in", function (v) { room._in = v; onIn(v); });
       sub("mv", function (v) {
         room.moves = v || {};

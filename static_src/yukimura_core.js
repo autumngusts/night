@@ -149,6 +149,7 @@
     if (buf.muso > 0) o.might += 1;
     if (buf.kaze > 0) o.speed += 0.8;
     if (buf.luck > 0) o.luck += 0.5;
+    if (P.jin) { o.might += 0.08 * P.jin; o.armor += P.jin; }
     o.cdr = Math.min(0.6, o.cdr);
     o.amount = Math.floor(o.amount + 1e-6);
     P.st = o;
@@ -390,9 +391,9 @@
       S.burn = 0;
     }
     if (k === "chill") S.chill = 2 * el;
-    else if (k === "shock") { S.shock = 2; if (rnd(s) < 0.2 * el) e.stun = Math.max(e.stun || 0, 0.5); }
+    else if (k === "shock") { S.shock = 2; if (rnd(s) < 0.2 * el * (s.wx && (s.wx.k === "rain" || s.wx.k === "storm") ? 2 : 1)) e.stun = Math.max(e.stun || 0, 0.5); }
     else if (k === "poison") { S.poison = 3 * el; e.pd = Math.max(e.pd || 0, dmg * 0.22 * el); }
-    else if (k === "burn") { S.burn = 2 * el; e.bd = Math.max(e.bd || 0, dmg * 0.3 * el); }
+    else if (k === "burn") { S.burn = 2 * el; e.bd = Math.max(e.bd || 0, dmg * 0.3 * el * (s.wx && s.wx.k === "rain" ? 0.5 : 1)); }
     e.dp = P ? P.pid : e.dp;
   }
   function killEnemy(s, P, e, p) {
@@ -411,7 +412,11 @@
     var goldMul = stg.feat === "gold" ? 2 : 1;
     if ((def.f && def.f.gold) || (p && p.gold && rnd(s) < 0.25)) for (var g = 0; g < (def.f && def.f.gold ? 5 : 1); g++) dropItem(s, "coin", e.x + (rnd(s) - 0.5) * 2, e.z + (rnd(s) - 0.5) * 2, { v: 3 * goldMul });
     else if (rnd(s) < 0.012 * luck * goldMul) dropItem(s, "coin", e.x, e.z, { v: 5 * goldMul });
-    if (e.el) {
+    if (e.bty) {
+      dropItem(s, "chest", e.x, e.z, { big: 1 });
+      for (var bc = 0; bc < 12; bc++) dropItem(s, "coin", e.x + (rnd(s) - 0.5) * 3, e.z + (rnd(s) - 0.5) * 3, { v: 8 });
+      msg(s, "btykill", P ? P.pid : "", e.k);
+    } else if (e.el) {
       if (rnd(s) < 0.5) dropItem(s, "chest", e.x, e.z, {});
       else dropFood(s, e.x, e.z);
     } else if (rnd(s) < 0.004 * luck) dropFood(s, e.x, e.z);
@@ -471,6 +476,7 @@
       armor: (def.f && def.f.armor || 0) + (D.STAGES[s.stage].feat === "iron" ? 2 : 0), fly: def.f && def.f.fly ? 1 : 0, cd: 1 + rnd(s) * 2, a: 0
     };
     if (D.STAGES[s.stage].feat === "gold") e.spd *= 1.08;
+    if (s.wx && s.wx.k === "fog") e.spd *= 1.1;
     s.E.push(e);
     return e;
   }
@@ -615,6 +621,54 @@
         for (var ii = 0; ii < 24; ii++) spawnEnemy(s, "ikki", P.x + Math.cos(ia + ii * 0.26) * 16, P.z + Math.sin(ia + ii * 0.26) * 16);
       }
     }
+  }
+  // ---------------- 天候（每關共通，約 2.5〜3.5 分鐘變一次，持續 60 秒）----------------
+  // rain 雨：灼燒減半、麻痺暈眩機率加倍／fog 霧：視野縮小、敵人移動 +10%／storm 雷雨：天雷不斷劈向敵人，偶爾也劈到玩家附近（紅圈預警）
+  var WX = ["rain", "fog", "storm"];
+  function weather(s, dt) {
+    var w = s.wx || (s.wx = { k: "clear", t: 0, next: 150 + rnd(s) * 60, acc: 0 });
+    if (w.k !== "clear") {
+      w.t -= dt;
+      if (w.t <= 0) { w.k = "clear"; w.next = 150 + rnd(s) * 60; }
+    } else {
+      w.next -= dt;
+      if (w.next <= 0) { w.k = pick(s, WX); w.t = 60; msg(s, "wx", "", w.k); }
+    }
+    if (w.k === "storm") {
+      w.acc += dt;
+      if (w.acc >= 1.2) {
+        w.acc = 0;
+        var ps = alive(s);
+        if (!ps.length) return;
+        var P = pick(s, ps);
+        if (rnd(s) < 0.75) {
+          var e = randomNear(s, P, 14);
+          if (e) { near(s, e.x, e.z, 1.8, function (o) { hitEnemy(s, null, o, 25 * (1 + s.t / s.dur * 4), { st: "shock", knock: 0, crit: 0 }); }); addFx(s, "bolt", e.x, e.z, 0, 1.8, "", 2); }
+        } else warn(s, "boss", P.x + (rnd(s) - 0.5) * 8, P.z + (rnd(s) - 0.5) * 8, 1.6, 1.4, 12);
+      }
+    }
+  }
+  // ---------------- 懸賞首：約每 2 分鐘把一個敵人標成懸賞，30 秒內打倒得到大寶箱與大量錢 ----------------
+  function bounty(s, dt) {
+    s.ev.bty = (s.ev.bty === undefined ? 90 : s.ev.bty) - dt;
+    if (s.ev.bty > 0) return;
+    s.ev.bty = 110 + rnd(s) * 40;
+    var ps = alive(s);
+    if (!ps.length) return;
+    var e = spawnAround(s, pick(s, roster(s)), pick(s, ps), true);
+    if (!e) return;
+    e.bty = 1; e.hp *= 1.5; e.mhp *= 1.5; e.spd *= 1.15; e.life = 30; e.flee = 0;
+    msg(s, "bounty", "", e.k);
+  }
+  // ---------------- 陣形：多人時 5 公尺內每有一名隊友，攻擊 +8%、防禦 +1（最多 3 人）----------------
+  function formation(s) {
+    var ps = alive(s);
+    ps.forEach(function (P) {
+      var n = 0;
+      ps.forEach(function (o) { if (o !== P && dist2(o.x, o.z, P.x, P.z) < 25) n++; });
+      n = Math.min(3, n);
+      if ((P.jin || 0) !== n) { P.jin = n; calcStats(P, s); }
+    });
   }
   function inRiver(s, x, z) {
     for (var i = 0; i < s.rivers.length; i++) {
@@ -798,6 +852,16 @@
     var u = D.DAIMYO[P.dm].ult, st = P.st, dmg = 60 * st.might * (1 + s.t / s.dur * 3) * (1 + 0.4 * (tier - 1));
     addFx(s, "ult", P.x, P.z, 0, 8, P.pid, 0);
     msg(s, "ult", P.pid, u);
+    // 連攜：3 秒內另一名玩家也發動了采配 → 兩人之間爆發「連攜・天下無雙」
+    var lu = s.lastUlt;
+    if (lu && lu.p !== P.pid && s.t - lu.t < 3 && s.P[lu.p]) {
+      var Q = s.P[lu.p], mx = (P.x + Q.x) / 2, mz = (P.z + Q.z) / 2;
+      near(s, mx, mz, 16, function (e) { hitEnemy(s, P, e, dmg * 2.5 * (e.boss ? 0.6 : 1), { st: "burn", knock: 2, crit: 0 }); });
+      [P, Q].forEach(function (o) { o.iv = Math.max(o.iv, 3); o.hp = Math.min(o.mhp, o.hp + o.mhp * 0.3); });
+      addFx(s, "ult", mx, mz, 0, 16, P.pid, 0); addFx(s, "boom", mx, mz, 0, 8, P.pid, 1);
+      msg(s, "renkei", P.pid, Q.pid);
+      s.lastUlt = null;
+    } else s.lastUlt = { p: P.pid, t: s.t };
     if (u === "toki") near(s, P.x, P.z, 14, function (e) { hitEnemy(s, P, e, dmg * (e.boss ? 1.5 : 1), null); });
     else if (u === "muso") { P.buf.muso = 6 * K; P.iv = Math.max(P.iv, 6 * K); }
     else if (u === "kaifuku") players(s).forEach(function (o) { if (!o.down) o.hp = Math.min(o.mhp, o.hp + o.mhp * 0.5); });
@@ -839,6 +903,9 @@
     if (s.freeze > 0) s.freeze -= dt;
     buildGrid(s);
     stageFeature(s, dt);
+    weather(s, dt);
+    bounty(s, dt);
+    formation(s);
     spawning(s, dt);
     ps.forEach(function (P) { stepPlayer(s, P, dt); });
     buildGrid(s);
@@ -1033,6 +1100,8 @@
 
   function stepEnemies(s, dt) {
     var ps = alive(s), all = players(s);
+    var tgts = ps.filter(function (P) { return !P.afk; });
+    if (!tgts.length) tgts = ps;
     var frozen = s.freeze > 0;
     for (var i = 0; i < s.E.length; i++) {
       var e = s.E[i];
@@ -1054,7 +1123,7 @@
       if (e.stun > 0) { e.stun -= dt; continue; }
       // 目標：最近的活著的玩家
       var T = null, td = 1e9;
-      for (var j = 0; j < ps.length; j++) { var d2 = dist2(e.x, e.z, ps[j].x, ps[j].z); if (d2 < td) { td = d2; T = ps[j]; } }
+      for (var j = 0; j < tgts.length; j++) { var d2 = dist2(e.x, e.z, tgts[j].x, tgts[j].z); if (d2 < td) { td = d2; T = tgts[j]; } }
       if (!T) { T = all[0]; td = T ? dist2(e.x, e.z, T.x, T.z) : 1e9; }
       if (!T) continue;
       var tdist = Math.sqrt(td);
@@ -1097,7 +1166,7 @@
       e.x = clamp(e.x, -AR - 4, AR + 4); e.z = clamp(e.z, -AR - 4, AR + 4);
       // 碰觸傷害
       for (var q = 0; q < ps.length; q++) {
-        var P = ps[q], rr = e.r + 0.45;
+        var P = ps[q], rr = e.r + (P.local || s.solo ? 0.45 : 0.3);
         if (dist2(e.x, e.z, P.x, P.z) < rr * rr) hurtPlayer(s, P, e.dmg, e);
       }
       // 太遠的小兵重新放到玩家附近（避免被甩開後永遠追不上）
@@ -1166,7 +1235,8 @@
       if (s.freeze > 0) return true;
       b.x += b.vx * dt; b.z += b.vz * dt;
       for (var i = 0; i < ps.length; i++) {
-        if (dist2(b.x, b.z, ps[i].x, ps[i].z) < 0.55 * 0.55) { hurtPlayer(s, ps[i], b.dmg, null); return false; }
+        var br = ps[i].local || s.solo ? 0.55 : 0.4;
+        if (dist2(b.x, b.z, ps[i].x, ps[i].z) < br * br) { hurtPlayer(s, ps[i], b.dmg, null); return false; }
       }
       return true;
     });
@@ -1327,41 +1397,54 @@
   // ---------------- 快照（連線廣播用，數值壓縮）----------------
   function r1(v) { return Math.round(v * 10) / 10; }
   function snap(s) {
-    var o = { t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
+    var o = { t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
-        dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0,
+        dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0, jn: P.jin || 0, af: P.afk ? 1 : 0,
         un: P.ultN || 0,
         W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0, (w.mods || []).join(",")]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
         op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: P.meta
       };
     });
     var bossE = null;
+    var pl = players(s);
+    function seen(x, z, R) { for (var i = 0; i < pl.length; i++) if (Math.abs(pl[i].x - x) < R && Math.abs(pl[i].z - z) < R * 0.85) return true; return false; }
     s.E.forEach(function (e) {
-      o.E.push(e.id, e.k, r1(e.x), r1(e.z), Math.round(e.hp / e.mhp * 100), (e.el ? 1 : 0) | (e.boss ? 2 : 0) | (e.hf > 0 ? 4 : 0) | (e.sts && e.sts.chill > 0 ? 8 : 0) | (e.sts && e.sts.burn > 0 ? 16 : 0) | (e.sts && e.sts.poison > 0 ? 32 : 0) | (e.stun > 0 ? 64 : 0) | (e.small ? 128 : 0));
+      if (!e.boss && !e.bty && !seen(e.x, e.z, 32)) return;   // 看不到的小兵不送
+      o.E.push(e.id, EKI[e.k] === undefined ? 0 : EKI[e.k], r1(e.x), r1(e.z), Math.round(e.hp / e.mhp * 100), (e.el ? 1 : 0) | (e.boss ? 2 : 0) | (e.hf > 0 ? 4 : 0) | (e.sts && e.sts.chill > 0 ? 8 : 0) | (e.sts && e.sts.burn > 0 ? 16 : 0) | (e.sts && e.sts.poison > 0 ? 32 : 0) | (e.stun > 0 ? 64 : 0) | (e.small ? 128 : 0) | (e.bty ? 256 : 0));
       if (e.boss && e.fin) bossE = e;
     });
     if (bossE) o.bh = Math.round(bossE.hp / bossE.mhp * 1000) / 1000;
     s.E.forEach(function (e) { if (e.boss && !e.fin) o.mb = Math.round(e.hp / e.mhp * 1000) / 1000, o.mbn = e.bn; });
-    s.S.forEach(function (sh) { o.S.push(sh.id, sh.k, r1(sh.x), r1(sh.z), Math.round((sh.a || 0) * 10) / 10, r1(sh.h || 0), sh.mode === "drop" ? r1(Math.max(0, sh.life)) : -1); });
+    s.S.forEach(function (sh) { if (!seen(sh.x, sh.z, 32)) return; o.S.push(sh.id, SKI[sh.k] === undefined ? 0 : SKI[sh.k], r1(sh.x), r1(sh.z), Math.round((sh.a || 0) * 10) / 10, r1(sh.h || 0), sh.mode === "drop" ? r1(Math.max(0, sh.life)) : -1); });
     s.B.forEach(function (b) { o.B.push(b.id, r1(b.x), r1(b.z), b.k === "orb" ? 1 : 0); });
-    s.G.slice(-200).forEach(function (g) { o.G.push(g.id, r1(g.x), r1(g.z), g.v >= 20 ? 2 : g.v >= 5 ? 1 : 0); });
+    var gn = 0;
+    for (var gi = s.G.length - 1; gi >= 0 && gn < 140; gi--) { var gg = s.G[gi]; if (seen(gg.x, gg.z, 26)) { gn++; o.G.push(gg.id, Math.round(gg.x * 2), Math.round(gg.z * 2), gg.v >= 20 ? 2 : gg.v >= 5 ? 1 : 0); } }
     s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.big ? 1 : 0); });
     s.Z.forEach(function (z) { o.Z.push({ id: z.id, k: z.k, x: r1(z.x), z: r1(z.z), r: r1(z.r), t: r1(z.t), c: z.c }); });
     s.W.forEach(function (w) { o.W.push({ id: w.id, k: w.k, x: r1(w.x), z: r1(w.z), r: r1(w.r), p: Math.round((1 - w.t / w.T) * 100) / 100 }); });
     return o;
   }
+  // 快照裡敵人種類、投射物外觀用編號（字串太占頻寬）
+  var EK = Object.keys(D.ENEMIES).concat(Object.keys(D.BOSSES), ["ochimusha"]), EKI = {};
+  EK.forEach(function (k, i) { EKI[k] = i; });
+  var SK = D.ARCHES.map(function (a) { return a.k; }), SKI = {};
+  SK.forEach(function (k, i) { SKI[k] = i; });
   var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora"];
   var FXK = ["chain", "slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
   var FXI = {}; FXK.forEach(function (k, i) { FXI[k] = i; });
   // 只送最近 0.7 秒的特效（畫面依 id 只播一次）
   function packFx(s) {
-    var out = [], cut = s.t - 0.7;
-    for (var i = Math.max(0, s.fx.length - 160); i < s.fx.length; i++) {
+    var out = [], cut = Math.max(s.t - 0.6, (s._snapT || 0) - 0.08), pl = players(s);
+    s._snapT = s.t;
+    for (var i = Math.max(0, s.fx.length - 140); i < s.fx.length; i++) {
       var f = s.fx[i];
       if (f.t < cut) continue;
-      out.push(f.id, FXI[f.k] === undefined ? 13 : FXI[f.k], f.x, f.z, f.a, f.r, f.o, f.c);
+      var vis = false;
+      for (var j = 0; j < pl.length; j++) if (Math.abs(pl[j].x - f.x) < 34 && Math.abs(pl[j].z - f.z) < 30) { vis = true; break; }
+      if (!vis) continue;
+      out.push(f.id, FXI[f.k] === undefined ? FXI.die : FXI[f.k], f.x, f.z, f.a, f.r, f.o, f.c);
     }
     return out;
   }
@@ -1372,11 +1455,11 @@
   }
   // 把快照轉成畫面用的「view」（與房主的 s 同一種欄位名稱，畫面程式只寫一套）
   function unsnap(o) {
-    var v = { t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
+    var v = { t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {
-        pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm,
+        pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm, jin: p.jn || 0, afk: p.af || 0,
         ultN: p.un || 0,
         W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4], mods: w[5] ? String(w[5]).split(",") : [] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
         opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m || {}
@@ -1386,16 +1469,17 @@
     var E = o.E || [], i;
     for (i = 0; i + 5 < E.length; i += 6) {
       var fl = E[i + 5];
-      v.E.push({ id: E[i], k: E[i + 1], m: (D.ENEMIES[E[i + 1]] || D.BOSSES[E[i + 1]] || {}).m || "ashigaru", x: E[i + 2], z: E[i + 3], hpf: E[i + 4] / 100, el: fl & 1, boss: fl & 2 ? 1 : 0, hf: fl & 4 ? 0.1 : 0, sf: fl, s: fl & 2 ? (D.BOSSES[E[i + 1]] || {}).s || 2 : fl & 1 ? 1.45 : fl & 128 ? 0.7 : 1 });
+      var ek = EK[E[i + 1]] || "ashigaru";
+      v.E.push({ id: E[i], k: ek, m: ek === "ochimusha" ? "nobushi" : (D.ENEMIES[ek] || D.BOSSES[ek] || {}).m || "ashigaru", x: E[i + 2], z: E[i + 3], hpf: E[i + 4] / 100, el: fl & 1, boss: fl & 2 ? 1 : 0, hf: fl & 4 ? 0.1 : 0, sf: fl, bty: fl & 256 ? 1 : 0, s: fl & 2 ? (D.BOSSES[ek] || {}).s || 2 : fl & 1 ? 1.45 : fl & 128 ? 0.7 : 1 });
     }
     var S = o.S || [];
-    for (i = 0; i < S.length; i += 7) v.S.push({ id: S[i], k: S[i + 1], x: S[i + 2], z: S[i + 3], a: S[i + 4], h: S[i + 5], dl: S[i + 6] });
+    for (i = 0; i < S.length; i += 7) v.S.push({ id: S[i], k: SK[S[i + 1]], x: S[i + 2], z: S[i + 3], a: S[i + 4], h: S[i + 5], dl: S[i + 6] });
     var B = o.B || [];
     for (i = 0; i < B.length; i += 4) v.B.push({ id: B[i], x: B[i + 1], z: B[i + 2], k: B[i + 3] ? "orb" : "ball" });
     var Dd = o.D || [];
     for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4], p: DK[Dd[i + 1]] === "hokora" ? Dd[i + 4] / 10 : 0 });
     var G = o.G || [];
-    for (i = 0; i < G.length; i += 4) v.G.push({ id: G[i], x: G[i + 1], z: G[i + 2], v: G[i + 3] === 2 ? 20 : G[i + 3] === 1 ? 5 : 1 });
+    for (i = 0; i < G.length; i += 4) v.G.push({ id: G[i], x: G[i + 1] / 2, z: G[i + 2] / 2, v: G[i + 3] === 2 ? 20 : G[i + 3] === 1 ? 5 : 1 });
     return v;
   }
   function serialize(s) { return JSON.stringify(s); }
