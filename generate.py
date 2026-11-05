@@ -34,6 +34,7 @@ from site_src.jomon_page import JOMON_SCRIPTS, build_jomon_html
 from site_src.zombie_page import ZOMBIE_SCRIPTS, build_zombie_html
 from site_src.denshi_page import DENSHI_SCRIPTS, build_denshi_html
 from site_src.yukimura_page import YUKIMURA_SCRIPTS, build_yukimura_html
+from site_src.mahou_page import MAHOU_SCRIPTS, build_mahou_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -58,6 +59,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "zombie": ("zm_",),
     "denshi": ("ds_",),
     "yukimura": ("yk_",),
+    "mahou": ("mh_",),
 }
 
 
@@ -156,6 +158,7 @@ def build_static_assets() -> None:
         *ZOMBIE_SCRIPTS,
         *DENSHI_SCRIPTS,
         *YUKIMURA_SCRIPTS,
+        *MAHOU_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -281,9 +284,13 @@ def build_pages() -> None:
     yukimura_dir.mkdir(parents=True, exist_ok=True)
     (yukimura_dir / "index.html").write_text(build_yukimura_html(), encoding="utf-8")
 
+    mahou_dir = DIST_DIR / "mahou"
+    mahou_dir.mkdir(parents=True, exist_ok=True)
+    (mahou_dir / "index.html").write_text(build_mahou_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
