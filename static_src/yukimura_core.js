@@ -94,7 +94,16 @@
   }
   function players(s) { return Object.keys(s.P).sort().map(function (k) { return s.P[k]; }); }
   function alive(s) { return players(s).filter(function (P) { return !P.down; }); }
-  function newW(id) { return { id: id, lv: 1, cd: 0.5, evo: 0, ot: 0, ft: 0, tk: 0 }; }
+  function newW(id) { return { id: id, lv: 1, cd: 0.5, evo: 0, ot: 0, ft: 0, tk: 0, mods: [] }; }
+  // ---------------- 武器搭配與秘傳 ----------------
+  function ownedArch(P) { var o = {}; P.W.forEach(function (w) { o[D.ARCHES[D.WEAPONS[w.id].a].k] = 1; }); return o; }
+  function synergies(P) { var o = ownedArch(P); return D.SYNERGY.filter(function (y) { return o[y.a] && o[y.b]; }); }
+  // 這把武器實際有效的秘傳：自己學的＋搭配給的
+  function weaponMods(P, w) {
+    var list = (w.mods || []).slice(), ak = D.ARCHES[D.WEAPONS[w.id].a].k;
+    synergies(P).forEach(function (y) { if (y.give && y.a === ak && list.indexOf(y.give) < 0) list.push(y.give); });
+    return list;
+  }
   function xpNeed(lv) { return Math.round(5 + lv * 5.5 + Math.max(0, lv - 20) * 9 + Math.max(0, lv - 40) * 16); }
   function msg(s, k, pid, a, b) { s.msg.push({ id: nid(s), k: k, p: pid, a: a, b: b, t: s.t }); if (s.msg.length > 12) s.msg.shift(); }
 
@@ -131,6 +140,7 @@
     D.META.forEach(function (m) { var lv = (P.meta && P.meta[m.k]) | 0; if (lv && m.k !== "revive" && m.k !== "reroll") add(m.k, m.v * lv); });
     P.A.forEach(function (a) { var x = D.accStats(a.id, a.lv); Object.keys(x).forEach(function (k) { add(k, x[k]); }); });
     prefBonus(P).forEach(function (pb) { pb.b.forEach(function (b) { add(b[0], b[1]); }); });
+    synergies(P).forEach(function (y) { (y.st || []).forEach(function (b) { add(b[0], b[1]); }); });
     var buf = P.buf || {};
     if (buf.might > 0) o.might += 0.4;
     if (buf.speed > 0) o.speed += 0.35;
@@ -170,6 +180,14 @@
       if (g.cd) p.cd *= 1 + g.cd;
     }
     if (w.evo) { p.dmg *= 1.7; p.n += 1; p.area *= 1.2; p.cd *= 0.85; p.pierce += 2; }
+    // 秘傳
+    p.mods = weaponMods(P, w);
+    p.mods.forEach(function (m) {
+      if (m === "kyodai") { p.area *= 1.5; p.dmg *= 1.1; p.cd *= 1.15; }
+      else if (m === "shippu") { p.cd *= 0.72; p.dmg *= 0.85; }
+      else if (m === "kantsu") { p.pierce += 3; p.spd *= 1.2; }
+      else if (D.MOD_ST[m]) { if (!p.st) p.st = D.MOD_ST[m]; else if (p.st !== D.MOD_ST[m]) p.st2 = D.MOD_ST[m]; }
+    });
     // 單發型（太刀、長槍、薙刀、鎖鎌、法螺貝、陣太鼓、破魔矢、騎馬）的「數量」限制在 3 以內，多的轉成傷害
     var capN = { slash: 3, thrust: 3, spin: 2, whip: 2, wave: 2, pulse: 2, beam: 3, charge: 3, aura: 1, flame: 2, zone: 4, trail: 2 }[p.kind];
     p.n += st.amount;
@@ -195,7 +213,13 @@
     var tries = 0;
     while (out.length < nOpt && tries++ < 60) {
       var r = rnd(s), o = null;
-      if (r < 0.42 && wUp.length) o = pick(s, wUp);
+      var mUp = P.W.map(function (w, i) { return w.lv >= 3 && (w.mods || []).length < D.MAX_MOD ? i : -1; }).filter(function (i) { return i >= 0; });
+      if (r < 0.34 && wUp.length) o = pick(s, wUp);
+      else if (r < 0.46 && mUp.length) {
+        var wi = pick(s, mUp), ww = P.W[wi], kind = D.WEAPONS[ww.id].kind, have = weaponMods(P, ww);
+        var cands = Object.keys(D.MODS).filter(function (m) { return have.indexOf(m) < 0 && (!D.MODS[m].proj || D.PROJ_KINDS[kind]) && (!D.MODS[m].straight || D.STRAIGHT_KINDS[kind]); });
+        if (cands.length) o = { t: "m", i: wi, id: ww.id, m: pick(s, cands) };
+      }
       else if (r < 0.62 && aUp.length) o = pick(s, aUp);
       else if (r < 0.82 && P.W.length < D.MAX_W) {
         // 新武器：先抽攻擊方式（避免重複），藩隨機；有地緣的話偏向同縣
@@ -215,7 +239,7 @@
         o = { t: "a", id: acc.id };
       }
       if (!o) continue;
-      var key = o.t + ":" + (o.i !== undefined ? o.i : o.id);
+      var key = o.t + ":" + (o.i !== undefined ? o.i : o.id) + (o.m ? ":" + o.m : "");
       if (used[key]) continue;
       used[key] = 1;
       out.push(o);
@@ -229,6 +253,7 @@
     else if (o.t === "au" && P.A[o.i]) P.A[o.i].lv = Math.min(D.MAX_ALV, P.A[o.i].lv + 1);
     else if (o.t === "w" && P.W.length < D.MAX_W) P.W.push(newW(o.id));
     else if (o.t === "a" && P.A.length < D.MAX_A) P.A.push({ id: o.id, lv: 1 });
+    else if (o.t === "m" && P.W[o.i] && D.MODS[o.m]) { var ws = P.W[o.i]; ws.mods = ws.mods || []; if (ws.mods.length < D.MAX_MOD && ws.mods.indexOf(o.m) < 0) ws.mods.push(o.m); }
     else if (o.t === "heal") P.hp = Math.min(P.mhp, P.hp + 30);
     else if (o.t === "gold") P.gold += 25;
     calcStats(P, s);
@@ -313,6 +338,7 @@
     var st = P ? P.st : baseStats();
     var crit = rnd(s) < st.crit + (p && p.crit || 0);
     if (crit) dmg *= st.critDmg;
+    if (hasMod(p, "shokei") && e.hp < e.mhp * 0.3) dmg *= 2;
     var armor = (e.armor || 0);
     dmg = Math.max(1, dmg - armor);
     if (e.boss && e.shieldT > 0) dmg *= 0.3;
@@ -321,6 +347,21 @@
     if (P) P.dmg += dmg;
     if (crit && dmg > 30) addFx(s, "crit", e.x, e.z, 0, Math.round(dmg), P ? P.pid : "");
     if (p && p.st) applyStatus(s, P, e, p.st, dmg);
+    if (p && p.st2) applyStatus(s, P, e, p.st2, dmg);
+    // 秘傳的連帶效果（附帶傷害不再觸發秘傳，避免連鎖無限）
+    if (p && p.mods) {
+      var sub = { knock: 0.5, crit: 0, st: p.st };
+      if (hasMod(p, "bakuretsu") && rnd(s) < 0.25) {
+        var bx = e.x, bz = e.z;
+        addFx(s, "boom", bx, bz, 0, 1.6, P ? P.pid : "", 0);
+        near(s, bx, bz, 1.6, function (o) { if (o !== e) hitEnemy(s, P, o, dmg * 0.5, sub); });
+      }
+      if (hasMod(p, "rensa") && rnd(s) < 0.3) {
+        var nc = 0, cx = e.x, cz = e.z;
+        near(s, cx, cz, 4, function (o) { if (o !== e && nc < 2 && o.hp > 0) { nc++; hitEnemy(s, P, o, dmg * 0.5, { knock: 0, crit: 0, st: "shock" }); addFx(s, "chain", cx, cz, Math.atan2(o.z - cz, o.x - cx), Math.sqrt(dist2(cx, cz, o.x, o.z)), P ? P.pid : ""); } });
+      }
+      if (hasMod(p, "kyukon") && e.hp <= 0 && P) P.hp = Math.min(P.mhp, P.hp + 1);
+    }
     if (kx !== undefined && !e.boss) {
       var kn = 0.35 * (p ? p.knock : 1) / (e.r * 1.6);
       e.kx = (e.kx || 0) + kx * kn; e.kz = (e.kz || 0) + kz * kn;
@@ -716,7 +757,8 @@
     s.S.push(sh);
     return sh;
   }
-  function pack(p) { return { st: p.st, knock: p.knock, crit: p.crit, gold: p.gold, pierce: p.pierce, n: p.n, area: p.area }; }
+  function pack(p) { return { st: p.st, st2: p.st2, knock: p.knock, crit: p.crit, gold: p.gold, pierce: p.pierce, n: p.n, area: p.area, mods: p.mods && p.mods.length ? p.mods : undefined }; }
+  function hasMod(p, m) { return !!(p && p.mods && p.mods.indexOf(m) >= 0); }
   function shoot(s, P, p, ang, k) {
     var sh = { id: nid(s), k: p.vis, o: P.pid, x: P.x, z: P.z, vx: Math.cos(ang) * p.spd, vz: Math.sin(ang) * p.spd, life: k === "boomerang" ? 1.6 : k === "homing" ? 3 : 1.4, mode: k === "bounce" ? "bounce" : k === "homing" ? "homing" : k === "boomerang" ? "boom" : "proj", dmg: p.dmg, r: k === "gun" ? 0.35 : k === "boomerang" ? 0.8 * P.st.area : 0.45, pierce: p.pierce, hit: {}, p: pack(p), a: ang, spd: p.spd };
     if (k === "boomerang") sh.T = sh.life;
@@ -749,20 +791,24 @@
   function useUlt(s, P) {
     if (!P || P.down || P.ult < 100) return false;
     P.ult = 0;
-    var u = D.DAIMYO[P.dm].ult, st = P.st, dmg = 60 * st.might * (1 + s.t / s.dur * 3);
+    // 采配強化：每發動 3 次升一階（最多 3 階），威力 +40%／階、持續 +30%／階
+    var tier = ultTier(P), K = 1 + 0.3 * (tier - 1);
+    P.ultN = (P.ultN || 0) + 1;
+    if (ultTier(P) > tier) msg(s, "ultup", P.pid, ultTier(P));
+    var u = D.DAIMYO[P.dm].ult, st = P.st, dmg = 60 * st.might * (1 + s.t / s.dur * 3) * (1 + 0.4 * (tier - 1));
     addFx(s, "ult", P.x, P.z, 0, 8, P.pid, 0);
     msg(s, "ult", P.pid, u);
     if (u === "toki") near(s, P.x, P.z, 14, function (e) { hitEnemy(s, P, e, dmg * (e.boss ? 1.5 : 1), null); });
-    else if (u === "muso") { P.buf.muso = 6; P.iv = Math.max(P.iv, 6); }
+    else if (u === "muso") { P.buf.muso = 6 * K; P.iv = Math.max(P.iv, 6 * K); }
     else if (u === "kaifuku") players(s).forEach(function (o) { if (!o.down) o.hp = Math.min(o.mhp, o.hp + o.mhp * 0.5); });
-    else if (u === "engun") P.buf.engun = 8;
-    else if (u === "kaze") { P.buf.kaze = 8; s.G.forEach(function (g) { g.m = P.pid; }); }
+    else if (u === "engun") P.buf.engun = 8 * K;
+    else if (u === "kaze") { P.buf.kaze = 8 * K; s.G.forEach(function (g) { g.m = P.pid; }); }
     else if (u === "jishin") near(s, P.x, P.z, 12, function (e) { e.stun = 4; hitEnemy(s, P, e, dmg * 0.5, null); });
     else if (u === "ougon") { for (var i = 0; i < 20; i++) { var a = i * 0.314; dropItem(s, "coin", P.x + Math.cos(a) * 3, P.z + Math.sin(a) * 3, { v: 6 }); dropGem(s, P.x + Math.cos(a) * 4, P.z + Math.sin(a) * 4, 5 + s.t / 30); } }
-    else if (u === "kaen") P.buf.kaen = 8;
-    else if (u === "kori") s.freeze = 5;
-    else if (u === "tenrai") P.buf.tenrai = 6;
-    else if (u === "kekkai") players(s).forEach(function (o) { o.buf.kek = 10; });
+    else if (u === "kaen") P.buf.kaen = 8 * K;
+    else if (u === "kori") s.freeze = 5 * K;
+    else if (u === "tenrai") P.buf.tenrai = 6 * K;
+    else if (u === "kekkai") players(s).forEach(function (o) { o.buf.kek = 10 * K; });
     else if (u === "kage") {   // 影分身：5 秒無敵＋四周射出 16 枚手裏劍
       P.iv = Math.max(P.iv, 5); P.buf.speed = 5;
       for (var k2 = 0; k2 < 16; k2++) s.S.push({ id: nid(s), k: "shuriken", o: P.pid, x: P.x, z: P.z, vx: Math.cos(k2 * 0.3927) * 15, vz: Math.sin(k2 * 0.3927) * 15, spd: 15, life: 1.4, mode: "bounce", dmg: dmg * 0.5, r: 0.5, pierce: 4, hit: {}, p: {}, a: 0 });
@@ -773,8 +819,9 @@
     calcStats(P, s);
     return true;
   }
+  function ultTier(P) { return Math.min(3, 1 + Math.floor((P.ultN || 0) / 3)); }
   function ultTick(s, P, dt) {
-    var b = P.buf, dmg = 30 * P.st.might * (1 + s.t / s.dur * 3);
+    var b = P.buf, dmg = 30 * P.st.might * (1 + s.t / s.dur * 3) * (1 + 0.4 * (ultTier(P) - 1));
     if (b.engun > 0) { P._eg = (P._eg || 0) + dt; if (P._eg > 0.25) { P._eg = 0; var px = P.x + (rnd(s) - 0.5) * 16, pz = P.z + (rnd(s) - 0.5) * 16; s.S.push({ id: nid(s), k: "yanoame", o: P.pid, x: px, z: pz, life: 0.4, T: 0.4, mode: "drop", dmg: dmg * 0.6, r: 1.6, p: {}, a: 0 }); } }
     if (b.kaen > 0) { P._kn = (P._kn || 0) + dt; if (P._kn > 0.3) { P._kn = 0; near(s, P.x, P.z, 4.5, function (e) { hitEnemy(s, P, e, dmg * 0.3, { st: "burn", knock: 1, crit: 0 }); }); } }
     if (b.tenrai > 0) { P._tr = (P._tr || 0) + dt; if (P._tr > 0.25) { P._tr = 0; var e = randomNear(s, P, 15); if (e) { near(s, e.x, e.z, 1.6, function (e2) { hitEnemy(s, P, e2, dmg, { st: "shock", knock: 1, crit: 0 }); }); addFx(s, "bolt", e.x, e.z, 0, 1.6, P.pid, 2); } } }
@@ -842,7 +889,10 @@
       if (w.cd <= 0) {
         w.cd = p.cd + (p.kind === "orbit" ? p.dur : p.kind === "flame" ? p.dur : 0);
         fire(s, P, w, p);
+        if (hasMod(p, "nitou") && p.kind !== "orbit" && p.kind !== "flame") w.dbl = 0.2;
       }
+      // 二連：0.2 秒後再發動一次（威力 70%）
+      if (w.dbl > 0) { w.dbl -= dt; if (w.dbl <= 0) { w.dbl = 0; p.dmg *= 0.7; fire(s, P, w, p); } }
     }
   }
   function orbitTick(s, P, w, p, dt) {
@@ -897,6 +947,14 @@
         sh.x = P.x + Math.cos(sh.a) * sh.r0; sh.z = P.z + Math.sin(sh.a) * sh.r0;
       } else {
         if (sh.life <= 0) continue;
+        if (sh.mode === "proj" && hasMod(sh.p, "tsuibi")) {   // 秘傳・追尾
+          var tg2 = nearest(s, sh.x, sh.z, 8, sh.hit);
+          if (tg2) {
+            var sp2 = Math.sqrt(sh.vx * sh.vx + sh.vz * sh.vz) || 1, ta2 = Math.atan2(tg2.z - sh.z, tg2.x - sh.x), ca2 = Math.atan2(sh.vz, sh.vx), da2 = ((ta2 - ca2 + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+            ca2 += clamp(da2, -4 * dt, 4 * dt);
+            sh.vx = Math.cos(ca2) * sp2; sh.vz = Math.sin(ca2) * sp2;
+          }
+        }
         if (sh.mode === "homing") {
           var tg = nearest(s, sh.x, sh.z, 9, sh.hit);
           if (tg) {
@@ -920,6 +978,16 @@
           sh.hit[e.id] = 1;
           var sp = Math.sqrt(sh.vx * sh.vx + sh.vz * sh.vz) || 1;
           hitEnemy(s, P, e, sh.dmg, st, sh.vx / sp, sh.vz / sp);
+          // 秘傳・分裂：第一次命中後分成左右兩發
+          if (hasMod(st, "bunretsu") && !sh.child && !sh.split) {
+            sh.split = 1;
+            var a0 = Math.atan2(sh.vz, sh.vx);
+            [-0.5, 0.5].forEach(function (da) {
+              var ch = { id: nid(s), k: sh.k, o: sh.o, x: sh.x, z: sh.z, vx: Math.cos(a0 + da) * sp, vz: Math.sin(a0 + da) * sp, spd: sp, life: 0.6, mode: "proj", dmg: sh.dmg * 0.6, r: sh.r, pierce: 0, hit: {}, p: st, a: a0 + da, child: 1 };
+              ch.hit[e.id] = 1;
+              s.S.push(ch);
+            });
+          }
           if (sh.mode === "bounce") {
             var nx = nearest(s, sh.x, sh.z, 8, sh.hit);
             if (nx && sh.pierce > 0) { sh.pierce--; var na = Math.atan2(nx.z - sh.z, nx.x - sh.x); sh.vx = Math.cos(na) * sh.spd; sh.vz = Math.sin(na) * sh.spd; sh.life = Math.max(sh.life, 0.8); }
@@ -1264,7 +1332,8 @@
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
         dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0,
-        W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
+        un: P.ultN || 0,
+        W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0, (w.mods || []).join(",")]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
         op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: P.meta
       };
     });
@@ -1284,7 +1353,7 @@
     return o;
   }
   var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora"];
-  var FXK = ["slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
+  var FXK = ["chain", "slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
   var FXI = {}; FXK.forEach(function (k, i) { FXI[k] = i; });
   // 只送最近 0.7 秒的特效（畫面依 id 只播一次）
   function packFx(s) {
@@ -1308,7 +1377,8 @@
       var p = o.P[pid];
       v.P[pid] = {
         pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm,
-        W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
+        ultN: p.un || 0,
+        W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4], mods: w[5] ? String(w[5]).split(",") : [] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
         opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m || {}
       };
       calcStats(v.P[pid], v);
@@ -1333,7 +1403,7 @@
 
   window.PriTestYukimuraCore = {
     create: create, addPlayer: addPlayer, removePlayer: removePlayer, step: step, applyIntent: applyIntent, players: players,
-    calcStats: calcStats, comboBonus: comboBonus, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
+    calcStats: calcStats, comboBonus: comboBonus, synergies: synergies, weaponMods: weaponMods, ultTier: ultTier, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
     snap: snap, unsnap: unsnap, serialize: serialize, deserialize: deserialize, xpNeed: xpNeed, baseStats: baseStats,
     _rnd: rnd
   };

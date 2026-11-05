@@ -182,3 +182,8 @@
 .yk-pin-chest { --yk-pin-c: #ffd040; }
 .yk-pin-hokora { --yk-pin-c: #ff8080; }
 .yk-pin-down { --yk-pin-c: #ff6060; }
+
+/* 秘傳 */
+.yk-slot-mods { position: absolute; left: -4px; top: -7px; font-style: normal; font-size: 9px; line-height: 1; background: rgba(0, 0, 0, 0.7); border-radius: 4px; padding: 1px 2px; letter-spacing: -1px; }
+.yk-opt-mod { border-left: 4px solid #a070ff; }
+.yk-syn { border-color: #80c0ff !important; color: #c0e0ff; }

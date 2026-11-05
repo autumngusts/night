@@ -110,6 +110,49 @@
     });
   });
 
+  // ---------------- 秘傳（武器分歧強化，每把武器最多 2 個）----------------
+  // proj：只對有投射物的武器有意義（升級選項只對這些武器出現）
+  var PROJ_KINDS = { arrow: 1, gun: 1, bounce: 1, fan: 1, homing: 1, boomerang: 1, thrust: 1, slash: 1, whip: 1, beam: 1, charge: 1 };
+  var MODS = {
+    nitou: { icon: "✌️", name: C("二連", "二連"), desc: C("發動後 0.2 秒再發動一次（傷害 70%）", "発動 0.2 秒後にもう一度（威力 70%）") },
+    bakuretsu: { icon: "💥", name: C("爆裂", "爆裂"), desc: C("命中時 25% 機率小爆炸（範圍傷害 50%）", "命中時 25% で小爆発（範囲 50%）") },
+    rensa: { icon: "🔗", name: C("連鎖", "連鎖"), desc: C("命中時 30% 機率電擊跳到附近 2 個敵人", "命中時 30% で近くの敵 2 体へ電撃が跳ぶ") },
+    bunretsu: { icon: "🔱", name: C("分裂", "分裂"), desc: C("投射物第一次命中後分成 3 發", "投射物が最初の命中で 3 つに分かれる"), proj: 1 },
+    tsuibi: { icon: "🧭", name: C("追尾", "追尾"), desc: C("投射物會轉向追擊敵人", "投射物が敵を追いかける"), proj: 1, straight: 1 },
+    shokei: { icon: "⚰️", name: C("處刑", "処刑"), desc: C("對體力 30% 以下的敵人傷害 ×2", "体力 30% 以下の敵にダメージ ×2") },
+    kyodai: { icon: "⛰️", name: C("巨大化", "巨大化"), desc: C("範圍 ×1.5、傷害 +10%，冷卻 +15%", "範囲 ×1.5・威力 +10%、クールダウン +15%") },
+    shippu: { icon: "🌪️", name: C("疾風", "疾風"), desc: C("冷卻 -28%，傷害 -15%", "クールダウン -28%・威力 -15%") },
+    kantsu: { icon: "➰", name: C("貫通", "貫通"), desc: C("貫穿 +3、彈速 +20%", "貫通 +3・弾速 +20%"), proj: 1 },
+    kyukon: { icon: "👻", name: C("吸魂", "吸魂"), desc: C("用這把武器擊殺時回復 1 體力", "この武器で倒すと体力 1 回復") },
+    hyo: { icon: "❄️", name: C("冰之型", "氷の型"), desc: C("附加凍結（減速）", "凍結（減速）を付与") },
+    en: { icon: "🔥", name: C("炎之型", "炎の型"), desc: C("附加灼燒（持續傷害）", "炎上（継続ダメージ）を付与") },
+    rai: { icon: "⚡", name: C("雷之型", "雷の型"), desc: C("附加麻痺（機率暈眩）", "麻痺（確率で気絶）を付与") },
+    doku: { icon: "☠️", name: C("毒之型", "毒の型"), desc: C("附加毒（持續傷害）", "毒（継続ダメージ）を付与") }
+  };
+  // 直線飛行的武器（追尾只對這些有效；鐵扇、鎖鎌是迴旋，手裏劍、式神本來就會追）
+  var STRAIGHT_KINDS = { arrow: 1, gun: 1, fan: 1, thrust: 1, slash: 1, beam: 1, charge: 1 };
+  var MOD_ST = { hyo: "chill", en: "burn", rai: "shock", doku: "poison" };
+  // ---------------- 武器搭配（同時持有兩種攻擊方式）----------------
+  // give：給 a 那把武器一個秘傳（不佔 2 格）；st：給角色的能力加成
+  var SYNERGY = [
+    { a: "yumi", b: "hata", give: "nitou", name: C("旗本弓隊", "旗本弓隊") },
+    { a: "teppo", b: "ozutsu", st: [["crit", 0.1]], name: C("砲術指南", "砲術指南") },
+    { a: "tachi", b: "yari", st: [["might", 0.1]], name: C("槍刀一體", "槍刀一体") },
+    { a: "naginata", b: "taiko", st: [["armor", 2], ["regen", 0.5]], name: C("僧兵", "僧兵") },
+    { a: "shikigami", b: "ofuda", give: "rensa", name: C("陰陽道", "陰陽道") },
+    { a: "kaminari", b: "hamaya", give: "shokei", name: C("天罰", "天罰") },
+    { a: "horoku", b: "kaen", give: "kyodai", name: C("火計", "火計") },
+    { a: "tsurara", b: "horagai", give: "hyo", name: C("雪崩", "雪崩") },
+    { a: "kunai", b: "shuriken", give: "bunretsu", name: C("忍術", "忍術") },
+    { a: "makibishi", b: "kusarigama", give: "doku", st: [["thorns", 10]], name: C("暗器", "暗器") },
+    { a: "kiba", b: "tessen", st: [["speed", 0.1]], name: C("軍配", "軍配") },
+    { a: "juzu", b: "ofuda", st: [["regen", 0.8]], name: C("念佛", "念仏") },
+    { a: "yumi", b: "teppo", give: "kantsu", name: C("遠矢", "遠矢") },
+    { a: "tachi", b: "tessen", give: "shippu", name: C("劍舞", "剣舞") },
+    { a: "yanoame", b: "hata", give: "bakuretsu", name: C("鶴翼之陣", "鶴翼の陣") },
+    { a: "kaminari", b: "taiko", give: "rai", name: C("雷鼓", "雷鼓") }
+  ];
+
   // ---------------- 東北工藝（飾品 25 種 × 20 能力）----------------
   // r＝稀有度 1〜3（數值倍率 1 / 1.3 / 1.6，出現率反比），sec＝附帶的次要能力
   var CRAFTS = [
@@ -477,6 +520,6 @@
     C: C, L: L, STATS: STATS, STAT: STAT, PREFS: PREFS, VARIANTS: VARIANTS, ARCHES: ARCHES, WEAPONS: WEAPONS, WLV: WLV,
     MAX_WLV: MAX_WLV, MAX_ALV: MAX_ALV, MAX_W: MAX_W, MAX_A: MAX_A, CRAFTS: CRAFTS, ACCS: ACCS, accStats: accStats,
     FOODS: FOODS, ULTS: ULTS, DAIMYO: DAIMYO, DM_KINDS: [C("大名", "大名"), C("武將", "武将"), C("女武將", "女武将"), C("忍者", "忍者")], ENEMIES: ENEMIES, BOSSES: BOSSES, MAPS: MAPS, STAGES: STAGES, FEATS: FEATS,
-    META: META, DIFFS: DIFFS, ARENA: 60
+    META: META, DIFFS: DIFFS, ARENA: 60, MODS: MODS, MOD_ST: MOD_ST, SYNERGY: SYNERGY, PROJ_KINDS: PROJ_KINDS, STRAIGHT_KINDS: STRAIGHT_KINDS, MAX_MOD: 2
   };
 })();

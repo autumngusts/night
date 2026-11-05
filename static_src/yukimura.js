@@ -205,7 +205,7 @@
 
   // ---------------- 圖鑑 ----------------
   function renderCodex() {
-    var tabs = [["daimyo", t("yk_cx_daimyo")], ["weapons", t("yk_cx_weapons")], ["accs", t("yk_cx_accs")], ["foods", t("yk_cx_foods")], ["enemies", t("yk_cx_enemies")], ["stages", t("yk_cx_stages")], ["rules", t("yk_cx_rules")]];
+    var tabs = [["daimyo", t("yk_cx_daimyo")], ["weapons", t("yk_cx_weapons")], ["accs", t("yk_cx_accs")], ["foods", t("yk_cx_foods")], ["enemies", t("yk_cx_enemies")], ["stages", t("yk_cx_stages")], ["skills", t("yk_cx_skills")], ["rules", t("yk_cx_rules")]];
     app.appendChild(el("div", { class: "yk-field" }, [seg(tabs, ui.codex, function (k) { ui.codex = k; render(); })]));
     var c = ui.codex, body = [];
     if (c === "daimyo") {
@@ -230,6 +230,17 @@
           el("div", { class: "yk-small" }, [t("yk_acc_sec", { s: L(D.STAT[cr.sec].name) })]),
           el("details", null, [el("summary", { class: "yk-small" }, [t("yk_acc_list", { n: D.STATS.length })]), el("div", { class: "yk-small" }, D.STATS.map(function (s, si) { var a = D.ACCS[ci * 20 + si]; return el("div", null, [s.icon, " ", L(a.name), "：", Object.keys(D.accStats(a.id, 1)).map(function (k) { return statText(k, D.accStats(a.id, 1)[k]); }).join("・")]); }))])]);
       })));
+    } else if (c === "skills") {
+      body.push(el("p", { class: "yk-small yk-muted" }, [t("yk_cx_mods_note", { n: Object.keys(D.MODS).length, m: D.MAX_MOD })]));
+      body.push(el("div", { class: "yk-cxgrid" }, Object.keys(D.MODS).map(function (k) { var m = D.MODS[k]; return el("div", { class: "yk-cx" }, [el("strong", null, [m.icon, " ", L(m.name)]), el("div", { class: "yk-small" }, [L(m.desc)]), m.proj ? el("div", { class: "yk-small yk-muted" }, [t("yk_mod_proj")]) : null]); })));
+      body.push(panel(t("yk_cx_syn", { n: D.SYNERGY.length }), [el("div", { class: "yk-cxgrid" }, D.SYNERGY.map(function (y) {
+        var A = D.ARCHES.filter(function (x) { return x.k === y.a; })[0], B = D.ARCHES.filter(function (x) { return x.k === y.b; })[0];
+        var eff = [];
+        if (y.give) eff.push(t("yk_syn_give", { w: L(A.name), m: D.MODS[y.give].icon + L(D.MODS[y.give].name) }));
+        (y.st || []).forEach(function (b) { eff.push(statText(b[0], b[1])); });
+        return el("div", { class: "yk-cx" }, [el("strong", null, ["🤝 ", L(y.name)]), el("div", { class: "yk-small" }, [A.icon + L(A.name) + " ＋ " + B.icon + L(B.name)]), el("div", { class: "yk-small" }, [eff.join("・")])]);
+      }))]));
+      body.push(panel(t("yk_cx_ulttier"), [el("p", { class: "yk-small" }, [t("yk_ulttier_note")])]));
     } else if (c === "foods") {
       body.push(el("div", { class: "yk-cxgrid" }, D.FOODS.map(function (f) { return el("div", { class: "yk-cx" }, [el("strong", null, [f.icon, " ", L(f.name)]), el("div", { class: "yk-small" }, [foodText(f)])]); })));
     } else if (c === "enemies") {
@@ -674,6 +685,8 @@
     if (m.k === "ult") return D.ULTS[m.a].icon + " " + t("yk_msg_ult", { n: nm, u: L(D.ULTS[m.a].name) });
     if (m.k === "warashi") return "👧 " + t("yk_msg_warashi", { n: nm });
     if (m.k === "feat") return t("yk_feat_" + m.a);
+    if (m.k === "ultup") return "🌟 " + t("yk_msg_ultup", { n: nm, t: m.a });
+    if (m.k === "pick" && mine && m.a && m.a.t === "m") return D.MODS[m.a.m].icon + " " + t("yk_msg_mod", { w: L(D.WEAPONS[m.a.id].name), m: L(D.MODS[m.a.m].name) });
     if (m.k === "combo") return "🔥 " + t("yk_msg_combo", { n: nm, c: m.a });
     if (m.k === "bless") return "⛩ " + t("yk_msg_bless", { n: nm, b: t("yk_bless_" + m.a) });
     if (m.k === "chest" && mine) {
@@ -716,7 +729,8 @@
       hud.info.textContent = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 });
       var u = D.ULTS[D.DAIMYO[me.dm].ult];
       hud.ult.firstChild.textContent = u.icon;
-      hud.ult.lastChild.textContent = me.ult >= 100 ? L(u.name) : Math.floor(me.ult) + "%";
+      var tierN = Core.ultTier(me), ultTxt = (me.ult >= 100 ? L(u.name) : Math.floor(me.ult) + "%") + (tierN > 1 ? " ・" + "★".repeat(tierN - 1) : "");
+      if (hud.ult.lastChild.textContent !== ultTxt) hud.ult.lastChild.textContent = ultTxt;
       var uc = "yk-ult" + (me.ult >= 100 ? " yk-ult-ready" : "");
       if (hud.ult.className !== uc) hud.ult.className = uc;
       hud.ult.style.setProperty("--yk-ult", (Math.min(100, me.ult) * 3.6) + "deg");
@@ -727,7 +741,8 @@
         hud.items.innerHTML = "";
         me.W.forEach(function (w) {
           var W = D.WEAPONS[w.id], evoReady = Core.canEvolve(me, w);
-          hud.items.appendChild(el("span", { class: "yk-slot" + (w.evo ? " yk-slot-evo" : evoReady ? " yk-slot-ready" : ""), title: weaponName(w.id, w.evo) + " Lv" + w.lv, style: "border-color:" + hex(D.VARIANTS[W.v].color) }, [W.icon, el("b", null, [w.evo ? "★" : String(w.lv)])]));
+          var wm = Core.weaponMods(me, w);
+          hud.items.appendChild(el("span", { class: "yk-slot" + (w.evo ? " yk-slot-evo" : evoReady ? " yk-slot-ready" : ""), title: weaponName(w.id, w.evo) + " Lv" + w.lv + (wm.length ? "　" + wm.map(function (m) { return L(D.MODS[m].name); }).join("・") : ""), style: "border-color:" + hex(D.VARIANTS[W.v].color) }, [W.icon, el("b", null, [w.evo ? "★" : String(w.lv)]), wm.length ? el("i", { class: "yk-slot-mods" }, [wm.map(function (m) { return D.MODS[m].icon; }).join("")]) : null]));
         });
         hud.items.appendChild(el("span", { class: "yk-slot-sep" }));
         me.A.forEach(function (a) {
@@ -736,6 +751,7 @@
         });
         var pb = Core.prefBonus(me);
         if (pb.length) hud.items.appendChild(el("span", { class: "yk-chip yk-pb" }, [pb.map(function (x) { return "🔗" + L(D.PREFS[x.p].name) + x.n; }).join(" ")]));
+        Core.synergies(me).forEach(function (y) { hud.items.appendChild(el("span", { class: "yk-chip yk-pb yk-syn" }, ["🤝" + L(y.name)])); });
       }
       // 選升級
       renderModal(me, v);
@@ -793,7 +809,13 @@
   }
   function optCard(me, o, i) {
     var icon = "", title = "", sub = "", desc = "", cls = "yk-opt";
-    if (o.t === "w" || o.t === "wu") {
+    if (o.t === "m") {
+      var Wm = D.WEAPONS[o.id], Md = D.MODS[o.m], curm = me.W[o.i];
+      icon = Md.icon; title = L(Md.name) + "：" + L(Wm.name);
+      sub = t("yk_opt_mod") + "（" + ((curm && curm.mods ? curm.mods.length : 0) + 1) + "/" + D.MAX_MOD + "）";
+      desc = L(Md.desc);
+      cls += " yk-opt-mod";
+    } else if (o.t === "w" || o.t === "wu") {
       var W = D.WEAPONS[o.id], A = D.ARCHES[W.a], V = D.VARIANTS[W.v];
       var cur = o.t === "wu" ? me.W[o.i] : null;
       icon = W.icon; title = L(W.name);

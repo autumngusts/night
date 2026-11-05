@@ -691,6 +691,7 @@
       var mine = f.o === opts.me;
       if (kind === "slash") { o = new T.Mesh(fxGeo.arc, fxMat(f.c === 2 ? 0xffd040 : 0xe8f4ff, 0.85, true)); o.rotation.x = -Math.PI / 2; o.rotation.z = f.a; o.position.set(f.x, 0.7, f.z); o.scale.setScalar(f.r); life = 0.22; }
       else if (kind === "thrust" || kind === "beam") { o = new T.Mesh(fxGeo.box, fxMat(kind === "beam" ? 0xfff0a0 : 0xe8f4ff, 0.8, true)); o.position.set(f.x + Math.cos(f.a) * f.r / 2, 0.8, f.z + Math.sin(f.a) * f.r / 2); o.rotation.y = -f.a; o.scale.set(f.r, 0.12, kind === "beam" ? 0.5 : 0.25); life = kind === "beam" ? 0.3 : 0.18; }
+      else if (kind === "chain") { o = new T.Mesh(fxGeo.box, fxMat(0xa0c8ff, 0.95, true)); o.position.set(f.x + Math.cos(f.a) * f.r / 2, 0.9, f.z + Math.sin(f.a) * f.r / 2); o.rotation.y = -f.a; o.scale.set(Math.max(0.3, f.r), 0.08, 0.12); life = 0.22; }
       else if (kind === "whip") { o = new T.Mesh(fxGeo.box, fxMat(0xd0d0e0, 0.85, true)); o.position.set(f.x + Math.cos(f.a) * f.r / 2, 0.7, f.z + Math.sin(f.a) * f.r / 2); o.rotation.y = -f.a; o.scale.set(f.r, 0.08, 0.8); life = 0.2; }
       else if (kind === "spin" || kind === "wave" || kind === "pulse" || kind === "lvl" || kind === "ult" || kind === "revive" || kind === "bossin") {
         o = new T.Mesh(fxGeo.ring, fxMat(kind === "pulse" ? 0xffb040 : kind === "wave" ? 0xa0e0ff : kind === "lvl" ? 0xffe060 : kind === "ult" ? 0xff6040 : kind === "revive" ? 0x60ff90 : kind === "bossin" ? 0xff2020 : 0xe8f4ff, 0.8, true));
