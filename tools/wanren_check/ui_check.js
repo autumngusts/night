@@ -125,6 +125,8 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   // 成就：第一次見面
   assert.ok(await page.evaluate(function () { return !!window.PriTestWanren.core.loadMeta().ach.meet1; }), "應該解鎖「初次見面」");
   // 學生餐廳的購買部
+  // 聊天（用掉行動點）後有 20% 機率觸發校園遭遇，事件畫面會蓋住「快速前往」：先清掉（2026-11-05 修正偶發失敗）
+  await clearEvents(page);
   await clickText(page, "學生餐廳", true);
   await page.waitForFunction(function () { return window.PriTestWanren.ui.loc === "cafeteria"; }, null, { timeout: 20000 });
   await clickText(page, "購買部", true);

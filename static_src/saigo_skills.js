@@ -27,7 +27,8 @@
   function phaseOf(prog) { return prog < 0.12 ? "start" : prog < 0.35 ? "early" : prog < 0.66 ? "mid" : prog < 0.85 ? "late" : "final"; }
 
   // when：phase（陣列）、sect（curve 彎道／straight 直道）、style、pos（lead 領先／front 前段／behind 非領先／back 後段）、
-  //       sta（體力低於）、weather（陣列）、ground（陣列）
+  //       sta（體力低於）、weather（陣列）、ground（陣列）、kakari（暴衝中）、duel（對決中）
+//   效果另有 calm＝解除暴衝
   function S(id, tier, zh, ja, en, icon, pts, when, eff, dzh, dja) {
     return { id: id, tier: tier, name: C(zh, ja, en), icon: icon, pts: pts, when: when, eff: eff, desc: C(dzh, dja, dzh) };
   }
@@ -49,6 +50,8 @@
     S("n_pushup", "n", "位置推進", "位置取り押し上げ", "Position Push", "⤴", 44, { phase: ["early"], pos: "back" }, { spd: 0.025, dur: 3 }, "前段位於後半時速度提升，往前推進。", "序盤で後方にいるとき速度が上がる。"),
     S("n_spurt", "n", "衝刺準備", "抜け出し準備", "Ready to Break", "🏃", 44, { phase: ["final"], pos: "front" }, { acc: 0.5, dur: 3 }, "最後直線位於前段時加速度提升。", "最終直線で前方にいるとき加速力が上がる。"),
     S("n_lastleg", "n", "末腳", "末脚", "Late Kick", "🦵", 44, { phase: ["final"] }, { spd: 0.02, dur: 3 }, "最後直線速度小幅提升。", "最終直線で速度が少し上がる。"),
+    // 2026-11-05：暴衝與對決的技能
+    S("n_calm", "n", "冷靜沉著", "落ち着き", "Composure", "🧘", 40, { kakari: true }, { calm: 1, heal: 0.03 }, "暴衝時立刻冷靜下來，並回復少許體力。", "掛かったときすぐ落ち着き、少し回復する。"),
     // ---- 罕見（◎） ----
     S("r_corner", "r", "彎道巧手◎", "コーナー巧者◎", "Corner Expert", "↪", 92, { sect: "curve", phase: ["mid", "late"] }, { spd: 0.045, dur: 3.5 }, "中後段的彎道速度提升。", "中盤以降のコーナーで速度が上がる。"),
     S("r_straight", "r", "直線巧手◎", "直線巧者◎", "Straightaway Expert", "➡", 92, { sect: "straight", phase: ["late", "final"] }, { spd: 0.045, dur: 3.5 }, "後段直道速度提升。", "終盤の直線で速度が上がる。"),
@@ -64,6 +67,7 @@
     S("r_rail", "r", "內欄高手", "内ラチ巧者", "Rail Hugger", "📏", 90, { sect: "curve", phase: ["early", "mid"] }, { spd: 0.04, dur: 3.5 }, "前中段的彎道速度提升。", "序中盤のコーナーで速度が上がる。"),
     S("r_heat", "r", "炎熱◎", "猛暑◎", "Heat Master", "🔥", 88, { weather: ["hot", "sandstorm", "sunny"], phase: ["mid", "late"] }, { heal: 0.05, spd: 0.02, dur: 3 }, "晴天／炎熱／沙塵暴時，中段回復體力並加速。", "晴れ・猛暑・砂嵐のとき中盤で回復し加速。"),
     S("r_gofirst", "r", "先發制人", "先制", "Strike First", "🏁", 94, { phase: ["early"], pos: "front" }, { spd: 0.045, dur: 3.5 }, "前段位於前段時速度提升，拉開距離。", "序盤に前方にいるとき速度が上がる。"),
+    S("r_duel", "r", "好勝心", "負けん気", "Competitive Spirit", "⚔", 92, { duel: true }, { spd: 0.04, acc: 0.3, dur: 3 }, "最後直線和對手並排對決時，再加速。", "最終直線で競り合ったとき、さらに加速する。"),
     S("r_mud", "r", "泥地◎", "道悪◎", "Mudlark", "🟫", 90, { ground: ["good", "soft", "heavy"], phase: ["mid", "late"] }, { spd: 0.045, dur: 3.5 }, "稍重以上的場地，中後段速度提升。", "稍重以上のバ場で中盤以降に速度が上がる。"),
     // ---- 金（★） ----
     S("g_maestro", "g", "彎道魔術師", "コーナーの魔術師", "Corner Wizard", "🌀", 180, { sect: "curve", phase: ["mid", "late"] }, { heal: 0.06, spd: 0.04, dur: 4 }, "中後段的彎道回復體力並加速。", "中盤以降のコーナーで回復し加速する。"),
@@ -146,6 +150,8 @@
     if (w.weather && w.weather.indexOf(c.weather) < 0) return false;
     if (w.ground && w.ground.indexOf(c.ground) < 0) return false;
     if (w.sta !== undefined && !(c.sta < w.sta)) return false;
+    if (w.kakari && !c.kakari) return false;
+    if (w.duel && !c.duel) return false;
     if (w.pos) {
       var front = c.rank <= Math.ceil(c.n / 3), back = c.rank > c.n / 2;
       if (w.pos === "lead" && c.rank !== 1) return false;
@@ -158,12 +164,13 @@
   // c：{ prog, sect, style, weather, ground, sta, rank, n }；t＝比賽時間；scale＝持續時間倍率
   // （關卡賽一場比真賽狗長、又常被關卡限速，持續時間放大 SCALE_CLASSIC 倍）。回傳這一步的加成與新發動的技能
   function tick(rt, c, t, scale) {
-    var out = { spd: 0, acc: 0, heal: 0, fired: null };
+    var out = { spd: 0, acc: 0, heal: 0, calm: 0, fired: null };
     for (var i = 0; i < rt.length; i++) {
       var x = rt[i], e = x.s.eff;
       if (!x.on && x.ok && match(x.s.when, c)) {
         x.on = true; x.end = t + (e.dur || 0) * (scale || 1);
         out.heal += e.heal || 0;
+        out.calm += e.calm || 0;
         (out.fired || (out.fired = [])).push(x.s.id);
       }
       if (x.on && t < x.end) { out.spd += e.spd || 0; out.acc += e.acc || 0; }

@@ -33,6 +33,8 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_events_12.js",
     "starv_events_13.js",
     "starv_events_14.js",
+    "starv_events_15.js",
+    "starv_plus_data.js",
     "starv_awards_data.js",
     "starv_projects.js",
     "starv_projects_1.js",
@@ -51,6 +53,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_roster_rivals_1.js",
     "starv_roster_rivals_2.js",
     "starv_core.js",
+    "starv_plus.js",
     "starv_store.js",
     "starv_cloud.js",
     "starv_avatar.js",
@@ -73,6 +76,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_stage_ui.js",
     "starv_cloud_ui.js",
     "starv_log.js",
+    "starv_plus_ui.js",
     "starv.js",
 )
 

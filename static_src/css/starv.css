@@ -736,3 +736,24 @@
 .sv-prog-quick { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.35rem; }
 .sv-prog-quick .sv-select { max-width: 100%; min-width: 0; flex: 1 1 12rem; }
 .sv-prog-quick .sv-btn { padding: 0.3rem 0.6rem; font-size: 0.85em; }
+
+/* ---- 增加遊戲性的七個系統（starv_plus_ui.js；2026-11-05） ---- */
+.sv-plus-card h4 { margin: 0.7rem 0 0.3rem; font-size: 0.95em; }
+.sv-plus-list { list-style: none; margin: 0.3rem 0; padding: 0; display: grid; gap: 0.35rem; }
+.sv-plus-list > li { padding: 0.4rem 0.55rem; border-radius: 8px; background: rgba(255, 255, 255, 0.05); display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+.sv-plus-list > li > .sv-row { width: 100%; margin-top: 0; }
+.sv-plus-list > li > .sv-bar { width: 100%; }
+.sv-plus-list > li[role="button"] { cursor: pointer; }
+.sv-plus-list > li[role="button"]:hover { background: rgba(255, 255, 255, 0.1); }
+.sv-plus-goal { flex-direction: column; align-items: stretch !important; }
+.sv-plus-done { box-shadow: inset 3px 0 0 var(--sv-gold); }
+.sv-plus-failed { opacity: 0.6; }
+.sv-plus-good { color: var(--sv-good); }
+.sv-plus-bad { color: var(--sv-bad); }
+.sv-plus-list > li.sv-plus-wish { flex-wrap: nowrap; }
+.sv-plus-wish .sv-grow, .sv-plus-goal .sv-grow { min-width: 0; flex: 1 1 0; }
+.sv-plus-goal .sv-row { flex-wrap: nowrap; align-items: flex-start; }
+.sv-plus-sit { margin: 0.5rem 0; font-size: 1.05em; font-weight: 700; }
+.sv-plus-strats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.4rem; }
+.sv-plus-clutch { margin-bottom: 0.6rem; }
+.sv-plus-bell { background: linear-gradient(135deg, rgba(255, 214, 107, 0.35), rgba(255, 95, 168, 0.3)); }

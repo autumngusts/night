@@ -14,6 +14,31 @@
   function newNameSeed(st) { return NAME_V2_BASE + rint(st, 0, 999999); }
   var api = {};
 
+  // ==== 擴充掛鉤（2026-11-05：心願、季度目標、臨場決策、粉絲、關係、IP、醜聞連鎖由 starv_plus.js 掛上） ====
+  // 沒有任何擴充登記時，所有掛鉤都不做事，核心行為與亂數序列跟原本完全一樣（core_check／sim 不載入擴充）
+  var HOOKS = {};
+  function hook(name, fn) { (HOOKS[name] || (HOOKS[name] = [])).push(fn); }
+  function runHook(name) {
+    var l = HOOKS[name];
+    if (!l) return;
+    var args = Array.prototype.slice.call(arguments, 1);
+    for (var i = 0; i < l.length; i++) l[i].apply(null, args);
+  }
+  function hookMult(name) {
+    var l = HOOKS[name], m = 1;
+    if (!l) return 1;
+    var args = Array.prototype.slice.call(arguments, 1);
+    for (var i = 0; i < l.length; i++) { var v = l[i].apply(null, args); if (typeof v === "number" && isFinite(v)) m *= v; }
+    return m;
+  }
+  function hookFirst(name) {
+    var l = HOOKS[name];
+    if (!l) return undefined;
+    var args = Array.prototype.slice.call(arguments, 1);
+    for (var i = 0; i < l.length; i++) { var v = l[i].apply(null, args); if (v !== undefined) return v; }
+    return undefined;
+  }
+
   // ==== 亂數與工具 ====
   function rnd(st) {
     var t = (st.seed = (st.seed + 0x6D2B79F5) | 0);
@@ -75,6 +100,7 @@
     initTrend(st);
     initRivals(st);
     refreshBoard(st);
+    runHook("create", st);
     return st;
   }
 
@@ -102,6 +128,7 @@
     if (!st.projectQueue) st.projectQueue = [];
     if (!st.legacy) st.legacy = { points: 0, perks: {} };
     // version 5 → 6：宿敵劇情 rivalStory、稱號 title（計畫 9），由上面的 fillDefaults 補上
+    runHook("migrate", st);
     st.version = VERSION;
     return st;
   }
@@ -117,7 +144,8 @@
     return Math.min(999, Math.round(D.RARITY[rarity].capBase * D.APT[apt].cap * (1 + (lb || 0) * BAL.limitBreakCap)));
   }
   function recomputeCaps(a) {
-    D.STATS.forEach(function (s) { a.caps[s] = capFor(a.rarity, a.apt[s], a.limitBreak); });
+    // capPlus：藝人心願達成的永久上限加成（每點 +3%，starv_plus.js）
+    D.STATS.forEach(function (s) { a.caps[s] = Math.min(999, Math.round(capFor(a.rarity, a.apt[s], a.limitBreak) * (1 + 0.03 * ((a.capPlus && a.capPlus[s]) || 0)))); });
   }
   function profInit() {
     var p = {};
@@ -447,7 +475,13 @@
       if (st.company.money < D.PROMO.cost) return "money";
       st.company.money -= D.PROMO.cost;
       t = { kind: "promo", days: D.PROMO.days, left: D.PROMO.days, stamina: D.PROMO.stamina, stress: D.PROMO.stress };
-    } else return "kind";
+    } else {
+      // 擴充行程（粉絲見面會等）：回傳 task 物件或錯誤字串
+      var ext = hookFirst("schedule", st, a, spec);
+      if (typeof ext === "string") return ext;
+      if (!ext) return "kind";
+      t = ext;
+    }
     a.task = t;
     return null;
   }
@@ -507,7 +541,7 @@
       var df = Math.round((D.PROMO.fame + a.stats.charm / 20) * fxMult(a, "fame"));
       a.fame = clamp(a.fame + df, 0, 99999);
       log(st, "promo_done", { aid: a.id, fame: df });
-    }
+    } else runHook("finishTask", st, a, t);
   }
 
   // 行程結束後：體力歸零強制休息 3 天；壓力 100 罷工 7 天（壓力降到 60）
@@ -556,6 +590,7 @@
     if (st.day % BAL.daysPerYear === 0) { yearly(st); rivalYear(st); retireCheck(st); }
     tickContracts(st);
     tickEvents(st);
+    runHook("day", st);
     autoPlan(st);
     checkAchievements(st);
   }
@@ -625,8 +660,9 @@
   function jobTitle(job, lang) {
     lang = lang === "zh" ? "zh" : "ja";
     if (job.project) { var pj = D.PROJECT_BY_ID && D.PROJECT_BY_ID[job.project]; return pj ? pj.name[lang] : String(job.project); }
-    var t = dirById(job.dir).title;
-    return t.fmt[lang].replace("{a}", t.a[job.title[0]][lang]).replace("{b}", t.b[job.title[1]][lang]);
+    // titleDir：改編作品沿用原作的方向詞庫；seq：續集編號（starv_plus.js 的作品 IP）
+    var t = dirById(job.titleDir || job.dir).title;
+    return t.fmt[lang].replace("{a}", t.a[job.title[0]][lang]).replace("{b}", t.b[job.title[1]][lang]) + (job.seq > 1 ? " " + job.seq : "");
   }
 
   // ==== 工作判定（§6.3）、組合（§6.4） ====
@@ -670,7 +706,7 @@
   function teamPerf(st, members, job) {
     var sum = 0;
     members.forEach(function (a) { sum += perfScore(st, a, job); });
-    return sum / members.length * (1 + chemistry(st, members.map(function (a) { return a.id; })));
+    return sum / members.length * (1 + chemistry(st, members.map(function (a) { return a.id; }))) * hookMult("teamPerf", st, members, job);
   }
 
   function estimate(st, aids, job) {
@@ -685,6 +721,7 @@
     if (!a) return "noArtist";
     if (a.task && !(interrupt && interruptible(a))) return "busy";
     if (job.reservedFor && job.reservedFor !== a.id) return "reserved";
+    if (job.pair && job.pair.indexOf(a.id) < 0) return "reserved";   // 對決工作：只限指定的兩人
     if (a.fame < job.minFame) return "fame";
     if (a.prof[job.dir].lv < job.minProf) return "prof";
     return null;
@@ -723,6 +760,7 @@
         stress: Math.min(BAL.jobStressMax, job.days * BAL.jobStressPerDay * load)
       };
     });
+    runHook("jobStart", st, aj);
     return aj;
   }
 
@@ -789,7 +827,8 @@
     addRep(st, Math.round(job.rep * R.rep));
     st.stats.jobsDone++;
     if (res === "great" && job.tier === "S") st.stats.greatS++;
-    log(st, "job_done", { aids: aj.members.slice(), dir: job.dir, tier: job.tier, title: job.title.slice(), result: res, pay: pay, stars: stars });
+    log(st, "job_done", { aids: aj.members.slice(), dir: job.dir, tier: job.tier, title: job.title.slice(), titleDir: job.titleDir || null, seq: job.seq || 0, result: res, pay: pay, stars: stars });
+    runHook("jobDone", st, aj, { res: res, stars: stars, pay: pay, members: members });
   }
 
   function tickJobs(st) {
@@ -829,7 +868,7 @@
     st.company.money += div - upkeep - loan;
     var prMult = 1 - st.facilities.pr * D.FACILITIES.pr.fameDecay;
     st.artists.forEach(function (a) {
-      var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult * fxMult(a, "fameDecay");
+      var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult * fxMult(a, "fameDecay") * hookMult("fameDecay", st, a);
       a.fame = Math.round(a.fame * (1 - rate));
     });
     // 滿意度漂移（規格 §11）：最近 30 天有沒有工作、壓力、心情
@@ -855,6 +894,7 @@
     updateCharts(st);
     rotatePickup(st);
     log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div, loan: loan });
+    runHook("month", st);
   }
 
   function yearly(st) {
@@ -1016,6 +1056,7 @@
     st.trend.cur = st.trend.next;
     st.trend.next = rollTrend(st);
     log(st, "trend_new", { season: st.trend.season });
+    runHook("season", st);
   }
   function trendMult(st, dir) {
     var c = st.trend && st.trend.cur;
@@ -1180,6 +1221,7 @@
       var rr = rivalById(st, e.ctx.rival);
       if (rr) { rr.power = Math.max(1, rr.power + fx.rivalPower); out.rivalPower = fx.rivalPower; out.rival = rr.id; }
     }
+    runHook("fx", st, e, fx, out, a);   // 擴充效果鍵：anti、core、bond、partner、chain
     return out;
   }
 
@@ -1193,10 +1235,11 @@
     var w = {};
     // 特性 badLuck（計畫 10）：以該藝人為目標的事件，壞結果權重 ×v
     var target = e.aid ? artistById(st, e.aid) : null, luck = target ? fxMult(target, "badLuck") : 1;
-    ch.outcomes.forEach(function (o, k) { w[k] = o.w * (o.bad ? (1 - st.facilities.pr * BAL.prBadCut) * luck : 1); });
+    var extBad = hookMult("eventBad", st, e, ev);   // 黑粉多的人，壞結果機率更高
+    ch.outcomes.forEach(function (o, k) { w[k] = o.w * (o.bad ? (1 - st.facilities.pr * BAL.prBadCut) * luck * extBad : 1); });
     var k = Number(wpick(st, w)), o = ch.outcomes[k];
     var fx = applyFx(st, e, o.fx);
-    log(st, auto ? "event_auto" : "event_resolved", { uid: uid, ev: e.id, aid: e.aid, choice: idx, outcome: k, fx: fx });
+    log(st, auto ? "event_auto" : "event_resolved", { uid: uid, ev: e.id, aid: e.aid, choice: idx, outcome: k, fx: fx, bad: !!o.bad });
     return { outcome: k, fx: fx, bad: o.bad };
   }
   function autoResolve(st, e) { resolveEvent(st, e.uid, D.EVENT_BY_ID[e.id].defaultChoice, true); }
@@ -1688,6 +1731,7 @@
     }
     timeline(st, "era", { era: st.era, carry: carry ? { rosterId: carry.rosterId, nameSeed: carry.nameSeed, gender: carry.gender } : null });
     log(st, "new_era", { era: st.era });
+    runHook("newEra", st, carry);   // 擴充：新紀元的日期從 0 開始，帶走的藝人身上的心願等時間戳要重設
     return null;
   }
 
@@ -1888,5 +1932,12 @@
   api.startProject = startProject;
   api.assignStage = assignStage;
   api.abortProject = abortProject;
+  api.hook = hook;
+  // 擴充模組用的內部函式（不是給 UI 用的）
+  api._int = {
+    rnd: rnd, rint: rint, pick: pick, wpick: wpick, clamp: clamp, clone: clone, newId: newId, log: log,
+    pushEvent: pushEvent, artistById: artistById, addRep: addRep, genJob: genJob, growStat: growStat, bumpStat: bumpStat,
+    recomputeCaps: recomputeCaps, dirById: dirById, topStat: topStat, trendMult: trendMult, fxList: fxList, tierUp: tierUp
+  };
   root.PriTestStarvCore = api;
 })();

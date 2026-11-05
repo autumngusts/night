@@ -61,7 +61,7 @@
   var ui = { screen: "home", room: null, edit: null, lastEv: 0, marks: [], localNames: null, cfg: null, help: false };
   var sess = null, stage = null, gameRefs = {}, panelSig = "", timerId = 0;
   var localPhotos = {}, localFigs = {};
-  var photoCache = { key: "", img: null }, figImgCache = {}, figRenderCache = {};
+  var photoCache = { key: "", img: null }, figImgCache = {}, figRenderCache = {}, imgSeq = 0;
 
   function defaultCfg() { return Core.normCfg(pref().cfg || {}); }
 
@@ -226,17 +226,17 @@
     if (!c || c.src !== f.img) {
       c = figImgCache[pid] = { src: f.img, img: null };
       var img = new Image();
-      img.onload = function () { if (figImgCache[pid] === c) { c.img = img; if (stage) stage.dirty = true; } };
+      img.onload = function () { if (figImgCache[pid] === c) { img._k = ++imgSeq; c.img = img; if (stage) stage.dirty = true; } };
       img.src = f.img;
     }
     return c.img;
   }
   function figCanvas(s, pid, outline) {
     var h = s.hide[pid], paint = paintOf(s, pid);
-    var key = s.round + ":" + (paint ? (paint.src ? paint.src.length : "c" + (paint._rev || 0)) : "none") + ":" + h.fig.p + ":" + h.fig.e + ":" + (outline || "");
+    var key = s.round + ":" + (paint ? (paint._k ? "i" + paint._k : "c" + (paint._rev || 0)) : "none") + ":" + h.fig.p + ":" + h.fig.e + ":" + (outline || "");
     var c = figRenderCache[pid];
     if (c && c.key === key) return c.cv;
-    var cv = F.render(paint, h.fig.p, h.fig.e, { outline: outline });
+    var cv = F.render(paint, h.fig.p, h.fig.e, { outline: outline, eyeSeed: F.seedOf(pid + ":" + s.round) });
     figRenderCache[pid] = { key: key, cv: cv };
     return cv;
   }
@@ -705,14 +705,37 @@
   function newEditor(pid, round, fig, ar, getPhoto, allowClone) {
     var E = {
       pid: pid, round: round, fig: fig, ar: ar, tab: "pose", tool: "brush", outline: true, camo: -1, camoAt: 0,
-      getPhoto: getPhoto, allowClone: allowClone, recent: [], pal: null, underKey: "", under: F.mk(F.PX)
+      getPhoto: getPhoto, allowClone: allowClone, recent: [], pal: null, underKey: "", under: F.mk(F.PX),
+      seed: F.seedOf(pid + ":" + round)
     };
-    E.painter = new F.Painter({ getUnderlay: function () { return underFor(E); } });
+    E.jitter = F.cloneJitter(E.seed);
+    E.srcOff = null; E.armSrc = false; E.heat = false;
+    E.painter = new F.Painter({
+      getUnderlay: function () { return underFor(E); },
+      getStamp: function () { return stampFor(E); },
+      getEnv: function () { return envFor(E); }
+    });
     return E;
+  }
+  // 取樣拓印的來源：把小人物「平移到取樣點」時身體底下的照片（取樣點跟著小人物一起移動）
+  function stampFor(E) {
+    if (!E.srcOff || !E.getPhoto()) return null;
+    var key = JSON.stringify(E.fig) + ":" + E.srcOff.join(",");
+    if (E.stampKey !== key) {
+      E.stampKey = key;
+      var f = Core.clone(E.fig); f.x += E.srcOff[0]; f.y += E.srcOff[1];
+      E.stampCv = F.underlay(E.getPhoto(), f, E.stampCv || F.mk(F.PX), E.jitter);
+    }
+    return E.stampCv;
+  }
+  function envFor(E) {
+    var u = underFor(E);
+    if (E.envKey !== E.underKey) { E.envKey = E.underKey; E.envCv = F.envLayer(u, E.envCv || F.mk(F.PX)); }
+    return E.envCv;
   }
   function underFor(E) {
     var key = JSON.stringify(E.fig) + ":" + (E.getPhoto() ? 1 : 0);
-    if (E.underKey !== key) { E.underKey = key; F.underlay(E.getPhoto(), E.fig, E.under); }
+    if (E.underKey !== key) { E.underKey = key; F.underlay(E.getPhoto(), E.fig, E.under, E.jitter); }
     return E.under;
   }
   var figSendT = 0;
@@ -741,6 +764,7 @@
     if (!force && (E.camoKey === key || Date.now() - E.camoAt < 350)) return;
     E.camoKey = key; E.camoAt = Date.now();
     E.camo = F.camoScore(E.painter.paint, photo, E.fig);
+    if (E.heat) { E.heatCv = F.camoHeat(E.painter.paint, photo, E.fig, E.heatCv || F.mk(F.PX)); if (stage) stage.dirty = true; }
     if (gameRefs.camo) setCamo(gameRefs.camo, E.camo);
     if (practiceRefs.camo) setCamo(practiceRefs.camo, E.camo);
   }
@@ -811,6 +835,7 @@
       refs.camo,
       tabs, body,
       el("label", { class: "mh-check" }, [el("input", { type: "checkbox", checked: E.outline ? true : null, onchange: function (e) { E.outline = e.target.checked; if (stage) stage.dirty = true; } }), " " + t("mh_show_outline")]),
+      el("label", { class: "mh-check", title: t("mh_heat_hint") }, [el("input", { type: "checkbox", "data-act": "heat", checked: E.heat ? true : null, onchange: function (e) { E.heat = e.target.checked; E.camoKey = ""; updateCamo(true); if (stage) stage.dirty = true; } }), " " + t("mh_heat")]),
       doneRow
     ].concat(o.extra || [])));
     if (o.doneList) {
@@ -856,7 +881,7 @@
   }
   function paintTab(E, changed, rebuild) {
     var P = E.painter;
-    var tools = D.TOOLS.filter(function (x) { return x.id !== "clone" || E.allowClone; });
+    var tools = D.TOOLS.filter(function (x) { return !x.photo || E.allowClone; });
     var toolGrid = el("div", { class: "mh-tools" }, tools.map(function (x) {
       return btn(el("span", null, [el("b", null, [x.icon]), el("small", null, [L(x.name)])]), function () { E.tool = x.id; P.tool = x.id; rebuild(); }, "mh-tool" + (E.tool === x.id ? " mh-on" : ""), { title: L(x.tip) });
     }));
@@ -897,6 +922,12 @@
       slider(t("mh_opacity"), 5, 100, 5, Math.round(P.opacity * 100), function (v) { P.opacity = v / 100; }, function (v) { return v + "%"; }),
       slider(t("mh_hardness"), 0, 100, 5, Math.round(P.hard * 100), function (v) { P.hard = v / 100; }, function (v) { return v + "%"; })
     ];
+    if (E.tool === "stamp") {
+      nodes.push(el("div", { class: "mh-stampbox" }, [
+        el("span", { class: "mh-small" + (E.srcOff ? "" : " mh-warn") }, [E.srcOff ? (E.armSrc ? t("mh_stamp_arm") : t("mh_stamp_ok")) : t("mh_stamp_need")]),
+        btn("🎯 " + t("mh_stamp_set"), function () { E.armSrc = true; rebuild(); }, "mh-btn mh-small" + (E.armSrc ? " mh-primary" : ""), { "data-act": "stamp-set" })
+      ]));
+    }
     if (E.tool === "pattern") {
       nodes.push(el("div", null, [el("h3", null, [t("mh_pattern")]), patSel]));
       nodes.push(slider(t("mh_pattern_scale"), 0.4, 3, 0.1, P.patScale, function (v) { P.patScale = v; }, function (v) { return Math.round(v * 100) + "%"; }));
@@ -914,7 +945,10 @@
       el("div", { class: "mh-actions" }, [
         adj("🪣 " + t("mh_fill_all"), function () { P.fillAll(); }),
         adj("🧩 " + t("mh_pattern_all"), function () { P.fillPattern(); }),
-        adj("🦎 " + t("mh_clone_all"), function () { cloneAll(E); }),
+        E.allowClone ? adj("🦎 " + t("mh_clone_all"), function () { cloneAll(E); }) : null,
+        adj("🎨 " + t("mh_match_tone"), function () { P.matchTone(underFor(E), E.fig.p, 0.85); }),
+        E.allowClone ? adj("🌗 " + t("mh_edge_blend"), function () { P.edgeBlend(underFor(E), E.fig.p, 6, 0.8); }) : null,
+        adj("🎯 " + t("mh_quantize"), function () { if (E.pal && E.pal.length) P.quantize(E.pal, 0.7); }),
         adj("🧽 " + t("mh_reset_base"), function () { P.clear(P.c1); })
       ]),
       el("div", { class: "mh-actions" }, [
@@ -949,6 +983,13 @@
     if (E.tab !== "paint") {
       if (Core.hitFig(E.fig, P[0], P[1], 10)) { dragFig = { dx: E.fig.x - P[0], dy: E.fig.y - P[1] }; return true; }
       return false;
+    }
+    if (E.tool === "stamp" && (E.armSrc || !E.srcOff || e.altKey)) {
+      E.srcOff = [P[0] - E.fig.x, P[1] - E.fig.y];
+      E.armSrc = false; E.stampKey = "";
+      toast(t("mh_stamp_ok"));
+      if (E.onRebuild) E.onRebuild();
+      return true;
     }
     if (E.tool === "picker" || e.altKey) {
       var col = stage.sample(P);
@@ -988,8 +1029,9 @@
     if (ui.screen === "practice" || (ui.screen === "game" && sess && sess.s && sess.s.phase === "hide")) {
       var E = ui.edit;
       if (E && (ui.screen === "practice" || amHiding())) {
-        var cv = F.render(E.painter.current(), E.fig.p, E.fig.e, { outline: E.outline ? "rgba(255,255,255,0.9)" : null, outlineW: 1.6 / Math.max(0.6, Core.figK(E.fig) * u / 1.6), into: E.liveCv || (E.liveCv = F.mk(F.PX)) });
+        var cv = F.render(E.painter.current(), E.fig.p, E.fig.e, { outline: E.outline ? "rgba(255,255,255,0.9)" : null, outlineW: 1.6 / Math.max(0.6, Core.figK(E.fig) * u / 1.6), into: E.liveCv || (E.liveCv = F.mk(F.PX)), eyeSeed: E.seed });
         F.place(g, cv, E.fig);
+        if (E.heat && E.heatCv) F.place(g, E.heatCv, E.fig);
       }
       return;
     }
@@ -999,7 +1041,18 @@
       F.place(g, figCanvas(s, d.pid, d.mine && s.phase === "seek" ? "rgba(255,255,255,0.85)" : null), d.fig);
     });
   }
+  // 取樣拓印的取樣點（十字準星，跟著小人物移動）
+  function editOverlay(g, st) {
+    var E = ui.edit;
+    if (!E || !E.srcOff || E.tool !== "stamp" || E.tab !== "paint" || !editActive()) return;
+    var p = st.toScreen(E.fig.x + E.srcOff[0], E.fig.y + E.srcOff[1]);
+    g.strokeStyle = "#fff"; g.lineWidth = 3;
+    g.beginPath(); g.arc(p[0], p[1], 10, 0, Math.PI * 2); g.moveTo(p[0] - 16, p[1]); g.lineTo(p[0] + 16, p[1]); g.moveTo(p[0], p[1] - 16); g.lineTo(p[0], p[1] + 16); g.stroke();
+    g.strokeStyle = "#ff3d7f"; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(p[0], p[1], 10, 0, Math.PI * 2); g.moveTo(p[0] - 16, p[1]); g.lineTo(p[0] + 16, p[1]); g.moveTo(p[0], p[1] - 16); g.lineTo(p[0], p[1] + 16); g.stroke();
+  }
   function drawOverlay(g, st) {
+    editOverlay(g, st);
     if (ui.screen !== "game" || !sess || !sess.s) return;
     var s = sess.s, nowT = Date.now();
     figsToDraw().forEach(function (d) {
@@ -1155,6 +1208,7 @@
     stage = new Stage({
       ar: function () { return pr.ar; }, photo: function () { return pr.photo; },
       draw: drawWorld, overlay: function (g, st) {
+        editOverlay(g, st);
         if (!pr.reveal) return;
         var c = st.toScreen(ui.edit.fig.x, ui.edit.fig.y), r = Math.max(14, Core.figK(ui.edit.fig) * 58 * st.unit());
         g.strokeStyle = "#ffd23f"; g.lineWidth = 3; g.beginPath(); g.arc(c[0], c[1], r, 0, Math.PI * 2); g.stroke();
@@ -1170,7 +1224,7 @@
   }
   function startPractice(photo, ar) {
     ui.practice = { photo: photo, ar: ar, reveal: false };
-    ui.edit = newEditor("me", 1, Core.defaultFig(ar, Math.floor(Math.random() * 20)), ar, function () { return ui.practice && ui.practice.photo; }, true);
+    ui.edit = newEditor("me" + Math.floor(Math.random() * 1e6), 1, Core.defaultFig(ar, Math.floor(Math.random() * 20)), ar, function () { return ui.practice && ui.practice.photo; }, true);
     render();
   }
   function renderPracticeSide() {
