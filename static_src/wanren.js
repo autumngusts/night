@@ -38,7 +38,7 @@
   function money(n) { return "¥" + Math.round(n).toLocaleString(); }
   function hex(c) { return "#" + ("000000" + c.toString(16)).slice(-6); }
   function hname(hid) { return L(D.HEROINE_BY_ID[hid].name); }
-  var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a", kouhai: "#4fb0a0", friend: "#5ea84a", bestie: "#d4553e" };
+  var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a", kouhai: "#4fb0a0", friend: "#5ea84a", bestie: "#d4553e", fanclub: "#d0569f" };
 
   var S = null;   // 遊戲狀態
   var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "full", name: "" };
@@ -64,6 +64,7 @@
     V3.load().then(function () {
       try {
         view = V3.create(stage3d, {
+          drawPhoto: photoCanvas,
           onPick: function (hid) { ui.focus = hid; if (S && S.phase === "free") render(); },
           onLocation: function (loc) {
             if (ui.loc === loc) return;
@@ -132,7 +133,8 @@
         if (!loc) return;
         var h = S.h[hd.id];
         var hearts = h.dating ? "💕" : h.aff >= 80 ? "❤❤❤" : h.aff >= 60 ? "❤❤" : h.aff >= 40 ? "❤" : "";
-        list.push({ id: hd.id, loc: loc, label: h.met ? hname(hd.id) : "？？？", sub: h.met ? C.stageName(S, hd.id) + (hearts ? " " + hearts : "") : L(D.GROUPS.filter(function (g) { return g.id === hd.group; })[0].name), color: GROUP_COLOR[hd.group] });
+        var pf = C.photoOf(S.seed, hd.id);
+        list.push({ id: hd.id, loc: loc, photo: pf ? photoUrl(pf) : null, sil: !h.met, label: h.met ? hname(hd.id) : "？？？", sub: h.met ? C.stageName(S, hd.id) + (hearts ? " " + hearts : "") : L(D.GROUPS.filter(function (g) { return g.id === hd.group; })[0].name), color: GROUP_COLOR[hd.group] });
       });
     }
     var sig = JSON.stringify(list);
@@ -285,57 +287,87 @@
     D.GROUPS.forEach(function (g) {
       cast.appendChild(el("h3", { style: "color:" + GROUP_COLOR[g.id] }, [L(g.name)]));
       var row = el("div", { class: "wr-cast-row" });
-      D.HEROINES.filter(function (hd) { return hd.group === g.id; }).forEach(function (hd) {
+      D.HEROINES.filter(function (hd) { return hd.group === g.id && !hd.dyn; }).forEach(function (hd) {
         var secret = hd.hidden && !meta.ach.hiyori;   // 隱藏女主角：解鎖前只顯示剪影
-        row.appendChild(el("div", { class: "wr-cast-card" + (secret ? " secret" : "") }, [face(hd, 44), el("div", {}, [el("b", {}, [secret ? "？？？" : L(hd.name)]), el("div", { class: "wr-small wr-muted" }, [secret ? t("wr_hidden_hint") : L(hd.title)])])]));
+        row.appendChild(el("div", { class: "wr-cast-card" + (secret ? " secret" : "") }, [face(hd, 44, null, secret ? "sil" : true), el("div", {}, [el("b", {}, [secret ? "？？？" : L(hd.name)]), el("div", { class: "wr-small wr-muted" }, [secret ? t("wr_hidden_hint") : L(hd.title)])])]));
       });
       cast.appendChild(row);
     });
     panelEl.appendChild(section(t("wr_cast"), [cast]));
   }
   // 頭像：2026-11-05 使用者指定改用時間管理大師（jikan）的女生照片，每次重開遊戲亂數打亂。
-  // 照片池＝images/jikan/g_000〜g_142、n_000〜n_031。以 S.seed 洗牌：同一場（含讀檔）固定，新遊戲換一組。
+  // 照片的分配在 core（C.photoOf：以 S.seed 洗牌，同一場含讀檔固定）。標題畫面還沒開始遊戲時用每次載入的隨機種子。
+  // 還沒認識的人顯示剪影（剪影尋人），認識之後才看得到照片。
   var IMG_BASE = app.getAttribute("data-img") || "../static/images/jikan/";
-  var PHOTO_POOL = (function () {
-    var a = [], i;
-    for (i = 0; i < 143; i++) a.push("g_" + ("00" + i).slice(-3));
-    for (i = 0; i < 32; i++) a.push("n_" + ("00" + i).slice(-3));
-    return a;
-  })();
-  var titleSeed = Math.floor(Math.random() * 2147483647) | 0;   // 還沒開始遊戲時（標題畫面）用的種子
-  var photoCache = { seed: null, byHid: {}, rest: [] };
-  function photoRng(seed) {   // mulberry32
-    var x = seed | 0;
-    return function () { x = (x + 0x6D2B79F5) | 0; var r = Math.imul(x ^ (x >>> 15), 1 | x); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+  var titleSeed = Math.floor(Math.random() * 2147483647) | 0;
+  function curSeed() { return S ? S.seed : titleSeed; }
+  function photoUrl(file) { return IMG_BASE + file + ".webp"; }
+  // 剪影：從邊緣把白色背景去掉，其餘改成深紫色的雙色調（結果快取起來，3D 名牌也共用）
+  var photoJobs = {};
+  function photoCanvas(url, sil, cb) {
+    var key = url + (sil ? "|s" : ""), job = photoJobs[key];
+    if (job && job.done) { cb(job.out); return; }
+    if (job) { job.q.push(cb); return; }
+    job = photoJobs[key] = { done: false, q: [cb], out: null };
+    var img = new Image();
+    img.onload = function () {
+      var out = img;
+      if (sil) {
+        var N = 128, c = document.createElement("canvas"); c.width = N; c.height = N;
+        var g = c.getContext("2d");
+        g.drawImage(img, 0, 0, N, N);
+        try {
+          var id = g.getImageData(0, 0, N, N), d = id.data, seen = new Uint8Array(N * N), stack = [], i, k;
+          var white = function (p) { return d[p * 4] > 222 && d[p * 4 + 1] > 222 && d[p * 4 + 2] > 222; };
+          for (i = 0; i < N; i++) stack.push(i, (N - 1) * N + i, i * N, i * N + N - 1);
+          while (stack.length) {
+            k = stack.pop();
+            if (seen[k] || !white(k)) continue;
+            seen[k] = 1;
+            var x = k % N, y = (k / N) | 0;
+            if (x > 0) stack.push(k - 1); if (x < N - 1) stack.push(k + 1); if (y > 0) stack.push(k - N); if (y < N - 1) stack.push(k + N);
+          }
+          for (k = 0; k < N * N; k++) {
+            if (seen[k]) d[k * 4 + 3] = 0;
+            else {
+              // 雙色調暗影：保留明暗（看得出髮型、輪廓），看不出顏色
+              var lu = Math.pow((d[k * 4] * 0.3 + d[k * 4 + 1] * 0.59 + d[k * 4 + 2] * 0.11) / 255, 1.3);
+              d[k * 4] = 28 + lu * 120; d[k * 4 + 1] = 20 + lu * 110; d[k * 4 + 2] = 48 + lu * 140; d[k * 4 + 3] = 255;
+            }
+          }
+          g.putImageData(id, 0, 0);
+        } catch (e) { g.globalCompositeOperation = "source-in"; g.fillStyle = "#3a2a4a"; g.fillRect(0, 0, N, N); }
+        out = c;
+      }
+      job.done = true; job.out = out;
+      job.q.forEach(function (f) { f(out); }); job.q = [];
+    };
+    img.onerror = function () { delete photoJobs[key]; };
+    img.src = url;
   }
-  function photos() {
-    var seed = S ? S.seed : titleSeed;
-    if (photoCache.seed === seed) return photoCache;
-    var rnd = photoRng(seed ^ 0x5eed1234), pool = PHOTO_POOL.slice(), i, j, tmp;
-    for (i = pool.length - 1; i > 0; i--) { j = Math.floor(rnd() * (i + 1)); tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
-    var byHid = {};
-    D.HEROINES.forEach(function (hd, k) { byHid[hd.id] = pool[k % pool.length]; });
-    photoCache = { seed: seed, byHid: byHid, rest: pool.slice(D.HEROINES.length).length ? pool.slice(D.HEROINES.length) : pool };
-    return photoCache;
-  }
-  function strHash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-  function photoImg(file, size, fallback) {
+  function photoImg(file, size, fallback, sil) {
     var s = size || 40;
-    var im = el("img", { class: "wr-face wr-face-photo", src: IMG_BASE + file + ".webp", alt: "", width: s, height: s, loading: "lazy", style: "width:" + s + "px;height:" + s + "px" });
+    if (sil) {
+      var c = el("canvas", { class: "wr-face wr-face-photo wr-face-sil", width: s * 2, height: s * 2, style: "width:" + s + "px;height:" + s + "px", "aria-label": "？" });
+      photoCanvas(photoUrl(file), true, function (cv) { var g = c.getContext("2d"); if (g) { g.clearRect(0, 0, s * 2, s * 2); g.drawImage(cv, 0, 0, s * 2, s * 2); } });
+      return c;
+    }
+    var im = el("img", { class: "wr-face wr-face-photo", src: photoUrl(file), alt: "", width: s, height: s, loading: "lazy", style: "width:" + s + "px;height:" + s + "px" });
     im.addEventListener("error", function () { if (im.parentNode) im.parentNode.replaceChild(fallback(), im); });
     return im;
   }
-  function face(hd, size, look) {
+  // reveal：一律顯示照片（標題、回憶錄等跨存檔的畫面）
+  function face(hd, size, look, reveal) {
     if (!hd) return drawnFace(hd, size, look);
-    var file = photos().byHid[hd.id];
+    var file = C.photoOf(curSeed(), hd.id);
     if (!file) return drawnFace(hd, size, look);
-    return photoImg(file, size, function () { return drawnFace(hd, size, look); });
+    var sil = reveal === "sil" || (!reveal && S && ui.screen !== "title" && S.h[hd.id] && !S.h[hd.id].met);
+    return photoImg(file, size, function () { return drawnFace(hd, size, look); }, sil);
   }
   // 迷妹頭像：特別迷妹沿用該女主角的照片，其餘從剩下的照片依名字挑一張
   function admirerFace(a, size, look) {
-    if (a.special && D.HEROINE_BY_ID[a.special]) return face(D.HEROINE_BY_ID[a.special], size, look);
-    var P = photos(), file = P.rest[strHash(String(a.name || "") + "|" + (a.role || "") + "|" + P.seed) % P.rest.length];
-    return photoImg(file, size, function () { return drawnFace(null, size, look); });
+    if (a.special && D.HEROINE_BY_ID[a.special]) return face(D.HEROINE_BY_ID[a.special], size, look, true);
+    return photoImg(C.photoOfAdmirer(curSeed(), a.name, a.role), size, function () { return drawnFace(null, size, look); });
   }
   // 備用頭像（照片載入失敗時用 3D 外觀的配色畫一個小圓臉）
   function drawnFace(hd, size, look) {
@@ -365,6 +397,7 @@
   function renderEvent() {
     var ev = S.events[0], v = C.eventView(S, ev);
     panelEl.appendChild(section(v.title, [
+      ev.type === "fanPromote" ? el("div", { class: "wr-ev-face" }, [admirerFace({ name: ev.who, role: ev.role }, 64, { hair: ev.hair || 0x2a1e1a })]) :
       ev.hid ? el("div", { class: "wr-ev-face" }, [face(D.HEROINE_BY_ID[ev.hid], 64)]) : ev.type === "shura" ? el("div", { class: "wr-ev-face" }, [face(D.HEROINE_BY_ID[ev.a], 56), el("span", { class: "wr-vs" }, ["⚡"]), face(D.HEROINE_BY_ID[ev.b], 56)]) : null,
       el("p", { class: "wr-ev-text" }, v.text.split("\n").map(function (ln, i) { return i ? el("span", { class: "wr-ev-line" }, [ln]) : ln; })),
       el("div", { class: "wr-col" }, v.opts.map(function (o, i) { return btn(o, function () { act(function () { return C.resolveEvent(S, i); }); }, "wr-btn wr-btn-opt"); }))
@@ -442,6 +475,19 @@
     if (mu && !mu.done) {
       var used = S.today.apMax - S.today.ap;
       panelEl.appendChild(el("div", { class: "wr-special wr-meetup" + (used > mu.by ? " late" : "") }, ["⏰ " + t(used > mu.by ? "wr_meetup_late" : "wr_meetup", { n: hname(mu.hid), l: L(D.LOC_BY_ID[mu.loc].name), k: Math.max(0, mu.by - used) })]));
+    }
+    // 剪影尋人（2026-11-05）
+    var hu = S.today.hunt, huHd = hu && D.HEROINE_BY_ID[hu.hid];
+    if (huHd) {
+      var huG = D.GROUPS.filter(function (g) { return g.id === huHd.group; })[0];
+      panelEl.appendChild(el("div", { class: "wr-hunt" + (hu.done ? " done" : "") }, [
+        photoImg(C.photoOf(S.seed, hu.hid), 52, function () { return drawnFace(huHd, 52); }, !hu.done),
+        el("div", {}, [
+          el("b", {}, [hu.done ? "✅ " + t("wr_hunt_done", { n: hname(hu.hid) }) : "🔍 " + t("wr_hunt")]),
+          hu.done ? null : el("div", { class: "wr-small" }, [t("wr_hunt_hint", { g: huG ? L(huG.name) : "", l: hu.loc ? L(D.LOC_BY_ID[hu.loc].name) : "？" })]),
+          hu.done ? null : el("div", { class: "wr-small wr-muted" }, [t("wr_hunt_reward")])
+        ])
+      ]));
     }
     if (!loc) {
       panelEl.appendChild(el("p", { class: "wr-small wr-muted" }, [view ? t("wr_free_hint3d") : t("wr_free_hint")]));
@@ -609,7 +655,7 @@
       }
       var spots = el("div", { class: "wr-grid2" });
       C.dateSpots(S).forEach(function (sp) {
-        spots.appendChild(btn(el("span", {}, [el("b", {}, [sp.icon + " " + L(sp.name)]), el("small", {}, [sp.cost ? money(sp.cost) : t("wr_free_cost")])]), function () {
+        spots.appendChild(btn(el("span", {}, [el("b", {}, [sp.icon + " " + L(sp.name) + (C.outfitFits(S, sp.id) ? " 👔" : "")]), el("small", {}, [(sp.cost ? money(sp.cost) : t("wr_free_cost")) + (C.outfitFits(S, sp.id) ? "・" + t("wr_date_fit") : "")])]), function () {
           var r = C.startDate(S, sp.id);
           if (r && r.error) say([r.error]);
           save(); render();
@@ -620,6 +666,7 @@
         el("p", { class: "wr-small wr-muted" }, [t("wr_date_pick")]),
         C.specialEvening(S) ? el("p", { class: "wr-small wr-special" }, [t("wr_date_special", { e: C.specialEvening(S).title })]) : null,
         spots,
+        outfitRow(),
         el("div", { class: "wr-row" }, [btn("🙇 " + t("wr_date_cancel"), function () { if (window.confirm(t("wr_date_cancel_confirm"))) act(function () { return C.cancelDate(S); }); }, "wr-btn wr-btn-ghost")])
       ]));
       return;
@@ -633,6 +680,20 @@
           return btn(el("span", { class: "wr-pickface" }, [face(hd, 40), L(hd.name)]), function () { act(function () { return C.festDance(S, hd.id); }); }, "wr-btn wr-btn-card");
         })) : el("p", { class: "wr-muted wr-small" }, [t("wr_fest_none")])
       ]));
+    }
+    if (ui.eveningPick === "sns") {
+      var lv = C.loversOf(S), posts = el("div", { class: "wr-grid2" });
+      D.SNS_POSTS.forEach(function (p) {
+        var go = function (arg) { return function () { ui.eveningPick = null; act(function () { return C.doEvening(S, "sns", arg); }); }; };
+        if (p.need === "lover") {
+          if (!lv.length) posts.appendChild(btn(el("span", {}, [el("b", {}, [p.icon + " " + L(p.name)]), el("small", {}, [t("wr_sns_lover_none")])]), null, "wr-btn wr-btn-card", { disabled: true }));
+          lv.forEach(function (hid) { posts.appendChild(btn(el("span", { class: "wr-pickface" }, [face(D.HEROINE_BY_ID[hid], 32), el("span", {}, [el("b", {}, [p.icon + " " + L(p.name) + "：" + hname(hid)]), el("small", {}, [p.note])])]), go("lover:" + hid), "wr-btn wr-btn-card")); });
+          return;
+        }
+        posts.appendChild(btn(el("span", {}, [el("b", {}, [p.icon + " " + L(p.name) + (S.lastPost === p.id ? "（" + t("wr_sns_again") + "）" : "")]), el("small", {}, [p.note])]), go(p.id), "wr-btn wr-btn-card", { disabled: p.need === "club" && !S.club }));
+      });
+      panelEl.appendChild(section("📱 " + t("wr_sns_pick", { n: S.sns.toLocaleString() }), [posts, btn(t("wr_back"), function () { ui.eveningPick = null; render(); }, "wr-btn wr-btn-ghost")]));
+      return;
     }
     if (ui.eveningPick === "message") {
       var tg = D.HEROINES.filter(function (hd) { return S.h[hd.id].met && S.h[hd.id].aff >= 20; });
@@ -648,7 +709,7 @@
       el("div", { class: "wr-grid2" }, D.EVENING_OPTS.map(function (o) {
         var dis = o.eff.money < 0 && S.stats.money < -o.eff.money;
         return btn(el("span", {}, [el("b", {}, [o.icon + " " + L(o.name)]), el("small", {}, [o.note])]), function () {
-          if (o.id === "message") { ui.eveningPick = "message"; render(); return; }
+          if (o.id === "message" || o.id === "sns") { ui.eveningPick = o.id; render(); return; }
           act(function () { return C.doEvening(S, o.id); });
         }, "wr-btn wr-btn-card", { disabled: dis });
       })),
@@ -785,8 +846,33 @@
         var h = S.h[hid];
         return el("li", {}, [hname(hid) + "：" + L(D.REL_STAGES[h.rel || 1].name) + "（" + t("wr_since", { n: Math.max(0, S.day - h.since) }) + "）"]);
       })) : el("p", { class: "wr-muted" }, [t("wr_no_lovers")]),
-      el("p", { class: "wr-small wr-muted" }, [t("wr_rel_note")])
+      el("p", { class: "wr-small wr-muted" }, [t("wr_rel_note")]),
+      // 2026-11-05 擴充：SNS、尋人、傳聞、穿搭、房間
+      el("h3", {}, ["📱 " + t("wr_me_more")]),
+      el("p", { class: "wr-small" }, [t("wr_me_stats", { f: S.sns.toLocaleString(), p: S.snsPosts, h: S.hunts, g: S.rumorGood, b: S.rumorBad, c: S.polaroids })]),
+      el("h3", {}, ["👔 " + t("wr_outfit")]),
+      el("div", { class: "wr-shop" }, D.OUTFITS.map(function (o) {
+        var have = !!S.outfits[o.id], on = S.outfit === o.id;
+        return el("div", { class: "wr-shop-item" + (on ? " on" : "") }, [el("span", { class: "wr-shop-icon" }, [o.icon]), el("span", {}, [el("b", {}, [L(o.name)]), el("small", {}, [o.note + (have ? "" : "・" + money(o.price))])]),
+          btn(on ? t("wr_outfit_wearing") : have ? t("wr_outfit_wear") : t("wr_buy"), function () { shopAct(C.buyOutfit(S, o.id)); }, "wr-btn wr-btn-sm", { disabled: on || (!have && S.stats.money < o.price) })]);
+      })),
+      el("h3", {}, ["🏠 " + t("wr_room", { n: C.comfort(S) })]),
+      el("p", { class: "wr-small wr-muted" }, [t("wr_room_note", { n: D.ROOM_VISIT.need })]),
+      el("div", { class: "wr-shop" }, D.FURNITURE.map(function (f) {
+        var have = !!S.room[f.id];
+        return el("div", { class: "wr-shop-item" + (have ? " on" : "") }, [el("span", { class: "wr-shop-icon" }, [f.icon]), el("span", {}, [el("b", {}, [L(f.name)]), el("small", {}, [f.note + (have ? "" : "・" + money(f.price))])]),
+          btn(have ? t("wr_room_have") : t("wr_buy"), function () { shopAct(C.buyFurniture(S, f.id)); }, "wr-btn wr-btn-sm", { disabled: have || S.stats.money < f.price })]);
+      }))
     ]);
+  }
+  function shopAct(r) { if (r) { achievementToast(); save(); renderTop(); renderModal(); if (S.phase === "evening") render(); } }
+  // 約會前換穿搭（有兩套以上才顯示）
+  function outfitRow() {
+    var own = D.OUTFITS.filter(function (o) { return S.outfits[o.id]; });
+    if (own.length < 2) return el("p", { class: "wr-small wr-muted" }, [t("wr_date_outfit_hint")]);
+    return el("div", { class: "wr-row" }, [el("span", { class: "wr-small" }, ["👔 " + t("wr_outfit") + "："])].concat(own.map(function (o) {
+      return btn(o.icon + " " + L(o.name), function () { C.buyOutfit(S, o.id); save(); render(); }, "wr-btn wr-btn-sm" + (S.outfit === o.id ? " on" : ""));
+    })));
   }
   function clubView() {
     return el("div", {}, [el("h2", {}, ["🎪 " + t("wr_club")]),
@@ -803,7 +889,7 @@
   // 回憶錄：成就、回憶、結局、稱號（第 8 項；跨存檔）
   function albumView(tab) {
     var meta = C.loadMeta();
-    var tabs = el("div", { class: "wr-seg" }, [["ach", "wr_album_ach"], ["mem", "wr_album_mem"], ["end", "wr_album_end"], ["title", "wr_album_title"]].map(function (x) {
+    var tabs = el("div", { class: "wr-seg" }, [["ach", "wr_album_ach"], ["photo", "wr_album_photo"], ["pol", "wr_album_pol"], ["mem", "wr_album_mem"], ["end", "wr_album_end"], ["title", "wr_album_title"]].map(function (x) {
       return btn(t(x[1]), function () { ui.modal = { type: "album", tab: x[0] }; renderModal(); }, "wr-seg-btn" + (tab === x[0] ? " on" : ""));
     }));
     var body;
@@ -814,6 +900,26 @@
           var on = !!meta.ach[a.id];
           return el("div", { class: "wr-ach-item" + (on ? " on" : "") }, [el("span", { class: "wr-ach-icon" }, [on ? a.icon : "🔒"]), el("span", {}, [el("b", {}, [a.name]), el("small", {}, [a.desc])])]);
         }))]);
+    } else if (tab === "photo") {
+      // 照片圖鑑：175 張，認識過的人才會解鎖；同一張照片每一輪扮演的人不同
+      var ph = meta.ph || {}, files = C.PHOTO_POOL;
+      var pgot = files.filter(function (f) { return ph[f]; }).length, plov = files.filter(function (f) { return ph[f] && ph[f].l.length; }).length;
+      body = el("div", {}, [el("p", {}, [t("wr_photo_progress", { a: pgot, b: files.length, c: plov })]), el("p", { class: "wr-small wr-muted" }, [t("wr_photo_note")]),
+        el("div", { class: "wr-photos" }, files.map(function (f) {
+          var e = ph[f];
+          return el("div", { class: "wr-photo" + (e ? " on" : "") + (e && e.l.length ? " lover" : ""), title: e ? e.n.join("、") + "・" + t("wr_aff") + " " + e.a : "？" }, [
+            photoImg(f, 60, function () { return el("span", {}, ["？"]); }, !e),
+            el("small", {}, [e ? e.n[e.n.length - 1] : "？？？"]),
+            e && e.l.length ? el("i", {}, ["💕" + (e.l.length > 1 ? "×" + e.l.length : "")]) : null
+          ]);
+        }))]);
+    } else if (tab === "pol") {
+      var pols = meta.pol || [];
+      body = pols.length ? el("div", { class: "wr-pols" }, pols.map(function (p) {
+        var sp = D.DATE_BY_ID[p.spot];
+        return el("div", { class: "wr-pol" }, [p.file ? photoImg(p.file, 96, function () { return el("span", {}, ["📸"]); }) : el("span", {}, ["📸"]),
+          el("b", {}, [p.name]), el("small", {}, [(sp ? sp.icon + " " + L(sp.name) + "・" : "") + p.date])]);
+      })) : el("p", { class: "wr-muted" }, [t("wr_pol_empty")]);
     } else if (tab === "mem") {
       var ids = Object.keys(meta.mem).sort(function (a, b) { return meta.mem[b].at - meta.mem[a].at; });
       body = ids.length ? el("div", { class: "wr-mem" }, ids.map(function (id) {
@@ -822,9 +928,9 @@
       })) : el("p", { class: "wr-muted" }, [t("wr_album_empty")]);
     } else if (tab === "end") {
       var names = { lover4: t("wr_end_lover4"), lover: t("wr_end_lover"), high: t("wr_end_high"), mid: t("wr_end_mid") };
-      body = el("div", { class: "wr-people" }, D.HEROINES.map(function (hd) {
+      body = el("div", { class: "wr-people" }, D.HEROINES.filter(function (hd) { return !hd.dyn; }).map(function (hd) {
         var e = meta.endings[hd.id], secret = hd.hidden && !meta.ach.hiyori;
-        return el("div", { class: "wr-person" + (e === "lover4" || e === "lover" ? " lover" : "") + (secret ? " secret" : "") }, [face(hd, 40), el("span", {}, [el("b", {}, [secret ? "？？？" : L(hd.name)]), el("small", {}, [e ? names[e] : t("wr_end_none")])])]);
+        return el("div", { class: "wr-person" + (e === "lover4" || e === "lover" ? " lover" : "") + (secret ? " secret" : "") }, [face(hd, 40, null, secret ? "sil" : true), el("span", {}, [el("b", {}, [secret ? "？？？" : L(hd.name)]), el("small", {}, [e ? names[e] : t("wr_end_none")])])]);
       }));
     } else {
       body = el("div", {}, D.TITLES.map(function (ti) {
@@ -934,6 +1040,11 @@
       });
       wrap.appendChild(row);
     });
+    // 傳聞網路（2026-11-05）
+    wrap.appendChild(el("h3", {}, ["📣 " + t("wr_rumor_log")]));
+    wrap.appendChild(S.rumorLog.length ? el("ul", { class: "wr-bag wr-rumors" }, S.rumorLog.map(function (r) {
+      return el("li", { class: r.good ? "wr-good" : "wr-bad" }, [(r.good ? "😊 " : "😠 ") + C.dateLabel(S, r.day) + "：" + r.text]);
+    })) : el("p", { class: "wr-small wr-muted" }, [t("wr_rumor_none")]));
     return wrap;
   }
   function profileView(hid) {
@@ -952,6 +1063,10 @@
       ])]),
       h.met ? el("p", {}, [hd.intro]) : el("p", { class: "wr-muted" }, [t("wr_not_met_yet")]),
       h.met ? el("div", { class: "wr-small" }, ["📍 " + t("wr_today") + "：" + (where ? L(D.LOC_BY_ID[where].name) : t("wr_absent"))]) : null,
+      h.met ? el("div", { class: "wr-prof-row" }, [el("b", {}, ["📣 " + t("wr_circle")]), (function () {
+        var cs = C.circleOf(hid).filter(function (x) { return C.available(S, x); });
+        return cs.length ? el("span", {}, cs.map(function (x) { return el("span", { class: "wr-tag" }, [S.h[x].met ? hname(x) : "？？？"]); })) : el("span", { class: "wr-muted wr-small" }, [t("wr_circle_none")]);
+      })()]) : null,
       h.met ? el("div", { class: "wr-prof-row" }, [el("b", {}, [t("wr_known_topics")]), known(h.known.topics, D.TOPIC_BY_ID, function (k) { return L(D.TOPIC_BY_ID[k].name); })]) : null,
       h.met ? el("div", { class: "wr-prof-row" }, [el("b", {}, [t("wr_known_gifts")]), known(h.known.gifts, D.ITEM_BY_ID, function (k) { return D.ITEM_BY_ID[k].icon + L(D.ITEM_BY_ID[k].name); })]) : null,
       h.met ? el("div", {}, [el("h3", {}, ["📜 " + t("wr_quest")]), el("ol", { class: "wr-qlist" }, hd.quests.map(function (q, i) {

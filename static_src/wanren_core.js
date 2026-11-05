@@ -72,8 +72,9 @@
       att: { ok: 0, total: 0 }, exams: [],
       h: {}, inv: {},
       fans: 0, admirersTotal: 0, ignored: 0, rejected: 0, contacts: 0, shura: 0, dates: 0, breakups: 0,
-      pool: [], events: [], flags: {}, history: [], today: null, summary: null
+      pool: [], events: [], flags: {}, history: [], today: null, summary: null, promoted: []
     };
+    registerDyn(s);   // 上一場轉正的迷妹要先移除
     ensureFields(s);
     // 二周目：繼承上一輪的部分專長與魅力，隱藏女主角會出現（第 12 項）
     var meta = loadMeta();
@@ -100,7 +101,13 @@
     });
     if (!s.skills) s.skills = { cook: 0, sport: 0, art: 0, music: 0, talk: 0 };
     if (s.club === undefined) s.club = null;
-    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
+    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
+    // 2026-11-05 擴充：轉正的迷妹、傳聞紀錄、穿搭、房間
+    if (!s.promoted) s.promoted = [];
+    if (!s.rumorLog) s.rumorLog = [];
+    if (!s.outfits) s.outfits = { casual: 1 };
+    if (!s.outfit) s.outfit = "casual";
+    if (!s.room) s.room = {};
     if (!s.newAch) s.newAch = [];
     return s;
   }
@@ -137,7 +144,7 @@
     // 主要女主角＝原本的 15 人；追加的 50 人（ext）另外算
     var mains = D.HEROINES.filter(function (hd) { return !hd.hidden && !hd.ext; });
     var met = mains.filter(function (hd) { return s.h[hd.id].met; }).length;
-    var everyone = D.HEROINES.filter(function (hd) { return !hd.hidden; });
+    var everyone = D.HEROINES.filter(function (hd) { return !hd.hidden && !hd.dyn; });
     var metAll = everyone.filter(function (hd) { return s.h[hd.id].met; }).length;
     var lovers = loversOf(s).length;
     var maxRel = D.HEROINES.reduce(function (a, hd) { return Math.max(a, s.h[hd.id].rel || 0); }, 0);
@@ -168,6 +175,22 @@
     if (s.meetupOk >= 10) unlock(s, "meetup10");
     if (s.storySeen >= 10) unlock(s, "story10");
     if (s.flags.hiyori) unlock(s, "hiyori");
+    // 2026-11-05 擴充：照片圖鑑（meta.ph）與新玩法的成就
+    var m = loadMeta();
+    if (recordPhotos(s, m)) saveMeta(m);
+    var ph = m.ph || {}, phN = Object.keys(ph).length;
+    if (phN >= 30) unlock(s, "photo30");
+    if (phN >= 100) unlock(s, "photo100");
+    if (phN >= PHOTO_POOL.length) unlock(s, "photoAll");
+    if (Object.keys(ph).some(function (k) { return ph[k].l.length >= 2; })) unlock(s, "photoFate");
+    if (s.promoted.length) unlock(s, "fanUp");
+    if (loversOf(s).some(function (hid) { return D.HEROINE_BY_ID[hid].dyn; })) unlock(s, "fanLover");
+    if (s.hunts >= 10) unlock(s, "hunt10");
+    if (s.rumorGood >= 15) unlock(s, "rumorGood");
+    if (D.FURNITURE && D.FURNITURE.every(function (f) { return s.room[f.id]; })) unlock(s, "roomFull");
+    if (D.OUTFITS && D.OUTFITS.every(function (o) { return s.outfits[o.id]; })) unlock(s, "outfitAll");
+    if ((m.pol || []).length >= 20) unlock(s, "polaroid20");
+    if (s.sns >= 1000) unlock(s, "sns1000");
     return takeNewAchievements(s);
   }
   // 隱藏女主角要解鎖後才會出現
@@ -190,6 +213,7 @@
     h.dating = false; h.rel = 0; h.since = -1;
     s.breakups++;
     if (out && line) out.push(line);
+    rumor(s, hid, false, "和" + name(hid) + "分手了", out);
   }
 
   // ---------------- 專長（第 6 項） ----------------
@@ -419,8 +443,9 @@
     s.today = {
       kind: kind, ap: 0, apMax: 0, apBonus: 0, talked: {}, gifted: {}, invited: {}, pairs: {}, quests: {},
       date: null, dateRun: null, flirt: 0, log: [], admirers: genAdmirers(s), festDance: null,
-      combo: {}, enc: 0, meetup: null, clubDone: false, weather: weather(s), examWeek: examWeek(s)
+      combo: {}, enc: 0, meetup: null, clubDone: false, weather: weather(s), examWeek: examWeek(s), hunt: null
     };
+    s.today.hunt = genHunt(s);   // 剪影尋人
     s.flags.pose = false;
     dayEvents(s, kind);
     // 隨機事件（有修羅場時優先）。2026-11-03 使用者要求事件更頻繁：0.38 → 0.55，另有 15% 再多一件
@@ -438,6 +463,7 @@
   function genAdmirers(s) {
     var c = s.stats.charm;
     var n = 2 + (rand(s) < 0.5 ? 1 : 0) + (c >= 45 ? 1 : 0) + (c >= 75 ? 1 : 0) + (s.flags.pose ? 1 : 0);
+    if (s.outfit === "street" && rand(s) < 0.4) n += 1;   // 街頭潮流穿搭
     if (s.day === 0) n = 3;
     var w = weather(s);
     if (w === "rain" || w === "snow") n -= 1;   // 雨天出門的人比較少
@@ -512,6 +538,12 @@
       rec.n = (rec.n || 0) + 1;
       if (rec.type === "stalker" && rec.n >= 2 && !rec.trouble) { rec.trouble = 1; s.events.push({ type: "stalker", who: rec.name }); }
       if (rec.type === "bold" && rec.n >= 3 && !rec.trouble) { rec.trouble = 1; s.events.push({ type: "leak", who: rec.name }); }
+      // 純情的迷妹回應滿 NEED 次：想正式認識你（迷妹轉正）
+      var K = D.FAN_KIT;
+      if (K && rec.type === "pure" && rec.n >= (K.NEED[s.lengthId] || 3) && !rec.promo && !rec.trouble && s.promoted.length < K.MAX) {
+        rec.promo = 1;
+        s.events.push({ type: "fanPromote", aid: rec.id, who: rec.name, role: rec.role, hair: rec.hair, n: rec.n });
+      }
     }
     if (s.pool.length > 80) s.pool.shift();
     if (o.flirt && loversOf(s).length) out.push("（女友們好像會在意你跟別人太親近……）");
@@ -651,6 +683,7 @@
     s.today.talked[hid] = 1;
     var out = [name(hid) + "：" + hd.lines.greet];
     addAff(s, hid, 5, out);
+    completeHunt(s, hid, out);
     return out;
   }
   function talk(s, hid, tid) {
@@ -687,6 +720,7 @@
       memory(s, "hidden_" + hid, name(hid) + "・不為人知的一面", ht.text, hid);
     }
     if (h.dating && rand(s) < 0.5) out.push(name(hid) + "：" + lineOf(s, hd.lines.lover));
+    completeHunt(s, hid, out);
     s.today.talked[hid] = cnt + 1;
     h.lastSeen = s.day;
     return out;
@@ -704,6 +738,7 @@
     var base = pref === "like" ? 12 : pref === "bad" ? -5 : 4;
     if (base > 0) base *= 1 + s.stats.charm / 200;
     addAff(s, hid, base, out);
+    if (pref === "like") rumor(s, hid, true, "送給" + name(hid) + "的禮物很用心", out);
     s.today.gifted[hid] = true;
     h.lastSeen = s.day;
     return out;
@@ -800,6 +835,7 @@
     if (r.heroine && s.h[r.heroine.id].met) addAff(s, r.heroine.id, r.heroine.aff, out);
     if (q.req.type === "heroine" && D.HEROINE_BY_ID[hid].group === "parent" && D.HEROINE_BY_ID[hid].daughter === q.req.id) s.flags.parentOK = true;
     h.lastSeen = s.day;
+    rumor(s, hid, true, "幫了" + name(hid) + "的忙", out);
     if (h.quest >= D.HEROINE_BY_ID[hid].quests.length) out.push("（" + name(hid) + " 的任務全部完成！好感 80 以上就可以告白了。）");
     checkFaint(s, out);
     return out;
@@ -821,7 +857,7 @@
     if (!useAp(s, 1)) return ["沒有行動點了。"];
     var h = s.h[hid], hd = D.HEROINE_BY_ID[hid];
     var lovers = loversOf(s).length;
-    var p = clamp(0.55 + (h.aff - 80) / 50 + s.stats.charm / 400 + s.stats.rep / 400 - lovers * hd.jealousy * 0.12, 0.05, 0.97);
+    var p = clamp(0.55 + (h.aff - 80) / 50 + s.stats.charm / 400 + s.stats.rep / 400 - lovers * hd.jealousy * 0.12 + (s.outfit === "formal" ? 0.05 : 0), 0.05, 0.97);
     var out = ["你鼓起勇氣，對" + name(hid) + "說出了「我喜歡你」。"];
     if (rand(s) < p) {
       startDating(s, hid);
@@ -928,6 +964,7 @@
       mu.done = true;
       out = [name(mu.hid) + "在" + D.L(D.LOC_BY_ID[mu.loc].name) + "等了你一整個下午……"];
       addAff(s, mu.hid, -8, out);
+      rumor(s, mu.hid, false, "讓" + name(mu.hid) + "白等了一下午", out);
     }
     return out;
   }
@@ -1002,7 +1039,21 @@
       out.push(fmt(spEv.act, { n: name(hid) })); gain += 4; s.today.festDance = hid;
       memory(s, "night_" + s.today.kind + "_" + hid, name(hid) + "・" + spEv.title, fmt(spEv.act, { n: name(hid) }), hid);
     }
+    // 穿搭（第 7 項）：穿得適合這個地點
+    if (outfitFits(s, run.spot)) { gain += 4; out.push("（你的「" + D.L(D.OUTFIT_BY_ID[s.outfit].name) + "」很適合這裡，她多看了你好幾眼）"); }
     addAff(s, hid, gain, out);
+    if (gain >= 14) {
+      takePolaroid(s, hid, run.spot, out);
+      rumor(s, hid, true, "和" + name(hid) + "的約會很浪漫", out);
+      // 房間舒適度夠：她想來你的房間坐坐
+      var cf = comfort(s);
+      if (D.ROOM_VISIT && cf >= D.ROOM_VISIT.need && (h.dating || h.aff >= 60) && rand(s) < 0.6) {
+        var vt = pick(s, D.ROOM_VISIT.text);
+        out.push("🏠 回程時她小聲說：「……可以去你房間坐一下嗎？」", vt);
+        addAff(s, hid, Math.min(8, 2 + cf), out);
+        memory(s, "room_" + hid, name(hid) + "・你的房間", vt, hid);
+      }
+    }
     if (sp.eff) applyEff(s, sp.eff, out);
     applyEff(s, { stamina: -6 }, out);
     h.lastSeen = s.day;
@@ -1017,6 +1068,7 @@
     if (!hid || s.today.dateRun) return null;
     var out = ["你放了" + name(hid) + "鴿子……"];
     addAff(s, hid, -8, out);
+    rumor(s, hid, false, "放了" + name(hid) + "鴿子", out);
     s.today.date = null;
     return out;
   }
@@ -1033,9 +1085,16 @@
       addAff(s, arg, h.dating ? 4 : 3, out);
       h.lastSeen = Math.max(h.lastSeen, s.day - 1);
       applyEff(s, { stamina: -3 }, out);
+    } else if (optId === "sns") {
+      out = snsPost(s, arg);
+      if (!out) return null;
     } else {
       applyEff(s, o.eff, out);
-      if (o.skill) addSkill(s, o.skill, 3, out);
+      var mul = (o.skill === "music" && s.room.speaker) || (o.skill === "cook" && s.room.kitchen) ? 1.3 : 1;
+      if (o.skill) addSkill(s, o.skill, 3 * mul, out);
+      // 家具（第 7 項）
+      if (optId === "study" && s.room.lamp) applyEff(s, { study: 2 }, out);
+      if (optId === "groom" && s.room.mirror) applyEff(s, { charm: 1 }, out);
     }
     s.phase = "night";
     // 深夜的訊息（2026-11-03 追加事件）
@@ -1107,7 +1166,7 @@
     }
     var out = [];
     // 睡覺回復
-    applyEff(s, { stamina: 20 }, null);
+    applyEff(s, { stamina: 20 + (s.room.bed ? 8 : 0) }, null);
     // 魅力 50 以上會慢慢下降，要靠打扮、健身等維持（每天最多 −0.25）
     if (s.stats.charm > 50) s.stats.charm = Math.round((s.stats.charm - 0.25 * (s.stats.charm - 50) / 50) * 100) / 100;
     var lovers = loversOf(s);
@@ -1217,6 +1276,7 @@
     if (ev.type === "stalker") return { title: "👁 揮之不去的視線", text: "你回應過的「" + ev.who + "」開始每天在你家門口等你，還知道你昨天去了哪裡。", opts: ["嚴正地說清楚", "找可靠的人幫忙", "算了，隨她去"] };
     if (ev.type === "leak") return { title: "📢 論壇爆料", text: "「" + ev.who + "」在校園論壇發文：「他對每個女生都這麼溫柔嗎？」還附上了你們的合照。", opts: ["發文澄清", "不予理會"] };
     if (ev.type === "hiyoriUnlock") return { title: "🌙 神秘的學妹", text: "那個一直遠遠看著你的學妹，終於鼓起勇氣站到你面前：「學長……我叫朝比奈日和。我、我可以……成為學長身邊的人嗎？」", opts: ["「當然，請多指教」"] };
+    if (ev.type === "fanPromote") return { title: "💗 " + ev.who + "的心意", text: "回應過你好幾次的" + ev.role + "「" + ev.who + "」在校門口攔住了你。她抓著書包的背帶，深呼吸了一次：「我……不想只是每天早上遠遠地看著你。可以讓我，正式地認識你嗎？」", opts: ["「當然。我們從朋友開始吧」", "「謝謝你……但還是保持現在這樣吧」"] };
     if (ev.type === "x") return D.X_EVENT_BY_ID[ev.id].view(s, ev, XA);
     if (ev.type === "enc") {
       var e = D.ENCOUNTERS.filter(function (x) { return x.id === ev.id; })[0];
@@ -1382,6 +1442,14 @@
       s.h.hiyori.met = true; s.h.hiyori.lastSeen = s.day;
       addAff(s, "hiyori", 10, out, true);
       out.push("🌙 隱藏女主角「朝比奈 日和」登場了！");
+    } else if (ev.type === "fanPromote") {
+      if (idx === 0) { out.push("她用力點頭，眼眶有點紅：「嗯！請多指教！」"); promoteFan(s, ev, out); }
+      else {
+        out.push("她笑著擦了擦眼角：「……嗯。那我會繼續默默支持你的！」");
+        applyEff(s, { rep: 1 }, out);
+        var rj = s.pool.filter(function (p) { return p.id === ev.aid; })[0];
+        if (rj) rj.st = "rejected";
+      }
     } else if (ev.type === "x") {
       s.xev = (s.xev || 0) + 1;
       D.X_EVENT_BY_ID[ev.id].res(s, ev, idx, out, XA);
@@ -1520,7 +1588,7 @@
     var rank = { lover4: 4, lover: 3, high: 2, mid: 1 };
     r.rows.forEach(function (row) {
       var tier = row.status === "lover" && row.rel >= 4 ? "lover4" : row.status;
-      if (!rank[tier]) return;
+      if (!rank[tier] || (D.HEROINE_BY_ID[row.id] || {}).dyn) return;
       if (!m.endings[row.id] || rank[m.endings[row.id]] < rank[tier]) m.endings[row.id] = tier;
     });
     m.titles[r.title] = (m.titles[r.title] || 0) + 1;
@@ -1531,6 +1599,244 @@
     if (r.trueEnd) unlock(s, "trueEnd");
   }
 
+  // ======================================================================
+  // 2026-11-05 遊戲性擴充（使用者選 1、2、3、6、7＋更多玩法）。資料在 wanren_data6.js。
+  // ======================================================================
+
+  // ---------------- 照片：時間管理大師的女生照片，以 seed 洗牌（同一場固定，新遊戲換一組） ----------------
+  var PHOTO_POOL = (function () {
+    var a = [], i;
+    for (i = 0; i < 143; i++) a.push("g_" + ("00" + i).slice(-3));
+    for (i = 0; i < 32; i++) a.push("n_" + ("00" + i).slice(-3));
+    return a;
+  })();
+  var photoCache = { seed: null };
+  function photoSet(seed) {
+    if (photoCache.seed === seed) return photoCache;
+    var x = (seed ^ 0x5eed1234) | 0;
+    var rnd = function () { x = (x + 0x6D2B79F5) | 0; var r = Math.imul(x ^ (x >>> 15), 1 | x); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+    var pool = PHOTO_POOL.slice(), i, j, tmp;
+    for (i = pool.length - 1; i > 0; i--) { j = Math.floor(rnd() * (i + 1)); tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
+    var byHid = {}, k = 0;
+    // 固定登場的人一人一張；轉正的迷妹沿用她當迷妹時的照片
+    D.HEROINES.forEach(function (hd) { if (!hd.dyn) byHid[hd.id] = pool[k++ % pool.length]; });
+    photoCache = { seed: seed, byHid: byHid, rest: k < pool.length ? pool.slice(k) : pool };
+    return photoCache;
+  }
+  function photoOfAdmirer(seed, nm, role) {
+    var P = photoSet(seed);
+    return P.rest[Math.floor(hash(nm, role, seed, "photo") * P.rest.length)];
+  }
+  function photoOf(seed, hid) {
+    var hd = D.HEROINE_BY_ID[hid];
+    if (!hd) return null;
+    if (hd.fan) return photoOfAdmirer(seed, hd.fan.name, hd.fan.role);
+    return photoSet(seed).byHid[hid] || null;
+  }
+  // 照片圖鑑（跨周目，meta.ph）：哪張照片扮演過誰、最高好感、在哪幾輪交往過。
+  // 只有「認識」的角色才算收集（迷妹不算），一輪約 86 張，要好幾輪才收得齊。
+  function notePhoto(m, file, nm, aff, lover, seed) {
+    if (!file) return false;
+    var ph = m.ph || (m.ph = {}), e = ph[file], ch = false;
+    if (!e) { e = ph[file] = { n: [], a: 0, l: [] }; ch = true; }
+    if (nm && e.n.indexOf(nm) < 0) { e.n.push(nm); if (e.n.length > 6) e.n.shift(); ch = true; }
+    if (aff > e.a) { e.a = aff; ch = true; }
+    if (lover && e.l.indexOf(seed) < 0) { e.l.push(seed); if (e.l.length > 6) e.l.shift(); ch = true; }
+    return ch;
+  }
+  function recordPhotos(s, m) {
+    var ch = false;
+    D.HEROINES.forEach(function (hd) {
+      var h = s.h[hd.id];
+      if (h && h.met && notePhoto(m, photoOf(s.seed, hd.id), D.L(hd.name), h.aff, h.dating, s.seed)) ch = true;
+    });
+    return ch;
+  }
+
+  // ---------------- 1. 迷妹轉正 ----------------
+  // 轉正的迷妹＝執行時才產生的角色（hd.dyn）。存檔只存精簡資料（s.promoted），讀檔、新遊戲時重新登錄。
+  var circleCache = null;
+  function registerDyn(s) {
+    for (var i = D.HEROINES.length - 1; i >= 0; i--) {
+      if (D.HEROINES[i].dyn) { delete D.HEROINE_BY_ID[D.HEROINES[i].id]; D.HEROINES.splice(i, 1); }
+    }
+    (s.promoted || []).forEach(function (c) {
+      var hd = D.CAST_KIT.build(c);
+      hd.dyn = true; hd.fan = c.fan;
+      D.HEROINES.push(hd); D.HEROINE_BY_ID[hd.id] = hd;
+    });
+    circleCache = null;
+  }
+  function fanCast(s, ev) {
+    var K = D.FAN_KIT, nm = ev.who, role = ev.role;
+    var info = K.ROLE_INFO[role] || { sp: "plaza cafe garden", age: 19 };
+    function hv(salt) { return hash(s.seed, nm, role, salt); }
+    function pickH(arr, salt) { return arr[Math.floor(hv(salt) * arr.length)]; }
+    function pickN(arr, n, salt, not) {
+      var out = [], k = 0;
+      while (out.length < n && k < 60) { var x = arr[Math.floor(hash(s.seed, nm, salt, k) * arr.length)]; if (out.indexOf(x) < 0 && (!not || not.indexOf(x) < 0)) out.push(x); k++; }
+      return out;
+    }
+    var tl = pickN(K.TOPICS, 2, "tl"), tb = pickN(K.TOPICS, 2, "tb", tl);
+    var gl = pickN(K.GIFTS, 3, "gl"), gb = pickN(K.GIFTS, 2, "gb", gl);
+    var dl = pickN(K.DATES, 2, "dl"), db = pickN(K.DATES, 2, "db", dl);
+    var sp = info.sp.split(" ");
+    var given = nm.split(" ")[1] || nm;
+    var q = K.QUESTS.map(function (t) {
+      var req = t[3] === "loc" ? "loc:" + sp[0] : t[3] === "item" ? "item:" + gl[0] : t[3];
+      var desc = t[2].replace("{l}", "「" + D.L(D.LOC_BY_ID[sp[0]].name) + "」").replace("{g}", "「" + D.L(D.ITEM_BY_ID[gl[0]].name) + "」");
+      return [t[0], t[1], desc, req, t[4], t[5]];
+    });
+    var L = K.LINES;
+    return {
+      id: "fan_" + (s.promoted.length + 1) + "_" + Math.floor(hv("id") * 1e6), g: "fanclub", age: info.age,
+      n: [nm, nm], t: [role + "（前迷妹）", role + "（元ファン）"], p: pickH(K.PERSONAS, "p"),
+      intro: role + "。原本是每天早上跟你搭話的女生之一。你回應了她 " + (ev.n || 3) + " 次心意之後，她鼓起勇氣說想正式認識你。",
+      tl: tl.join(" "), tb: tb.join(" "), gl: gl.join(" "), gb: gb.join(" "), dl: dl.join(" "), db: db.join(" "),
+      m: pickH(["romantic", "funny", "earnest"], "m"), sp: info.sp,
+      look: [ev.hair || 0x2a1e1a, pickH(["long", "ponytail", "bob", "twin", "wavy", "braid", "sidepony"], "style"), 0xf6dcc8, pickH(K.TOPS, "top"), 0x2a3358, pickH(K.OUTFITS, "outfit"), 0xd04050, 0.93 + hv("h") * 0.08],
+      q: q, st: K.STORY.map(function (x) { return x.replace(/\{n\}/g, given); }),
+      cf: { charm: 40 }, j: 0.5, inv: 30,
+      greet: L.greet.replace(/\{n\}/g, nm), cy: L.cy, jl: L.jl, el: L.el,
+      fan: { name: nm, role: role }
+    };
+  }
+  function promoteFan(s, ev, out) {
+    var c = fanCast(s, ev);
+    s.promoted.push(c);
+    registerDyn(s);
+    ensureFields(s);
+    var h = s.h[c.id];
+    h.met = true; h.lastSeen = s.day;
+    addAff(s, c.id, 20, out, true);
+    var rec = s.pool.filter(function (p) { return p.id === ev.aid; })[0];
+    if (rec) rec.st = "promoted";
+    out.push("🌱「" + ev.who + "」成為可攻略角色了！（人物一覽的「轉正的迷妹」）");
+    memory(s, "fan_" + s.seed + "_" + c.id, ev.who + "・從粉絲開始", "那天早上鼓起勇氣跟你搭話的" + ev.role + "，現在成了你身邊的人。", c.id);
+  }
+
+  // ---------------- 3. 剪影尋人 ----------------
+  // 一半的日子（考試日除外）會有一張剪影：在校園裡找到她、跟她說話就成功
+  function genHunt(s) {
+    if (EXAM_KINDS[s.today.kind] || hash(s.seed, s.day, "hunt") >= 0.5) return null;
+    var here = D.HEROINES.filter(function (hd) { return !hd.hidden && whereIs(s, hd.id, s.day, 0); });
+    if (!here.length) return null;
+    var unmet = here.filter(function (hd) { return !s.h[hd.id].met; });
+    var list = unmet.length ? unmet : here;
+    var hd = list[Math.floor(hash(s.seed, s.day, "huntWho") * list.length)];
+    return { hid: hd.id, loc: whereIs(s, hd.id, s.day, 0), done: false };
+  }
+  function completeHunt(s, hid, out) {
+    var hu = s.today && s.today.hunt;
+    if (!hu || hu.done || hu.hid !== hid) return;
+    hu.done = true; s.hunts++;
+    out.push("【🔍 尋人成功】找到剪影的主人了！");
+    applyEff(s, { charm: 1, rep: 2 }, out);
+    addAff(s, hid, 4, out);
+  }
+
+  // ---------------- 6. 傳聞網路 ----------------
+  // 交友圈：同社團、雙人互動、母女；轉正的迷妹彼此是一個圈子（迷妹情報網）
+  function circles() {
+    if (circleCache) return circleCache;
+    var map = {};
+    function link(a, b) {
+      if (!a || !b || a === b || !D.HEROINE_BY_ID[a] || !D.HEROINE_BY_ID[b]) return;
+      (map[a] = map[a] || {})[b] = 1; (map[b] = map[b] || {})[a] = 1;
+    }
+    D.CLUBS.forEach(function (c) { c.members.forEach(function (a) { c.members.forEach(function (b) { link(a, b); }); }); });
+    D.PAIRS.forEach(function (p) { link(p.a, p.b); });
+    var fans = [];
+    D.HEROINES.forEach(function (hd) { if (hd.daughter) link(hd.id, hd.daughter); if (hd.dyn) fans.push(hd.id); });
+    fans.forEach(function (a) { fans.forEach(function (b) { link(a, b); }); });
+    circleCache = map;
+    return map;
+  }
+  function circleOf(hid) { return Object.keys(circles()[hid] || {}); }
+  // good：好事傳開（35%，一人好感 +3）；壞事（60%，一人好感 −4）
+  function rumor(s, hid, good, why, out) {
+    var fr = circleOf(hid).filter(function (x) { return s.h[x] && s.h[x].met && available(s, x); });
+    if (!fr.length || rand(s) >= (good ? 0.35 : 0.6)) return;
+    var who = pick(s, fr), text = name(who) + "聽說了你" + why + "。";
+    if (out) out.push("📣 傳聞：" + text);
+    addAff(s, who, good ? 3 : -4, out);
+    if (good) s.rumorGood++; else s.rumorBad++;
+    s.rumorLog.unshift({ day: s.day, good: !!good, text: text });
+    if (s.rumorLog.length > 12) s.rumorLog.length = 12;
+  }
+
+  // ---------------- 7. 穿搭與房間 ----------------
+  function buyOutfit(s, id) {
+    var o = D.OUTFIT_BY_ID[id];
+    if (!o) return null;
+    if (s.outfits[id]) { s.outfit = id; return ["換上了「" + D.L(o.name) + "」。"]; }
+    if (s.stats.money < o.price) return ["錢不夠。"];
+    s.stats.money -= o.price; s.outfits[id] = 1; s.outfit = id;
+    return ["買了「" + D.L(o.name) + "」並換上（¥" + o.price.toLocaleString() + "）。"];
+  }
+  function buyFurniture(s, id) {
+    var f = D.FURNITURE_BY_ID[id];
+    if (!f || s.room[id]) return null;
+    if (s.stats.money < f.price) return ["錢不夠。"];
+    s.stats.money -= f.price; s.room[id] = 1;
+    return ["房間添了「" + D.L(f.name) + "」（¥" + f.price.toLocaleString() + "）。"];
+  }
+  function comfort(s) { return Object.keys(s.room || {}).reduce(function (a, id) { return a + ((D.FURNITURE_BY_ID && D.FURNITURE_BY_ID[id] || {}).comfort || 0); }, 0); }
+  function outfitFits(s, spotId) { var o = D.OUTFIT_BY_ID && D.OUTFIT_BY_ID[s.outfit]; return !!(o && o.spots.indexOf(spotId) >= 0); }
+
+  // ---------------- 追加：約會拍立得 ----------------
+  function takePolaroid(s, hid, spotId, out) {
+    s.polaroids++;
+    var m = loadMeta();
+    m.pol = m.pol || [];
+    m.pol.unshift({ k: s.seed + "_" + s.day, hid: hid, file: photoOf(s.seed, hid), name: name(hid), spot: spotId, date: dateLabel(s, s.day), at: Date.now() });
+    if (m.pol.length > 150) m.pol.length = 150;
+    saveMeta(m);
+    out.push("📸 你們拍了一張拍立得。（回憶錄 → 拍立得）");
+  }
+
+  // ---------------- 追加：校園 SNS ----------------
+  function snsPost(s, arg) {
+    var parts = String(arg || "").split(":"), pid = parts[0], hid = parts[1];
+    var p = (D.SNS_POSTS || []).filter(function (x) { return x.id === pid; })[0];
+    if (!p) return null;
+    if (p.need === "club" && !s.club) return null;
+    if (p.need === "lover" && !(hid && s.h[hid] && s.h[hid].dating)) return null;
+    var out = [p.icon + " 你在校園 SNS 發了一篇「" + D.L(p.name) + "」。"];
+    var mult = 1 + s.stats.charm / 80 + Math.min(1, s.sns / 2000);
+    if (pid === "food" && s.skills.cook >= 20) mult *= 2;
+    if (s.lastPost === pid) { mult *= 0.5; out.push("（又是同一種文……大家有點膩了）"); }
+    var gain = Math.max(1, Math.round(p.f * mult * (0.7 + rand(s) * 0.6)));
+    var before = s.sns;
+    s.sns += gain; s.snsPosts++; s.lastPost = pid;
+    out.push("（追蹤 +" + gain + "，目前 " + s.sns.toLocaleString() + " 人）");
+    if (pid === "selfie") {
+      var f = ri(s, 1, 3); s.fans += f; s.today.flirt += 1;
+      out.push("留言區被愛心洗版了。（粉絲 +" + f + "）");
+    } else if (pid === "food") {
+      metList(s, function (h, hd) { return hd.topics.like.indexOf("food") >= 0; }).slice(0, 3).forEach(function (x) { out.push(name(x) + "按了讚：「看起來好好吃！」"); addAff(s, x, 1, out); });
+    } else if (pid === "study") {
+      applyEff(s, { study: 1, rep: 1 }, out);
+    } else if (pid === "club") {
+      D.CLUB_BY_ID[s.club].members.filter(function (x) { return s.h[x] && s.h[x].met; }).slice(0, 4).forEach(function (x) { addAff(s, x, 1, out); });
+    } else if (pid === "lover") {
+      out.push(name(hid) + "轉發了，還加了一句：「♡」");
+      addAff(s, hid, 5, out);
+      var others = loversOf(s).filter(function (x) { return x !== hid; });
+      others.forEach(function (x) { out.push(name(x) + "：「……那張照片是怎麼回事？」"); addAff(s, x, -4, out); });
+      if (others.length >= 2 && rand(s) < 0.3) {
+        out.push("🔥 炎上了！有人把你和不同女生的合照拼成了一張圖。");
+        applyEff(s, { rep: -5 }, out);
+        loversOf(s).forEach(function (x) { addAff(s, x, -3, out); });
+      }
+    }
+    (D.SNS_STEPS || []).forEach(function (st) {
+      if (before < st && s.sns >= st) { var bonus = Math.round(st / 50); out.push("🎉 追蹤人數突破 " + st.toLocaleString() + "！（粉絲 +" + bonus + "）"); s.fans += bonus; applyEff(s, { charm: 1 }, out); }
+    });
+    applyEff(s, { stamina: -2 }, out);
+    return out;
+  }
+
   // ---------------- 存讀檔 ----------------
   function save(s) {
     try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(s)); return true; } catch (e) { return false; }
@@ -1539,6 +1845,7 @@
     try {
       var s = JSON.parse(window.localStorage.getItem(SAVE_KEY) || "null");
       if (!s || s.v !== VERSION || !s.h || !s.stats) return null;
+      registerDyn(s);
       ensureFields(s);
       if (s.today) {
         var td = s.today;
@@ -1580,6 +1887,9 @@
     pairsAt: pairsAt, pairTalk: pairTalk, endFree: endFree,
     dateSpots: dateSpots, startDate: startDate, finishDate: answerDate, cancelDate: cancelDate, doEvening: doEvening, festDance: festDance,
     endDay: endDay, eventView: eventView, resolveEvent: resolveEvent,
-    report: report, fmt: fmt
+    report: report, fmt: fmt,
+    // 2026-11-05 擴充
+    PHOTO_POOL: PHOTO_POOL, photoOf: photoOf, photoOfAdmirer: photoOfAdmirer, circleOf: circleOf,
+    buyOutfit: buyOutfit, buyFurniture: buyFurniture, comfort: comfort, outfitFits: outfitFits
   };
 })();
