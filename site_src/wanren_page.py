@@ -29,7 +29,7 @@ WANREN_SCRIPTS: tuple[str, ...] = (
 def build_wanren_html() -> str:
     three_src = asset_url("../static/", "vendor/three.min.js")
     body = f"""    <div class="wr-wrap">
-      <div id="wr-app" data-three-src="{three_src}"></div>
+      <div id="wr-app" data-three-src="{three_src}" data-img="../static/images/jikan/"></div>
     </div>
 """
     return page_shell(

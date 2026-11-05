@@ -133,6 +133,7 @@
 .wr-cast-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .wr-cast-card { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem 0.35rem 0.35rem; border-radius: 999px; background: var(--wr-card-2); border: 1px solid var(--wr-line); }
 .wr-face { border-radius: 50%; background: linear-gradient(#fde6f0, #e8e0ff); flex: 0 0 auto; }
+.wr-face-photo { object-fit: cover; display: inline-block; vertical-align: middle; }
 .wr-pickface { display: flex; align-items: center; gap: 0.4rem; flex-direction: row !important; }
 
 /* 事件 */

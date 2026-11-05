@@ -293,8 +293,52 @@
     });
     panelEl.appendChild(section(t("wr_cast"), [cast]));
   }
-  // 頭像（用 3D 外觀的配色畫一個小圓臉）
+  // 頭像：2026-11-05 使用者指定改用時間管理大師（jikan）的女生照片，每次重開遊戲亂數打亂。
+  // 照片池＝images/jikan/g_000〜g_142、n_000〜n_031。以 S.seed 洗牌：同一場（含讀檔）固定，新遊戲換一組。
+  var IMG_BASE = app.getAttribute("data-img") || "../static/images/jikan/";
+  var PHOTO_POOL = (function () {
+    var a = [], i;
+    for (i = 0; i < 143; i++) a.push("g_" + ("00" + i).slice(-3));
+    for (i = 0; i < 32; i++) a.push("n_" + ("00" + i).slice(-3));
+    return a;
+  })();
+  var titleSeed = Math.floor(Math.random() * 2147483647) | 0;   // 還沒開始遊戲時（標題畫面）用的種子
+  var photoCache = { seed: null, byHid: {}, rest: [] };
+  function photoRng(seed) {   // mulberry32
+    var x = seed | 0;
+    return function () { x = (x + 0x6D2B79F5) | 0; var r = Math.imul(x ^ (x >>> 15), 1 | x); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+  }
+  function photos() {
+    var seed = S ? S.seed : titleSeed;
+    if (photoCache.seed === seed) return photoCache;
+    var rnd = photoRng(seed ^ 0x5eed1234), pool = PHOTO_POOL.slice(), i, j, tmp;
+    for (i = pool.length - 1; i > 0; i--) { j = Math.floor(rnd() * (i + 1)); tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
+    var byHid = {};
+    D.HEROINES.forEach(function (hd, k) { byHid[hd.id] = pool[k % pool.length]; });
+    photoCache = { seed: seed, byHid: byHid, rest: pool.slice(D.HEROINES.length).length ? pool.slice(D.HEROINES.length) : pool };
+    return photoCache;
+  }
+  function strHash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function photoImg(file, size, fallback) {
+    var s = size || 40;
+    var im = el("img", { class: "wr-face wr-face-photo", src: IMG_BASE + file + ".webp", alt: "", width: s, height: s, loading: "lazy", style: "width:" + s + "px;height:" + s + "px" });
+    im.addEventListener("error", function () { if (im.parentNode) im.parentNode.replaceChild(fallback(), im); });
+    return im;
+  }
   function face(hd, size, look) {
+    if (!hd) return drawnFace(hd, size, look);
+    var file = photos().byHid[hd.id];
+    if (!file) return drawnFace(hd, size, look);
+    return photoImg(file, size, function () { return drawnFace(hd, size, look); });
+  }
+  // 迷妹頭像：特別迷妹沿用該女主角的照片，其餘從剩下的照片依名字挑一張
+  function admirerFace(a, size, look) {
+    if (a.special && D.HEROINE_BY_ID[a.special]) return face(D.HEROINE_BY_ID[a.special], size, look);
+    var P = photos(), file = P.rest[strHash(String(a.name || "") + "|" + (a.role || "") + "|" + P.seed) % P.rest.length];
+    return photoImg(file, size, function () { return drawnFace(null, size, look); });
+  }
+  // 備用頭像（照片載入失敗時用 3D 外觀的配色畫一個小圓臉）
+  function drawnFace(hd, size, look) {
     var lk = look || hd.look;
     var s = size || 40;
     var c = el("canvas", { class: "wr-face", width: s * 2, height: s * 2, style: "width:" + s + "px;height:" + s + "px" });
@@ -340,7 +384,7 @@
       var lk = a.special ? D.HEROINE_BY_ID[a.special].look : { hair: a.hair, skin: 0xf6dcc8, top: 0x2a3358, style: ["long", "twin", "ponytail", "bob", "bun"][a.name.length % 5] };
       var ty = D.ADMIRER_TYPES.filter(function (x) { return x.id === (a.type || "pure"); })[0];
       var card = el("div", { class: "wr-adm" + (a.choice !== null ? " done" : "") + (a.special ? " special" : "") }, [
-        el("div", { class: "wr-adm-head" }, [face(null, 40, lk), el("div", {}, [el("b", {}, [a.name]), " ", el("span", { class: "wr-small wr-muted" }, [a.role]),
+        el("div", { class: "wr-adm-head" }, [admirerFace(a, 40, lk), el("div", {}, [el("b", {}, [a.name]), " ", el("span", { class: "wr-small wr-muted" }, [a.role]),
           a.special ? el("span", { class: "wr-badge wr-badge-festival" }, ["🌙 " + t("wr_adm_special", { n: S.flags.hiyoriN || 0 })]) : el("span", { class: "wr-badge wr-adm-type wr-adm-" + ty.id, title: t("wr_adm_type_note") }, [ty.icon + " " + L(ty.name)]),
           a.ret ? el("span", { class: "wr-badge" }, [a.ret === "fan" ? t("wr_adm_fan") : t("wr_adm_again")]) : null])]),
         el("p", { class: "wr-adm-text" }, [ap.icon + " ", a.ret ? D.RETURN_TEXT[a.ret] + " " : "", ap.text]),
