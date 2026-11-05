@@ -116,4 +116,10 @@ PROJECTS = [
         "name_key": "project_yukimura_name",
         "desc_key": "project_yukimura_desc",
     },
+    {
+        "id": "mahou",
+        "href": "mahou/index.html",
+        "name_key": "project_mahou_name",
+        "desc_key": "project_mahou_desc",
+    },
 ]
