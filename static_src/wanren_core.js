@@ -108,7 +108,7 @@
     });
     if (!s.skills) s.skills = { cook: 0, sport: 0, art: 0, music: 0, talk: 0 };
     if (s.club === undefined) s.club = null;
-    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids", "chatSeq", "chatReplies", "affirmed", "nightTalks", "dokiN", "dokiPerfect"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
+    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids", "chatSeq", "chatReplies", "affirmed", "nightTalks", "sweetN", "sweetMatch"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
     // 2026-11-05 擴充：轉正的迷妹、傳聞紀錄、穿搭、房間
     if (!s.promoted) s.promoted = [];
     if (!s.rumorLog) s.rumorLog = [];
@@ -201,9 +201,9 @@
     if (s.sns >= 1000) unlock(s, "sns1000");
     if (s.chatReplies >= 50) unlock(s, "chat50");
     if (s.affirmed >= 30) unlock(s, "affirm30");
-    if (s.dokiN >= 10) unlock(s, "doki10");
-    if (s.dokiN >= 40) unlock(s, "doki40");
-    if (s.dokiPerfect >= 10) unlock(s, "dokiPerfect10");
+    if (s.sweetN >= 10) unlock(s, "sweet10");
+    if (s.sweetN >= 40) unlock(s, "sweet40");
+    if (s.sweetMatch >= 15) unlock(s, "sweetMatch15");
     if (s.nightTalks >= 10) unlock(s, "nightTalk10");
     return takeNewAchievements(s);
   }
@@ -771,8 +771,8 @@
     completeHunt(s, hid, out);
     s.today.talked[hid] = cnt + 1;
     h.lastSeen = s.day;
-    // 💓 心跳時刻：聊得很順（她喜歡的話題或被全肯定）時
-    if ((pref === "like" || affirm) && rand(s) < dokiChance(s, hid)) dokiStart(s, hid, "talk", out, whereIs(s, hid, s.day, curSlot(s)));
+    // 💕 她的甜言蜜語：聊得很順（她喜歡的話題或被全肯定）時
+    if ((pref === "like" || affirm) && rand(s) < sweetChance(s, hid)) sweetStart(s, hid, "talk", out, whereIs(s, hid, s.day, curSlot(s)));
     return out;
   }
   function gift(s, hid, iid) {
@@ -900,22 +900,20 @@
     var h = s.h[hid], hd = D.HEROINE_BY_ID[hid];
     return s.phase === "free" && h.met && !h.dating && h.quest >= hd.quests.length && h.aff >= 80 && h.cooldown < s.day;
   }
-  // bonus：心跳告白的成功率加減（dokiFinish）；great：心跳全中而且說法符合她
-  function confess(s, hid, bonus, great) {
+  function confess(s, hid) {
     if (!canConfess(s, hid)) return null;
     var lack = confessReq(s, hid);
     if (lack.length) return ["還差一點……（" + lack.join("、") + "）"];
     if (!useAp(s, 1)) return ["沒有行動點了。"];
     var h = s.h[hid], hd = D.HEROINE_BY_ID[hid];
     var lovers = loversOf(s).length;
-    var p = clamp(0.55 + (h.aff - 80) / 50 + s.stats.charm / 400 + s.stats.rep / 400 - lovers * hd.jealousy * 0.12 + (s.outfit === "formal" ? 0.05 : 0) + (bonus || 0), 0.05, 0.97);
+    var p = clamp(0.55 + (h.aff - 80) / 50 + s.stats.charm / 400 + s.stats.rep / 400 - lovers * hd.jealousy * 0.12 + (s.outfit === "formal" ? 0.05 : 0), 0.05, 0.97);
     var out = ["你鼓起勇氣，對" + name(hid) + "說出了「我喜歡你」。"];
     if (rand(s) < p) {
       startDating(s, hid);
       out.push(name(hid) + "：" + hd.lines.cy);
       out.push("💕 你和" + name(hid) + "開始交往了！");
       addAff(s, hid, 5, out, true);
-      if (great) unlock(s, "dokiConfess");
       if (lovers) { out.push("（……你現在同時和 " + (lovers + 1) + " 個人交往。小心修羅場。）"); }
       applyEff(s, { charm: 3 }, out);
     } else {
@@ -1002,11 +1000,11 @@
     if (s.phase !== "free" || !s.today || s.today.enc >= ENC_PER_DAY || s.events.length) return false;
     var here = curLoc ? heroinesAt(s, curLoc).filter(function (h) { return s.h[h].met; }) : [];
     var list = D.ENCOUNTERS.filter(function (e) { return !e.kind || here.length; });
-    // 💓 在場的人好感夠高：有機率變成心跳時刻
-    var dk = here.filter(function (h) { return s.h[h].aff >= 30; });
-    if (dk.length && rand(s) < 0.35) {
+    // 💕 在場的人好感夠高：有機率由她主動說甜言蜜語
+    var dk = here.filter(function (h) { return s.h[h].aff >= 20; });
+    if (dk.length && rand(s) < 0.4) {
       var dh = pick(s, dk);
-      if (dokiStart(s, dh, "enc", null, curLoc)) { s.today.enc++; s.encounters++; return true; }
+      if (sweetStart(s, dh, "enc", null, curLoc)) { s.today.enc++; s.encounters++; return true; }
     }
     var e = pick(s, list);
     s.today.enc++;
@@ -1120,8 +1118,8 @@
     s.dates++;
     run.done = true;
     s.phase = "night";
-    // 💓 約會很順利：回家前的心跳時刻（特殊日的晚上是煙火／最後一支舞）
-    if (gain >= 10 && rand(s) < 0.75) dokiStart(s, hid, spEv ? "fest" : "date", out);
+    // 💕 約會很順利：回家前她的甜言蜜語（特殊日的晚上是煙火／最後一支舞）
+    if (gain >= 10 && rand(s) < 0.75) sweetStart(s, hid, spEv ? "fest" : "date", out);
     return out;
   }
   function cancelDate(s) {
@@ -1190,7 +1188,7 @@
     h.dates++;
     s.today.festDance = hid;
     s.phase = "night";
-    dokiStart(s, hid, "fest", out);   // 💓 煙火下／最後一支舞
+    sweetStart(s, hid, "fest", out);   // 💕 煙火下／最後一支舞
     return out;
   }
 
@@ -1233,7 +1231,7 @@
       if (s.today.date && !s.today.dateRun) cancelDate(s);
       s.phase = "night";
     }
-    s.doki = null;   // 沒處理完的心跳時刻不留到隔天
+    s.sweet = null; s.doki = null;   // 沒回應的甜言蜜語不留到隔天（doki＝第一版的欄位）
     var out = [];
     // 睡覺回復
     applyEff(s, { stamina: 20 + (s.room.bed ? 8 : 0) }, null);
@@ -1922,88 +1920,64 @@
     return pick(s, pool).replace(/\{y\}/g, y);
   }
 
-  // ---------------- 💓 心跳時刻（2026-11-06） ----------------
-  // s.doki＝{ hid, sit（情境 id 或 "confess"）, ctx, step: "choose"→"beat", tone }。畫面看到 s.doki 就先顯示它。
-  // 一天最多 3 次，每人每天 1 次；告白不受限制。節拍的判定在畫面，這裡只收「得分 0〜taps×2」。
-  var DOKI_PER_DAY = 3;
-  function dokiPref(hid) {
-    var hd = D.HEROINE_BY_ID[hid], key = hd.persona || (D.MAIN_PERSONA || {})[hid];
-    return (D.DOKI_PREF || {})[key] || "gentle";
+  // ---------------- 💕 她的甜言蜜語（2026-11-06） ----------------
+  // 同日第一版是「心跳時刻」（玩家選做法＋節拍小遊戲），使用者要求「換掉，由女孩向玩家甜言蜜語」改成這個。
+  // s.sweet＝{ hid, sit（場景 id）, line（她說的話）}。畫面看到 s.sweet 就先顯示它；你選反應（sweetReply）後結束。
+  // 一天最多 3 次、每人每天 1 次；沒回應的在一天結束時清掉。
+  var SWEET_PER_DAY = 3;
+  function personaOf(hid) { var hd = D.HEROINE_BY_ID[hid]; return hd.persona || (D.MAIN_PERSONA || {})[hid]; }
+  function sweetPref(hid) { return (D.SWEET_PREF || {})[personaOf(hid)] || "sweet"; }
+  function sweetLine(s, hid) {
+    var hd = D.HEROINE_BY_ID[hid], h = s.h[hid], key = h.dating || h.aff >= 60 ? "close" : "warm";
+    var own = (D.SWEET_LINES[personaOf(hid)] || {})[key] || [];
+    var pool = own.concat(own, D.SWEET_LINES.generic[key]);   // 個性專屬的台詞出現機率較高
+    var y = (D.CAST_KIT && D.CAST_KIT.ADDRESS[hd.group]) || "你";
+    return pick(s, pool).replace(/\{y\}/g, y).replace(/\{me\}/g, s.name);
   }
-  function dokiBpm(s, hid) {
-    var b = D.DOKI_BEAT, h = s.h[hid];
-    return Math.round(b.base + h.aff * b.perAff + (h.dating ? b.dating : 0));
-  }
-  function dokiSit(s) { return s.doki ? (s.doki.sit === "confess" ? D.DOKI_CONFESS : D.DOKI_BY_ID[s.doki.sit]) : null; }
-  function dokiStart(s, hid, ctx, out, curLoc) {
-    if (!D.DOKI || !s.today || s.doki) return false;
+  function sweetStart(s, hid, ctx, out, curLoc) {
+    if (!D.SWEET_SITS || !s.today || s.sweet) return false;
     var h = s.h[hid], td = s.today;
-    td.dokiN = td.dokiN || 0; td.dokiWho = td.dokiWho || {};
-    if (!h || !h.met || td.dokiN >= DOKI_PER_DAY || td.dokiWho[hid]) return false;
+    td.sweetN = td.sweetN || 0; td.sweetWho = td.sweetWho || {};
+    if (!h || !h.met || td.sweetN >= SWEET_PER_DAY || td.sweetWho[hid]) return false;
     var rainy = td.weather === "rain" || td.weather === "snow";
-    var list = D.DOKI.filter(function (d) {
-      if (d.ctx.indexOf(ctx) < 0 && !(rainy && d.ctx.indexOf("rain") >= 0 && ctx !== "fest")) return false;
-      return !d.loc || (curLoc && d.loc.indexOf(curLoc) >= 0);
+    var list = D.SWEET_SITS.filter(function (x) {
+      if (x.ctx.indexOf(ctx) < 0 && !(rainy && ctx !== "fest" && x.ctx.indexOf("rain") >= 0)) return false;
+      return !x.loc || (curLoc && x.loc.indexOf(curLoc) >= 0);
     });
-    if (rainy) list = list.concat(list.filter(function (d) { return d.ctx.indexOf("rain") >= 0; }));   // 雨天：傘下的機率加倍
+    if (rainy) list = list.concat(list.filter(function (x) { return x.ctx.indexOf("rain") >= 0; }));   // 雨雪天：傘、圍巾的機率加倍
     if (!list.length) return false;
-    var sit = pick(s, list);
-    td.dokiN++; td.dokiWho[hid] = true;
-    s.doki = { hid: hid, sit: sit.id, ctx: ctx, step: "choose", tone: null };
-    if (out) out.push("（💓 ……心跳突然加快了。）");
+    td.sweetN++; td.sweetWho[hid] = true;
+    s.sweet = { hid: hid, sit: pick(s, list).id, line: sweetLine(s, hid) };
+    if (out) out.push("（💕 " + name(hid) + "好像有話想對你說……）");
     return true;
   }
-  // 聊天、遭遇後的機率：好感 30 以上，越喜歡你越常發生
-  function dokiChance(s, hid) {
+  // 聊天後的機率：好感 20 以上，越喜歡你越常發生
+  function sweetChance(s, hid) {
     var a = s.h[hid].aff;
-    return a < 30 ? 0 : clamp(0.12 + (a - 30) / 250 + (s.h[hid].dating ? 0.08 : 0), 0, 0.4);
+    return a < 20 ? 0 : clamp(0.18 + (a - 20) / 200 + (s.h[hid].dating ? 0.08 : 0), 0, 0.45);
   }
-  function dokiChoose(s, tone) {
-    if (!s.doki || s.doki.step !== "choose" || !D.DOKI_TONES.some(function (x) { return x.id === tone; })) return null;
-    s.doki.tone = tone; s.doki.step = "beat";
-    return { bpm: dokiBpm(s, s.doki.hid), taps: D.DOKI_BEAT.taps };
-  }
-  // pts：節拍得分（完美 2、普通 1、沒按到 0）的總和
-  function dokiFinish(s, pts) {
-    var dk = s.doki;
-    if (!dk || dk.step !== "beat") return null;
-    s.doki = null;
-    var hid = dk.hid, max = D.DOKI_BEAT.taps * 2;
-    pts = clamp(Math.round(pts) || 0, 0, max);
-    var pref = dokiPref(hid), match = dk.tone === pref ? "match" : dk.tone === "gentle" ? "mid" : "miss";
-    var perfect = pts >= max;
-    if (match === "match") s.h[hid].dokiTone = dk.tone;   // 猜中一次之後，畫面會標出她最心動的做法
-    s.dokiN = (s.dokiN || 0) + 1;
-    if (perfect) s.dokiPerfect = (s.dokiPerfect || 0) + 1;
-    var sit = dk.sit === "confess" ? D.DOKI_CONFESS : D.DOKI_BY_ID[dk.sit];
-    var out = [];
-    out.push("💓 " + (pts >= max ? "心跳完全同步！" : pts >= max / 2 ? "心跳有點對上了。" : "心跳亂成一團……") + "（" + pts + "／" + max + "）");
-    if (dk.sit === "confess") {
-      // 告白：說法符合她 +10%、溫柔 +3%、不合 −5%；每 1 分心跳 +2%
-      var bonus = (match === "match" ? 0.1 : match === "mid" ? 0.03 : -0.05) + pts * 0.02;
-      if (perfect) out.push(sit.hit);
-      return out.concat(confess(s, hid, bonus, perfect && match === "match"));
+  // 你的反應：她想看到的（match）好感 +6 並再補一句、甜甜回應（不會出錯）+3、不是她要的 +1
+  function sweetReply(s, rid) {
+    var sw = s.sweet;
+    if (!sw || !D.SWEET_REPLIES.some(function (x) { return x.id === rid; })) return null;
+    s.sweet = null;
+    var hid = sw.hid, h = s.h[hid], pref = sweetPref(hid);
+    var res = rid === pref ? "match" : rid === "sweet" ? "ok" : "miss";
+    var rp = D.SWEET_REPLIES.filter(function (x) { return x.id === rid; })[0];
+    var out = [rp.say, name(hid) + "：" + D.SWEET_REACT[rid][res === "match" ? "match" : rid === "sweet" ? "ok" : "miss"]];
+    s.sweetN = (s.sweetN || 0) + 1;
+    var gain = res === "match" ? 6 : res === "ok" ? 3 : 1;
+    if (h.dating) gain += 1;
+    if (res === "match") {
+      h.sweetKnown = rid;   // 猜中一次之後，畫面會標出她最喜歡的反應
+      s.sweetMatch = (s.sweetMatch || 0) + 1;
+      var more = sweetLine(s, hid);
+      out.push(name(hid) + "：" + more);
+      if (h.dating || h.aff >= 60) memory(s, "sweet_" + hid, name(hid) + "・甜言蜜語", sw.line + "\n" + more, hid);
     }
-    out.push(fmt(pick(s, D.DOKI_REACT[match]), { n: name(hid) }));
-    if (perfect && match !== "miss") out.push(sit.hit);
-    var gain = (match === "match" ? 6 : match === "mid" ? 3 : -1) + pts * 0.8 + (perfect ? 2 : 0);
     addAff(s, hid, gain, out);
-    if (perfect && match === "match") {
-      applyEff(s, { charm: 1 }, out);
-      memory(s, "doki_" + hid + "_" + dk.sit, name(hid) + "・" + sit.title, fmt(sit.text, { n: name(hid) }) + "\n" + sit.hit, hid);
-    }
-    s.h[hid].lastSeen = s.day;
+    h.lastSeen = s.day;
     return out;
-  }
-  // 按下「告白」：條件都符合才進入心跳告白（行動點在 confess() 才扣）
-  function confessStart(s, hid) {
-    if (!canConfess(s, hid)) return null;
-    var lack = confessReq(s, hid);
-    if (lack.length) return ["還差一點……（" + lack.join("、") + "）"];
-    if (!s.today.ap) return ["沒有行動點了。"];
-    if (!D.DOKI_CONFESS || s.doki) return confess(s, hid);
-    s.doki = { hid: hid, sit: "confess", ctx: "confess", step: "choose", tone: null };
-    return null;
   }
 
   // ---------------- 手機（LINE 風格） ----------------
@@ -2178,7 +2152,7 @@
     PHOTO_POOL: PHOTO_POOL, photoOf: photoOf, photoOfAdmirer: photoOfAdmirer, circleOf: circleOf,
     buyOutfit: buyOutfit, buyFurniture: buyFurniture, comfort: comfort, outfitFits: outfitFits,
     chatReply: chatReply, chatRead: chatRead, chatUnread: chatUnread, isClose: isClose,
-    // 2026-11-06 心跳時刻、濃縮行事曆
-    dokiStart: dokiStart, dokiChoose: dokiChoose, dokiFinish: dokiFinish, dokiSit: dokiSit, dokiPref: dokiPref, dokiBpm: dokiBpm, confessStart: confessStart, span: span
+    // 2026-11-06 甜言蜜語、濃縮行事曆
+    sweetStart: sweetStart, sweetReply: sweetReply, sweetPref: sweetPref, span: span
   };
 })();

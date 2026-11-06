@@ -14,11 +14,10 @@ require(ROOT + "/static_src/wanren_data7.js");
 require(ROOT + "/static_src/wanren_data8.js");
 require(ROOT + "/static_src/wanren_core.js");
 var C = window.PriTestWanrenCore, D = window.PriTestWanrenData;
-// 心跳時刻：normal／harem 選她喜歡的做法、cold 一律含蓄；節拍得分 2〜6 隨機
-function doki(s, strat) {
-  if (!s.doki) return;
-  C.dokiChoose(s, strat === "cold" ? "coy" : C.dokiPref(s.doki.hid));
-  C.dokiFinish(s, 2 + Math.floor(Math.random() * 5));
+// 甜言蜜語：normal／harem 回她最想看到的反應、cold 一律害羞
+function sweet(s, strat) {
+  if (!s.sweet) return;
+  C.sweetReply(s, strat === "cold" ? "shy" : C.sweetPref(s.sweet.hid));
 }
 function play(seed, strat, len, ng) {
   var s = C.newGame({ seed: seed, length: len || "full", name: "測試", inherit: !!ng });
@@ -26,7 +25,7 @@ function play(seed, strat, len, ng) {
   var guard = 0;
   while (s.phase !== "report" && guard++ < 20000) {
     if (s.phase === "yearreport") { var yr = C.report(s, s.yearReport); console.log("  第" + (s.yearReport + 1) + "學年", "grade", yr.grade, "lovers", yr.lovers, "study", Math.round(s.stats.study), "charm", Math.round(s.stats.charm)); C.nextYear(s); continue; }
-    doki(s, strat);
+    sweet(s, strat);
     while (s.events.length) C.resolveEvent(s, strat === "harem" ? 2 : 0);
     if (s.phase === "morning") { s.today.admirers.forEach(function (a, i) { C.answerAdmirer(s, i, strat === "cold" ? 2 : 0); }); C.finishMorning(s); continue; }
     if (s.phase === "class") { C.doClass(s, s.stats.stamina < 30 ? "doze" : "focus"); continue; }
@@ -41,19 +40,19 @@ function play(seed, strat, len, ng) {
         C.locQuests(s, loc).forEach(h => C.doQuest(s, h, loc));
         C.heroinesAt(s, loc).forEach(function (h) {
           if (s.today.ap <= 0) return;
-          doki(s, strat);
-          if (C.canConfess(s, h)) { C.confessStart(s, h); doki(s, strat); return; }
+          sweet(s, strat);
+          if (C.canConfess(s, h)) { C.confess(s, h); return; }
           var q = C.questOf(s, h); if (q && C.reqMet(s, q.req, loc)) { C.doQuest(s, h, loc); return; }
           if (q && q.req.type === "item" && s.stats.money > D.ITEM_BY_ID[q.req.item].price) C.buy(s, q.req.item);
           if (!s.today.date && C.canInvite(s, h) && Math.random() < 0.5) { C.invite(s, h); return; }
           var tps = C.talkTopics(s, h); var best = tps.filter(t => C.topicPref(h, t) === "like")[0] || tps.filter(t => C.topicPref(h, t) === "mid")[0] || tps[0];
           C.talk(s, h, best);
-          doki(s, strat);
+          sweet(s, strat);
         });
       }
       if (s.club && C.canClubAction(s, D.CLUB_BY_ID[s.club].loc)) C.clubAction(s, D.CLUB_BY_ID[s.club].loc);
       if (s.today.meetup && !s.today.meetup.done) C.arrive(s, s.today.meetup.loc);
-      if (Math.random() < 0.3) { C.encounter(s, "plaza"); doki(s, strat); }
+      if (Math.random() < 0.3) { C.encounter(s, "plaza"); sweet(s, strat); }
       while (s.events.length) C.resolveEvent(s, 0);
       if (s.stats.stamina < 30 && s.today.ap > 0) C.locAction(s, "infirmary");
       C.checkAchievements(s);
@@ -61,13 +60,13 @@ function play(seed, strat, len, ng) {
     }
     if (s.phase === "evening") {
       if (s.today.date) { var hd = D.HEROINE_BY_ID[s.today.date]; var spot = C.dateSpots(s).filter(d => hd.dates.like.indexOf(d.id) >= 0 && d.cost <= s.stats.money)[0] || C.dateSpots(s)[0]; var r = C.startDate(s, spot.id); if (r && r.moment) { var g = 0; while (C.dateMoment(s) && g++ < 5) C.answerDate(s, C.skillAnswer(s) && Math.random() < 0.3 ? "skill" : (Math.random() < 0.5 ? hd.moment : r.mood.pref)); } else C.cancelDate(s); }
-      doki(s, strat);
+      sweet(s, strat);
       if (s.phase === "evening") C.doEvening(s, s.stats.money < 3000 ? "work" : s.stats.stamina < 40 ? "rest" : ["study", "gym", "speech", "cookpractice", "instrument"][s.day % 5]);
     }
     if (s.phase === "night" || s.phase === "evening") C.endDay(s);
   }
   var r = C.report(s);
-  console.log("  doki", s.dokiN, "perfect", s.dokiPerfect);
+  console.log("  sweet", s.sweetN, "match", s.sweetMatch);
   console.log("  skills", JSON.stringify(s.skills), "club", s.club, "wins", s.clubWins, "rel", r.rows.filter(x => x.dating).map(x => x.name.split(" ")[1] + x.rel).join(","), "enc", s.encounters, "meetup", s.meetupOk, "hidden", s.hiddenTalks, "story", s.storySeen, "trueEnd", r.trueEnd);
   console.log(seed, strat, len || "full", "days", s.length, "grade", r.grade, r.letter, "lovers", r.lovers, "met", r.met, "fans", r.fans, "shura", r.shura, "breakups", r.breakups, "title", r.title, "score", r.score, r.rank, "stats", JSON.stringify(s.stats));
   console.log("  aff", r.rows.map(x => x.name.split(" ")[1] + ":" + x.aff + (x.dating ? "♥" : "") + "q" + x.quest).join(" "));

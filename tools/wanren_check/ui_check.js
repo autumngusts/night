@@ -1,7 +1,7 @@
 // ============================================================================
 // 萬人迷（wanren）Playwright 流程檢查：
 //   標題（3D 校園載入）→ 新遊戲（1 學年）→ 入學典禮 → 早上回應迷妹 → 上課 → 自由時間（3D：走動的學生、女主角、快速前往、搭話、聊天）
-//   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 心跳時刻 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
+//   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 甜言蜜語 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8951 --directory dist
@@ -34,7 +34,7 @@ async function clickText(page, label, partial) {
 function st(page) { return page.evaluate(function () { var s = window.PriTestWanren.state; return s && { day: s.day, phase: s.phase, stats: s.stats, ap: s.today && s.today.ap, apMax: s.today && s.today.apMax }; }); }
 // 隨機事件（每天早上有機率）會先蓋在畫面上：有的話選第一個選項
 async function clearEvents(page) {
-  await clearDoki(page);
+  await clearSweet(page);
   for (var i = 0; i < 5; i++) {
     await closeMsg(page);
     var n = await page.evaluate(function () { return window.PriTestWanren.state.events.length; });
@@ -43,16 +43,14 @@ async function clearEvents(page) {
     await page.waitForTimeout(100);
   }
 }
-// 💓 心跳時刻（2026-11-06）：有的話選第一個做法，跟著節拍按 3 次空白鍵
-async function clearDoki(page) {
+// 💕 她的甜言蜜語（2026-11-06）：有的話選第一個反應
+async function clearSweet(page) {
   for (var i = 0; i < 3; i++) {
     await closeMsg(page);
-    var has = await page.evaluate(function () { return !!window.PriTestWanren.state.doki; });
+    var has = await page.evaluate(function () { return !!window.PriTestWanren.state.sweet; });
     if (!has) return;
-    var step = await page.evaluate(function () { return window.PriTestWanren.state.doki.step; });
-    if (step === "choose") { await page.dispatchEvent(".wr-doki-opt", "click"); await page.waitForTimeout(100); }
-    for (var k = 0; k < 3; k++) { await page.waitForTimeout(700); await page.keyboard.press("Space"); }
-    await page.waitForTimeout(900);
+    await page.dispatchEvent(".wr-sweet-opt", "click");
+    await page.waitForTimeout(120);
   }
 }
 async function closeMsg(page) { await page.evaluate(function () { var m = document.querySelector(".wr-msg"); if (m) m.click(); }); await page.waitForTimeout(80); }
@@ -173,7 +171,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await page.evaluate(function () {
     var W = window.PriTestWanren, S = W.state, C = W.core, g = 0;
     while (S.today.kind !== "weekday" && g++ < 20) {
-      S.events = []; S.doki = null;
+      S.events = []; S.sweet = null;
       if (S.phase === "morning") C.finishMorning(S);
       else if (S.phase === "free") C.endFree(S);
       else if (S.phase === "evening") C.doEvening(S, "rest");
@@ -213,31 +211,29 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   for (var q = 0; q < nq; q++) { await page.locator(".wr-event .wr-btn-opt").first().click(); await page.waitForTimeout(80); await closeMsg(page); }
   s = await st(page);
   assert.strictEqual(s.phase, "night", "答完約會應該進入深夜");
-  await clearDoki(page);   // 約會很順利時可能出現心跳時刻
+  await clearSweet(page);   // 約會很順利時可能由她說甜言蜜語
 
-  // 💓 心跳時刻：強制觸發一次，走完「選做法 → 節拍 3 次」
-  var dk0 = await page.evaluate(function () {
+  // 💕 她的甜言蜜語：強制觸發一次，選「甜甜回應」
+  var sw0 = await page.evaluate(function () {
     var W = window.PriTestWanren, S = W.state, C = W.core;
     var hid = window.PriTestWanrenData.HEROINES.filter(function (h) { return S.h[h.id].met; })[0].id;
-    S.today.dokiN = 0; S.today.dokiWho = {};
-    var ok = C.dokiStart(S, hid, "date");
+    S.today.sweetN = 0; S.today.sweetWho = {};
+    var ok = C.sweetStart(S, hid, "date");
     W.render();
-    return { ok: ok, hid: hid, n: S.dokiN || 0, aff: S.h[hid].aff };
+    return { ok: ok, hid: hid, n: S.sweetN || 0, aff: S.h[hid].aff, line: S.sweet && S.sweet.line };
   });
-  assert.ok(dk0.ok, "應該能觸發心跳時刻");
-  assert.strictEqual(await page.locator(".wr-doki-opt").count(), 3, "心跳時刻有 3 種做法");
-  await page.screenshot({ path: path.join(SHOT_DIR, "05c_doki_choose.png") });
-  await page.dispatchEvent(".wr-doki-opt", "click");
+  assert.ok(sw0.ok, "應該能觸發甜言蜜語");
+  assert.ok(sw0.line && !/\{y\}|\{me\}/.test(sw0.line), "她的台詞要代換稱呼：" + sw0.line);
+  assert.strictEqual(await page.locator(".wr-sweet-opt").count(), 3, "甜言蜜語有 3 種反應");
+  assert.ok(await page.locator(".wr-sweet-bubble").count(), "要顯示她說的話");
+  await page.screenshot({ path: path.join(SHOT_DIR, "05c_sweet.png") });
+  await page.locator(".wr-sweet-opt").nth(1).dispatchEvent("click");
   await page.waitForTimeout(150);
-  assert.ok(await page.locator(".wr-doki-pad").count(), "選完做法應該進入節拍");
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: path.join(SHOT_DIR, "05d_doki_beat.png") });
-  for (var k = 0; k < 3; k++) { await page.waitForTimeout(600); await page.keyboard.press("Space"); }
-  await page.waitForTimeout(1000);
-  var dk1 = await page.evaluate(function () { var S = window.PriTestWanren.state; return { doki: S.doki, n: S.dokiN, msg: document.querySelector(".wr-msg") ? document.querySelector(".wr-msg").textContent : "" }; });
-  assert.ok(!dk1.doki, "按完 3 次應該結束心跳時刻");
-  assert.strictEqual(dk1.n, dk0.n + 1);
-  assert.ok(/心跳/.test(dk1.msg), "結果訊息應該顯示心跳得分：" + dk1.msg);
+  var sw1 = await page.evaluate(function (hid) { var S = window.PriTestWanren.state; return { sweet: S.sweet, n: S.sweetN, aff: S.h[hid].aff, msg: document.querySelector(".wr-msg") ? document.querySelector(".wr-msg").textContent : "" }; }, sw0.hid);
+  assert.ok(!sw1.sweet, "選完反應應該結束");
+  assert.strictEqual(sw1.n, sw0.n + 1);
+  assert.ok(sw1.aff >= sw0.aff, "甜甜回應不會扣好感");
+  assert.ok(/我也是/.test(sw1.msg), "結果訊息應該有你的回應：" + sw1.msg);
   await closeMsg(page);
   await clickText(page, "睡覺", true);
   await clearEvents(page);
@@ -248,7 +244,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
     var guard = 0;
     while (S.phase !== "report" && guard++ < 30000) {
       if (S.phase === "yearreport") { C.nextYear(S); continue; }
-      if (S.doki) { C.dokiChoose(S, "gentle"); C.dokiFinish(S, 3); }
+      if (S.sweet) C.sweetReply(S, "sweet");
       while (S.events.length) C.resolveEvent(S, 0);
       if (S.phase === "morning") { S.today.admirers.forEach(function (a, i) { C.answerAdmirer(S, i, i % 3); }); C.finishMorning(S); continue; }
       if (S.phase === "class") { C.doClass(S, S.stats.stamina < 30 ? "doze" : "focus"); continue; }
