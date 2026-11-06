@@ -46,6 +46,9 @@
     if (cfg.mode === "tenka" && TK) {
       s.mode = "tenka"; s.heat = clamp(cfg.heat | 0, 0, TK.HEAT_MAX); s.arcT = [0, 0]; s.q = null; s.qNext = 70; s.qN = 0;
     }
+    // 地圖機關（位置由地圖編號決定；Mst＝每個機關的 [進度／引信, 冷卻]）
+    s.M = D.mapGimmicks(s.map);
+    s.Mst = s.M.map(function () { return [0, 0]; });
     if (st.feat === "river" || D.MAPS[s.map].river) {
       var nr = Math.max(D.MAPS[s.map].river || 0, st.feat === "river" ? 2 : 0);
       for (var i = 0; i < nr; i++) s.rivers.push({ x: (rnd(s) - 0.5) * AR, z: (rnd(s) - 0.5) * AR, a: rnd(s) * Math.PI, w: 3 + rnd(s) * 1.5 });
@@ -727,6 +730,73 @@
     P.x = clamp(P.x, -AR + 0.5, AR - 0.5);
     P.z = clamp(P.z, -AR + 0.5, AR - 0.5);
     if (len > 0.1) { P.fx = mvx / len; P.fz = mvz / len; }
+    // 鳥居傳送（房主的本地玩家與連線玩家的本地預測都走這裡，所以傳送是即時的）
+    if (P._wcd > 0) P._wcd -= dt;
+    var M = view.M;
+    if (M && !(P._wcd > 0)) {
+      for (var i = 0; i < M.length; i++) {
+        var g = M[i];
+        if (g.k !== "torii" || dist2(P.x, P.z, g.x, g.z) > g.r * g.r) continue;
+        var to = M[g.pr];
+        if (!to) break;
+        var ox = -to.x, oz = -to.z, ol = Math.sqrt(ox * ox + oz * oz) || 1;   // 出口朝向場地中央 2.2 公尺，避免立刻又傳回去
+        P.x = clamp(to.x + ox / ol * 2.2, -AR + 0.5, AR - 0.5); P.z = clamp(to.z + oz / ol * 2.2, -AR + 0.5, AR - 0.5);
+        P._wcd = 2.5; P._warp = (P._warp || 0) + 1;
+        break;
+      }
+    }
+  }
+  // ---------------- 地圖機關 ----------------
+  function grassMul(s, e) {
+    var M = s.M;
+    if (!M || e.fly) return 1;
+    for (var i = 0; i < M.length; i++) if (M[i].k === "kusa" && dist2(e.x, e.z, M[i].x, M[i].z) < M[i].r * M[i].r) return 0.6;
+    return 1;
+  }
+  function mapTick(s, dt) {
+    var M = s.M, ST = s.Mst;
+    if (!M || !M.length) return;
+    var ps = alive(s);
+    s._kg = (s._kg || 0) + dt;
+    var slowTick = s._kg >= 0.5;
+    if (slowTick) s._kg = 0;
+    for (var i = 0; i < M.length; i++) {
+      var g = M[i], st = ST[i], G = D.GIMMICKS[g.k], who = null, R2 = g.r * g.r;
+      for (var j = 0; j < ps.length; j++) if (dist2(ps[j].x, ps[j].z, g.x, g.z) < R2) { who = ps[j]; break; }
+      if (g.k === "onsen") { ps.forEach(function (P) { if (dist2(P.x, P.z, g.x, g.z) < R2) P.hp = Math.min(P.mhp, P.hp + 5 * dt); }); continue; }
+      if (g.k === "kagari") {
+        if (slowTick) near(s, g.x, g.z, g.r, function (e) { applyStatus(s, null, e, "burn", 6 + s.t / 20); });
+        continue;
+      }
+      if (g.k === "kusa" || g.k === "torii") continue;
+      // 有狀態的機關
+      if (st[1] > 0) { st[1] -= dt; if (st[1] <= 0) { st[1] = 0; st[0] = 0; } continue; }
+      if (g.k === "taru") {
+        if (st[0] > 0) {
+          st[0] += dt;
+          if (st[0] >= 1.2) {
+            var by = s.P[g.by] || ps[0] || null, dm = 60 * (1 + scaleF(s) * 3);
+            addFx(s, "boom", g.x, g.z, 0, 4.5, by ? by.pid : "", 1);
+            near(s, g.x, g.z, 4.5, function (e) { var dd = Math.sqrt(dist2(e.x, e.z, g.x, g.z)) || 1; hitEnemy(s, by, e, dm * (e.boss ? 0.4 : 1), { tkSub: 1, knock: 2, crit: 0, st: "burn" }, (e.x - g.x) / dd * 2, (e.z - g.z) / dd * 2); });
+            st[0] = 0; st[1] = G.cd;
+          }
+        } else if (who) { st[0] = 0.01; g.by = who.pid; }
+        continue;
+      }
+      // 站著不動就累積（地藏、梵鐘、寶藏倉）
+      st[0] = who ? st[0] + dt : Math.max(0, st[0] - dt * 0.5);
+      if (st[0] < G.hold) continue;
+      st[0] = 0; st[1] = G.cd;
+      if (g.k === "jizo") { who.hp = Math.min(who.mhp, who.hp + 25); who.buf.armor = Math.max(who.buf.armor || 0, 20); calcStats(who, s); addFx(s, "revive", g.x, g.z, 0, 2, who.pid); msg(s, "gm", who.pid, "jizo"); }
+      else if (g.k === "kane") {
+        near(s, g.x, g.z, 14, function (e) { e.stun = Math.max(e.stun || 0, e.boss ? 0.8 : 2.5); });
+        addFx(s, "pulse", g.x, g.z, 0, 14, who.pid, 2); msg(s, "gm", who.pid, "kane");
+      } else if (g.k === "kura") {
+        dropItem(s, "chest", g.x + 1.2, g.z, {});
+        for (var c = 0; c < 8; c++) dropItem(s, "coin", g.x + (rnd(s) - 0.5) * 3, g.z + (rnd(s) - 0.5) * 3, { v: 6 });
+        addFx(s, "chest", g.x, g.z, 0, 2, who.pid); msg(s, "gm", who.pid, "kura");
+      }
+    }
   }
 
   // ---------------- 武器發動 ----------------
@@ -1224,6 +1294,7 @@
     if (s.freeze > 0) s.freeze -= dt;
     buildGrid(s);
     stageFeature(s, dt);
+    mapTick(s, dt);
     weather(s, dt);
     bounty(s, dt);
     formation(s);
@@ -1453,7 +1524,7 @@
       if (!T) { T = all[0]; td = T ? dist2(e.x, e.z, T.x, T.z) : 1e9; }
       if (!T) continue;
       var tdist = Math.sqrt(td);
-      var spd = e.spd * (S && S.chill > 0 ? 0.5 : 1) * (frozen ? 0.3 : 1);
+      var spd = e.spd * (S && S.chill > 0 ? 0.5 : 1) * (frozen ? 0.3 : 1) * grassMul(s, e);
       var dx = (T.x - e.x) / (tdist || 1), dz = (T.z - e.z) / (tdist || 1);
       if (e.line) { dx = e.lx; dz = e.lz; }
       if (e.flee) { dx = -dx; dz = -dz; spd *= 1.1; }
@@ -1742,7 +1813,7 @@
   function snap(s) {
     s._snapN = (s._snapN || 0) + 1;
     var sendMeta = s._snapN < 6 || s._snapN % 30 === 0;   // 大名的本陣／軍略／符文在局中不會變：每 30 份（約 3 秒）才重送一次，客戶端快取
-    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: s.q.k === "rescue" ? r1(s.q.h) : Math.floor(s.q.h), T: r1(s.q.T), hp: s.q.hp, img: s.q.img } : undefined, sv: s.saved && s.saved.length ? s.saved : undefined, bm: s.bm > 0 ? 1 : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.filter(function (m) { return m.t > s.t - 4; }).slice(-8), bn: s.bossName };
+    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: s.q.k === "rescue" ? r1(s.q.h) : Math.floor(s.q.h), T: r1(s.q.T), hp: s.q.hp, img: s.q.img } : undefined, sv: s.saved && s.saved.length ? s.saved : undefined, bm: s.bm > 0 ? 1 : undefined, ms: s.Mst && s.Mst.length ? s.Mst.map(function (q, i) { return !D.GM_STATE[s.M[i].k] ? 0 : q[1] > 0 ? -1 : Math.round(q[0] * 10); }) : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.filter(function (m) { return m.t > s.t - 4; }).slice(-8), bn: s.bossName };
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
@@ -1810,7 +1881,7 @@
     var Zf = o.Z || [], Wf = o.W || [], Zo = [], Wo = [], zi;
     for (zi = 0; zi + 6 < Zf.length; zi += 7) Zo.push({ id: Zf[zi], k: ZK[Zf[zi + 1]] || "hata", x: Zf[zi + 2], z: Zf[zi + 3], r: Zf[zi + 4], t: Zf[zi + 5], c: Zf[zi + 6] || undefined });
     for (zi = 0; zi + 5 < Wf.length; zi += 6) Wo.push({ id: Wf[zi], k: Wf[zi + 1], x: Wf[zi + 2], z: Wf[zi + 3], r: Wf[zi + 4], p: Wf[zi + 5] });
-    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, saved: o.sv || [], bm: o.bm || 0, t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: Zo, W: Wo, fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
+    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, saved: o.sv || [], bm: o.bm || 0, M: D.mapGimmicks(o.mp), ms: o.ms || [], t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: Zo, W: Wo, fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {

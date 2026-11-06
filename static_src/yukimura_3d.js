@@ -574,6 +574,7 @@
       scene.add(rm);
     });
 
+    var GMS = D.mapGimmicks(v0.map);
     // 裝飾（依地圖權重散布；中心附近留空）
     var propGroups = [];
     var wtot = 0, plist = Object.keys(MAP.prop || {});
@@ -593,6 +594,7 @@
         pz = (hash(pi, 2) - 0.5) * (edge ? AR * 2 + 30 : AR * 2 - 4);
         if (edge && Math.max(Math.abs(px), Math.abs(pz)) < AR + 2) { if (Math.abs(px) > Math.abs(pz)) px = (px < 0 ? -1 : 1) * (AR + 3 + hash(pi, 4) * 12); else pz = (pz < 0 ? -1 : 1) * (AR + 3 + hash(pi, 4) * 12); }
         if (px * px + pz * pz < 36) continue;
+        if (GMS.some(function (g) { return (g.x - px) * (g.x - px) + (g.z - pz) * (g.z - pz) < (g.r + 2) * (g.r + 2); })) continue;   // 不擋住地圖機關
       }
       placed[key].push([px, pz, hash(pi, 6) * 6.28, 0.8 + hash(pi, 7) * 0.5]);
     }
@@ -609,6 +611,68 @@
       scene.add(im);
       propGroups.push(im);
     });
+
+    // ---- 地圖機關（2026-11-06）：靜態模型一次建好，狀態（冷卻、進度、點燃）每影格更新 ----
+    var GM_MODELS = {
+      onsen: function (g) { var L = [part(prim("cyl", g.r, g.r, 0.06, 24), 0x7ac8d8, [0, 0.04, 0])]; for (var i = 0; i < 12; i++) { var a = i / 12 * 6.28; L.push(part(prim("dodec", 0.38 + (i % 3) * 0.08), 0x6a6660, [Math.cos(a) * (g.r + 0.2), 0.15, Math.sin(a) * (g.r + 0.2)])); } L.push(part(prim("box", 0.5, 0.9, 0.06), 0xe8e0c8, [g.r + 0.8, 0.45, 0]), part(prim("box", 0.36, 0.36, 0.07), 0xc02020, [g.r + 0.8, 0.65, 0])); return L; },
+      taru: function () { return [part(prim("cyl", 0.42, 0.42, 0.95, 12), 0x7a4a26, [0, 0.48, 0]), part(prim("tor", 0.43, 0.035, 12), 0x2a2a2a, [0, 0.2, 0], [Math.PI / 2, 0, 0]), part(prim("tor", 0.43, 0.035, 12), 0x2a2a2a, [0, 0.76, 0], [Math.PI / 2, 0, 0]), part(prim("cyl", 0.36, 0.36, 0.04, 12), 0x5a3418, [0, 0.96, 0]), part(prim("box", 0.3, 0.3, 0.02), 0xf0e8d0, [0, 0.5, 0.42]), part(prim("cyl", 0.02, 0.02, 0.3, 4), 0x1a1a1a, [0.1, 1.1, 0])]; },
+      torii: function () { return PROPS.torii(); },
+      jizo: function () { return PROPS.jizo().concat([part(prim("cone", 0.24, 0.22, 8), 0xd02020, [0, 0.62, 0.02], [Math.PI, 0, 0]), part(prim("box", 0.7, 0.12, 0.5), 0x8a8a84, [0, 0.06, 0])]); },
+      kagari: function () { return [part(prim("cyl", 0.04, 0.04, 1.3, 5), 0x3a2a1a, [0.25, 0.6, 0], [0, 0, 0.2]), part(prim("cyl", 0.04, 0.04, 1.3, 5), 0x3a2a1a, [-0.25, 0.6, 0], [0, 0, -0.2]), part(prim("cyl", 0.04, 0.04, 1.3, 5), 0x3a2a1a, [0, 0.6, 0.25], [-0.2, 0, 0]), part(prim("cyl", 0.45, 0.25, 0.3, 10), 0x2a2a2a, [0, 1.25, 0])]; },
+      kusa: function (g) { var L = []; for (var i = 0; i < 34; i++) { var a = i * 2.39996, rr = Math.sqrt((i + 0.5) / 34) * g.r; L.push(part(prim("cone", 0.12, 0.9 + (i % 4) * 0.2, 4), i % 3 ? 0x6a8a3a : 0x8a9a48, [Math.cos(a) * rr, 0.45 + (i % 4) * 0.1, Math.sin(a) * rr], [(i % 5 - 2) * 0.08, 0, (i % 3 - 1) * 0.1])); } return L; },
+      kane: function () { return [part(prim("box", 0.16, 2.4, 0.16), 0x5a3a22, [-0.9, 1.2, 0]), part(prim("box", 0.16, 2.4, 0.16), 0x5a3a22, [0.9, 1.2, 0]), part(prim("box", 2.2, 0.16, 0.2), 0x5a3a22, [0, 2.35, 0]), part(prim("cone", 1.6, 0.6, 4), 0x2a2a30, [0, 2.75, 0], [0, Math.PI / 4, 0], [1, 1, 0.6]), part(prim("box", 1.2, 0.08, 0.08), 0x6a4a2a, [0, 1.3, 0.6])]; },
+      kura: function () { return PROPS.kura(); }
+    };
+    var gmObjs = GMS.map(function (g) {
+      var grp = new T.Group(), m = new T.Mesh(merge(GM_MODELS[g.k](g)), new T.MeshLambertMaterial({ vertexColors: true }));
+      m.castShadow = !low && g.k !== "kusa" && g.k !== "onsen"; m.receiveShadow = true;
+      grp.add(m); grp.position.set(g.x, 0, g.z);
+      if (g.k === "torii" || g.k === "kura") grp.rotation.y = Math.atan2(-g.x, -g.z);
+      if (g.k === "kura") grp.scale.setScalar(0.75);
+      var o = { g: g, grp: grp, main: m };
+      if (g.k === "onsen") {   // 湯氣
+        o.steam = [];
+        for (var q = 0; q < 5; q++) { var sp2 = new T.Mesh(new T.SphereGeometry(0.4, 8, 6), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false })); grp.add(sp2); o.steam.push(sp2); }
+      }
+      if (g.k === "kagari" || g.k === "taru") {
+        o.fire = new T.Mesh(new T.ConeGeometry(0.32, 0.8, 8), new T.MeshBasicMaterial({ color: 0xff8020, transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false }));
+        o.fire.position.y = g.k === "kagari" ? 1.75 : 1.3; grp.add(o.fire);
+      }
+      if (g.k === "kane") { o.bell = new T.Mesh(new T.CylinderGeometry(0.32, 0.45, 0.85, 12), new T.MeshStandardMaterial({ color: 0x8a6a2a, metalness: 0.7, roughness: 0.4 })); o.bell.position.y = 1.75; grp.add(o.bell); }
+      if (D.GM_STATE[g.k] || g.k === "torii") {   // 地上的光環：可用＝亮、冷卻＝暗；進度＝內圈放大
+        var col = g.k === "torii" ? new T.Color().setHSL(((g.pr < g.i ? g.pr : g.i) * 0.137) % 1, 0.8, 0.55) : new T.Color(0xffd040);
+        o.ring = new T.Mesh(new T.RingGeometry(g.r - 0.15, g.r, 36), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.7, side: T.DoubleSide, depthWrite: false }));
+        o.ring.rotation.x = -Math.PI / 2; o.ring.position.set(g.x, 0.06, g.z); scene.add(o.ring);
+        o.prog = new T.Mesh(new T.CircleGeometry(g.r - 0.15, 32), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.25, depthWrite: false }));
+        o.prog.rotation.x = -Math.PI / 2; o.prog.position.set(g.x, 0.05, g.z); scene.add(o.prog);
+      }
+      if (g.k === "kusa") grp.position.y = 0;
+      scene.add(grp);
+      return o;
+    });
+    function gmState(v, i) { if (v.Mst) return v.Mst[i] ? (v.Mst[i][1] > 0 ? -1 : v.Mst[i][0] * 10) : 0; return v.ms ? v.ms[i] || 0 : 0; }
+    function updateGimmicks(v, dt) {
+      gmObjs.forEach(function (o, i) {
+        var g = o.g, st = gmState(v, i), G = D.GIMMICKS[g.k];
+        if (o.steam) o.steam.forEach(function (sp2, q) { var ph = (tAcc * 0.5 + q / 5) % 1; sp2.position.set(Math.sin(q * 2.1) * g.r * 0.5, 0.3 + ph * 2.2, Math.cos(q * 2.1) * g.r * 0.5); sp2.scale.setScalar(0.6 + ph * 1.2); sp2.material.opacity = 0.35 * (1 - ph); });
+        if (g.k === "kagari") { o.fire.scale.set(1, 1 + Math.sin(tAcc * 14 + i) * 0.2, 1); o.fire.rotation.y = tAcc * 3; }
+        if (g.k === "taru") {
+          o.grp.visible = st >= 0;
+          o.fire.visible = st > 0;
+          if (st > 0) { var pulse = 1 + Math.sin(tAcc * 30) * 0.08 + st / 120; o.main.scale.setScalar(pulse); } else o.main.scale.setScalar(1);
+        }
+        if (g.k === "kane") { if (o._last >= 0 && st < 0) o.swing = 1; o._last = st; o.swing = Math.max(0, (o.swing || 0) - dt * 0.5); o.bell.rotation.z = Math.sin(tAcc * 9) * 0.5 * o.swing; }
+        if (o.ring) {
+          var ready = st >= 0;
+          o.ring.material.opacity = ready ? 0.55 + Math.sin(tAcc * 4 + i) * 0.2 : 0.12;
+          if (g.k === "torii") o.ring.rotation.z = tAcc;
+          var pr = G.hold ? Math.min(1, st / 10 / G.hold) : 0;
+          o.prog.scale.setScalar(Math.max(0.01, pr));
+          o.prog.visible = pr > 0;
+          o.main.material.color.setScalar(ready ? 1 : 0.55);
+        }
+      });
+    }
 
     // 天氣粒子（雪／火山灰）
     var weather = null;
@@ -1214,6 +1278,7 @@
       if (frameNo % 90 === 0) Object.keys(smooth).forEach(function (id) { if (frameNo - smooth[id].seen > 60) delete smooth[id]; });
 
       updateMusume(v);
+      updateGimmicks(v, dt);
       if (frameNo % 2 === 0) updatePins(v, me);
       renderer.render(scene, camera);
     }

@@ -539,50 +539,109 @@
   // ---------------- 東北地圖 20 張 ----------------
   // g＝地面三色、sky、fog、prop 裝飾權重（yukimura_3d.js 依名稱建模）、river 河流數、snow 下雪、ash 火山灰
   var MAPS = [
-    { name: N("弘前城下・雪桜"), pref: "aomori", g: [0xc4cfdc, 0xaab8c9, 0x8e9fb4], sky: 0xbcd0e6, fog: 0xdfe8f2, prop: { snowpine: 6, sakura: 3, lantern: 2, house: 2, castle: 1, rock: 2 }, snow: 1 },
-    { name: N("八甲田山・樹氷原"), pref: "aomori", g: [0xc8d3e0, 0xadbccd, 0x92a4b8], sky: 0xc7d6e6, fog: 0xeef3f8, prop: { snowpine: 10, juhyo: 5, rock: 3 }, snow: 1 },
-    { name: N("恐山・宇曽利湖"), pref: "aomori", g: [0xa9a596, 0x8e8a7e, 0xc8c2a4], sky: 0x8c8f99, fog: 0xa8a8a0, prop: { rock: 8, grave: 6, jizo: 4, kazaguruma: 4, torii: 1 }, sulfur: 1 },
-    { name: N("下北・仏ヶ浦"), pref: "aomori", g: [0xd8d6cc, 0xbdbbb0, 0x8fb0b8], sky: 0x9fb8c8, fog: 0xc4d0d4, prop: { pillar: 8, rock: 6, grave: 2 } },
-    { name: N("盛岡城跡・岩手山麓"), pref: "iwate", g: [0x7a9a5a, 0x66854a, 0x8a8a6a], sky: 0x9cc0e0, fog: 0xc8d8e0, prop: { pine: 6, rock: 5, castle: 1, house: 2, anvil: 3 } },
-    { name: N("釜石・鉄の鉱山"), pref: "iwate", g: [0x6a625a, 0x58504a, 0x8a5a3a], sky: 0x7a7a80, fog: 0x8a8580, prop: { rock: 9, anvil: 5, furnace: 3, pine: 2 } },
-    { name: N("遠野・カッパ淵"), pref: "iwate", g: [0x5f8f4a, 0x4e7a3e, 0x7aa05a], sky: 0x9ac0c8, fog: 0xb8d0c8, prop: { cedar: 5, bamboo: 4, rock: 3, jizo: 2 }, river: 2 },
-    { name: N("遠野・曲り家の里"), pref: "iwate", g: [0x8aa050, 0x749040, 0xa8a860], sky: 0xa8c8e0, fog: 0xd0dcd0, prop: { magariya: 4, rice: 6, cedar: 3, kakashi: 3 }, river: 1 },
-    { name: N("平泉・中尊寺金色堂"), pref: "iwate", g: [0x6f8f4f, 0x5c7c42, 0xc8a850], sky: 0xb8c8d8, fog: 0xd8d0b8, prop: { cedar: 7, toro: 4, pagoda: 1, shrine: 2, maple: 3 } },
-    { name: N("平泉・毛越寺浄土庭園"), pref: "iwate", g: [0x78985a, 0x66884c, 0x5a8aa0], sky: 0xb0c8dc, fog: 0xd0dcd8, prop: { pine: 4, toro: 5, rock: 4, maple: 3 }, river: 1 },
-    { name: N("男鹿・真山の神域"), pref: "akita", g: [0x5a6e48, 0x4a5c3c, 0x6a5a48], sky: 0x40486a, fog: 0x505870, prop: { cedar: 7, torii: 2, lantern: 3, rock: 3 }, night: 1 },
-    { name: N("角館・武家屋敷"), pref: "akita", g: [0x8a8a7a, 0x7a7a6a, 0xa09070], sky: 0xb0bcd0, fog: 0xd0d0d0, prop: { sakura: 7, house: 5, kura: 3, lantern: 2 } },
-    { name: N("羽黒山・杉並木"), pref: "yamagata", g: [0x4f6e3e, 0x40603a, 0x6a7a5a], sky: 0x90a8b0, fog: 0xa8b8b0, prop: { cedar: 12, pagoda: 1, toro: 3 } },
-    { name: N("山寺・立石寺"), pref: "yamagata", g: [0x7a7a62, 0x6a6a52, 0x8a8a6a], sky: 0xa0b4c4, fog: 0xc0c8c8, prop: { cliff: 6, shrine: 3, cedar: 4, maple: 4, jizo: 2 } },
-    { name: N("仙台・青葉山"), pref: "miyagi", g: [0x6a8a4a, 0x5a7a40, 0x7a7a5a], sky: 0x98b8d8, fog: 0xc0d0d8, prop: { pine: 5, castle: 1, house: 3, tanabata: 4, rock: 2 } },
-    { name: N("松島・八百八島"), pref: "miyagi", g: [0xd8cca0, 0xc4b88e, 0x6a9ab0], sky: 0xa8c8e0, fog: 0xc8dce8, prop: { pine: 6, islet: 6, rock: 4 }, river: 2 },
-    { name: N("会津・鶴ヶ城"), pref: "fukushima", g: [0x7a8a5a, 0x6a7a4a, 0x8a7a6a], sky: 0x9ab0c8, fog: 0xc0c8d0, prop: { castle: 1, sakura: 5, house: 3, rock: 2, kura: 2 } },
-    { name: N("大内宿・茅葺の宿場"), pref: "fukushima", g: [0x8a8a62, 0x7a7a54, 0xa09a70], sky: 0xa8bcd0, fog: 0xd0d4d0, prop: { magariya: 6, cedar: 4, lantern: 3, rice: 2 } },
-    { name: N("磐梯山・噴火口"), pref: "fukushima", g: [0x4a3a34, 0x3a2e2a, 0x7a3a22], sky: 0x5a4040, fog: 0x704a3e, prop: { lavarock: 9, rock: 6, deadtree: 4 }, ash: 1 },
-    { name: N("裏磐梯・五色沼"), pref: "fukushima", g: [0x5a7a4a, 0x4a6a40, 0x3aa0a0], sky: 0x90b0c0, fog: 0xb0c8c8, prop: { pine: 6, rock: 4, deadtree: 2, maple: 3 }, river: 3 }
+    { name: N("弘前城下・雪桜"), pref: "aomori", g: [0xc4cfdc, 0xaab8c9, 0x8e9fb4], sky: 0xbcd0e6, fog: 0xdfe8f2, prop: { snowpine: 6, sakura: 3, lantern: 2, house: 2, castle: 1, rock: 2 }, snow: 1, gm: { kagari: 2, kusa: 1 } },
+    { name: N("八甲田山・樹氷原"), pref: "aomori", g: [0xc8d3e0, 0xadbccd, 0x92a4b8], sky: 0xc7d6e6, fog: 0xeef3f8, prop: { snowpine: 10, juhyo: 5, rock: 3 }, snow: 1, gm: { onsen: 1, jizo: 2 } },
+    { name: N("恐山・宇曽利湖"), pref: "aomori", g: [0xa9a596, 0x8e8a7e, 0xc8c2a4], sky: 0x8c8f99, fog: 0xa8a8a0, prop: { rock: 8, grave: 6, jizo: 4, kazaguruma: 4, torii: 1 }, sulfur: 1, gm: { jizo: 3, onsen: 1 } },
+    { name: N("下北・仏ヶ浦"), pref: "aomori", g: [0xd8d6cc, 0xbdbbb0, 0x8fb0b8], sky: 0x9fb8c8, fog: 0xc4d0d4, prop: { pillar: 8, rock: 6, grave: 2 }, gm: { torii: 2, jizo: 1 } },
+    { name: N("盛岡城跡・岩手山麓"), pref: "iwate", g: [0x7a9a5a, 0x66854a, 0x8a8a6a], sky: 0x9cc0e0, fog: 0xc8d8e0, prop: { pine: 6, rock: 5, castle: 1, house: 2, anvil: 3 }, gm: { kane: 1, taru: 2 } },
+    { name: N("釜石・鉄の鉱山"), pref: "iwate", g: [0x6a625a, 0x58504a, 0x8a5a3a], sky: 0x7a7a80, fog: 0x8a8580, prop: { rock: 9, anvil: 5, furnace: 3, pine: 2 }, gm: { taru: 4, kagari: 2 } },
+    { name: N("遠野・カッパ淵"), pref: "iwate", g: [0x5f8f4a, 0x4e7a3e, 0x7aa05a], sky: 0x9ac0c8, fog: 0xb8d0c8, prop: { cedar: 5, bamboo: 4, rock: 3, jizo: 2 }, river: 2, gm: { kusa: 3, jizo: 2 } },
+    { name: N("遠野・曲り家の里"), pref: "iwate", g: [0x8aa050, 0x749040, 0xa8a860], sky: 0xa8c8e0, fog: 0xd0dcd0, prop: { magariya: 4, rice: 6, cedar: 3, kakashi: 3 }, river: 1, gm: { kusa: 3, kura: 1 } },
+    { name: N("平泉・中尊寺金色堂"), pref: "iwate", g: [0x6f8f4f, 0x5c7c42, 0xc8a850], sky: 0xb8c8d8, fog: 0xd8d0b8, prop: { cedar: 7, toro: 4, pagoda: 1, shrine: 2, maple: 3 }, gm: { kane: 1, kura: 1, kagari: 2 } },
+    { name: N("平泉・毛越寺浄土庭園"), pref: "iwate", g: [0x78985a, 0x66884c, 0x5a8aa0], sky: 0xb0c8dc, fog: 0xd0dcd8, prop: { pine: 4, toro: 5, rock: 4, maple: 3 }, river: 1, gm: { kusa: 2, torii: 2 } },
+    { name: N("男鹿・真山の神域"), pref: "akita", g: [0x5a6e48, 0x4a5c3c, 0x6a5a48], sky: 0x40486a, fog: 0x505870, prop: { cedar: 7, torii: 2, lantern: 3, rock: 3 }, night: 1, gm: { kagari: 3, jizo: 1 } },
+    { name: N("角館・武家屋敷"), pref: "akita", g: [0x8a8a7a, 0x7a7a6a, 0xa09070], sky: 0xb0bcd0, fog: 0xd0d0d0, prop: { sakura: 7, house: 5, kura: 3, lantern: 2 }, gm: { kura: 1, kusa: 2, kagari: 1 } },
+    { name: N("羽黒山・杉並木"), pref: "yamagata", g: [0x4f6e3e, 0x40603a, 0x6a7a5a], sky: 0x90a8b0, fog: 0xa8b8b0, prop: { cedar: 12, pagoda: 1, toro: 3 }, gm: { kane: 1, torii: 2 } },
+    { name: N("山寺・立石寺"), pref: "yamagata", g: [0x7a7a62, 0x6a6a52, 0x8a8a6a], sky: 0xa0b4c4, fog: 0xc0c8c8, prop: { cliff: 6, shrine: 3, cedar: 4, maple: 4, jizo: 2 }, gm: { jizo: 3, kane: 1 } },
+    { name: N("仙台・青葉山"), pref: "miyagi", g: [0x6a8a4a, 0x5a7a40, 0x7a7a5a], sky: 0x98b8d8, fog: 0xc0d0d8, prop: { pine: 5, castle: 1, house: 3, tanabata: 4, rock: 2 }, gm: { taru: 3, kagari: 1 } },
+    { name: N("松島・八百八島"), pref: "miyagi", g: [0xd8cca0, 0xc4b88e, 0x6a9ab0], sky: 0xa8c8e0, fog: 0xc8dce8, prop: { pine: 6, islet: 6, rock: 4 }, river: 2, gm: { torii: 2, kusa: 2 } },
+    { name: N("会津・鶴ヶ城"), pref: "fukushima", g: [0x7a8a5a, 0x6a7a4a, 0x8a7a6a], sky: 0x9ab0c8, fog: 0xc0c8d0, prop: { castle: 1, sakura: 5, house: 3, rock: 2, kura: 2 }, gm: { taru: 3, kura: 1 } },
+    { name: N("大内宿・茅葺の宿場"), pref: "fukushima", g: [0x8a8a62, 0x7a7a54, 0xa09a70], sky: 0xa8bcd0, fog: 0xd0d4d0, prop: { magariya: 6, cedar: 4, lantern: 3, rice: 2 }, gm: { kagari: 2, kura: 1, kusa: 1 } },
+    { name: N("磐梯山・噴火口"), pref: "fukushima", g: [0x4a3a34, 0x3a2e2a, 0x7a3a22], sky: 0x5a4040, fog: 0x704a3e, prop: { lavarock: 9, rock: 6, deadtree: 4 }, ash: 1, gm: { onsen: 1, taru: 2 } },
+    { name: N("裏磐梯・五色沼"), pref: "fukushima", g: [0x5a7a4a, 0x4a6a40, 0x3aa0a0], sky: 0x90b0c0, fog: 0xb0c8c8, prop: { pine: 6, rock: 4, deadtree: 2, maple: 3 }, river: 3, gm: { onsen: 2, kusa: 2 } },
+    // 2026-11-06 追加 10 張（每關第 3 張，機關較多）
+    { name: N("奥入瀬渓流・十和田湖"), pref: "aomori", g: [0x8a9a5a, 0x7a8a4a, 0xc89040], sky: 0xa8c4dc, fog: 0xd8dcc8, prop: { maple: 8, cedar: 4, rock: 5 }, river: 2, gm: { kusa: 3, jizo: 2, kane: 1 } },
+    { name: N("酸ヶ湯・地獄沼"), pref: "aomori", g: [0xb0a888, 0x9a9274, 0xd8d0a0], sky: 0x9aa4ac, fog: 0xc0c0b0, prop: { rock: 8, deadtree: 4, snowpine: 3 }, sulfur: 1, gm: { onsen: 3, taru: 2, jizo: 2 } },
+    { name: N("龍泉洞・地底湖"), pref: "iwate", g: [0x4a5058, 0x3a4048, 0x2a6a9a], sky: 0x20283a, fog: 0x283040, prop: { rock: 10, pillar: 4, lavarock: 2 }, night: 1, river: 1, gm: { kagari: 4, torii: 2, kura: 1 } },
+    { name: N("遠野・五百羅漢"), pref: "iwate", g: [0x5a7a48, 0x4a6a3c, 0x7a7a60], sky: 0x8aa8b0, fog: 0xa8b8b0, prop: { cedar: 7, rock: 6, jizo: 5 }, gm: { jizo: 5, kusa: 2, kane: 1 } },
+    { name: N("北上川・砂金の河原"), pref: "iwate", g: [0x9a9a6a, 0x8a8a5a, 0xd8b850], sky: 0xb0c8dc, fog: 0xd8d8c0, prop: { pine: 5, rock: 6, rice: 3 }, river: 2, gm: { kura: 2, taru: 3 } },
+    { name: N("乳頭温泉郷"), pref: "akita", g: [0x5a6a48, 0x4a5a3c, 0x8a8a7a], sky: 0x3a4060, fog: 0x4a5068, prop: { cedar: 6, magariya: 3, lantern: 3, snowpine: 2 }, night: 1, gm: { onsen: 3, kagari: 3, torii: 2 } },
+    { name: N("蔵王・お釜と樹氷"), pref: "yamagata", g: [0xc0ccd8, 0xa8b8c8, 0x5aa0a0], sky: 0xb8c8d8, fog: 0xe0e8f0, prop: { juhyo: 8, snowpine: 5, rock: 3 }, snow: 1, gm: { onsen: 2, kane: 1, torii: 2 } },
+    { name: N("松島湾・台場跡"), pref: "miyagi", g: [0xc8bc90, 0xb4a880, 0x5a8aa8], sky: 0xa0c0dc, fog: 0xc8d8e4, prop: { pine: 6, islet: 4, rock: 4, toro: 2 }, river: 1, gm: { taru: 5, kura: 1, kagari: 2 } },
+    { name: N("飯盛山・白虎の丘"), pref: "fukushima", g: [0x6a8048, 0x5a703e, 0x8a7a5a], sky: 0x98b0c8, fog: 0xbcc8d0, prop: { cedar: 5, grave: 5, sakura: 3, toro: 2 }, gm: { kane: 2, jizo: 3, kusa: 2, taru: 2 } },
+    { name: N("安達太良・沼ノ平"), pref: "fukushima", g: [0x8a7a66, 0x786a58, 0xc0a040], sky: 0x6a6460, fog: 0x8a7e72, prop: { lavarock: 6, rock: 6, deadtree: 5 }, ash: 1, gm: { onsen: 2, taru: 3, kagari: 3, torii: 2 } }
   ];
+
+  // ---------------- 地圖機關（2026-11-06 使用者「更有趣的地圖」）----------------
+  // 位置由地圖編號決定（房主與連線玩家各自算出同一組，不必經過網路）。r：作用半徑；hold：站幾秒啟動；cd：冷卻秒
+  var GIMMICKS = {
+    onsen: { icon: "♨️", r: 2.6, name: C("溫泉", "温泉"), desc: C("泡在裡面每秒回復 5 體力", "浸かると毎秒体力 5 回復") },
+    taru: { icon: "🛢️", r: 1.8, cd: 40, name: C("火藥樽", "火薬樽"), desc: C("靠近會點燃，1.2 秒後大爆炸（只傷敵人），40 秒後補充", "近づくと着火、1.2 秒後に大爆発（敵のみ）。40 秒で補充") },
+    torii: { icon: "⛩️", r: 1.3, name: C("鳥居（傳送）", "鳥居（転移）"), desc: C("走進去就傳送到成對的另一座鳥居", "くぐると対になった鳥居へ転移") },
+    jizo: { icon: "🗿", r: 2.2, hold: 2, cd: 60, name: C("地藏", "地蔵"), desc: C("站在旁邊 2 秒：回復 25 體力、20 秒防禦 +6", "そばに 2 秒：体力 25 回復・20 秒間防御 +6") },
+    kagari: { icon: "🔥", r: 1.8, name: C("篝火", "篝火"), desc: C("經過的敵人會灼燒", "近くを通る敵が炎上する") },
+    kusa: { icon: "🌾", r: 3.6, name: C("草叢", "草むら"), desc: C("敵人在草叢裡移動變慢 40%", "草むらの中の敵は 40% 遅くなる") },
+    kane: { icon: "🔔", r: 2.2, hold: 2, cd: 45, name: C("梵鐘", "梵鐘"), desc: C("站在旁邊 2 秒敲鐘：周圍 14 公尺的敵人暈眩 2.5 秒", "そばに 2 秒で鐘を撞く：周囲 14m の敵を 2.5 秒気絶") },
+    kura: { icon: "🏯", r: 2.4, hold: 3, cd: 150, name: C("寶藏倉", "宝蔵"), desc: C("站在旁邊 3 秒打開：寶箱與錢，150 秒後再補", "そばに 3 秒で開く：宝箱と銭、150 秒で再び") }
+  };
+  var GM_STATE = { taru: 1, jizo: 1, kane: 1, kura: 1 };
+  var gmCache = {};
+  function mapGimmicks(mi) {
+    if (gmCache[mi]) return gmCache[mi];
+    var M = MAPS[mi] || MAPS[0], out = [], seed = (mi + 1) * 9973;
+    function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+    function spot(minFromCenter) {
+      for (var t = 0; t < 60; t++) {
+        var x = (rnd() - 0.5) * 2 * (60 - 8), z = (rnd() - 0.5) * 2 * (60 - 8);
+        if (x * x + z * z < minFromCenter * minFromCenter) continue;
+        if (out.some(function (g) { return (g.x - x) * (g.x - x) + (g.z - z) * (g.z - z) < 81; })) continue;
+        return [x, z];
+      }
+      return [(rnd() - 0.5) * 80, (rnd() - 0.5) * 80];
+    }
+    Object.keys(M.gm || {}).forEach(function (k) {
+      var n = M.gm[k];
+      for (var i = 0; i < n; i++) {
+        if (k === "torii") {   // 兩兩成對，彼此至少 30 公尺
+          if (i % 2) continue;
+          var a = spot(10), b = null;
+          for (var tt = 0; tt < 40 && !b; tt++) { var c = spot(10); if ((c[0] - a[0]) * (c[0] - a[0]) + (c[1] - a[1]) * (c[1] - a[1]) > 900) b = c; }
+          if (!b) b = [-a[0], -a[1]];
+          var ia = out.length;
+          out.push({ k: k, x: a[0], z: a[1], r: GIMMICKS[k].r, pr: ia + 1, i: ia });
+          out.push({ k: k, x: b[0], z: b[1], r: GIMMICKS[k].r, pr: ia, i: ia + 1 });
+          continue;
+        }
+        var pt = spot(k === "kusa" ? 8 : 10);
+        out.push({ k: k, x: pt[0], z: pt[1], r: GIMMICKS[k].r, i: out.length });
+      }
+    });
+    gmCache[mi] = out;
+    return out;
+  }
 
   // ---------------- 十大關卡 ----------------
   // feat：關卡特色（yukimura_core.js 的 stageFeature）。roster：[開始秒數, 會出現的敵人]。mid：第 5／10 分鐘的中首領。boss：第 15 分鐘的魔王
   var STAGES = [
-    { maps: [0, 1], feat: "blizzard", color: 0x9fd0ff, name: C("津輕・吹雪雪原", "津軽・吹雪の雪原"), desc: C("每隔一段時間颳起吹雪：視野變差、移動變慢，雪人和雪童子成群出沒。", "定期的に吹雪：視界が悪く足が鈍る。雪だるまと雪ん子の群れ。"),
+    { maps: [0, 1, 20], feat: "blizzard", color: 0x9fd0ff, name: C("津輕・吹雪雪原", "津軽・吹雪の雪原"), desc: C("每隔一段時間颳起吹雪：視野變差、移動變慢，雪人和雪童子成群出沒。", "定期的に吹雪：視界が悪く足が鈍る。雪だるまと雪ん子の群れ。"),
       roster: [[0, ["ikki", "yukinko"]], [120, ["ashigaru", "yukinko", "ookami"]], [300, ["yukidaruma", "ookami", "yari"]], [540, ["yukidaruma", "nobushi", "yukinko"]], [720, ["kuma", "yukidaruma", "nobushi"]]], mid: ["kuma", "kuma"], boss: "yukijo" },
-    { maps: [2, 3], feat: "vents", color: 0xc0b080, name: C("恐山・地獄靈場", "恐山・地獄の霊場"), desc: C("地面隨時噴出硫磺毒氣（紅圈預警）。幽靈與鬼火會穿過一切而來。", "地面から硫黄の毒気が噴き出す（赤い円で予告）。幽霊と鬼火がすり抜けて来る。"),
+    { maps: [2, 3, 21], feat: "vents", color: 0xc0b080, name: C("恐山・地獄靈場", "恐山・地獄の霊場"), desc: C("地面隨時噴出硫磺毒氣（紅圈預警）。幽靈與鬼火會穿過一切而來。", "地面から硫黄の毒気が噴き出す（赤い円で予告）。幽霊と鬼火がすり抜けて来る。"),
       roster: [[0, ["onibi", "gaikotsu"]], [120, ["yurei", "onibi", "gaikotsu"]], [300, ["yurei", "gaikotsu", "kasha"]], [540, ["kasha", "yurei", "akaoni"]], [720, ["akaoni", "kasha", "onibi"]]], mid: ["akaoni", "akaoni"], boss: "enma" },
-    { maps: [4, 5], feat: "iron", color: 0x8a8a92, name: C("南部・鐵之國", "南部・鉄の国"), desc: C("敵人穿著南部鐵甲（減傷）。地上的鐵砧被打破會掉下強化用的寶箱。", "敵は南部鉄の鎧で硬い。金床を壊すと強化の宝箱が出る。"),
+    { maps: [4, 5, 22], feat: "iron", color: 0x8a8a92, name: C("南部・鐵之國", "南部・鉄の国"), desc: C("敵人穿著南部鐵甲（減傷）。地上的鐵砧被打破會掉下強化用的寶箱。", "敵は南部鉄の鎧で硬い。金床を壊すと強化の宝箱が出る。"),
       roster: [[0, ["ashigaru", "ookami"]], [120, ["yari", "nobushi", "ookami"]], [300, ["kuma", "nobushi", "tetsuoni"]], [540, ["tetsuoni", "kiba", "yari"]], [720, ["tetsuoni", "kuma", "kiba"]]], mid: ["kuma", "akaoni"], boss: "tetsuguma" },
-    { maps: [6, 7], feat: "river", color: 0x5fa05a, name: C("遠野・妖怪之里", "遠野・妖怪の里"), desc: C("河流會拖慢移動、河童從水裡冒出。偶爾出現的座敷童子碰到就有好運。", "川に入ると足が鈍り、河童が現れる。座敷わらしに触れると福が来る。"),
+    { maps: [6, 7, 23], feat: "river", color: 0x5fa05a, name: C("遠野・妖怪之里", "遠野・妖怪の里"), desc: C("河流會拖慢移動、河童從水裡冒出。偶爾出現的座敷童子碰到就有好運。", "川に入ると足が鈍り、河童が現れる。座敷わらしに触れると福が来る。"),
       roster: [[0, ["kodama", "kappa"]], [120, ["kappa", "kitsune", "kodama"]], [300, ["kappa", "tsuchigumo", "kitsune"]], [540, ["tsuchigumo", "gama", "kappa"]], [720, ["gama", "tsuchigumo", "akaoni"]]], mid: ["gama", "gama"], boss: "okappa" },
-    { maps: [8, 9], feat: "gold", color: 0xf2c230, name: C("平泉・黃金鄉", "平泉・黄金郷"), desc: C("錢的掉落加倍，黃金武者被打倒會撒出大量的錢；但敵人會被黃金吸引更兇猛。", "銭のドロップ 2 倍、黄金武者は銭をばらまく。ただし敵も黄金に惹かれて猛る。"),
+    { maps: [8, 9, 24], feat: "gold", color: 0xf2c230, name: C("平泉・黃金鄉", "平泉・黄金郷"), desc: C("錢的掉落加倍，黃金武者被打倒會撒出大量的錢；但敵人會被黃金吸引更兇猛。", "銭のドロップ 2 倍、黄金武者は銭をばらまく。ただし敵も黄金に惹かれて猛る。"),
       roster: [[0, ["ashigaru", "ikki"]], [120, ["nobushi", "kogane", "yari"]], [300, ["kogane", "nobushi", "gaikotsu"]], [540, ["kiba", "kogane", "akaoni"]], [720, ["akaoni", "kiba", "kogane"]]], mid: ["akaoni", "kuma"], boss: "benkei" },
-    { maps: [10, 11], feat: "darkness", color: 0x6a3a3a, name: C("男鹿・生剝鬼夜襲", "男鹿・なまはげの夜襲"), desc: C("「哭泣的孩子在哪裡！」定期入夜、視野縮小，生剝鬼成列衝鋒而來。", "「泣ぐ子はいねがー！」定期的に夜になり視界が狭まり、なまはげが列で突撃。"),
+    { maps: [10, 11, 25], feat: "darkness", color: 0x6a3a3a, name: C("男鹿・生剝鬼夜襲", "男鹿・なまはげの夜襲"), desc: C("「哭泣的孩子在哪裡！」定期入夜、視野縮小，生剝鬼成列衝鋒而來。", "「泣ぐ子はいねがー！」定期的に夜になり視界が狭まり、なまはげが列で突撃。"),
       roster: [[0, ["ikki", "ookami"]], [120, ["namahage", "ookami", "ikki"]], [300, ["namahage", "kitsune", "nobushi"]], [540, ["namahage", "akaoni", "kitsune"]], [720, ["akaoni", "namahage", "kuma"]]], mid: ["akaoni", "akaoni"], boss: "onamahage" },
-    { maps: [12, 13], feat: "wind", color: 0x6a8a6a, name: C("出羽三山・修驗之道", "出羽三山・修験の道"), desc: C("天狗之風定期把所有人往同一方向吹。烏天狗從空中襲來。", "天狗の風が定期的に皆を吹き流す。烏天狗が空から襲う。"),
+    { maps: [12, 13, 26], feat: "wind", color: 0x6a8a6a, name: C("出羽三山・修驗之道", "出羽三山・修験の道"), desc: C("天狗之風定期把所有人往同一方向吹。烏天狗從空中襲來。", "天狗の風が定期的に皆を吹き流す。烏天狗が空から襲う。"),
       roster: [[0, ["tengu", "kodama"]], [120, ["tengu", "ninja", "kodama"]], [300, ["tengu", "ninja", "yurei"]], [540, ["tengu", "nobushi", "tsuchigumo"]], [720, ["tengu", "akaoni", "ninja"]]], mid: ["gama", "akaoni"], boss: "daitengu" },
-    { maps: [14, 15], feat: "gunners", color: 0x3a4aa8, name: C("仙台・青葉城攻防", "仙台・青葉城の攻防"), desc: C("鐵砲隊在遠處開槍，騎馬隊成群衝鋒。注意閃避子彈。", "鉄砲隊が遠くから撃ち、騎馬隊が群れで突撃。弾をかわせ。"),
+    { maps: [14, 15, 27], feat: "gunners", color: 0x3a4aa8, name: C("仙台・青葉城攻防", "仙台・青葉城の攻防"), desc: C("鐵砲隊在遠處開槍，騎馬隊成群衝鋒。注意閃避子彈。", "鉄砲隊が遠くから撃ち、騎馬隊が群れで突撃。弾をかわせ。"),
       roster: [[0, ["ashigaru", "teppo"]], [120, ["teppo", "yari", "ashigaru"]], [300, ["teppo", "kiba", "nobushi"]], [540, ["kiba", "teppo", "ninja"]], [720, ["kiba", "teppo", "tetsuoni"]]], mid: ["kuma", "akaoni"], boss: "karakuri" },
-    { maps: [16, 17], feat: "siege", color: 0xa83232, name: C("會津・鶴之城籠城戰", "会津・鶴ヶ城籠城戦"), desc: C("城上的大砲會轟擊玩家的位置（紅圈預警），敵人以軍勢陣形推進。", "城の大砲がプレイヤーの位置を砲撃（赤い円で予告）。敵は陣形で押し寄せる。"),
+    { maps: [16, 17, 28], feat: "siege", color: 0xa83232, name: C("會津・鶴之城籠城戰", "会津・鶴ヶ城籠城戦"), desc: C("城上的大砲會轟擊玩家的位置（紅圈預警），敵人以軍勢陣形推進。", "城の大砲がプレイヤーの位置を砲撃（赤い円で予告）。敵は陣形で押し寄せる。"),
       roster: [[0, ["ashigaru", "yari"]], [120, ["yari", "teppo", "nobushi"]], [300, ["nobushi", "kiba", "gaikotsu"]], [540, ["tetsuoni", "kiba", "teppo"]], [720, ["tetsuoni", "akaoni", "kiba"]]], mid: ["akaoni", "kuma"], boss: "ozutsuoni" },
-    { maps: [18, 19], feat: "eruption", color: 0xe0502a, name: C("磐梯山・大噴火", "磐梯山・大噴火"), desc: C("火山彈不斷落下並留下熔岩池；溶岩兵被打倒會分裂。最終魔王荒覇吐神在此等候。", "火山弾が降り溶岩溜まりを残す。溶岩兵は倒すと分裂。最後の魔王・荒覇吐神が待つ。"),
+    { maps: [18, 19, 29], feat: "eruption", color: 0xe0502a, name: C("磐梯山・大噴火", "磐梯山・大噴火"), desc: C("火山彈不斷落下並留下熔岩池；溶岩兵被打倒會分裂。最終魔王荒覇吐神在此等候。", "火山弾が降り溶岩溜まりを残す。溶岩兵は倒すと分裂。最後の魔王・荒覇吐神が待つ。"),
       roster: [[0, ["kasha", "onibi"]], [120, ["yogan", "kasha", "onibi"]], [300, ["yogan", "akaoni", "kasha"]], [540, ["yogan", "tetsuoni", "kasha"]], [720, ["yogan", "tetsuoni", "akaoni"]]], mid: ["akaoni", "akaoni"], boss: "arahabaki" }
   ];
   var FEATS = {
@@ -615,6 +674,6 @@
     C: C, L: L, STATS: STATS, STAT: STAT, PREFS: PREFS, VARIANTS: VARIANTS, ARCHES: ARCHES, WEAPONS: WEAPONS, WLV: WLV,
     MAX_WLV: MAX_WLV, MAX_ALV: MAX_ALV, MAX_W: MAX_W, MAX_A: MAX_A, CRAFTS: CRAFTS, ACCS: ACCS, accStats: accStats,
     FOODS: FOODS, ULTS: ULTS, DAIMYO: DAIMYO, DM_KINDS: [C("大名", "大名"), C("武將", "武将"), C("女武將", "女武将"), C("忍者", "忍者")], ENEMIES: ENEMIES, BOSSES: BOSSES, MAPS: MAPS, STAGES: STAGES, FEATS: FEATS,
-    META: META, DIFFS: DIFFS, ARENA: 60, MODS: MODS, MOD_ST: MOD_ST, SYNERGY: SYNERGY, PROJ_KINDS: PROJ_KINDS, STRAIGHT_KINDS: STRAIGHT_KINDS, MAX_MOD: 2
+    META: META, DIFFS: DIFFS, ARENA: 60, GIMMICKS: GIMMICKS, GM_STATE: GM_STATE, mapGimmicks: mapGimmicks, MODS: MODS, MOD_ST: MOD_ST, SYNERGY: SYNERGY, PROJ_KINDS: PROJ_KINDS, STRAIGHT_KINDS: STRAIGHT_KINDS, MAX_MOD: 2
   };
 })();
