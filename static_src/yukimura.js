@@ -110,8 +110,11 @@
   function render() {
     if (ui.screen !== "game") stopGame();
     app.innerHTML = "";
-    var top = el("div", { class: "yk-top" }, [el("h1", { class: "yk-title" }, [t("yk_title")]), ui.screen !== "home" ? btn(t("yk_back"), goHome, "yk-link") : null]);
+    // 在房間中暫離（本陣、天下布武、圖鑑、單機設定）：返回鍵改成「回到房間」，上方顯示房間橫幅
+    var away = ui.room && AWAY_SCREENS[ui.screen];
+    var top = el("div", { class: "yk-top" }, [el("h1", { class: "yk-title" }, [t("yk_title")]), ui.screen !== "home" ? (away ? btn("🔗 " + t("yk_back_room"), backToRoom, "yk-link") : btn(t("yk_back"), goHome, "yk-link")) : null]);
     app.appendChild(top);
+    if (away) app.appendChild(roomBanner());
     if (ui.screen === "home") renderHome();
     else if (ui.screen === "setup") renderSetup(false);
     else if (ui.screen === "lobby") renderLobby();
@@ -120,8 +123,35 @@
     else if (ui.screen === "tenka") renderTenka();
     else if (ui.screen === "result") renderResult();
   }
+  // ---------------- 房間暫離與回來（2026-11-06 使用者：在房間時去本陣再回來要自動連上）----------------
+  var AWAY_SCREENS = { meta: 1, tenka: 1, codex: 1, setup: 1 };
+  var ROOM_KEY = "pritest-yukimura-room";
+  function goAway(screen, tab) {
+    if (ui.room && !ui.room.missing) ui.room.update({ aw: 1 });
+    ui.screen = screen;
+    if (tab) ui.tkTab = tab;
+    render();
+  }
+  function backToRoom() {
+    var r = ui.room;
+    if (!r) { goHome(); return; }
+    r.update({ aw: 0, meta: sortieMeta("tenka") });
+    if (r.status() === "game") { startNet(); return; }
+    ui.screen = "lobby";
+    render();
+  }
+  function roomBanner() {
+    var r = ui.room, inGame = r.status() === "game";
+    return el("div", { class: "yk-roombar" }, [
+      el("span", null, ["🔗 " + t("yk_room_away", { n: r.list().length })]),
+      inGame ? el("strong", { class: "yk-good" }, ["⚔️ " + t("yk_room_ingame")]) : null,
+      btn(inGame ? "⚔️ " + t("yk_room_join") : "🔗 " + t("yk_back_room"), backToRoom, "yk-btn yk-primary")
+    ]);
+  }
+  function rememberRoom(id) { lsSet(ROOM_KEY, id ? JSON.stringify({ id: id, t: Date.now() }) : null); }
+  function recentRoom() { var o = jget(ROOM_KEY, null); return o && o.id && Date.now() - o.t < 30 * 60 * 1000 ? o.id : null; }
   function goHome() {
-    if (ui.room) { ui.room.close(); ui.room = null; }
+    if (ui.room) { ui.room.close(); ui.room = null; rememberRoom(null); }
     if (window.location.search.indexOf("room=") >= 0) window.history.replaceState(null, "", window.location.pathname);
     ui.screen = "home";
     render();
@@ -135,6 +165,7 @@
     app.appendChild(el("div", { class: "yk-menu" }, [
       btn("⚔️ " + t("yk_menu_solo"), function () { ui.screen = "setup"; render(); }, "yk-big yk-primary-soft"),
       btn("🎴 " + t("yk_menu_tenka"), function () { ui.screen = "tenka"; ui.tkTab = "sortie"; render(); }, "yk-big yk-tk-menu"),
+      recentRoom() ? btn("🔗 " + t("yk_room_rejoin", { id: recentRoom().slice(-4) }), function () { openRoom(recentRoom()); }, "yk-big yk-primary-soft") : null,
       btn("🤝 " + t("yk_menu_coop"), function () { openRoom(null); }, "yk-big"),
       btn("🏯 " + t("yk_menu_meta"), function () { ui.screen = "meta"; render(); }, "yk-big"),
       btn("📜 " + t("yk_menu_codex"), function () { ui.screen = "codex"; render(); }, "yk-big")
@@ -217,7 +248,7 @@
       el("div", { class: "yk-field" }, [t("yk_diff"), seg(Object.keys(D.DIFFS).map(function (k) { return [k, L(D.DIFFS[k].name)]; }), ui.diff, function (k) { ui.diff = k; setPref({ diff: k }); render(); })]),
       el("div", { class: "yk-field" }, [t("yk_dur"), seg([[900, t("yk_dur_15")], [300, t("yk_dur_5")]], ui.dur, function (k) { ui.dur = Number(k); setPref({ dur: ui.dur }); render(); })]),
       el("p", { class: "yk-small yk-muted" }, [t("yk_dur_note")]),
-      el("div", { class: "yk-actions yk-next" }, [btn("⚔️ " + t("yk_start"), function () { startSolo("normal"); }, "yk-btn yk-primary")])
+      el("div", { class: "yk-actions yk-next" }, [ui.room ? btn("🔗 " + t("yk_back_room"), backToRoom, "yk-btn yk-primary") : btn("⚔️ " + t("yk_start"), function () { startSolo("normal"); }, "yk-btn yk-primary")])
     ]));
   }
 
@@ -278,8 +309,8 @@
       el("div", { class: "yk-field" }, [t("yk_tk_heat"), seg([0, 1, 2, 3, 4, 5].map(function (h) { return [h, h ? "🐉" + h : t("yk_tk_heat0")]; }), tp.heat, function (h) { var p2 = tkProgress(); p2.heat = Number(h); saveTk(p2); render(); })]),
       el("p", { class: "yk-small yk-muted" }, [t("yk_tk_heat_note", { hp: Math.round((hm.hp - 1) * 100), d: Math.round((hm.dmg - 1) * 100), m: Math.round((hm.medal - 1) * 100) })]),
       el("div", { class: "yk-actions yk-next" }, [
-        btn("⚔️ " + t("yk_start"), function () { startSolo("tenka"); }, "yk-btn yk-primary"),
-        btn("🤝 " + t("yk_menu_coop"), function () { ui.mode = "tenka"; setPref({ mode: "tenka" }); openRoom(null); }, "yk-btn")
+        ui.room ? btn("🔗 " + t("yk_back_room"), backToRoom, "yk-btn yk-primary") : btn("⚔️ " + t("yk_start"), function () { startSolo("tenka"); }, "yk-btn yk-primary"),
+        ui.room ? null : btn("🤝 " + t("yk_menu_coop"), function () { ui.mode = "tenka"; setPref({ mode: "tenka" }); openRoom(null); }, "yk-btn")
       ])
     ]));
   }
@@ -404,6 +435,7 @@
       onMove: function (pid, mv) { if (sess && sess.host && sess.s) sess.onMove(pid, mv); },
       onHost: function (w) { if (sess && !sess.host) becomeHost(w); }
     });
+    rememberRoom(ui.room.id);
     var url = window.location.pathname + "?room=" + ui.room.id;
     window.history.replaceState(null, "", url);
     ui.screen = "lobby";
@@ -414,6 +446,11 @@
     var r = ui.room;
     if (!r) return;
     if (r.missing) { ui.screen = "lobby"; render(); return; }
+    if (AWAY_SCREENS[ui.screen]) {   // 暫離中：不把人拉進戰場，只更新橫幅（開戰／結束時重畫一次）
+      var st = r.status();
+      if (st !== ui._awaySt) { ui._awaySt = st; render(); }
+      return;
+    }
     if (r.status() === "game" && ui.screen !== "game") { startNet(); return; }
     if (r.status() === "lobby" && ui.screen === "game" && sess && !sess.solo) { ui.screen = "lobby"; render(); return; }
     // 房主被交接出去（切到背景後回來、或連線不穩被接手）：改當一般玩家，畫面沿用
@@ -452,7 +489,13 @@
         el("p", { class: "yk-small yk-muted" }, [t("yk_dropin_note")])
       ])]),
       el("h3", null, [t("yk_players", { n: r.list().length })]),
-      el("ul", { class: "yk-plist" }, r.list().map(function (p) { var d = D.DAIMYO[p.dm] || D.DAIMYO[0]; return el("li", null, [crestBadge(d), " ", p.name || t("yk_noname"), "（", L(d.name), "）", r.meta && r.meta.host === p.cid ? el("span", { class: "yk-chip" }, ["👑 " + t("yk_host")]) : null]); }))
+      el("ul", { class: "yk-plist" }, r.list().map(function (p) { var d = D.DAIMYO[p.dm] || D.DAIMYO[0]; return el("li", null, [crestBadge(d), " ", p.name || t("yk_noname"), "（", L(d.name), "）", r.meta && r.meta.host === p.cid ? el("span", { class: "yk-chip" }, ["👑 " + t("yk_host")]) : null, p.away ? el("span", { class: "yk-chip" }, ["☕ " + t("yk_room_away_tag")]) : null]); }))
+    ]));
+    app.appendChild(el("div", { class: "yk-actions" }, [
+      btn("🏯 " + t("yk_menu_meta"), function () { goAway("meta"); }, "yk-btn"),
+      btn("🎴 " + t("yk_tk_tab_tree"), function () { goAway("tenka", "tree"); }, "yk-btn"),
+      btn("🔲 " + t("yk_tk_tab_runes"), function () { goAway("tenka", "runes"); }, "yk-btn"),
+      el("span", { class: "yk-small yk-muted" }, [t("yk_room_away_note")])
     ]));
     app.appendChild(panel(t("yk_pick_daimyo"), [daimyoPicker(ui.dm, function (i) { ui.dm = i; setPref({ dm: i }); r.update({ dm: i }); render(); })]));
     if (host) {
@@ -476,7 +519,7 @@
     var cfg = r.cfg || {};
     var s = Core.create({ stage: cfg.stage | 0, map: cfg.map === undefined ? -1 : cfg.map, diff: cfg.diff, dur: cfg.dur || 900, seed: (Date.now() & 0x7fffffff), mode: cfg.mode, heat: cfg.heat | 0 });
     if (s.map < 0 || cfg.map < 0) s.map = D.STAGES[s.stage].maps[Math.floor(Math.random() * 2)];
-    r.list().forEach(function (p) { Core.addPlayer(s, p.pid, p.name, p.dm, p.meta); });
+    r.list().forEach(function (p) { if (!p.away) Core.addPlayer(s, p.pid, p.name, p.dm, p.meta); });
     r.startGame(Core.serializeNet(s));
     ui.pendingHostState = s;
   }
@@ -532,6 +575,7 @@
           sess.lastSync = now;
           var online = {};
           r.list().forEach(function (p) {
+            if (p.away && !s.P[p.pid]) return;   // 暫離中的人不加入，回來時才中途加入
             online[p.pid] = 1;
             if (!s.P[p.pid] && s.ph === "play") { var P = Core.addPlayer(s, p.pid, p.name, p.dm, p.meta); P.local = p.pid === r.pid ? 1 : 0; }
           });
@@ -1159,8 +1203,8 @@
       }))),
       el("div", { class: "yk-actions yk-next" }, [
         ui.room ? btn(t("yk_back_lobby"), function () { ui.screen = "lobby"; render(); }, "yk-btn yk-primary") : btn("⚔️ " + t("yk_again"), function () { ui.screen = r.tk ? "tenka" : "setup"; ui.tkTab = "sortie"; if (r.won && r.dur >= 900 && r.stage + 1 < D.STAGES.length) { ui.stage = r.stage + 1; ui.map = -1; setPref({ stage: ui.stage, map: -1 }); } render(); }, "yk-btn yk-primary"),
-        btn("🏯 " + t("yk_menu_meta"), function () { if (ui.room) { ui.room.close(); ui.room = null; } ui.screen = "meta"; render(); }, "yk-btn"),
-        r.tk ? btn("🎴 " + t("yk_menu_tenka"), function () { if (ui.room) { ui.room.close(); ui.room = null; } ui.screen = "tenka"; ui.tkTab = "tree"; render(); }, "yk-btn") : null,
+        btn("🏯 " + t("yk_menu_meta"), function () { goAway("meta"); }, "yk-btn"),
+        r.tk ? btn("🎴 " + t("yk_menu_tenka"), function () { goAway("tenka", "tree"); }, "yk-btn") : null,
         btn(t("yk_home"), goHome, "yk-btn")
       ])
     ]));
@@ -1176,5 +1220,5 @@
   var rid = Net.roomFromUrl(window.location.href);
   if (rid) openRoom(rid); else render();
 
-  window.PriTestYukimura = { _ui: ui, _sess: function () { return sess; }, _local: local };
+  window.PriTestYukimura = { _ui: ui, _sess: function () { return sess; }, _local: local, _open: openRoom, _render: render };
 })();

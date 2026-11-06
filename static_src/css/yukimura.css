@@ -247,3 +247,6 @@
 .yk-tk-faces { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .yk-tk-fig { margin: 0; text-align: center; width: 76px; }
 .yk-tk-face-big { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; object-position: 50% 15%; border: 2px solid #ff9ac0; display: block; }
+/* 連線房間暫離橫幅（2026-11-06） */
+.yk-roombar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; padding: 0.5rem 0.75rem; margin-bottom: 0.8rem; border: 1px solid var(--yk-accent); border-radius: 8px; background: var(--yk-accent-soft); }
+.yk-roombar .yk-btn { margin-left: auto; }

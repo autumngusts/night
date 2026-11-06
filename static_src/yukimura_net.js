@@ -79,11 +79,12 @@
       var seen = {};
       return Object.keys(room.players).filter(function (k) { return room.online[k]; }).map(function (k) {
         var p = room.players[k] || {};
-        return { cid: k, pid: String(p.pid || ""), name: String(p.name || "").slice(0, 16), dm: Number(p.dm) || 0, meta: parseJson(p.meta) || {}, at: Number(p.at) || 0 };
+        return { cid: k, pid: String(p.pid || ""), name: String(p.name || "").slice(0, 16), dm: Number(p.dm) || 0, meta: parseJson(p.meta) || {}, at: Number(p.at) || 0, away: p.aw ? 1 : 0 };
       }).filter(function (p) { return /^p[0-9a-f]{16}$/.test(p.pid); }).sort(function (x, y) { return (x.at - y.at) || (x.cid < y.cid ? -1 : 1); })
         .filter(function (p) { if (seen[p.pid]) return false; seen[p.pid] = 1; return true; });
     };
-    function pushMe() { return set("pl/" + cid, { pid: room.pid, name: room.me.name || "", dm: room.me.dm | 0, meta: room.me.meta || "{}", at: room.me.at }); }
+    // aw：暫離（去本陣／軍略樹／符文畫面，人還在房間但不參戰）
+    function pushMe() { return set("pl/" + cid, { pid: room.pid, name: room.me.name || "", dm: room.me.dm | 0, meta: room.me.meta || "{}", at: room.me.at, aw: room.me.aw ? 1 : 0 }); }
     room.update = function (patch) {
       Object.keys(patch).forEach(function (k) { room.me[k] = k === "meta" ? JSON.stringify(patch[k] || {}) : patch[k]; });
       return pushMe();

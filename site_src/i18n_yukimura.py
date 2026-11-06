@@ -584,6 +584,14 @@ _TENKA_JA.update({
     "yk_tk_ev_hoi": "包囲網！四方八方が敵だ", "yk_tk_ev_chizuki": "血の月：敵が速くなり経験値 ×2（30 秒）", "yk_tk_ev_hyakki": "百鬼夜行！妖怪の行列が来る", "yk_tk_ev_chizuki_end": "血の月が沈んだ",
     "yk_tk_bm": "血の月",
 })
+_TENKA_ZH.update({
+    "yk_back_room": "回到房間", "yk_room_away_tag": "強化中", "yk_room_away": "你暫時離開了連線房間（{n} 人），房間保留中", "yk_room_ingame": "房間正在戰鬥中",
+    "yk_room_join": "回到房間並加入戰鬥", "yk_room_rejoin": "回到剛才的房間（…{id}）", "yk_room_away_note": "去強化時會保留房間，強化完按「回到房間」就會自動回來",
+})
+_TENKA_JA.update({
+    "yk_back_room": "部屋に戻る", "yk_room_away_tag": "強化中", "yk_room_away": "オンライン部屋を一時離脱中（{n} 人）、部屋は保持されています", "yk_room_ingame": "部屋は戦闘中",
+    "yk_room_join": "部屋に戻って戦闘に参加", "yk_room_rejoin": "さっきの部屋に戻る（…{id}）", "yk_room_away_note": "強化に行っても部屋は保持され、「部屋に戻る」で自動的に戻れる",
+})
 YUKIMURA_ZH.update(_TENKA_ZH)
 YUKIMURA_JA.update(_TENKA_JA)
 
