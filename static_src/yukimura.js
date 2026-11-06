@@ -298,6 +298,11 @@
     var sv = tkProgress().saved || {}, svk = Object.keys(sv);
     body.push(panel(t("yk_tk_book", { n: svk.length, m: TK.MUSUME_N }), [el("p", { class: "yk-small yk-muted" }, [t("yk_tk_book_note")]),
       svk.length ? el("div", { class: "yk-tk-faces" }, svk.map(Number).sort(function (a, b) { return a - b; }).map(function (i) { return el("figure", { class: "yk-tk-fig" }, [el("img", { src: musumeSrc(i), alt: "", class: "yk-tk-face-big", loading: "lazy" }), el("figcaption", { class: "yk-small" }, [L(TK.musumeName(i)) + (sv[i] > 1 ? " ×" + sv[i] : "")])]); })) : el("p", { class: "yk-muted" }, [t("yk_tk_book_empty")])]));
+    body.push(panel(t("yk_tk_events"), [el("ul", { class: "yk-rules" }, TK.EVENTS.map(function (ev) { return el("li", null, [ev.icon + " " + L(ev.name) + "：" + t("yk_tk_evd_" + ev.k)]); }))]));
+    body.push(panel(t("yk_tk_enemies"), [el("div", { class: "yk-cxgrid" }, Object.keys(D.ENEMIES).filter(function (k) { return D.ENEMIES[k].tk; }).map(function (k) {
+      var e = D.ENEMIES[k], f = e.f || {};
+      return el("div", { class: "yk-cx" }, [el("strong", null, [L(e.name)]), el("div", { class: "yk-small" }, ["HP " + e.hp + "・" + t("yk_speed") + " " + e.spd + (f.charge ? "・" + t("yk_f_charge") : "") + (f.armor ? "・" + t("yk_f_armor") : "")])]);
+    }))]));
     body.push(panel(t("yk_tk_affix"), [el("div", { class: "yk-chips" }, TK.AFFIX.map(function (a) { return el("span", { class: "yk-chip" }, [a.icon + " " + L(a.name) + "：" + t("yk_tk_af_" + a.k)]); }))]));
     app.appendChild(panel(t("yk_tk_tab_guide"), body));
   }
@@ -345,7 +350,7 @@
     } else if (c === "enemies") {
       body.push(el("div", { class: "yk-cxgrid" }, Object.keys(D.ENEMIES).map(function (k) {
         var e = D.ENEMIES[k], f = e.f || {};
-        return el("div", { class: "yk-cx" }, [el("strong", null, [L(e.name)]), el("div", { class: "yk-small" }, ["HP " + e.hp + "・" + t("yk_speed") + " " + e.spd + (f.fly ? "・" + t("yk_f_fly") : "") + (f.ghost ? "・" + t("yk_f_ghost") : "") + (f.ranged ? "・" + t("yk_f_ranged") : "") + (f.charge ? "・" + t("yk_f_charge") : "") + (f.armor ? "・" + t("yk_f_armor") : "") + (f.gold ? "・" + t("yk_f_gold") : "") + (f.split ? "・" + t("yk_f_split") : "")])]);
+        return el("div", { class: "yk-cx" }, [el("strong", null, [L(e.name), e.tk ? " 🎴" : ""]), el("div", { class: "yk-small" }, ["HP " + e.hp + "・" + t("yk_speed") + " " + e.spd + (f.fly ? "・" + t("yk_f_fly") : "") + (f.ghost ? "・" + t("yk_f_ghost") : "") + (f.ranged ? "・" + t("yk_f_ranged") : "") + (f.charge ? "・" + t("yk_f_charge") : "") + (f.armor ? "・" + t("yk_f_armor") : "") + (f.gold ? "・" + t("yk_f_gold") : "") + (f.split ? "・" + t("yk_f_split") : "")])]);
       })));
       body.push(panel(t("yk_cx_bosses"), [el("div", { class: "yk-cxgrid" }, Object.keys(D.BOSSES).map(function (k) { var b = D.BOSSES[k]; return el("div", { class: "yk-cx" }, [el("strong", null, ["👹 ", L(b.name)]), el("div", { class: "yk-small" }, ["HP " + b.hp + "・" + b.pat.map(function (p) { return t("yk_pat_" + p); }).join("／")])]); }))]));
     } else if (c === "stages") {
@@ -437,6 +442,9 @@
     nameIn.addEventListener("change", function () { lsSet(NAME_KEY, nameIn.value.slice(0, 16)); r.update({ name: nameIn.value.slice(0, 16) }); });
     var cfg = r.cfg || {};
     var host = r.isHost();
+    // 在大廳期間改了本陣／軍略樹／符文：重新送出自己的 meta（只在有變時送）
+    var myMeta = JSON.stringify(sortieMeta("tenka"));
+    if (r.me && r.me.meta !== myMeta) r.update({ meta: JSON.parse(myMeta) });
     app.appendChild(panel(t("yk_lobby"), [
       el("div", { class: "yk-lobby" }, [qr, el("div", { class: "yk-grow" }, [
         el("p", { class: "yk-small" }, [t("yk_share")]), el("input", { class: "yk-input yk-full", value: link, readonly: true, onclick: function (ev) { ev.target.select(); } }),
@@ -469,7 +477,7 @@
     var s = Core.create({ stage: cfg.stage | 0, map: cfg.map === undefined ? -1 : cfg.map, diff: cfg.diff, dur: cfg.dur || 900, seed: (Date.now() & 0x7fffffff), mode: cfg.mode, heat: cfg.heat | 0 });
     if (s.map < 0 || cfg.map < 0) s.map = D.STAGES[s.stage].maps[Math.floor(Math.random() * 2)];
     r.list().forEach(function (p) { Core.addPlayer(s, p.pid, p.name, p.dm, p.meta); });
-    r.startGame(Core.serialize(s));
+    r.startGame(Core.serializeNet(s));
     ui.pendingHostState = s;
   }
 
@@ -544,8 +552,13 @@
         });
         // 只有自己一個人時不廣播快照；寫入有流量控制（上一筆沒送完就跳過）
         var others = r.list().length > 1;
-        if (others && now - sess.lastSnap > 110 && !r.snapBusy()) { sess.lastSnap = now; r.writeSnap(Core.snap(s)); }
-        if (others && now - sess.lastFull > 4000) { sess.lastFull = now; r.writeFull(Core.serialize(s)); }
+        // 2026-11-06 多人流量優化：快照越大送得越慢一點（110〜180ms），完整狀態改用精簡版、6 秒一次且和快照錯開
+        var gap = 110 + Math.min(70, Math.max(0, ((sess.snapBytes || 0) - 9000) / 100));
+        if (others && now - sess.lastSnap > gap && !r.snapBusy()) {
+          sess.lastSnap = now;
+          var so = Core.snap(s);
+          sess.snapBytes = r.writeSnap(so) || sess.snapBytes;
+        } else if (others && now - sess.lastFull > 6000 && now - sess.lastSnap > 40) { sess.lastFull = now; r.writeFull(Core.serializeNet(s)); }
       }
     };
     return sess;
@@ -855,6 +868,8 @@
     if (m.k === "pick" && mine && m.a && m.a.t === "m") return D.MODS[m.a.m].icon + " " + t("yk_msg_mod", { w: L(D.WEAPONS[m.a.id].name), m: L(D.MODS[m.a.m].name) });
     if (m.k === "combo") return "🔥 " + t("yk_msg_combo", { n: nm, c: m.a });
     if (m.k === "arc" && TK.ARC[m.a]) return TK.ARC[m.a].icon + " " + t("yk_tk_msg_arc", { n: nm, a: L(TK.ARC[m.a].name) });
+    if (m.k === "tkev") { var ev = TK.EVENTS.filter(function (x) { return x.k === m.a; })[0]; return ev ? ev.icon + " " + t("yk_tk_ev_" + m.a) : ""; }
+    if (m.k === "tkev_end") return "🌙 " + t("yk_tk_ev_chizuki_end");
     if (m.k === "arcq") return "🎴 " + t("yk_tk_msg_arcq");
     if (m.k === "kg") return "🎖️ " + t("yk_tk_msg_kg", { n: m.a });
     if (m.k === "qnew" && m.a === "rescue") return "🆘 " + t("yk_tk_msg_rescue_new", { n: L(TK.musumeName(m.c)) });
@@ -904,7 +919,7 @@
       hud.hp.firstChild.style.width = Math.max(0, me.hp / me.mhp * 100) + "%";
       hud.hp.lastChild.textContent = Math.ceil(me.hp) + " / " + me.mhp;
       var wxk = v.wx && v.wx.k || "clear";
-      var info = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + (v.mode === "tenka" ? "　🎖️ " + Math.floor(me.kg || 0) + (v.heat ? "　🐉" + v.heat : "") : "") + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 }) + (wxk !== "clear" ? "　" + t("yk_wxs_" + wxk) : "") + (me.jin ? "　" + t("yk_jin", { n: me.jin }) : "");
+      var info = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + (v.mode === "tenka" ? "　🎖️ " + Math.floor(me.kg || 0) + (v.heat ? "　🐉" + v.heat : "") + (v.bm > 0 ? "　🌕" + t("yk_tk_bm") : "") : "") + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 }) + (wxk !== "clear" ? "　" + t("yk_wxs_" + wxk) : "") + (me.jin ? "　" + t("yk_jin", { n: me.jin }) : "");
       if (hud.info.textContent !== info) hud.info.textContent = info;
       var u = D.ULTS[D.DAIMYO[me.dm].ult];
       hud.ult.firstChild.textContent = u.icon;
@@ -1154,7 +1169,7 @@
   // 房主切到背景（手機鎖螢幕、切 App）時瀏覽器會暫停畫面更新，模擬就停了：把房主交給下一位玩家
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden || !sess || !sess.host || sess.solo || !ui.room || ui.screen !== "game") return;
-    if (sess.s && sess.s.ph === "play") ui.room.handoff(Core.serialize(sess.s));
+    if (sess.s && sess.s.ph === "play") ui.room.handoff(Core.serializeNet(sess.s));
   });
   window.addEventListener("i18n:change", function () { if (ui.screen !== "game") render(); else if (hud) updateHud(true); });
   // 連結帶 ?room= 就直接進房（遊戲進行中＝中途加入）

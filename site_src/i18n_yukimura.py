@@ -570,6 +570,20 @@ _TENKA_ZH.update({
 _TENKA_JA.update({
     "yk_fd_luck": "幸運アップ {n} 秒", "yk_fd_kek": "結界：防御 +10（{n} 秒）", "yk_fd_team": "全員回復 {n}", "yk_fd_chest": "その場で宝箱を開ける", "yk_fd_lv": "すぐに 1 レベルアップ",
 })
+_TENKA_ZH.update({
+    "yk_tk_af_frenzy": "體力剩一半時狂暴（加速、傷害提高）", "yk_tk_af_ward": "受到的傷害 -40%", "yk_tk_af_vamp": "打中你時回復自己的體力", "yk_tk_af_clone": "體力剩一半時分出 2 個分身",
+    "yk_tk_events": "戰場事件（約每 2.5〜3.5 分鐘）", "yk_tk_enemies": "天下布武限定的妖怪",
+    "yk_tk_evd_hoi": "一圈敵人從四面八方圍上來", "yk_tk_evd_chizuki": "30 秒內敵人加速 30%，但經驗值 ×2", "yk_tk_evd_hyakki": "一整列妖怪橫越戰場",
+    "yk_tk_ev_hoi": "包圍網！四面八方都是敵人", "yk_tk_ev_chizuki": "血月升起：敵人加速，經驗值 ×2（30 秒）", "yk_tk_ev_hyakki": "百鬼夜行！妖怪的隊伍來了", "yk_tk_ev_chizuki_end": "血月退去了",
+    "yk_tk_bm": "血月",
+})
+_TENKA_JA.update({
+    "yk_tk_af_frenzy": "体力が半分で狂暴化（加速・攻撃アップ）", "yk_tk_af_ward": "受けるダメージ -40%", "yk_tk_af_vamp": "攻撃が当たると自分の体力を回復", "yk_tk_af_clone": "体力が半分で分身を 2 体出す",
+    "yk_tk_events": "戦場イベント（約 2.5〜3.5 分ごと）", "yk_tk_enemies": "天下布武限定の妖怪",
+    "yk_tk_evd_hoi": "敵が四方から輪になって迫る", "yk_tk_evd_chizuki": "30 秒間、敵が 30% 速くなるが経験値 ×2", "yk_tk_evd_hyakki": "妖怪の行列が戦場を横切る",
+    "yk_tk_ev_hoi": "包囲網！四方八方が敵だ", "yk_tk_ev_chizuki": "血の月：敵が速くなり経験値 ×2（30 秒）", "yk_tk_ev_hyakki": "百鬼夜行！妖怪の行列が来る", "yk_tk_ev_chizuki_end": "血の月が沈んだ",
+    "yk_tk_bm": "血の月",
+})
 YUKIMURA_ZH.update(_TENKA_ZH)
 YUKIMURA_JA.update(_TENKA_JA)
 

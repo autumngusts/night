@@ -91,18 +91,21 @@
     room.setCfg = function (cfg) { if (!room.isHost()) return; room.cfg = cfg; set("cfg", JSON.stringify(cfg)); };
 
     // ---- 房主 ----
-    room.writeSnap = function (snapObj) { return room.isHost() ? setThrottled("st", "st", JSON.stringify(snapObj)) : false; };
+    // 回傳送出的位元組數（房主依此調整快照間隔）
+    room.writeSnap = function (snapObj) { if (!room.isHost()) return 0; var j = JSON.stringify(snapObj); setThrottled("st", "st", j); return j.length; };
     room.snapBusy = function () { return !!busy.st && Date.now() - busy.st < 1500; };
-    room.writeFull = function (sJson) {
+    room.writeFull = function (sJson, force) {
       if (!room.isHost()) return;
       var q = {};
       Object.keys(seenIn).forEach(function (pid) { q[pid] = seenIn[pid]; });
       fullRev++;
-      set("fu", JSON.stringify({ s: sJson, q: q, r: fullRev }));
+      // 上一筆完整狀態還沒送完就跳過（網路慢時不疊加上傳）
+      var body = JSON.stringify({ s: sJson, q: q, r: fullRev });
+      if (force) set("fu", body); else setThrottled("fu", "fu", body);
     };
     room.startGame = function (sJson) {
       if (!room.isHost()) return;
-      room.writeFull(sJson);
+      room.writeFull(sJson, true);
       set("meta", { v: 1, host: cid, status: "game" });
     };
     room.backToLobby = function () { if (room.isHost()) { set("meta", { v: 1, host: cid, status: "lobby" }); set("st", null); set("fu", null); } };
@@ -111,7 +114,7 @@
       if (!room.isHost()) return false;
       var next = room.list().filter(function (p) { return p.cid !== cid; })[0];
       if (!next) return false;
-      room.writeFull(sJson);
+      room.writeFull(sJson, true);
       G.rtTransaction(roomId, CLOUD, path("meta"), function (m) {
         if (!m || m.host !== cid) return;
         m.host = next.cid;

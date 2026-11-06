@@ -487,7 +487,14 @@
     tetsuoni: { m: "tetsuoni", name: N("鉄鬼"), hp: 230, spd: 1.6, dmg: 16, xp: 12, r: 0.9, f: { armor: 4 } },
     kogane: { m: "kogane", name: N("黄金武者"), hp: 60, spd: 2.2, dmg: 9, xp: 5, r: 0.55, f: { gold: 1 } },
     yogan: { m: "yogan", name: N("溶岩兵"), hp: 85, spd: 1.9, dmg: 12, xp: 6, r: 0.7, f: { split: 1 } },
-    kodama: { m: "kodama", name: N("木霊"), hp: 6, spd: 2.8, dmg: 4, xp: 1, r: 0.35, f: { split: 0 } }
+    kodama: { m: "kodama", name: N("木霊"), hp: 6, spd: 2.8, dmg: 4, xp: 1, r: 0.35, f: { split: 0 } },
+    // 2026-11-06 天下布武限定的妖怪（tk：只在天下布武出現）
+    hitotsume: { m: "hitotsume", tk: 1, name: N("一つ目小僧"), hp: 12, spd: 3.6, dmg: 5, xp: 1, r: 0.4 },
+    kasaobake: { m: "kasaobake", tk: 1, name: N("唐傘お化け"), hp: 18, spd: 3.4, dmg: 6, xp: 2, r: 0.45 },
+    rokurokubi: { m: "rokurokubi", tk: 1, name: N("ろくろ首"), hp: 38, spd: 2.4, dmg: 9, xp: 3, r: 0.5 },
+    nue: { m: "nue", tk: 1, name: N("鵺"), hp: 90, spd: 3.2, dmg: 12, xp: 6, r: 0.75, f: { charge: 1 } },
+    nurikabe: { m: "nurikabe", tk: 1, name: N("ぬりかべ"), hp: 260, spd: 1.0, dmg: 14, xp: 10, r: 1.0, f: { armor: 6 } },
+    gashadokuro: { m: "gashadokuro", tk: 1, name: N("がしゃどくろ"), hp: 380, spd: 1.4, dmg: 18, xp: 14, r: 1.1 }
   };
 
   // ---------------- 首領 ----------------

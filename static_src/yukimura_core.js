@@ -77,6 +77,7 @@
     };
     P.W.push(newW(d.start));
     if (s.mode === "tenka") tenkaInitPlayer(s, P);
+    P._newMeta = 1;
     s.P[pid] = P;
     calcStats(P, s);
     P.hp = P.mhp;
@@ -110,6 +111,8 @@
     synergies(P).forEach(function (y) { if (y.give && y.a === ak && list.indexOf(y.give) < 0) list.push(y.give); });
     return list;
   }
+  // 武器欄位上限（天下布武「武器庫」+1）
+  function maxW(P) { return D.MAX_W + (P.tkf && P.meta && P.meta.tk && TK ? Math.min(1, TK.treeSp(P.meta.tk.tree, "maxW")) : 0); }
   function xpNeed(lv) { return Math.round(5 + lv * 5.5 + Math.max(0, lv - 20) * 9 + Math.max(0, lv - 40) * 16); }
   function msg(s, k, pid, a, b, c) { s.msg.push({ id: nid(s), k: k, p: pid, a: a, b: b, c: c, t: s.t }); if (s.msg.length > 12) s.msg.shift(); }
 
@@ -238,7 +241,7 @@
         if (cands.length) o = { t: "m", i: wi, id: ww.id, m: pick(s, cands) };
       }
       else if (r < 0.62 && aUp.length) o = pick(s, aUp);
-      else if (r < 0.82 && P.W.length < D.MAX_W) {
+      else if (r < 0.82 && P.W.length < maxW(P)) {
         // 新武器：先抽攻擊方式（避免重複），藩隨機；有地緣的話偏向同縣
         var ownedA = {}; P.W.forEach(function (w) { ownedA[D.WEAPONS[w.id].a] = 1; });
         var ai = rint(s, D.ARCHES.length);
@@ -276,7 +279,7 @@
     if (!o) return;
     if (o.t === "wu" && P.W[o.i]) P.W[o.i].lv = Math.min(D.MAX_WLV, P.W[o.i].lv + 1);
     else if (o.t === "au" && P.A[o.i]) P.A[o.i].lv = Math.min(D.MAX_ALV, P.A[o.i].lv + 1);
-    else if (o.t === "w" && P.W.length < D.MAX_W) P.W.push(newW(o.id));
+    else if (o.t === "w" && P.W.length < maxW(P)) P.W.push(newW(o.id));
     else if (o.t === "a" && P.A.length < D.MAX_A) P.A.push({ id: o.id, lv: 1 });
     else if (o.t === "m" && P.W[o.i] && D.MODS[o.m]) { var ws = P.W[o.i]; ws.mods = ws.mods || []; if (ws.mods.length < D.MAX_MOD && ws.mods.indexOf(o.m) < 0) ws.mods.push(o.m); }
     else if (o.t === "heal") P.hp = Math.min(P.mhp, P.hp + 30);
@@ -297,7 +300,7 @@
       w.evo = 1;
       res.push({ t: "evo", id: w.id });
     }
-    var n = (big ? 3 : 1 + (rnd(s) < 0.3 * P.st.luck ? 1 : 0)) + (P.tkf && P.tkf.a_tenun ? 1 : 0);
+    var n = (big ? 3 : 1 + (rnd(s) < 0.3 * P.st.luck ? 1 : 0)) + (P.tkf && P.tkf.a_tenun ? 1 : 0) + (P.tkf && TK ? Math.min(1, TK.treeSp(tkTree(P), "chestPlus")) : 0);
     for (var i = 0; i < n; i++) {
       var ups = [];
       P.W.forEach(function (w2, j) { if (w2.lv < D.MAX_WLV) ups.push({ t: "wu", i: j, id: w2.id }); });
@@ -365,6 +368,7 @@
     if (crit) dmg *= st.critDmg;
     if (hasMod(p, "shokei") && e.hp < e.mhp * 0.3) dmg *= 2;
     if (P && P.tkf) dmg *= tenkaDmgMul(s, P, e, p);
+    if (e.af === "ward") dmg *= 0.6;
     var armor = (e.armor || 0);
     dmg = Math.max(1, dmg - armor);
     if (e.boss && e.shieldT > 0) dmg *= 0.3;
@@ -426,12 +430,12 @@
     e.hp = 0;
     s.kills++;
     if (P) {
-      P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9) * (P.tkf && P.tkf.s_gunryaku ? 1.5 : 1));
+      P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9) * (P.tkf && P.tkf.s_gunryaku ? 1.5 : 1) * (P.tkf && TK ? 1 + 0.2 * TK.treeSp(tkTree(P), "ultFast") : 1));
       P.cb = (P.cb || 0) + 1; P.cbT = 3; if (P.cb > (P.cbMax || 0)) P.cbMax = P.cb;
       if (P.cb % 100 === 0) msg(s, "combo", P.pid, P.cb);
     }
     var def = D.ENEMIES[e.k] || {};
-    var sx = e.xp * (e.el ? 6 : 1);
+    var sx = e.xp * (e.el ? 6 : 1) * (s.bm > 0 ? 2 : 1);
     dropGem(s, e.x, e.z, sx);
     var luck = P ? P.st.luck : 1;
     var stg = D.STAGES[s.stage];
@@ -505,6 +509,7 @@
     };
     if (D.STAGES[s.stage].feat === "gold") e.spd *= 1.08;
     if (s.wx && s.wx.k === "fog") e.spd *= 1.1;
+    if (s.bm > 0) e.spd *= 1.3;   // 天下布武「血月」
     s.E.push(e);
     return e;
   }
@@ -562,7 +567,7 @@
         spawnEnemy(s, "kappa", rv.x + Math.cos(rv.a) * off, rv.z + Math.sin(rv.a) * off);
         continue;
       }
-      spawnAround(s, pick(s, list), P, rnd(s) < 0.025 + f * 0.02);
+      spawnAround(s, s.mode === "tenka" && rnd(s) < 0.22 ? tkRosterPick(s) : pick(s, list), P, rnd(s) < 0.025 + f * 0.02);
     }
   }
 
@@ -843,7 +848,7 @@
         var hops = 2 + p.n * 2, hit2 = {}, dm2 = p.dmg, lx = P.x, lz = P.z;
         for (var hop = 0; hop <= hops && cur; hop++) {
           hit2[cur.id] = 1;
-          addFx(s, "chain", lx, lz, Math.atan2(cur.z - lz, cur.x - lx), Math.sqrt(dist2(lx, lz, cur.x, cur.z)), P.pid);
+          if (hop < 6 && s.fx.length < 260) addFx(s, "chain", lx, lz, Math.atan2(cur.z - lz, cur.x - lx), Math.sqrt(dist2(lx, lz, cur.x, cur.z)), P.pid);
           lx = cur.x; lz = cur.z;
           hitEnemy(s, P, cur, dm2, p);
           dm2 *= 0.88;
@@ -964,6 +969,12 @@
     P.bn = TK.treeSp(tree, "ban"); P.sk = TK.treeSp(tree, "skip");
     P.rr += TK.treeSp(tree, "rr"); P.rev += TK.treeSp(tree, "rev");
     if (TK.treeSp(tree, "startLv")) P.W[0].lv = 2;
+    P.arcQ += Math.min(1, TK.treeSp(tree, "arcStart"));
+    if (TK.treeSp(tree, "startMod")) {
+      var kind0 = D.WEAPONS[P.W[0].id].kind;
+      var mc = Object.keys(D.MODS).filter(function (m) { return (!D.MODS[m].proj || D.PROJ_KINDS[kind0]) && (!D.MODS[m].straight || D.STRAIGHT_KINDS[kind0]); });
+      if (mc.length) P.W[0].mods = [pick(s, mc)];
+    }
     if (TK.treeSp(tree, "startW")) {
       var a0 = D.WEAPONS[P.W[0].id].a, ai = rint(s, D.ARCHES.length);
       if (ai === a0) ai = (ai + 1) % D.ARCHES.length;
@@ -1035,7 +1046,7 @@
   function tenkaOnKill(s, P, e) {
     if (e.el) {
       questProgress(s, "elite", 1);
-      if (rnd(s) < 0.3) awardKg(s, 1, false);
+      if (rnd(s) < 0.3 + (P ? 0.15 * TK.treeSp(tkTree(P), "kgDrop") : 0)) awardKg(s, 1, false);
       var eb = P ? TK.treeSp(tkTree(P), "elite") : 0;
       if (eb && rnd(s) < 0.1 * eb) dropItem(s, "chest", e.x + 0.8, e.z, {});
       if (e.af === "split") for (var i = 0; i < 3; i++) { var c = spawnEnemy(s, e.k, e.x + Math.cos(i * 2.1) * 0.8, e.z + Math.sin(i * 2.1) * 0.8, 0.6); if (c) c.small = 1; }
@@ -1134,6 +1145,32 @@
     if (k === "rescue") startRescue(s, s.q);
     msg(s, "qnew", "", k, n, s.q.img);
   }
+  function tkRosterPick(s) {
+    var f = clamp(s.t / s.dur, 0, 1), list = TK.TK_ROSTER[0][1];
+    TK.TK_ROSTER.forEach(function (r) { if (f >= r[0]) list = r[1]; });
+    return pick(s, list);
+  }
+  // 戰場事件：包圍網（一圈敵人圍上來）、血月（30 秒敵人加速、經驗 ×2）、百鬼夜行（一列妖怪橫越）
+  function eventTick(s, dt) {
+    if (s.bm > 0) { s.bm -= dt; if (s.bm <= 0) { s.bm = 0; msg(s, "tkev_end", "", "chizuki"); } }
+    if (s.evT === undefined) s.evT = 150 + rnd(s) * 60;
+    if (s.boss || s.t < s.evT) return;
+    s.evT = s.t + 150 + rnd(s) * 60;
+    var ps = alive(s);
+    if (!ps.length) return;
+    var k = pick(s, ["hoi", "chizuki", "hyakki"]), P = pick(s, ps), list = roster(s), i;
+    if (k === "hoi") {
+      var n = 22 + Math.round(scaleF(s) * 14);
+      for (i = 0; i < n; i++) { var a = i / n * Math.PI * 2; spawnEnemy(s, pick(s, list), P.x + Math.cos(a) * 13, P.z + Math.sin(a) * 13); }
+    } else if (k === "chizuki") {
+      s.bm = 30;
+      s.E.forEach(function (e) { if (!e.boss) e.spd *= 1.3; });
+    } else {
+      var ang = rnd(s) * Math.PI * 2, cx = P.x - Math.cos(ang) * 16, cz = P.z - Math.sin(ang) * 16, kinds = ["yurei", "onibi", "kasaobake", "hitotsume", "rokurokubi"];
+      for (i = 0; i < 24; i++) { var off = (i - 12) * 1.3; spawnEnemy(s, pick(s, kinds), cx - Math.sin(ang) * off, cz + Math.cos(ang) * off); }
+    }
+    msg(s, "tkev", "", k);
+  }
   function tenkaTick(s, dt) {
     // 天命：第 1/3、2/3 再選一張
     [1 / 3, 2 / 3].forEach(function (fr, i) {
@@ -1164,8 +1201,15 @@
       }
       if (P._bar > 0) P._bar -= dt;
     });
-    for (var i = 0; i < s.E.length; i++) { var en = s.E[i]; if (en.af === "regen" && en.hp > 0) en.hp = Math.min(en.mhp, en.hp + en.mhp * 0.025 * dt); }
+    for (var i = 0; i < s.E.length; i++) {
+      var en = s.E[i];
+      if (!en.af || en.hp <= 0) continue;
+      if (en.af === "regen") en.hp = Math.min(en.mhp, en.hp + en.mhp * 0.025 * dt);
+      else if (en.af === "frenzy" && !en._fz && en.hp < en.mhp * 0.5) { en._fz = 1; en.spd *= 1.6; en.dmg *= 1.3; }
+      else if (en.af === "clone" && !en._cl && en.hp < en.mhp * 0.5) { en._cl = 1; for (var ci = 0; ci < 2; ci++) { var cc = spawnEnemy(s, en.k, en.x + (ci ? 1 : -1), en.z, 0.8); if (cc) { cc.hp = cc.mhp = en.mhp * 0.25; } } }
+    }
     questTick(s, dt);
+    eventTick(s, dt);
   }
 
   // ---------------- 主迴圈 ----------------
@@ -1368,6 +1412,7 @@
     if (P.down || P.iv > 0) return;
     var d = Math.max(1, dmg - P.st.armor - (P.tkf ? (P._still ? (P.tkf.fudo ? 3 : 0) + (P.tkf.a_fudo ? 4 : 0) : 0) : 0));
     if (P.tkf) { if (P._bar > 0) d *= 0.5; P._hitT = s.t; }
+    if (src && src.af === "vamp" && src.hp > 0) src.hp = Math.min(src.mhp, src.hp + src.mhp * 0.08);
     P.hp -= d;
     P.iv = 0.45;
     if (src && P.st.thorns > 0 && src.hp > 0) hitEnemy(s, P, src, P.st.thorns, null);
@@ -1695,15 +1740,18 @@
   // ---------------- 快照（連線廣播用，數值壓縮）----------------
   function r1(v) { return Math.round(v * 10) / 10; }
   function snap(s) {
-    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: s.q.k === "rescue" ? r1(s.q.h) : Math.floor(s.q.h), T: r1(s.q.T), hp: s.q.hp, img: s.q.img } : undefined, sv: s.saved && s.saved.length ? s.saved : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
+    s._snapN = (s._snapN || 0) + 1;
+    var sendMeta = s._snapN < 6 || s._snapN % 30 === 0;   // 大名的本陣／軍略／符文在局中不會變：每 30 份（約 3 秒）才重送一次，客戶端快取
+    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: s.q.k === "rescue" ? r1(s.q.h) : Math.floor(s.q.h), T: r1(s.q.T), hp: s.q.hp, img: s.q.img } : undefined, sv: s.saved && s.saved.length ? s.saved : undefined, bm: s.bm > 0 ? 1 : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.filter(function (m) { return m.t > s.t - 4; }).slice(-8), bn: s.bossName };
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
         dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0, jn: P.jin || 0, af: P.afk ? 1 : 0,
         un: P.ultN || 0, kg: P.kg ? Math.round(P.kg * 10) / 10 : undefined, ac: P.arc && P.arc.length ? P.arc : undefined, aq: P.arcQ || undefined, bn: P.bn || undefined, sk: P.sk || undefined,
         W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0, (w.mods || []).join(",")]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
-        op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: P.meta
+        op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: sendMeta || P._newMeta ? P.meta : undefined
       };
+      P._newMeta = 0;
     });
     var bossE = null;
     var pl = players(s);
@@ -1718,10 +1766,14 @@
     s.S.forEach(function (sh) { if (!seen(sh.x, sh.z, 32)) return; o.S.push(sh.id, SKI[sh.k] === undefined ? 0 : SKI[sh.k], r1(sh.x), r1(sh.z), Math.round((sh.a || 0) * 10) / 10, r1(sh.h || 0), sh.mode === "drop" ? r1(Math.max(0, sh.life)) : -1); });
     s.B.forEach(function (b) { o.B.push(b.id, r1(b.x), r1(b.z), b.k === "orb" ? 1 : 0); });
     var gn = 0;
-    for (var gi = s.G.length - 1; gi >= 0 && gn < 140; gi--) { var gg = s.G[gi]; if (seen(gg.x, gg.z, 26)) { gn++; o.G.push(gg.id, Math.round(gg.x * 2), Math.round(gg.z * 2), gg.v >= 20 ? 2 : gg.v >= 5 ? 1 : 0); } }
-    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.k === "musume" ? d.img : d.big ? 1 : 0); });
-    s.Z.forEach(function (z) { o.Z.push({ id: z.id, k: z.k, x: r1(z.x), z: r1(z.z), r: r1(z.r), t: r1(z.t), c: z.c }); });
-    s.W.forEach(function (w) { o.W.push({ id: w.id, k: w.k, x: r1(w.x), z: r1(w.z), r: r1(w.r), p: Math.round((1 - w.t / w.T) * 100) / 100 }); });
+    for (var gi = s.G.length - 1; gi >= 0 && gn < 110; gi--) { var gg = s.G[gi]; if (seen(gg.x, gg.z, 26)) { gn++; o.G.push(gg.id, Math.round(gg.x * 2), Math.round(gg.z * 2), gg.v >= 20 ? 2 : gg.v >= 5 ? 1 : 0); } }
+    s.D.forEach(function (d) {
+      // 看不到的錢、料理、燈籠不送（寶箱、祠、村姑、座敷童子有方向指示針，照送）
+      if ((d.k === "coin" || d.k === "food" || d.k === "lantern" || d.k === "anvil") && !seen(d.x, d.z, 30)) return;
+      o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.k === "musume" ? d.img : d.big ? 1 : 0); });
+    // 區域、預警改成扁平陣列（物件的鍵名太占頻寬）
+    s.Z.forEach(function (z) { if (z.k !== "pool" && !seen(z.x, z.z, 30)) return; o.Z.push(z.id, ZK.indexOf(z.k), r1(z.x), r1(z.z), r1(z.r), r1(z.t), z.c || 0); });
+    s.W.forEach(function (w) { o.W.push(w.id, w.k, r1(w.x), r1(w.z), r1(w.r), Math.round((1 - w.t / w.T) * 100) / 100); });
     return o;
   }
   // 快照裡敵人種類、投射物外觀用編號（字串太占頻寬）
@@ -1730,13 +1782,15 @@
   var SK = D.ARCHES.map(function (a) { return a.k; }), SKI = {};
   SK.forEach(function (k, i) { SKI[k] = i; });
   var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora", "musume"];
+  var ZK = ["pool", "hata", "makibishi", "kiri"];
+  var metaCache = {};   // 客戶端：每位玩家最後收到的 meta
   var FXK = ["chain", "slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
   var FXI = {}; FXK.forEach(function (k, i) { FXI[k] = i; });
   // 只送最近 0.7 秒的特效（畫面依 id 只播一次）
   function packFx(s) {
     var out = [], cut = Math.max(s.t - 0.6, (s._snapT || 0) - 0.08), pl = players(s);
     s._snapT = s.t;
-    for (var i = Math.max(0, s.fx.length - 140); i < s.fx.length; i++) {
+    for (var i = Math.max(0, s.fx.length - 100); i < s.fx.length; i++) {
       var f = s.fx[i];
       if (f.t < cut) continue;
       var vis = false;
@@ -1753,14 +1807,17 @@
   }
   // 把快照轉成畫面用的「view」（與房主的 s 同一種欄位名稱，畫面程式只寫一套）
   function unsnap(o) {
-    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, saved: o.sv || [], t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
+    var Zf = o.Z || [], Wf = o.W || [], Zo = [], Wo = [], zi;
+    for (zi = 0; zi + 6 < Zf.length; zi += 7) Zo.push({ id: Zf[zi], k: ZK[Zf[zi + 1]] || "hata", x: Zf[zi + 2], z: Zf[zi + 3], r: Zf[zi + 4], t: Zf[zi + 5], c: Zf[zi + 6] || undefined });
+    for (zi = 0; zi + 5 < Wf.length; zi += 6) Wo.push({ id: Wf[zi], k: Wf[zi + 1], x: Wf[zi + 2], z: Wf[zi + 3], r: Wf[zi + 4], p: Wf[zi + 5] });
+    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, saved: o.sv || [], bm: o.bm || 0, t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: Zo, W: Wo, fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {
         pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm, jin: p.jn || 0, afk: p.af || 0,
         ultN: p.un || 0, kg: p.kg || 0, arc: p.ac || [], arcQ: p.aq || 0, bn: p.bn || 0, sk: p.sk || 0,
         W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4], mods: w[5] ? String(w[5]).split(",") : [] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
-        opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m || {}
+        opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m ? (metaCache[pid] = p.m) : (metaCache[pid] || {})
       };
       calcStats(v.P[pid], v);
     });
@@ -1781,12 +1838,27 @@
     return v;
   }
   function serialize(s) { return JSON.stringify(s); }
-  function deserialize(j) { try { var s = JSON.parse(j); return s && s.v === 1 ? s : null; } catch (e) { return null; } }
+  // 連線用的完整狀態（房主交接用）：去掉畫面用的特效、投射物、敵彈、訊息，數值四捨五入到 0.01（2026-11-06 多人流量優化：183KB → 約 1/3）
+  var NET_SKIP = { fx: 1, S: 1, B: 1, msg: 1, _snapT: 1 };
+  function serializeNet(s) {
+    var o = {};
+    Object.keys(s).forEach(function (k) { if (!NET_SKIP[k]) o[k] = s[k]; });
+    // replacer 函式很慢（約 60ms），改成一般 stringify 後用正規表示式把小數截到 2 位（約 3ms）
+    return JSON.stringify(o).replace(/(\.\d\d)\d+/g, "$1");
+  }
+  function deserialize(j) {
+    try {
+      var s = JSON.parse(j);
+      if (!s || s.v !== 1) return null;
+      ["fx", "S", "B", "msg", "E", "G", "D", "Z", "W"].forEach(function (k) { if (!Array.isArray(s[k])) s[k] = []; });
+      return s;
+    } catch (e) { return null; }
+  }
 
   window.PriTestYukimuraCore = {
     create: create, addPlayer: addPlayer, removePlayer: removePlayer, step: step, applyIntent: applyIntent, players: players,
     calcStats: calcStats, comboBonus: comboBonus, synergies: synergies, weaponMods: weaponMods, ultTier: ultTier, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
-    snap: snap, unsnap: unsnap, serialize: serialize, deserialize: deserialize, xpNeed: xpNeed, baseStats: baseStats,
+    snap: snap, unsnap: unsnap, serialize: serialize, serializeNet: serializeNet, deserialize: deserialize, xpNeed: xpNeed, baseStats: baseStats,
     schoolTiers: TK ? TK.schoolTiers : function () { return {}; },
     _rnd: rnd
   };

@@ -155,7 +155,18 @@
     { id: "r1", x: 2, y: 5, max: 1, cost: 80, req: ["g2"], icon: "🔲", name: C("符文格・擴張一", "符文枠・拡張一"), sp: "board" },
     { id: "r2", x: 3, y: 5, max: 1, cost: 200, req: ["r1", "c4"], icon: "🔲", name: C("符文格・擴張二", "符文枠・拡張二"), sp: "board" },
     { id: "r3", x: 4, y: 5, max: 1, cost: 450, req: ["r2", "c7"], icon: "🔲", name: C("符文格・擴張三", "符文枠・拡張三"), sp: "board" },
-    { id: "r4", x: 3, y: 6, max: 1, cost: 900, req: ["r3", "b6", "z6"], icon: "🏯", name: C("天下人", "天下人"), eff: ["might", 0.1] }
+    { id: "r4", x: 3, y: 6, max: 1, cost: 900, req: ["r3", "b6", "z6"], icon: "🏯", name: C("天下人", "天下人"), eff: ["might", 0.1] },
+    // 2026-11-06 追加路線：修羅（會心）／名工（起始秘傳、武器上限）／不屈／奇策（天命）／商人（寶箱、軍功）
+    { id: "b8", x: 0, y: 5, max: 3, cost: 120, req: ["b6"], icon: "👺", name: C("修羅", "修羅"), eff: ["critDmg", 0.15] },
+    { id: "b9", x: 1, y: 5, max: 1, cost: 260, req: ["b7"], icon: "🔨", name: C("名工", "名工"), sp: "startMod" },
+    { id: "b10", x: 0, y: 6, max: 3, cost: 160, req: ["b8"], icon: "📯", name: C("鬨之聲", "鬨の声"), sp: "ultFast" },
+    { id: "b11", x: 1, y: 6, max: 1, cost: 700, req: ["b9"], icon: "🗃️", name: C("武器庫", "武器庫"), sp: "maxW" },
+    { id: "g5", x: 2, y: 6, max: 3, cost: 150, req: ["g4", "r1"], icon: "🪨", name: C("不屈", "不屈"), eff: ["maxHp", 15] },
+    { id: "c8", x: 4, y: 6, max: 1, cost: 500, req: ["c7", "r3"], icon: "🎴", name: C("奇策", "奇策"), sp: "arcStart" },
+    { id: "z8", x: 5, y: 5, max: 1, cost: 300, req: ["z6"], icon: "🏪", name: C("商人町", "商人町"), sp: "chestPlus" },
+    { id: "z9", x: 6, y: 5, max: 3, cost: 120, req: ["z7"], icon: "🌾", name: C("豐穰", "豊穣"), eff: ["growth", 0.05] },
+    { id: "z10", x: 5, y: 6, max: 2, cost: 200, req: ["z8"], icon: "⛏️", name: C("金山", "金山"), sp: "kgDrop" },
+    { id: "z11", x: 6, y: 6, max: 2, cost: 140, req: ["z9"], icon: "🔭", name: C("千里眼", "千里眼"), eff: ["magnet", 0.2] }
   ];
   var NODE = {};
   TREE.forEach(function (n) { NODE[n.id] = n; });
@@ -171,7 +182,13 @@
     medal: C("軍功 +12%／級", "軍功 +12%／Lv"),
     quest: C("軍令報酬 +30%／級", "軍令の報酬 +30%／Lv"),
     elite: C("精英掉寶箱機率 +10%／級", "精鋭の宝箱率 +10%／Lv"),
-    school: C("流派共鳴的門檻 -1（2 把就到第二階）", "流派共鳴の必要数 -1")
+    school: C("流派共鳴的門檻 -1（2 把就到第二階）", "流派共鳴の必要数 -1"),
+    startMod: C("起始武器帶一個隨機秘傳", "初期武器にランダムな秘伝が 1 つ付く"),
+    ultFast: C("采配累積 +20%／級", "采配の溜まり +20%／Lv"),
+    maxW: C("武器欄位 +1（最多 7 把）", "武器枠 +1（最大 7 つ）"),
+    arcStart: C("開局多選一張天命", "開始時の天命をもう 1 枚"),
+    chestPlus: C("寶箱多強化一件", "宝箱の強化 +1"),
+    kgDrop: C("精英掉軍功機率 +15%／級", "精鋭の軍功ドロップ率 +15%／Lv")
   };
   var BOARD_SIZES = [[4, 4], [5, 4], [5, 5], [6, 5]];
 
@@ -185,8 +202,21 @@
     { k: "iron", icon: "🛡️", name: C("堅牢", "堅牢") },
     { k: "regen", icon: "💚", name: C("再生", "再生") },
     { k: "split", icon: "🧬", name: C("分裂", "分裂") },
-    { k: "blast", icon: "💣", name: C("自爆", "自爆") }
+    { k: "blast", icon: "💣", name: C("自爆", "自爆") },
+    // 2026-11-06 追加
+    { k: "frenzy", icon: "😡", name: C("狂暴", "狂暴") },
+    { k: "ward", icon: "🔰", name: C("護法", "護法") },
+    { k: "vamp", icon: "🦇", name: C("吸血", "吸血") },
+    { k: "clone", icon: "👥", name: C("分身", "分身") }
   ];
+  // 戰場事件（天下布武；約每 2.5〜3.5 分鐘一次）
+  var EVENTS = [
+    { k: "hoi", icon: "⭕", name: C("包圍網", "包囲網") },
+    { k: "chizuki", icon: "🌕", name: C("血月", "血の月") },
+    { k: "hyakki", icon: "👻", name: C("百鬼夜行", "百鬼夜行") }
+  ];
+  // 天下布武限定妖怪的出現時期（0〜1＝經過時間比例）
+  var TK_ROSTER = [[0, ["hitotsume", "kasaobake"]], [0.3, ["kasaobake", "rokurokubi", "hitotsume"]], [0.55, ["rokurokubi", "nue", "nurikabe"]], [0.75, ["nue", "nurikabe", "gashadokuro"]]];
 
   // ---------------- 軍令（限時任務）----------------
   var QUESTS = [
@@ -308,7 +338,7 @@
   window.PriTestYukimuraTenka = {
     SCHOOLS: SCHOOLS, SCHOOL: SCHOOL, SCHOOL_OF: SCHOOL_OF, TIER_N: TIER_N, ARCANA: ARCANA, ARC: ARC, SHAPES: SHAPES, RUNES: RUNES, RUNE: RUNE, RUNE_SP: RUNE_SP,
     LINE_BONUS: LINE_BONUS, PERFECT_BONUS: PERFECT_BONUS, TREE: TREE, NODE: NODE, SP_TEXT: SP_TEXT, BOARD_SIZES: BOARD_SIZES, HEAT_MAX: HEAT_MAX, heatMul: heatMul,
-    AFFIX: AFFIX, QUESTS: QUESTS, QUEST: QUEST, MUSUME_N: MUSUME_N, musumeImg: musumeImg, musumeName: musumeName,
+    AFFIX: AFFIX, EVENTS: EVENTS, TK_ROSTER: TK_ROSTER, QUESTS: QUESTS, QUEST: QUEST, MUSUME_N: MUSUME_N, musumeImg: musumeImg, musumeName: musumeName,
     rotate: rotate, runeCells: runeCells, boardSize: boardSize, evalBoard: evalBoard, canPlace: canPlace, loadout: loadout, treeSp: treeSp,
     applyStats: applyStats, schoolCounts: schoolCounts, schoolTiers: schoolTiers, flags: flags
   };
