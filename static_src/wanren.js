@@ -41,7 +41,7 @@
   var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a", kouhai: "#4fb0a0", friend: "#5ea84a", bestie: "#d4553e", fanclub: "#d0569f" };
 
   var S = null;   // 遊戲狀態
-  var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "full", name: "" };
+  var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "sfull", name: "" };
   var view = null, view3dState = "none";   // none | loading | ready | fail
 
   // ---------------- 外框 ----------------
@@ -231,7 +231,8 @@
     else if (S.phase === "report") renderReport(null);
     else if (S.phase === "yearreport") renderReport(S.yearReport);
     else {
-      if (S.events.length && !ui.msg && S.today) renderEvent();
+      if (S.doki && !ui.msg && S.today) renderDoki();
+      else if (S.events.length && !ui.msg && S.today) renderEvent();
       else if (S.phase === "morning") renderMorning();
       else if (S.phase === "class") renderClass();
       else if (S.phase === "exam") renderExam();
@@ -253,7 +254,7 @@
     var nameIn = el("input", { class: "wr-input", type: "text", maxlength: "12", placeholder: t("wr_name_ph"), value: ui.name });
     nameIn.addEventListener("input", function () { ui.name = nameIn.value; });
     var lenSel = el("div", { class: "wr-seg" }, C.LENGTHS.map(function (l) {
-      return btn(L(l.name) + "・" + t("wr_hours", { n: l.hours }), function () { ui.lengthId = l.id; render(); }, "wr-seg-btn" + (ui.lengthId === l.id ? " on" : ""));
+      return btn(L(l.name) + "・" + (l.time ? L(l.time) : t("wr_hours", { n: l.hours })), function () { ui.lengthId = l.id; render(); }, "wr-seg-btn" + (ui.lengthId === l.id ? " on" : "") + (l.slow ? " wr-seg-slow" : ""));
     }));
     var meta = C.loadMeta();
     var ngBox = null;
@@ -264,7 +265,7 @@
     }
     panelEl.appendChild(section(null, [
       el("p", { class: "wr-intro" }, [t("wr_intro")]),
-      el("ul", { class: "wr-rules" }, [1, 2, 3, 4, 5].map(function (i) { return el("li", {}, [t("wr_rule" + i)]); })),
+      el("ul", { class: "wr-rules" }, [1, 2, 3, 4, 5, 6].map(function (i) { return el("li", {}, [t("wr_rule" + i)]); })),
       el("label", { class: "wr-field" }, [el("span", {}, [t("wr_name")]), nameIn]),
       el("div", { class: "wr-field" }, [el("span", {}, [t("wr_length")]), lenSel]),
       ngBox,
@@ -403,6 +404,95 @@
       el("p", { class: "wr-ev-text" }, v.text.split("\n").map(function (ln, i) { return i ? el("span", { class: "wr-ev-line" }, [ln]) : ln; })),
       el("div", { class: "wr-col" }, v.opts.map(function (o, i) { return btn(o, function () { act(function () { return C.resolveEvent(S, i); }); }, "wr-btn wr-btn-opt"); }))
     ], "wr-event wr-event-" + ev.type));
+  }
+
+  // ---------------- 💓 心跳時刻（2026-11-06） ----------------
+  // 第 1 步：選做法（大膽／溫柔／含蓄）。她最心動的做法猜中一次之後會標 ♥。
+  // 第 2 步：節拍小遊戲——她的心跳（BPM 隨好感變快），圓圈縮到愛心上的瞬間按 💓（也可以按空白鍵、點愛心）。
+  var dokiRaf = 0, dokiKey = null, dokiRun = null;
+  function dokiStop() {
+    if (dokiRaf) cancelAnimationFrame(dokiRaf);
+    dokiRaf = 0;
+    if (dokiKey) { document.removeEventListener("keydown", dokiKey); dokiKey = null; }
+  }
+  function renderDoki() {
+    dokiStop();
+    var dk = S.doki, sit = C.dokiSit(S), hid = dk.hid, hd = D.HEROINE_BY_ID[hid], h = S.h[hid];
+    var nm = hname(hid), confess = dk.sit === "confess";
+    var head = el("div", { class: "wr-doki-head" }, [face(hd, 64), el("div", {}, [
+      el("div", { class: "wr-doki-kicker" }, [confess ? "💘 " + t("wr_doki_confess") : "💓 " + t("wr_doki")]),
+      el("b", {}, [sit.title]), el("div", { class: "wr-small wr-muted" }, [nm + "・" + C.stageName(S, hid)])
+    ])]);
+    var text = el("p", { class: "wr-ev-text" }, [C.fmt(sit.text, { n: nm })]);
+    if (dk.step === "choose") {
+      var known = h.dokiTone;
+      panelEl.appendChild(section(null, [head, text,
+        el("div", { class: "wr-col" }, D.DOKI_TONES.map(function (tn, i) {
+          return btn(el("span", {}, [el("b", {}, [tn.icon + " " + L(tn.name) + (known === tn.id ? " ♥" : "")]), el("small", {}, [sit.opts[i]])]), function () {
+            C.dokiChoose(S, tn.id); save(); render();
+          }, "wr-btn wr-btn-card wr-doki-opt" + (known === tn.id ? " wr-doki-known" : ""));
+        })),
+        el("p", { class: "wr-small wr-muted" }, [t(known ? "wr_doki_known" : "wr_doki_hint", { n: nm })])
+      ], "wr-event wr-doki"));
+      return;
+    }
+    // 節拍
+    var bpm = C.dokiBpm(S, hid), period = 60000 / bpm, B = D.DOKI_BEAT, taps = B.taps;
+    // 重繪（3D 點擊等）時延續同一輪節拍，不要重來
+    if (!dokiRun || dokiRun.dk !== dk) dokiRun = { dk: dk, got: [], pts: 0, done: false, t0: performance.now() + 600 };
+    var run = dokiRun, got = run.got, t0 = run.t0;
+    var ring = el("div", { class: "wr-doki-ring" });
+    var heart = el("div", { class: "wr-doki-heart" }, ["💗"]);
+    var judge = el("div", { class: "wr-doki-judge" }, [" "]);
+    var dots = el("div", { class: "wr-doki-dots" });
+    function drawDots() {
+      dots.innerHTML = "";
+      for (var i = 0; i < taps; i++) dots.appendChild(el("span", { class: "wr-doki-dot" + (got[i] === 2 ? " p" : got[i] === 1 ? " g" : got[i] === 0 ? " m" : "") }, [got[i] === 2 ? "💖" : got[i] === 1 ? "💗" : got[i] === 0 ? "💔" : "♡"]));
+    }
+    drawDots();
+    function finish() {
+      if (run.done) return;
+      run.done = true; dokiStop();
+      setTimeout(function () { if (S.doki === dk) act(function () { return C.dokiFinish(S, run.pts); }); }, 650);
+    }
+    function tap() {
+      if (run.done) return;
+      var now = performance.now();
+      if (now < t0 - period * 0.25) return;   // 開始前
+      var ph = (((now - t0) % period) + period) % period / period, dist = Math.min(ph, 1 - ph);
+      var r = dist < B.perfect ? 2 : dist < B.good ? 1 : 0;
+      got.push(r); run.pts += r;
+      judge.textContent = r === 2 ? "PERFECT 💖" : r === 1 ? "GOOD 💗" : "MISS 💔";
+      judge.className = "wr-doki-judge j" + r;
+      drawDots();
+      if (got.length >= taps) finish();
+    }
+    // 按鈕用 pointerdown（比 click 早、手機上不延遲）；鍵盤由 document 的 keydown 處理，避免空白鍵按一次算兩次
+    var tapBtn = el("button", { type: "button", class: "wr-btn wr-btn-main wr-doki-tapbtn", tabindex: "-1" }, ["💓 " + t("wr_doki_tap")]);
+    tapBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); tap(); });
+    var pad = el("div", { class: "wr-doki-pad", role: "button", tabindex: "0", "aria-label": t("wr_doki_tap") }, [ring, heart]);
+    pad.addEventListener("pointerdown", function (e) { e.preventDefault(); tap(); });
+    dokiKey = function (e) { if (e.code === "Space" || e.key === "Enter") { e.preventDefault(); tap(); } };
+    document.addEventListener("keydown", dokiKey);
+    var limit = t0 + period * (taps + 4);   // 太久沒按：剩下的都算沒按到
+    function frame() {
+      if (!pad.isConnected) { dokiStop(); return; }
+      var now = performance.now();
+      var ph = now < t0 ? 1 - (t0 - now) / 600 : (((now - t0) % period) / period);
+      var beat = Math.max(0, 1 - Math.min(ph, 1 - ph) / 0.12);
+      heart.style.transform = "scale(" + (1 + beat * 0.32).toFixed(3) + ")";
+      ring.style.transform = "scale(" + (1 + 1.6 * (1 - ph)).toFixed(3) + ")";
+      ring.style.opacity = (0.25 + 0.75 * ph).toFixed(2);
+      if (now > limit && !run.done) { while (got.length < taps) got.push(0); judge.textContent = "MISS 💔"; drawDots(); finish(); return; }
+      dokiRaf = requestAnimationFrame(frame);
+    }
+    panelEl.appendChild(section(null, [head, text,
+      el("div", { class: "wr-doki-bpm" }, [t("wr_doki_bpm", { n: nm, bpm: bpm })]),
+      pad, judge, dots,
+      tapBtn,
+      el("p", { class: "wr-small wr-muted" }, [t("wr_doki_beat_hint")])
+    ], "wr-event wr-doki wr-doki-beat"));
+    dokiRaf = requestAnimationFrame(frame);
   }
 
   // ---------------- 早上 ----------------
@@ -604,7 +694,7 @@
     if (C.canConfess(S, hid)) {
       var lack = C.confessReq(S, hid);
       card.appendChild(el("div", { class: "wr-confess" }, [
-        btn("💘 " + t("wr_confess"), function () { if (window.confirm(t("wr_confess_confirm", { n: hname(hid) }))) act(function () { return C.confess(S, hid); }); }, "wr-btn wr-btn-pink", { disabled: noAp || lack.length > 0 }),
+        btn("💘 " + t("wr_confess"), function () { if (window.confirm(t("wr_confess_confirm", { n: hname(hid) }))) act(function () { return C.confessStart(S, hid); }); }, "wr-btn wr-btn-pink", { disabled: noAp || lack.length > 0 }),
         lack.length ? el("span", { class: "wr-small wr-bad" }, [t("wr_confess_need") + "：" + lack.join("、")]) : el("span", { class: "wr-small wr-good" }, [t("wr_confess_ok")])
       ]));
     }

@@ -10,10 +10,17 @@
   var VERSION = 2;
   // 學期長度：pace＝學業／魅力／好感的成長倍率（越長越慢，避免第一年就全部滿值）
   // questTerm：第 2、3 個任務最早在第幾個學期開放（0＝大一春、1＝大一秋、2＝大二春…）；hours＝預估遊玩時間
+  // 2026-11-06 使用者要求「預估時間更短，一個學期大約 30 分」：新增濃縮行事曆（short: true）並設為預設。
+  //   濃縮版每週只玩 1 天（單週星期三、雙週星期六，都是社團日），特殊日與考試照常 → 一學期約 16 天 × 2 分鐘 ≈ 30 分鐘。
+  //   legacy＝對應的「每天都玩」行事曆，用來算 span（濃縮版的 1 天約等於幾天，見 span()）。
+  //   原本的 trial／year／full 保留為「慢活版」，舊存檔照常讀取。sp＝學業的成長倍率（沒寫就用 pace）。
   var LENGTHS = [
-    { id: "trial", name: { zh: "體驗版（4 週）", ja: "体験版（4 週間）" }, hours: 1, pace: 1, questTerm: [0, 0, 0] },
-    { id: "year", name: { zh: "1 學年", ja: "1 学年" }, hours: 8, pace: 0.6, questTerm: [0, 0, 1] },
-    { id: "full", name: { zh: "完整版（3 學年）", ja: "フル（3 学年）" }, hours: 24, pace: 0.38, questTerm: [0, 1, 2] }
+    { id: "sterm", short: true, legacy: "sterm_legacy", name: { zh: "1 學期", ja: "1 学期" }, time: { zh: "約 30 分鐘", ja: "約 30 分" }, hours: 0.5, pace: 2.6, sp: 2.6, questTerm: [0, 0, 0] },
+    { id: "syear", short: true, legacy: "year", name: { zh: "1 學年", ja: "1 学年" }, time: { zh: "約 1.2 小時", ja: "約 1.2 時間" }, hours: 1.2, pace: 1.6, sp: 1.8, questTerm: [0, 0, 1] },
+    { id: "sfull", short: true, legacy: "full", name: { zh: "完整版（3 學年）", ja: "フル（3 学年）" }, time: { zh: "約 3.5 小時", ja: "約 3.5 時間" }, hours: 3.5, pace: 0.75, sp: 1.15, questTerm: [0, 1, 2] },
+    { id: "trial", slow: true, name: { zh: "慢活・體驗版（4 週）", ja: "スロー・体験版（4 週間）" }, hours: 1, pace: 1, questTerm: [0, 0, 0] },
+    { id: "year", slow: true, name: { zh: "慢活・1 學年", ja: "スロー・1 学年" }, hours: 8, pace: 0.6, questTerm: [0, 0, 1] },
+    { id: "full", slow: true, name: { zh: "慢活・完整版", ja: "スロー・フル" }, hours: 24, pace: 0.38, questTerm: [0, 1, 2] }
   ];
   var STATS = [
     { id: "study", icon: "📖", name: { zh: "學業", ja: "学業" } },
@@ -63,7 +70,7 @@
   // ---------------- 新遊戲 ----------------
   function newGame(opts) {
     opts = opts || {};
-    var len = LENGTHS.filter(function (l) { return l.id === opts.length; })[0] || LENGTHS[2];
+    var len = LENGTHS.filter(function (l) { return l.id === opts.length; })[0] || LENGTHS[2];   // 預設：濃縮完整版
     var seed = opts.seed !== undefined ? (opts.seed | 0) : (Math.floor(Math.random() * 2147483647) | 0);
     var s = {
       v: VERSION, seed: seed, rs: seed, name: String(opts.name || "新生").slice(0, 12), lengthId: len.id, length: buildCal(len.id).length,
@@ -101,7 +108,7 @@
     });
     if (!s.skills) s.skills = { cook: 0, sport: 0, art: 0, music: 0, talk: 0 };
     if (s.club === undefined) s.club = null;
-    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids", "chatSeq", "chatReplies", "affirmed", "nightTalks"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
+    ["meetupOk", "encounters", "hiddenTalks", "storySeen", "clubDays", "clubWins", "xev", "hunts", "rumorGood", "rumorBad", "sns", "snsPosts", "polaroids", "chatSeq", "chatReplies", "affirmed", "nightTalks", "dokiN", "dokiPerfect"].forEach(function (k) { if (s[k] === undefined) s[k] = 0; });
     // 2026-11-05 擴充：轉正的迷妹、傳聞紀錄、穿搭、房間
     if (!s.promoted) s.promoted = [];
     if (!s.rumorLog) s.rumorLog = [];
@@ -194,6 +201,9 @@
     if (s.sns >= 1000) unlock(s, "sns1000");
     if (s.chatReplies >= 50) unlock(s, "chat50");
     if (s.affirmed >= 30) unlock(s, "affirm30");
+    if (s.dokiN >= 10) unlock(s, "doki10");
+    if (s.dokiN >= 40) unlock(s, "doki40");
+    if (s.dokiPerfect >= 10) unlock(s, "dokiPerfect10");
     if (s.nightTalks >= 10) unlock(s, "nightTalk10");
     return takeNewAchievements(s);
   }
@@ -266,7 +276,7 @@
   function examWeek(s, day) {
     if (day === undefined) day = s.day;
     if (dayKind(s, day) !== "weekday") return false;
-    for (var i = 1; i <= 3; i++) { var k = dayKind(s, day + i); if (EXAM_KINDS[k]) return true; }
+    for (var i = 1; i <= (span(s) > 1 ? 1 : 3); i++) { var k = dayKind(s, day + i); if (EXAM_KINDS[k]) return true; }
     return false;
   }
   // 自由時間進行到第幾段（0〜2）：女主角會依時段換地點（第 10 項）
@@ -281,7 +291,24 @@
   // 一學年：春學期 16 週 → 暑假活動日 6 天 → 秋學期 16 週（含學園祭、聖誕夜、寒假）→ 情人節 → 結業式／畢業典禮
   var calCache = {};
   function mkDay(dt, kind, year, term, termName) {
-    return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate(), wd: (dt.getDay() + 6) % 7, kind: kind, year: year, term: term, termName: termName };
+    return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate(), wd: (dt.getDay() + 6) % 7, kind: kind, year: year, term: term, termName: termName, t: Math.round(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()) / 86400000) };
+  }
+  // 濃縮行事曆（2026-11-06）：特殊日、考試日全部保留；其他日子每週只留 1 天（單週星期三、雙週星期六），
+  // 那一週已經有特殊日就不再留。暑假留 8/1 與夏日祭典，寒假留 1 天。
+  var ORDINARY = { weekday: 1, weekend: 1, summer: 1, holiday: 1 };
+  function compress(full) {
+    var out = [], weeks = {}, starts = {};
+    full.forEach(function (c) { if (starts[c.termName] === undefined) starts[c.termName] = c.t; });
+    function wk(c) { return c.termName + "#" + Math.floor((c.t - starts[c.termName]) / 7); }
+    full.forEach(function (c) { if (!ORDINARY[c.kind]) weeks[wk(c)] = true; });
+    full.forEach(function (c) {
+      if (!ORDINARY[c.kind]) { out.push(c); return; }
+      if (c.kind === "summer") { if (c.d === 1) out.push(c); return; }
+      var k = wk(c), w = Math.floor((c.t - starts[c.termName]) / 7);
+      if (weeks[k]) return;
+      if (c.kind === "holiday" ? c.wd === 2 || (c.m === 1 && c.d === 2) : c.wd === (w % 2 ? 5 : 2)) { weeks[k] = true; out.push(c); }
+    });
+    return out;
   }
   function firstMonday(y, m, d) {
     var dt = new Date(y, m, d);
@@ -305,6 +332,12 @@
   function buildCal(lengthId) {
     if (calCache[lengthId]) return calCache[lengthId];
     var out = [];
+    if (lengthId === "syear" || lengthId === "sfull") return (calCache[lengthId] = compress(buildCal(lengthId === "syear" ? "year" : "full")));
+    if (lengthId === "sterm_legacy" || lengthId === "sterm") {
+      // 1 學期：大一春學期（入學典禮〜期末考）
+      term(out, firstMonday(2026, 3, 6), 16, 0, 0, "大一・春學期", function (i) { return i === 0 ? "entrance" : i === 6 * 7 + 5 ? "sports" : null; });
+      return (calCache[lengthId] = lengthId === "sterm" ? compress(out) : out);
+    }
     if (lengthId === "trial") {
       term(out, firstMonday(2026, 3, 6), 4, 0, 0, "大一・春學期", function (i) { return i === 0 ? "entrance" : i === 19 ? "festival" : null; });
       out.length = 26;
@@ -344,8 +377,15 @@
   function termName(s, day) { return cal(s, day).termName; }
   function dayKind(s, day) { return cal(s, day).kind; }
   function special(s, day) { return D.SPECIAL_DAYS[dayKind(s, day)] || null; }
-  function lengthOf(s) { return LENGTHS.filter(function (l) { return l.id === s.lengthId; })[0] || LENGTHS[2]; }
+  function lengthOf(s) { return LENGTHS.filter(function (l) { return l.id === (s.lengthId || "full"); })[0] || LENGTHS[2]; }
   function pace(s) { return lengthOf(s).pace; }
+  // 濃縮版的 1 天約等於原本的幾天（慢活版＝1）。以「天數」寫的規則（交往 30 天紀念日、劇情機率…）用它換算。
+  function span(s) {
+    var l = lengthOf(s);
+    return l.short ? buildCal(l.legacy).length / buildCal(l.id).length : 1;
+  }
+  // 「n 天前」換成濃縮版的天數
+  function ago(s, realDays) { return s.day - Math.max(1, Math.round(realDays / span(s))); }
 
   // ---------------- 屬性 ----------------
   function applyEff(s, eff, out) {
@@ -356,7 +396,7 @@
       var before = s.stats[k];
       // 學業與魅力越高越難成長（遞減）
       // 長的模式成長比較慢（pace）
-      if (k === "study" && v > 0) v = v * clamp(1.1 - before / 95, 0.04, 1) * pace(s);
+      if (k === "study" && v > 0) v = v * clamp(1.1 - before / 95, 0.04, 1) * (lengthOf(s).sp || pace(s));   // sp：濃縮版的學業另外調快（上課天數少）
       // 魅力（2026-11-02 使用者要求加難）：越接近 100 越難漲，沒有下限
       else if (k === "charm" && v > 0) v = v * Math.pow(Math.max(0, 1 - before / 100), 1.4) * pace(s);
       else if ((k === "study" || k === "charm") && v < 0) v = v * pace(s);
@@ -731,6 +771,8 @@
     completeHunt(s, hid, out);
     s.today.talked[hid] = cnt + 1;
     h.lastSeen = s.day;
+    // 💓 心跳時刻：聊得很順（她喜歡的話題或被全肯定）時
+    if ((pref === "like" || affirm) && rand(s) < dokiChance(s, hid)) dokiStart(s, hid, "talk", out, whereIs(s, hid, s.day, curSlot(s)));
     return out;
   }
   function gift(s, hid, iid) {
@@ -858,27 +900,29 @@
     var h = s.h[hid], hd = D.HEROINE_BY_ID[hid];
     return s.phase === "free" && h.met && !h.dating && h.quest >= hd.quests.length && h.aff >= 80 && h.cooldown < s.day;
   }
-  function confess(s, hid) {
+  // bonus：心跳告白的成功率加減（dokiFinish）；great：心跳全中而且說法符合她
+  function confess(s, hid, bonus, great) {
     if (!canConfess(s, hid)) return null;
     var lack = confessReq(s, hid);
     if (lack.length) return ["還差一點……（" + lack.join("、") + "）"];
     if (!useAp(s, 1)) return ["沒有行動點了。"];
     var h = s.h[hid], hd = D.HEROINE_BY_ID[hid];
     var lovers = loversOf(s).length;
-    var p = clamp(0.55 + (h.aff - 80) / 50 + s.stats.charm / 400 + s.stats.rep / 400 - lovers * hd.jealousy * 0.12 + (s.outfit === "formal" ? 0.05 : 0), 0.05, 0.97);
+    var p = clamp(0.55 + (h.aff - 80) / 50 + s.stats.charm / 400 + s.stats.rep / 400 - lovers * hd.jealousy * 0.12 + (s.outfit === "formal" ? 0.05 : 0) + (bonus || 0), 0.05, 0.97);
     var out = ["你鼓起勇氣，對" + name(hid) + "說出了「我喜歡你」。"];
     if (rand(s) < p) {
       startDating(s, hid);
       out.push(name(hid) + "：" + hd.lines.cy);
       out.push("💕 你和" + name(hid) + "開始交往了！");
       addAff(s, hid, 5, out, true);
+      if (great) unlock(s, "dokiConfess");
       if (lovers) { out.push("（……你現在同時和 " + (lovers + 1) + " 個人交往。小心修羅場。）"); }
       applyEff(s, { charm: 3 }, out);
     } else {
       out.push(name(hid) + "：" + hd.lines.cn);
       addAff(s, hid, -10, out);
-      h.cooldown = s.day + 3;
-      out.push("（3 天後才能再告白）");
+      h.cooldown = s.day + (span(s) > 1 ? 1 : 3);
+      out.push(span(s) > 1 ? "（下一次見面之前不能再告白）" : "（3 天後才能再告白）");
     }
     h.lastSeen = s.day;
     return out;
@@ -958,6 +1002,12 @@
     if (s.phase !== "free" || !s.today || s.today.enc >= ENC_PER_DAY || s.events.length) return false;
     var here = curLoc ? heroinesAt(s, curLoc).filter(function (h) { return s.h[h].met; }) : [];
     var list = D.ENCOUNTERS.filter(function (e) { return !e.kind || here.length; });
+    // 💓 在場的人好感夠高：有機率變成心跳時刻
+    var dk = here.filter(function (h) { return s.h[h].aff >= 30; });
+    if (dk.length && rand(s) < 0.35) {
+      var dh = pick(s, dk);
+      if (dokiStart(s, dh, "enc", null, curLoc)) { s.today.enc++; s.encounters++; return true; }
+    }
     var e = pick(s, list);
     s.today.enc++;
     s.encounters++;
@@ -1070,6 +1120,8 @@
     s.dates++;
     run.done = true;
     s.phase = "night";
+    // 💓 約會很順利：回家前的心跳時刻（特殊日的晚上是煙火／最後一支舞）
+    if (gain >= 10 && rand(s) < 0.75) dokiStart(s, hid, spEv ? "fest" : "date", out);
     return out;
   }
   function cancelDate(s) {
@@ -1138,6 +1190,7 @@
     h.dates++;
     s.today.festDance = hid;
     s.phase = "night";
+    dokiStart(s, hid, "fest", out);   // 💓 煙火下／最後一支舞
     return out;
   }
 
@@ -1152,11 +1205,11 @@
     if (kind === "clubcup" && s.club) s.events.push({ type: "clubcup" });
     var lovers = loversOf(s), last = s.day === s.length - 1;
     lovers.forEach(function (hid) {
-      var h = s.h[hid], days = s.day - h.since;
+      var h = s.h[hid], days = (s.day - h.since) * span(s);   // 換算成實際天數
       if (h.rel === 1 && days >= 30 && !h.anniv) s.events.push({ type: "anniv", hid: hid });
       else if (h.rel === 2 && days >= 90 && h.aff >= 90) s.events.push({ type: "family", hid: hid });
       else if (last && h.rel >= 3) s.events.push({ type: "promise", hid: hid });
-      else if (days > 7 && hash(s.seed, s.day, hid, "quarrel") < 0.012) s.events.push({ type: "quarrel", hid: hid });
+      else if (days > 7 && hash(s.seed, s.day, hid, "quarrel") < Math.min(0.08, 0.012 * span(s))) s.events.push({ type: "quarrel", hid: hid });
     });
     // 女友約你在某個地點見面（有課或放假的日子都可能）
     if (lovers.length && !EXAM_KINDS[kind] && hash(s.seed, s.day, "meetup") < 0.15) {
@@ -1168,7 +1221,7 @@
       D.HEROINES.forEach(function (hd) {
         var h = s.h[hd.id];
         if (!h.met || h.aff < 55 || (h.story || 0) >= c.year || !hd.story) return;
-        if (hash(s.seed, s.day, hd.id, "story") < 0.03) s.events.push({ type: "story", hid: hd.id, idx: h.story || 0 });
+        if (hash(s.seed, s.day, hd.id, "story") < Math.min(0.2, 0.03 * span(s))) s.events.push({ type: "story", hid: hd.id, idx: h.story || 0 });
       });
     }
   }
@@ -1180,11 +1233,12 @@
       if (s.today.date && !s.today.dateRun) cancelDate(s);
       s.phase = "night";
     }
+    s.doki = null;   // 沒處理完的心跳時刻不留到隔天
     var out = [];
     // 睡覺回復
     applyEff(s, { stamina: 20 + (s.room.bed ? 8 : 0) }, null);
     // 魅力 50 以上會慢慢下降，要靠打扮、健身等維持（每天最多 −0.25）
-    if (s.stats.charm > 50) s.stats.charm = Math.round((s.stats.charm - 0.25 * (s.stats.charm - 50) / 50) * 100) / 100;
+    if (s.stats.charm > 50) s.stats.charm = Math.round((s.stats.charm - 0.25 * Math.sqrt(span(s)) * (s.stats.charm - 50) / 50) * 100) / 100;
     chatExpire(s, out);   // 沒回的訊息
     var lovers = loversOf(s);
     // 跟太多迷妹曖昧：女友吃醋
@@ -1212,7 +1266,7 @@
       var avgJ = lovers.reduce(function (a, hid) { return a + D.HEROINE_BY_ID[hid].jealousy; }, 0) / lovers.length;
       var p = clamp(0.05 * (lovers.length - 1) * (1 + avgJ) + s.today.flirt * 0.015 - s.stats.rep / 600, 0.02, 0.55) * pace(s);
       // 修羅場之後 10 天內不會再爆發
-      if (s.day - (s.flags.lastShura || -99) >= 10 && rand(s) < p) {
+      if (s.day - (s.flags.lastShura || -99) >= Math.max(2, Math.round(10 / span(s))) && rand(s) < p) {
         s.flags.lastShura = s.day;
         var a = pick(s, lovers), rest = lovers.filter(function (x) { return x !== a; }), b = pick(s, rest);
         s.events.unshift({ type: "shura", a: a, b: b });
@@ -1388,7 +1442,7 @@
       var lv = Object.keys(c2.skills).reduce(function (a, k) { return a + s.skills[k]; }, 0) / Object.keys(c2.skills).length;
       // 2026-11-02 使用者要求加難：只看這一學年的出席，對手每年變強
       var yr = cal(s).year, att = (s.clubYear && s.clubYear[yr]) || 0;
-      var score = lv * 0.5 + Math.min(att, 40) * 0.5 + (idx === 0 ? 6 : 0) + rand(s) * 20;
+      var score = lv * 0.5 + Math.min(att * (span(s) > 1 ? 1.4 : 1), 40) * 0.5 + (idx === 0 ? 6 : 0) + rand(s) * 20;
       var rival = 58 + yr * 13 + rand(s) * 15;
       if (idx === 0) applyEff(s, { stamina: -15 }, null);
       var place = score >= rival ? 1 : score >= rival - 12 ? 2 : 3;
@@ -1422,14 +1476,14 @@
       s.h[hid].lastSeen = s.day;
     } else if (ev.type === "family") {
       var sh3 = s.h[hid];
-      if (idx === 1) { out.push(name(hid) + "：「……嗯，我等你準備好。」"); sh3.since = s.day - 60; }
-      else if (s.stats.money < 5000) { out.push("你連伴手禮都買不起……這次只好延期了。"); sh3.since = s.day - 60; }
+      if (idx === 1) { out.push(name(hid) + "：「……嗯，我等你準備好。」"); sh3.since = ago(s, 60); }
+      else if (s.stats.money < 5000) { out.push("你連伴手禮都買不起……這次只好延期了。"); sh3.since = ago(s, 60); }
       else {
         applyEff(s, { money: -5000 }, out);
         var ft = D.FAMILY_TEXT[hid] || D.FAMILY_TEXT._default;
         out.push(fmt(ft, { n: name(hid) }));
         if (s.stats.rep >= 10 || rand(s) < 0.5) { sh3.rel = 3; addAff(s, hid, 8, out, true); out.push("🏠 你們的關係被家人認可了。"); memory(s, "rel3_" + hid, name(hid) + "・重要的人", fmt(ft, { n: name(hid) }), hid); }
-        else { out.push("……家人似乎還有點疑慮。（風評再高一點吧）"); sh3.since = s.day - 60; }
+        else { out.push("……家人似乎還有點疑慮。（風評再高一點吧）"); sh3.since = ago(s, 60); }
       }
     } else if (ev.type === "promise") {
       if (idx === 0) {
@@ -1868,6 +1922,90 @@
     return pick(s, pool).replace(/\{y\}/g, y);
   }
 
+  // ---------------- 💓 心跳時刻（2026-11-06） ----------------
+  // s.doki＝{ hid, sit（情境 id 或 "confess"）, ctx, step: "choose"→"beat", tone }。畫面看到 s.doki 就先顯示它。
+  // 一天最多 3 次，每人每天 1 次；告白不受限制。節拍的判定在畫面，這裡只收「得分 0〜taps×2」。
+  var DOKI_PER_DAY = 3;
+  function dokiPref(hid) {
+    var hd = D.HEROINE_BY_ID[hid], key = hd.persona || (D.MAIN_PERSONA || {})[hid];
+    return (D.DOKI_PREF || {})[key] || "gentle";
+  }
+  function dokiBpm(s, hid) {
+    var b = D.DOKI_BEAT, h = s.h[hid];
+    return Math.round(b.base + h.aff * b.perAff + (h.dating ? b.dating : 0));
+  }
+  function dokiSit(s) { return s.doki ? (s.doki.sit === "confess" ? D.DOKI_CONFESS : D.DOKI_BY_ID[s.doki.sit]) : null; }
+  function dokiStart(s, hid, ctx, out, curLoc) {
+    if (!D.DOKI || !s.today || s.doki) return false;
+    var h = s.h[hid], td = s.today;
+    td.dokiN = td.dokiN || 0; td.dokiWho = td.dokiWho || {};
+    if (!h || !h.met || td.dokiN >= DOKI_PER_DAY || td.dokiWho[hid]) return false;
+    var rainy = td.weather === "rain" || td.weather === "snow";
+    var list = D.DOKI.filter(function (d) {
+      if (d.ctx.indexOf(ctx) < 0 && !(rainy && d.ctx.indexOf("rain") >= 0 && ctx !== "fest")) return false;
+      return !d.loc || (curLoc && d.loc.indexOf(curLoc) >= 0);
+    });
+    if (rainy) list = list.concat(list.filter(function (d) { return d.ctx.indexOf("rain") >= 0; }));   // 雨天：傘下的機率加倍
+    if (!list.length) return false;
+    var sit = pick(s, list);
+    td.dokiN++; td.dokiWho[hid] = true;
+    s.doki = { hid: hid, sit: sit.id, ctx: ctx, step: "choose", tone: null };
+    if (out) out.push("（💓 ……心跳突然加快了。）");
+    return true;
+  }
+  // 聊天、遭遇後的機率：好感 30 以上，越喜歡你越常發生
+  function dokiChance(s, hid) {
+    var a = s.h[hid].aff;
+    return a < 30 ? 0 : clamp(0.12 + (a - 30) / 250 + (s.h[hid].dating ? 0.08 : 0), 0, 0.4);
+  }
+  function dokiChoose(s, tone) {
+    if (!s.doki || s.doki.step !== "choose" || !D.DOKI_TONES.some(function (x) { return x.id === tone; })) return null;
+    s.doki.tone = tone; s.doki.step = "beat";
+    return { bpm: dokiBpm(s, s.doki.hid), taps: D.DOKI_BEAT.taps };
+  }
+  // pts：節拍得分（完美 2、普通 1、沒按到 0）的總和
+  function dokiFinish(s, pts) {
+    var dk = s.doki;
+    if (!dk || dk.step !== "beat") return null;
+    s.doki = null;
+    var hid = dk.hid, max = D.DOKI_BEAT.taps * 2;
+    pts = clamp(Math.round(pts) || 0, 0, max);
+    var pref = dokiPref(hid), match = dk.tone === pref ? "match" : dk.tone === "gentle" ? "mid" : "miss";
+    var perfect = pts >= max;
+    if (match === "match") s.h[hid].dokiTone = dk.tone;   // 猜中一次之後，畫面會標出她最心動的做法
+    s.dokiN = (s.dokiN || 0) + 1;
+    if (perfect) s.dokiPerfect = (s.dokiPerfect || 0) + 1;
+    var sit = dk.sit === "confess" ? D.DOKI_CONFESS : D.DOKI_BY_ID[dk.sit];
+    var out = [];
+    out.push("💓 " + (pts >= max ? "心跳完全同步！" : pts >= max / 2 ? "心跳有點對上了。" : "心跳亂成一團……") + "（" + pts + "／" + max + "）");
+    if (dk.sit === "confess") {
+      // 告白：說法符合她 +10%、溫柔 +3%、不合 −5%；每 1 分心跳 +2%
+      var bonus = (match === "match" ? 0.1 : match === "mid" ? 0.03 : -0.05) + pts * 0.02;
+      if (perfect) out.push(sit.hit);
+      return out.concat(confess(s, hid, bonus, perfect && match === "match"));
+    }
+    out.push(fmt(pick(s, D.DOKI_REACT[match]), { n: name(hid) }));
+    if (perfect && match !== "miss") out.push(sit.hit);
+    var gain = (match === "match" ? 6 : match === "mid" ? 3 : -1) + pts * 0.8 + (perfect ? 2 : 0);
+    addAff(s, hid, gain, out);
+    if (perfect && match === "match") {
+      applyEff(s, { charm: 1 }, out);
+      memory(s, "doki_" + hid + "_" + dk.sit, name(hid) + "・" + sit.title, fmt(sit.text, { n: name(hid) }) + "\n" + sit.hit, hid);
+    }
+    s.h[hid].lastSeen = s.day;
+    return out;
+  }
+  // 按下「告白」：條件都符合才進入心跳告白（行動點在 confess() 才扣）
+  function confessStart(s, hid) {
+    if (!canConfess(s, hid)) return null;
+    var lack = confessReq(s, hid);
+    if (lack.length) return ["還差一點……（" + lack.join("、") + "）"];
+    if (!s.today.ap) return ["沒有行動點了。"];
+    if (!D.DOKI_CONFESS || s.doki) return confess(s, hid);
+    s.doki = { hid: hid, sit: "confess", ctx: "confess", step: "choose", tone: null };
+    return null;
+  }
+
   // ---------------- 手機（LINE 風格） ----------------
   // s.chat[hid] = { log: [{ f: "h"她／"m"你／"s"系統, t, p: 附照片, d: 天 }], unread, last, pend: { kind, opts, round, max, ev } }
   var CHAT_LOG_MAX = 40;
@@ -2039,6 +2177,8 @@
     // 2026-11-05 擴充
     PHOTO_POOL: PHOTO_POOL, photoOf: photoOf, photoOfAdmirer: photoOfAdmirer, circleOf: circleOf,
     buyOutfit: buyOutfit, buyFurniture: buyFurniture, comfort: comfort, outfitFits: outfitFits,
-    chatReply: chatReply, chatRead: chatRead, chatUnread: chatUnread, isClose: isClose
+    chatReply: chatReply, chatRead: chatRead, chatUnread: chatUnread, isClose: isClose,
+    // 2026-11-06 心跳時刻、濃縮行事曆
+    dokiStart: dokiStart, dokiChoose: dokiChoose, dokiFinish: dokiFinish, dokiSit: dokiSit, dokiPref: dokiPref, dokiBpm: dokiBpm, confessStart: confessStart, span: span
   };
 })();

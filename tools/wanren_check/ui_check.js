@@ -1,7 +1,7 @@
 // ============================================================================
 // 萬人迷（wanren）Playwright 流程檢查：
 //   標題（3D 校園載入）→ 新遊戲（1 學年）→ 入學典禮 → 早上回應迷妹 → 上課 → 自由時間（3D：走動的學生、女主角、快速前往、搭話、聊天）
-//   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
+//   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 心跳時刻 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8951 --directory dist
@@ -34,12 +34,25 @@ async function clickText(page, label, partial) {
 function st(page) { return page.evaluate(function () { var s = window.PriTestWanren.state; return s && { day: s.day, phase: s.phase, stats: s.stats, ap: s.today && s.today.ap, apMax: s.today && s.today.apMax }; }); }
 // 隨機事件（每天早上有機率）會先蓋在畫面上：有的話選第一個選項
 async function clearEvents(page) {
+  await clearDoki(page);
   for (var i = 0; i < 5; i++) {
     await closeMsg(page);
     var n = await page.evaluate(function () { return window.PriTestWanren.state.events.length; });
     if (!n) return;
     await page.locator(".wr-event .wr-btn-opt").first().click();
     await page.waitForTimeout(100);
+  }
+}
+// 💓 心跳時刻（2026-11-06）：有的話選第一個做法，跟著節拍按 3 次空白鍵
+async function clearDoki(page) {
+  for (var i = 0; i < 3; i++) {
+    await closeMsg(page);
+    var has = await page.evaluate(function () { return !!window.PriTestWanren.state.doki; });
+    if (!has) return;
+    var step = await page.evaluate(function () { return window.PriTestWanren.state.doki.step; });
+    if (step === "choose") { await page.dispatchEvent(".wr-doki-opt", "click"); await page.waitForTimeout(100); }
+    for (var k = 0; k < 3; k++) { await page.waitForTimeout(700); await page.keyboard.press("Space"); }
+    await page.waitForTimeout(900);
   }
 }
 async function closeMsg(page) { await page.evaluate(function () { var m = document.querySelector(".wr-msg"); if (m) m.click(); }); await page.waitForTimeout(80); }
@@ -65,7 +78,9 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await clickText(page, "開始新的學期", true);
   var s = await st(page);
   assert.strictEqual(s.phase, "morning");
-  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.length; }), 232);
+  // 2026-11-06 起「1 學年」是濃縮版（每週 1 天，一學期約 30 分鐘）：36 天。舊的 232 天改名「慢活・1 學年」。
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.lengthId; }), "syear");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.length; }), 36);
   assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.today.kind; }), "entrance", "第一天是入學典禮");
   await clearEvents(page);
   var nAdm = await page.locator(".wr-adm").count();
@@ -153,7 +168,19 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   s = await st(page);
   assert.strictEqual(s.day, 1);
   assert.strictEqual(s.phase, "morning");
-  // 第 2 天是平日：要上課
+  // 濃縮版的第 2 天是星期六（每週只玩 1 天，雙週是星期六）：用 core 跳過，第 3 天（星期三）要上課
+  await clearEvents(page);
+  await page.evaluate(function () {
+    var W = window.PriTestWanren, S = W.state, C = W.core, g = 0;
+    while (S.today.kind !== "weekday" && g++ < 20) {
+      S.events = []; S.doki = null;
+      if (S.phase === "morning") C.finishMorning(S);
+      else if (S.phase === "free") C.endFree(S);
+      else if (S.phase === "evening") C.doEvening(S, "rest");
+      else C.endDay(S);
+    }
+    W.render();
+  });
   await clearEvents(page);
   await clickText(page, "去上課", true);
   await clearEvents(page);
@@ -186,6 +213,32 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   for (var q = 0; q < nq; q++) { await page.locator(".wr-event .wr-btn-opt").first().click(); await page.waitForTimeout(80); await closeMsg(page); }
   s = await st(page);
   assert.strictEqual(s.phase, "night", "答完約會應該進入深夜");
+  await clearDoki(page);   // 約會很順利時可能出現心跳時刻
+
+  // 💓 心跳時刻：強制觸發一次，走完「選做法 → 節拍 3 次」
+  var dk0 = await page.evaluate(function () {
+    var W = window.PriTestWanren, S = W.state, C = W.core;
+    var hid = window.PriTestWanrenData.HEROINES.filter(function (h) { return S.h[h.id].met; })[0].id;
+    S.today.dokiN = 0; S.today.dokiWho = {};
+    var ok = C.dokiStart(S, hid, "date");
+    W.render();
+    return { ok: ok, hid: hid, n: S.dokiN || 0, aff: S.h[hid].aff };
+  });
+  assert.ok(dk0.ok, "應該能觸發心跳時刻");
+  assert.strictEqual(await page.locator(".wr-doki-opt").count(), 3, "心跳時刻有 3 種做法");
+  await page.screenshot({ path: path.join(SHOT_DIR, "05c_doki_choose.png") });
+  await page.dispatchEvent(".wr-doki-opt", "click");
+  await page.waitForTimeout(150);
+  assert.ok(await page.locator(".wr-doki-pad").count(), "選完做法應該進入節拍");
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(SHOT_DIR, "05d_doki_beat.png") });
+  for (var k = 0; k < 3; k++) { await page.waitForTimeout(600); await page.keyboard.press("Space"); }
+  await page.waitForTimeout(1000);
+  var dk1 = await page.evaluate(function () { var S = window.PriTestWanren.state; return { doki: S.doki, n: S.dokiN, msg: document.querySelector(".wr-msg") ? document.querySelector(".wr-msg").textContent : "" }; });
+  assert.ok(!dk1.doki, "按完 3 次應該結束心跳時刻");
+  assert.strictEqual(dk1.n, dk0.n + 1);
+  assert.ok(/心跳/.test(dk1.msg), "結果訊息應該顯示心跳得分：" + dk1.msg);
+  await closeMsg(page);
   await clickText(page, "睡覺", true);
   await clearEvents(page);
 
@@ -195,6 +248,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
     var guard = 0;
     while (S.phase !== "report" && guard++ < 30000) {
       if (S.phase === "yearreport") { C.nextYear(S); continue; }
+      if (S.doki) { C.dokiChoose(S, "gentle"); C.dokiFinish(S, 3); }
       while (S.events.length) C.resolveEvent(S, 0);
       if (S.phase === "morning") { S.today.admirers.forEach(function (a, i) { C.answerAdmirer(S, i, i % 3); }); C.finishMorning(S); continue; }
       if (S.phase === "class") { C.doClass(S, S.stats.stamina < 30 ? "doze" : "focus"); continue; }
@@ -249,6 +303,18 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.strictEqual(calInfo.last, "graduation");
   ["entrance", "newyear", "sports", "summerfest", "festival", "xmas", "valentine", "midterm", "final"].forEach(function (k) { assert.ok(calInfo.kinds[k] > 0, "完整版應該有 " + k); });
   assert.strictEqual(calInfo.kinds.midterm, 6);
+  // 濃縮版（2026-11-06）：完整版 108 天、1 學期 16 天，特殊日一個都不少
+  var calShort = await page.evaluate(function () {
+    var C = window.PriTestWanren.core, c = C.buildCal("sfull"), kinds = {};
+    c.forEach(function (d) { kinds[d.kind] = (kinds[d.kind] || 0) + 1; });
+    return { n: c.length, kinds: kinds, last: c[c.length - 1].kind, term: C.buildCal("sterm").length };
+  });
+  assert.strictEqual(calShort.n, 108);
+  assert.strictEqual(calShort.term, 16);
+  assert.strictEqual(calShort.last, "graduation");
+  ["entrance", "newyear", "sports", "summerfest", "festival", "clubcup", "xmas", "valentine"].forEach(function (k) { assert.ok(calShort.kinds[k] > 0, "濃縮完整版應該有 " + k); });
+  assert.strictEqual(calShort.kinds.midterm, 6);
+  assert.strictEqual(calShort.kinds.final, 6);
   await page.evaluate(function () {
     var W = window.PriTestWanren, C = W.core;
     var S = C.newGame({ length: "full", name: "三年君" });
