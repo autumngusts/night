@@ -238,3 +238,12 @@
 .yk-tk-school { border-color: #e8c547 !important; color: #ffe8a0; }
 .yk-tk-arcchip { border-color: #c080ff !important; color: #e8d0ff; }
 .yk-tk-result { border: 1px solid var(--yk-gold); border-radius: 8px; padding: 0.4rem 0.7rem; margin-bottom: 0.6rem; }
+/* 救出令的村姑（時間管理大師插圖） */
+.yk-tk-quest { display: flex; align-items: center; gap: 6px; }
+.yk-tk-face { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; object-position: 50% 15%; border: 2px solid #ff9ac0; flex: 0 0 auto; }
+.yk-toast-img { display: flex; align-items: center; gap: 6px; }
+.yk-pin-musume { --yk-pin-c: #ff70a0; }
+.yk-pin-musume .yk-pin-ic { width: 34px; height: 34px; background-size: cover; background-position: 50% 15%; box-shadow: 0 0 8px #ff70a0; }
+.yk-tk-faces { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.yk-tk-fig { margin: 0; text-align: center; width: 76px; }
+.yk-tk-face-big { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; object-position: 50% 15%; border: 2px solid #ff9ac0; display: block; }

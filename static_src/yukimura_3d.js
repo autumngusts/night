@@ -7,6 +7,7 @@
   "use strict";
 
   var D = window.PriTestYukimuraData;
+  var TK = window.PriTestYukimuraTenka;   // 天下布武（救出令的村姑插圖）
   var AR = D.ARENA;
   var loading = null;
   var T = null;
@@ -239,8 +240,11 @@
     lantern: function () { return PROPS.lantern(); },
     anvil: function () { return PROPS.anvil(); },
     hokora: function () { return [part(prim("box", 1.3, 0.3, 1.1), 0x8a8a84, [0, 0.15, 0]), part(prim("box", 0.8, 0.8, 0.7), 0xb04030, [0, 0.7, 0]), part(prim("box", 0.42, 0.5, 0.05), 0x2a1a10, [0, 0.62, 0.36]), part(prim("cone", 0.85, 0.5, 4), 0x2a2a30, [0, 1.35, 0], [0, Math.PI / 4, 0], [1.05, 1, 0.9]), part(prim("box", 0.06, 0.06, 0.4), 0xffffff, [0, 1.0, 0.38], [0, 0, 0.4]), part(prim("cyl", 0.06, 0.06, 1.4, 6), 0xd03020, [-0.75, 0.7, 0.6]), part(prim("cyl", 0.06, 0.06, 1.4, 6), 0xd03020, [0.75, 0.7, 0.6]), part(prim("box", 1.8, 0.1, 0.12), 0xd03020, [0, 1.45, 0.6])]; },
-    warashi: function () { return humanoid({ cloth: 0xd03040, pants: 0xd03040, skin: 0xf8e0d0, h: 0.7 }).concat([part(prim("box", 0.44, 0.26, 0.34), 0x111111, [0, 0.95, -0.03])]); }
+    warashi: function () { return humanoid({ cloth: 0xd03040, pants: 0xd03040, skin: 0xf8e0d0, h: 0.7 }).concat([part(prim("box", 0.44, 0.26, 0.34), 0x111111, [0, 0.95, -0.03])]); },
+    // 救出令的村姑（著物＋頭巾＋背後的竹籠）
+    musume: function () { return humanoid({ cloth: 0xe07a9a, pants: 0xe07a9a, skin: 0xf8e0d0, h: 0.9, belt: 0xf0d060 }).concat([part(prim("box", 0.46, 0.2, 0.4), 0x2a1a14, [0, 1.17, -0.06]), part(prim("box", 0.44, 0.08, 0.42), 0xf4f0e8, [0, 1.3, 0]), part(prim("cyl", 0.2, 0.16, 0.4, 8), 0xb08a50, [0, 0.85, -0.32])]); }
   };
+  var IMG_BASE = (function () { var a = document.getElementById("yk-app"); return (a && a.getAttribute("data-img")) || "../static/images/jikan/"; })();
 
   // ---------------- 大名武者（Group，有動畫）----------------
   function mat(c, o) { var m = new T.MeshStandardMaterial({ color: c, roughness: 0.55, metalness: 0.15 }); Object.keys(o || {}).forEach(function (k) { m[k] = o[k]; }); return m; }
@@ -535,7 +539,7 @@
     function pkPool(k) {
       if (pickPools[k]) return pickPools[k];
       var p = pool(merge(PICKS[k]()), k.slice(0, 3) === "gem" ? 340 : 120, k.slice(0, 3) === "gem" ? { emissive: new T.Color(k === "gem0" ? 0x103060 : k === "gem1" ? 0x105020 : 0x601020) } : k === "coin" ? { emissive: new T.Color(0x503800) } : null);
-      if (k === "chest" || k === "lantern" || k === "anvil" || k === "warashi" || k === "hokora") p.castShadow = !low;
+      if (k === "chest" || k === "lantern" || k === "anvil" || k === "warashi" || k === "hokora" || k === "musume") p.castShadow = !low;
       pickPools[k] = p;
       return p;
     }
@@ -567,7 +571,7 @@
         list.push({ key: "p" + pid, x: P.x, z: P.z, cls: P.down ? "yk-pin-down" : "yk-pin-ally", label: P.down ? "💀" : D.L(d.name).charAt(0), color: P.down ? null : "#" + ("000000" + d.color.toString(16)).slice(-6) });
       });
       v.E.forEach(function (e) { if (e.boss) list.push({ key: "b" + e.id, x: e.x, z: e.z, cls: "yk-pin-boss", label: "👹" }); else if (e.bty) list.push({ key: "b" + e.id, x: e.x, z: e.z, cls: "yk-pin-chest", label: "💰" }); });
-      v.D.forEach(function (d) { if (d.k === "chest") list.push({ key: "c" + d.id, x: d.x, z: d.z, cls: "yk-pin-chest", label: "🎁" }); else if (d.k === "hokora") list.push({ key: "h" + d.id, x: d.x, z: d.z, cls: "yk-pin-hokora", label: "⛩" }); });
+      v.D.forEach(function (d) { if (d.k === "chest") list.push({ key: "c" + d.id, x: d.x, z: d.z, cls: "yk-pin-chest", label: "🎁" }); else if (d.k === "hokora") list.push({ key: "h" + d.id, x: d.x, z: d.z, cls: "yk-pin-hokora", label: "⛩" }); else if (d.k === "musume") list.push({ key: "m" + d.id, x: d.x, z: d.z, cls: "yk-pin-musume", label: "", img: IMG_BASE + TK.musumeImg(d.img) + ".webp" }); });
       list.forEach(function (t) {
         _pv.set(t.x, 1, t.z).project(camera);
         var behind = _pv.z > 1;
@@ -579,12 +583,46 @@
         var p = pinEl(t.key, t.cls, t.label);
         p.style.left = (cx + dx * k2) + "px"; p.style.top = (cy + dy * k2) + "px";
         if (t.color) p.style.setProperty("--yk-pin-c", t.color); else p.style.removeProperty("--yk-pin-c");
+        if (t.img && p._img !== t.img) { p._img = t.img; p.children[1].style.backgroundImage = "url(" + t.img + ")"; }
         p.children[0].style.transform = "rotate(" + (ang * 180 / Math.PI) + "deg)";
         var dist = Math.round(Math.sqrt((t.x - me.x) * (t.x - me.x) + (t.z - me.z) * (t.z - me.z)));
         var ds = dist + "m";
         if (p.children[2].textContent !== ds) p.children[2].textContent = ds;
       });
       Object.keys(pins).forEach(function (k3) { if (pins[k3]._seen !== frameNo) { pinLayer.removeChild(pins[k3]); delete pins[k3]; } });
+    }
+    // ---- 救出令的村姑：頭上顯示插圖（時間管理大師）＋救出進度環 ----
+    var musumeSp = {}, texLoader = new T.TextureLoader();
+    function updateMusume(v) {
+      var seen = {};
+      v.D.forEach(function (d) {
+        if (d.k !== "musume") return;
+        seen[d.id] = 1;
+        var m = musumeSp[d.id];
+        if (!m) {
+          var tex = texLoader.load(IMG_BASE + TK.musumeImg(d.img) + ".webp");
+          var sp = new T.Sprite(new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+          sp.scale.set(1.5, 1.5, 1); sp.renderOrder = 11;
+          var ring = new T.Mesh(new T.RingGeometry(2.2, 2.4, 40), new T.MeshBasicMaterial({ color: 0xff70a0, transparent: true, opacity: 0.75, side: T.DoubleSide, depthWrite: false }));
+          ring.rotation.x = -Math.PI / 2;
+          var help = labelSprite("🆘 HELP!", "#ff9ac0");
+          m = musumeSp[d.id] = { sp: sp, ring: ring, help: help };
+          scene.add(sp); scene.add(ring); scene.add(help);
+        }
+        var bob = Math.sin(tAcc * 4) * 0.08;
+        m.sp.position.set(d.x, 2.9 + bob, d.z);
+        m.help.position.set(d.x, 3.95 + bob, d.z);
+        m.ring.position.set(d.x, 0.05, d.z);
+        var q = v.q, pr = q && q.k === "rescue" ? Math.min(1, (q.h || 0) / (q.n || 4)) : 0;
+        m.ring.material.color.setHex(pr > 0 ? 0x60ff90 : 0xff70a0);
+        m.ring.scale.setScalar(1 - pr * 0.5);
+      });
+      Object.keys(musumeSp).forEach(function (id) {
+        if (seen[id]) return;
+        var m = musumeSp[id];
+        [m.sp, m.ring, m.help].forEach(function (o) { scene.remove(o); if (o.material.map) o.material.map.dispose(); o.material.dispose(); if (o.geometry && o !== m.sp && o !== m.help) o.geometry.dispose(); });
+        delete musumeSp[id];
+      });
     }
     // 敵人腳下的深色影子（白色地面上也看得清楚）；首領另外有紅圈
     var shadowGeo = new T.CircleGeometry(1, 18);
@@ -1041,6 +1079,7 @@
       // 清掉沒用到的平滑資料
       if (frameNo % 90 === 0) Object.keys(smooth).forEach(function (id) { if (frameNo - smooth[id].seen > 60) delete smooth[id]; });
 
+      updateMusume(v);
       if (frameNo % 2 === 0) updatePins(v, me);
       renderer.render(scene, camera);
     }

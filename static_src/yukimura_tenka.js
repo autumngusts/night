@@ -195,6 +195,16 @@
     { k: "nohit", icon: "🛡️", name: C("無傷令：{n} 秒內不受傷", "無傷令：{n} 秒間被弾なし") },
     { k: "gold", icon: "💰", name: C("徵收令：收集 {n} 錢", "徴収令：銭を {n} 集める") }
   ];
+  // 救出令的村姑：插圖用時間管理大師（jikan）的女生圖 images/jikan/g_000〜g_142、n_000〜n_031（2026-11-06 使用者指定）
+  var MUSUME_N = 175;
+  function musumeImg(i) { i = ((i | 0) % MUSUME_N + MUSUME_N) % MUSUME_N; return i < 143 ? "g_" + ("00" + i).slice(-3) : "n_" + ("00" + (i - 143)).slice(-3); }
+  var MUSUME_NAMES = [
+    C("阿花", "お花"), C("阿菊", "お菊"), C("阿梅", "お梅"), C("阿鶴", "お鶴"), C("阿雪", "お雪"), C("阿綠", "お緑"), C("阿春", "お春"), C("阿夏", "お夏"),
+    C("阿秋", "お秋"), C("阿冬", "お冬"), C("阿松", "お松"), C("阿竹", "お竹"), C("阿桃", "お桃"), C("阿藤", "お藤"), C("阿蘭", "お蘭"), C("阿萩", "お萩"),
+    C("阿園", "お園"), C("阿琴", "お琴"), C("阿若", "お若"), C("阿千代", "お千代"), C("阿絹", "お絹"), C("阿光", "お光"), C("阿玉", "お玉"), C("阿初", "お初")
+  ];
+  function musumeName(i) { return MUSUME_NAMES[((i | 0) % MUSUME_NAMES.length + MUSUME_NAMES.length) % MUSUME_NAMES.length]; }
+  QUESTS.push({ k: "rescue", icon: "🆘", name: C("救出令：救出被包圍的村姑（在她身邊站 {n} 秒）", "救出令：囲まれた村娘を救え（そばに {n} 秒）") });
   var QUEST = {};
   QUESTS.forEach(function (q) { QUEST[q.k] = q; });
 
@@ -298,7 +308,7 @@
   window.PriTestYukimuraTenka = {
     SCHOOLS: SCHOOLS, SCHOOL: SCHOOL, SCHOOL_OF: SCHOOL_OF, TIER_N: TIER_N, ARCANA: ARCANA, ARC: ARC, SHAPES: SHAPES, RUNES: RUNES, RUNE: RUNE, RUNE_SP: RUNE_SP,
     LINE_BONUS: LINE_BONUS, PERFECT_BONUS: PERFECT_BONUS, TREE: TREE, NODE: NODE, SP_TEXT: SP_TEXT, BOARD_SIZES: BOARD_SIZES, HEAT_MAX: HEAT_MAX, heatMul: heatMul,
-    AFFIX: AFFIX, QUESTS: QUESTS, QUEST: QUEST,
+    AFFIX: AFFIX, QUESTS: QUESTS, QUEST: QUEST, MUSUME_N: MUSUME_N, musumeImg: musumeImg, musumeName: musumeName,
     rotate: rotate, runeCells: runeCells, boardSize: boardSize, evalBoard: evalBoard, canPlace: canPlace, loadout: loadout, treeSp: treeSp,
     applyStats: applyStats, schoolCounts: schoolCounts, schoolTiers: schoolTiers, flags: flags
   };

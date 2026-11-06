@@ -34,6 +34,7 @@
     var tp = jget(TK_KEY, {});
     if (!tp.tree || typeof tp.tree !== "object") tp.tree = {};
     if (!tp.best || typeof tp.best !== "object") tp.best = {};
+    if (!tp.saved || typeof tp.saved !== "object") tp.saved = {};
     if (!Array.isArray(tp.inv)) tp.inv = [];
     if (!Array.isArray(tp.board)) tp.board = [];
     tp.kg = Number(tp.kg) || 0; tp.nu = tp.nu | 0; tp.heat = tp.heat | 0; tp.games = tp.games | 0; tp.wins = tp.wins | 0;
@@ -46,6 +47,9 @@
     return tp;
   }
   function saveTk(tp) { lsSet(TK_KEY, JSON.stringify(tp)); }
+  // 救出令的村姑插圖（時間管理大師 jikan 的女生圖）
+  var IMG_BASE = app.getAttribute("data-img") || "../static/images/jikan/";
+  function musumeSrc(i) { return i === undefined || i === null ? "" : IMG_BASE + TK.musumeImg(i) + ".webp"; }
   // 出陣時帶進對局的 meta：原本的本陣強化＋天下布武的軍略（tk）
   function sortieMeta(mode) {
     var m = {}, pm = progress().meta;
@@ -291,6 +295,9 @@
     body.push(panel(t("yk_tk_runelist", { n: TK.RUNES.length }), [el("div", { class: "yk-cxgrid" }, TK.RUNES.map(function (r) {
       return el("div", { class: "yk-cx" }, [el("div", { class: "yk-dmhead" }, [el("span", { class: "yk-tk-shape", html: TKUI.shapeSvg(r.k, 0, 11, tkCtx()) }), el("strong", null, [L(r.name)]), el("span", { class: "yk-chip" }, ["★".repeat(r.r)])]), el("div", { class: "yk-small" }, [TKUI.runeDesc(tkCtx(), r.k)])]);
     }))]));
+    var sv = tkProgress().saved || {}, svk = Object.keys(sv);
+    body.push(panel(t("yk_tk_book", { n: svk.length, m: TK.MUSUME_N }), [el("p", { class: "yk-small yk-muted" }, [t("yk_tk_book_note")]),
+      svk.length ? el("div", { class: "yk-tk-faces" }, svk.map(Number).sort(function (a, b) { return a - b; }).map(function (i) { return el("figure", { class: "yk-tk-fig" }, [el("img", { src: musumeSrc(i), alt: "", class: "yk-tk-face-big", loading: "lazy" }), el("figcaption", { class: "yk-small" }, [L(TK.musumeName(i)) + (sv[i] > 1 ? " ×" + sv[i] : "")])]); })) : el("p", { class: "yk-muted" }, [t("yk_tk_book_empty")])]));
     body.push(panel(t("yk_tk_affix"), [el("div", { class: "yk-chips" }, TK.AFFIX.map(function (a) { return el("span", { class: "yk-chip" }, [a.icon + " " + L(a.name) + "：" + t("yk_tk_af_" + a.k)]); }))]));
     app.appendChild(panel(t("yk_tk_tab_guide"), body));
   }
@@ -805,8 +812,8 @@
     sess = null;
     goHome();
   }
-  function toast(text) {
-    toasts.push({ text: text, t: performance.now() });
+  function toast(text, img) {
+    toasts.push({ text: text, img: img || "", t: performance.now() });
     if (toasts.length > 5) toasts.shift();
     if (hud) renderToasts();
   }
@@ -819,7 +826,7 @@
     if (sig === toastSig) return;
     toastSig = sig;
     hud.toast.innerHTML = "";
-    toasts.forEach(function (x) { hud.toast.appendChild(el("div", { class: "yk-toast" }, [x.text])); });
+    toasts.forEach(function (x) { hud.toast.appendChild(el("div", { class: "yk-toast" + (x.img ? " yk-toast-img" : "") }, [x.img ? el("img", { src: x.img, alt: "", class: "yk-tk-face" }) : null, x.text])); });
   }
   function msgText(m, v) {
     var P = v.P[m.p], nm = P ? (P.name || L(D.DAIMYO[P.dm].name)) : (m.a && typeof m.a === "string" ? m.a : "");
@@ -845,6 +852,9 @@
     if (m.k === "arc" && TK.ARC[m.a]) return TK.ARC[m.a].icon + " " + t("yk_tk_msg_arc", { n: nm, a: L(TK.ARC[m.a].name) });
     if (m.k === "arcq") return "🎴 " + t("yk_tk_msg_arcq");
     if (m.k === "kg") return "🎖️ " + t("yk_tk_msg_kg", { n: m.a });
+    if (m.k === "qnew" && m.a === "rescue") return "🆘 " + t("yk_tk_msg_rescue_new", { n: L(TK.musumeName(m.c)) });
+    if (m.k === "qng" && m.a === "rescue") return "💔 " + t("yk_tk_msg_rescue_ng", { n: L(TK.musumeName(m.b)) });
+    if (m.k === "rescued") return "💐 " + t("yk_tk_msg_rescued", { n: L(TK.musumeName(m.a)) });
     if (m.k === "qnew" && TK.QUEST[m.a]) return "📜 " + t("yk_tk_msg_qnew", { q: L(TK.QUEST[m.a].name).replace("{n}", m.b) });
     if (m.k === "qok") return "🎉 " + t("yk_tk_msg_qok", { n: m.b });
     if (m.k === "qng") return "❌ " + t("yk_tk_msg_qng");
@@ -872,7 +882,8 @@
       seenMsg[m.id] = 1;
       if (v.t - m.t > 6) return;
       var txt = msgText(m, v);
-      if (txt) toast(txt);
+      var mimg = m.k === "rescued" ? musumeSrc(m.a) : m.k === "qnew" && m.a === "rescue" || m.k === "qng" && m.a === "rescue" ? musumeSrc(m.c !== undefined ? m.c : m.b) : "";
+      if (txt) toast(txt, mimg);
     });
     renderToasts();
     // 時間
@@ -947,8 +958,18 @@
     if (hud.combo.textContent !== cbt) hud.combo.textContent = cbt;
     // 軍令
     var q = v.q, qt = "";
-    if (q && TK.QUEST[q.k]) qt = "📜 " + L(TK.QUEST[q.k].name).replace("{n}", q.n) + "　" + (q.k === "nohit" ? Math.floor(q.h) + "/" + q.n + "s" : Math.min(q.n, Math.floor(q.h)) + "/" + q.n) + "　⏱" + Math.max(0, Math.ceil(q.T));
-    if (qt) { hud.quest.classList.remove("yk-hidden"); if (hud.quest.textContent !== qt) hud.quest.textContent = qt; } else hud.quest.classList.add("yk-hidden");
+    if (q && q.k === "rescue") qt = "🆘 " + t("yk_tk_q_rescue", { n: L(TK.musumeName(q.img)) }) + "　" + (Math.round((q.h || 0) * 10) / 10) + "/" + q.n + "s　❤️" + (q.hp | 0) + "　⏱" + Math.max(0, Math.ceil(q.T));
+    else if (q && TK.QUEST[q.k]) qt = "📜 " + L(TK.QUEST[q.k].name).replace("{n}", q.n) + "　" + (q.k === "nohit" ? Math.floor(q.h) + "/" + q.n + "s" : Math.min(q.n, Math.floor(q.h)) + "/" + q.n) + "　⏱" + Math.max(0, Math.ceil(q.T));
+    if (qt) {
+      hud.quest.classList.remove("yk-hidden");
+      var qimg = q.k === "rescue" ? musumeSrc(q.img) : "";
+      if (hud.quest._txt !== qt || hud.quest._img !== qimg) {
+        hud.quest._txt = qt; hud.quest._img = qimg;
+        hud.quest.innerHTML = "";
+        if (qimg) hud.quest.appendChild(el("img", { src: qimg, alt: "", class: "yk-tk-face" }));
+        hud.quest.appendChild(document.createTextNode(qt));
+      }
+    } else hud.quest.classList.add("yk-hidden");
     // 隊伍
     var pids = Object.keys(v.P);
     var tsig = pids.map(function (p) { var P = v.P[p]; return p + Math.round(P.hp / P.mhp * 20) + P.down + P.lv + (P.afk ? "z" : ""); }).join("|");
@@ -1077,7 +1098,11 @@
       var tkey = v.stage + ":" + v.diff + ":" + heat;
       if (!tp.best[tkey] || (tp.best[tkey].won ? 1 : 0) < (won ? 1 : 0) || (!!tp.best[tkey].won === won && tp.best[tkey].t < v.t)) tp.best[tkey] = { won: won, t: Math.round(v.t), lv: me.lv };
       saveTk(tp);
-      tkRes = { kg: kg, parts: parts, mul: medalMul, runes: got, heat: heat, arc: me.arc || [] };
+      var saved = (v.saved || []).slice();
+      tp.saved = tp.saved || {};
+      saved.forEach(function (i) { tp.saved[i] = (tp.saved[i] | 0) + 1; });
+      saveTk(tp);
+      tkRes = { kg: kg, parts: parts, mul: medalMul, runes: got, heat: heat, arc: me.arc || [], saved: saved };
     }
     lastResult = {
       won: won, quit: quit, t: v ? v.t : 0, stage: v ? v.stage : 0, diff: v ? v.diff : "normal", dur: v ? v.dur : 900, gold: gold, tk: tkRes,
@@ -1103,6 +1128,7 @@
         el("p", null, ["🎖️ " + t("yk_tk_kg_got", { n: r.tk.kg, b: Math.floor(tkProgress().kg) })]),
         el("p", { class: "yk-small yk-muted" }, [t("yk_tk_kg_parts", { a: Math.round(r.tk.parts.run), b: r.tk.parts.time, c: r.tk.parts.kills, d: r.tk.parts.win, m: Math.round(r.tk.mul * 100) / 100 })]),
         r.tk.arc.length ? el("p", { class: "yk-small" }, [t("yk_tk_arc_used"), "：", r.tk.arc.map(function (k) { return TK.ARC[k] ? TK.ARC[k].icon + L(TK.ARC[k].name) : ""; }).join("・")]) : null,
+        r.tk.saved.length ? el("div", null, [el("p", null, ["💐 " + t("yk_tk_saved_n", { n: r.tk.saved.length })]), el("div", { class: "yk-tk-faces" }, r.tk.saved.map(function (i) { return el("figure", { class: "yk-tk-fig" }, [el("img", { src: musumeSrc(i), alt: L(TK.musumeName(i)), class: "yk-tk-face-big" }), el("figcaption", { class: "yk-small" }, [L(TK.musumeName(i))])]); }))]) : null,
         r.tk.runes.length ? el("div", null, [el("p", null, ["🔲 " + t("yk_tk_runes_got", { n: r.tk.runes.length })]), el("div", { class: "yk-chips" }, r.tk.runes.map(function (k) { var R = TK.RUNE[k]; return el("span", { class: "yk-chip yk-r" + R.r }, [el("span", { class: "yk-tk-shape", html: TKUI.shapeSvg(k, 0, 8, tkCtx()) }), " ", L(R.name)]); }))]) : null
       ]) : null,
       r.won && r.dur >= 900 && r.stage + 1 < D.STAGES.length ? el("p", { class: "yk-good" }, [t("yk_next_unlocked", { n: L(D.STAGES[r.stage + 1].name) })]) : null,

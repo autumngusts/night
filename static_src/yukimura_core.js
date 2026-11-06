@@ -111,7 +111,7 @@
     return list;
   }
   function xpNeed(lv) { return Math.round(5 + lv * 5.5 + Math.max(0, lv - 20) * 9 + Math.max(0, lv - 40) * 16); }
-  function msg(s, k, pid, a, b) { s.msg.push({ id: nid(s), k: k, p: pid, a: a, b: b, t: s.t }); if (s.msg.length > 12) s.msg.shift(); }
+  function msg(s, k, pid, a, b, c) { s.msg.push({ id: nid(s), k: k, p: pid, a: a, b: b, c: c, t: s.t }); if (s.msg.length > 12) s.msg.shift(); }
 
   // ---------------- 能力計算 ----------------
   function baseStats() {
@@ -1034,15 +1034,34 @@
     var q = s.q;
     s.q = null;
     s.qNext = s.t + 90 + rnd(s) * 40;
-    if (!ok) { msg(s, "qng", "", q.k); return; }
+    if (q.k === "rescue") s.D = s.D.filter(function (d) { return d.id !== q.did; });
+    if (!ok) { msg(s, "qng", "", q.k, q.img); return; }
     s.qN++;
-    var base = 6 + s.stage;
+    var base = (6 + s.stage) * (q.k === "rescue" ? 1.5 : 1);
+    if (q.k === "rescue") {   // 救出村姑：全隊回復 30%，記進救出名單
+      s.saved = s.saved || [];
+      s.saved.push(q.img);
+      players(s).forEach(function (P) { if (!P.down) P.hp = Math.min(P.mhp, P.hp + P.mhp * 0.3); });
+      msg(s, "rescued", "", q.img);
+      addFx(s, "revive", q.x, q.z, 0, 2.5, "");
+    }
     players(s).forEach(function (P) {
       var r = base * (1 + 0.3 * TK.treeSp(tkTree(P), "quest"));
       P.kg = (P.kg || 0) + r * (P.tkf && P.tkf.a_hyakki ? 1.3 : 1);
       if (!P.down) dropItem(s, "chest", P.x + 1.2, P.z, {});
     });
     msg(s, "qok", "", q.k, base);
+  }
+  // 救出令：在某位玩家 22〜28 公尺外放一位村姑，周圍一圈敵人
+  function startRescue(s, q) {
+    var ps = alive(s), P = ps.length ? pick(s, ps) : players(s)[0];
+    var a = rnd(s) * Math.PI * 2, r = 22 + rnd(s) * 6;
+    var x = clamp(P.x + Math.cos(a) * r, -AR + 4, AR - 4), z = clamp(P.z + Math.sin(a) * r, -AR + 4, AR - 4);
+    q.img = rint(s, TK.MUSUME_N); q.hp = 100; q.x = x; q.z = z;
+    var g = dropItem(s, "musume", x, z, { p: 0, hp: 100, img: q.img, a: rnd(s) * 6.28 });
+    q.did = g.id;
+    var list = roster(s);
+    for (var i = 0; i < 9; i++) { var b = i * 0.698; spawnEnemy(s, pick(s, list), x + Math.cos(b) * 4.5, z + Math.sin(b) * 4.5); }
   }
   function questTick(s, dt) {
     var q = s.q;
@@ -1054,16 +1073,32 @@
         if (q.T <= 0) questEnd(s, true);
         return;
       }
+      if (q.k === "rescue") {
+        var g = null;
+        for (var gi = 0; gi < s.D.length; gi++) if (s.D[gi].id === q.did) g = s.D[gi];
+        if (!g) { questEnd(s, false); return; }
+        var ps = alive(s), near2 = ps.some(function (P) { return dist2(P.x, P.z, g.x, g.z) < 2.4 * 2.4; });
+        g.p = near2 ? g.p + dt : Math.max(0, g.p - dt * 0.5);
+        // 貼在她身邊的敵人會傷害她
+        var foes = 0;
+        for (var ei = 0; ei < s.E.length && foes < 6; ei++) { var en = s.E[ei]; if (en.hp > 0 && dist2(en.x, en.z, g.x, g.z) < 2.2 * 2.2) foes++; }
+        g.hp -= foes * 2.2 * dt;
+        q.h = g.p; q.hp = Math.max(0, Math.round(g.hp));
+        if (g.p >= q.n) { questEnd(s, true); return; }
+        if (g.hp <= 0 || q.T <= 0) { addFx(s, "down", g.x, g.z, 0, 1.5, ""); questEnd(s, false); }
+        return;
+      }
       if (q.k === "gold") q.h = sumGold(s) - q.g0;
       if (q.h >= q.n) { questEnd(s, true); return; }
       if (q.T <= 0) questEnd(s, false);
       return;
     }
     if (s.t < s.qNext || s.boss || s.t > s.dur - 20) return;
-    var k = pick(s, ["kill", "kill", "elite", "nohit", "gold"]);
-    var n = k === "kill" ? Math.round(40 + s.t / 6) : k === "elite" ? 2 : k === "nohit" ? 20 : Math.round(50 + s.t / 6);
-    s.q = { k: k, n: n, h: 0, T: k === "nohit" ? 20 : 45, t0: s.t, g0: sumGold(s) };
-    msg(s, "qnew", "", k, n);
+    var k = pick(s, ["kill", "kill", "elite", "nohit", "gold", "rescue", "rescue"]);
+    var n = k === "kill" ? Math.round(40 + s.t / 6) : k === "elite" ? 2 : k === "nohit" ? 20 : k === "rescue" ? 4 : Math.round(50 + s.t / 6);
+    s.q = { k: k, n: n, h: 0, T: k === "nohit" ? 20 : k === "rescue" ? 55 : 45, t0: s.t, g0: sumGold(s) };
+    if (k === "rescue") startRescue(s, s.q);
+    msg(s, "qnew", "", k, n, s.q.img);
   }
   function tenkaTick(s, dt) {
     // 天命：第 1/3、2/3 再選一張
@@ -1492,6 +1527,7 @@
         addFx(s, "pick", d.x, d.z, 0, 2, pr.pid, 3);
         return false;
       }
+      if (d.k === "musume") return true;   // 救出令的村姑：由 questTick 處理
       if (d.k === "lantern" || d.k === "anvil") {
         // 被武器打到才會壞：用附近的投射物／近戰特效判定太麻煩，改成「玩家靠近 1.2 以內或被範圍攻擊波及」
         var hitBy = null;
@@ -1620,7 +1656,7 @@
   // ---------------- 快照（連線廣播用，數值壓縮）----------------
   function r1(v) { return Math.round(v * 10) / 10; }
   function snap(s) {
-    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: Math.floor(s.q.h), T: r1(s.q.T) } : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
+    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: s.q.k === "rescue" ? r1(s.q.h) : Math.floor(s.q.h), T: r1(s.q.T), hp: s.q.hp, img: s.q.img } : undefined, sv: s.saved && s.saved.length ? s.saved : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
@@ -1644,7 +1680,7 @@
     s.B.forEach(function (b) { o.B.push(b.id, r1(b.x), r1(b.z), b.k === "orb" ? 1 : 0); });
     var gn = 0;
     for (var gi = s.G.length - 1; gi >= 0 && gn < 140; gi--) { var gg = s.G[gi]; if (seen(gg.x, gg.z, 26)) { gn++; o.G.push(gg.id, Math.round(gg.x * 2), Math.round(gg.z * 2), gg.v >= 20 ? 2 : gg.v >= 5 ? 1 : 0); } }
-    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.big ? 1 : 0); });
+    s.D.forEach(function (d) { o.D.push(d.id, DK.indexOf(d.k), r1(d.x), r1(d.z), d.k === "food" ? d.f : d.k === "hokora" ? Math.round(d.p * 10) : d.k === "musume" ? d.img : d.big ? 1 : 0); });
     s.Z.forEach(function (z) { o.Z.push({ id: z.id, k: z.k, x: r1(z.x), z: r1(z.z), r: r1(z.r), t: r1(z.t), c: z.c }); });
     s.W.forEach(function (w) { o.W.push({ id: w.id, k: w.k, x: r1(w.x), z: r1(w.z), r: r1(w.r), p: Math.round((1 - w.t / w.T) * 100) / 100 }); });
     return o;
@@ -1654,7 +1690,7 @@
   EK.forEach(function (k, i) { EKI[k] = i; });
   var SK = D.ARCHES.map(function (a) { return a.k; }), SKI = {};
   SK.forEach(function (k, i) { SKI[k] = i; });
-  var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora"];
+  var DK = ["coin", "food", "chest", "lantern", "anvil", "warashi", "hokora", "musume"];
   var FXK = ["chain", "slash", "thrust", "spin", "whip", "bolt", "beam", "wave", "pulse", "boom", "steam", "frostbolt", "venom", "crit", "die", "bossdie", "bossin", "chest", "lvl", "ult", "revive", "down", "pick", "break", "vent", "lava", "blast", "ice", "arrowhit", "warnline"];
   var FXI = {}; FXK.forEach(function (k, i) { FXI[k] = i; });
   // 只送最近 0.7 秒的特效（畫面依 id 只播一次）
@@ -1678,7 +1714,7 @@
   }
   // 把快照轉成畫面用的「view」（與房主的 s 同一種欄位名稱，畫面程式只寫一套）
   function unsnap(o) {
-    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
+    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, saved: o.sv || [], t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {
@@ -1700,7 +1736,7 @@
     var B = o.B || [];
     for (i = 0; i < B.length; i += 4) v.B.push({ id: B[i], x: B[i + 1], z: B[i + 2], k: B[i + 3] ? "orb" : "ball" });
     var Dd = o.D || [];
-    for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4], p: DK[Dd[i + 1]] === "hokora" ? Dd[i + 4] / 10 : 0 });
+    for (i = 0; i + 4 < Dd.length; i += 5) v.D.push({ id: Dd[i], k: DK[Dd[i + 1]], x: Dd[i + 2], z: Dd[i + 3], f: Dd[i + 4], big: Dd[i + 4], img: Dd[i + 4], p: DK[Dd[i + 1]] === "hokora" ? Dd[i + 4] / 10 : 0 });
     var G = o.G || [];
     for (i = 0; i < G.length; i += 4) v.G.push({ id: G[i], x: G[i + 1] / 2, z: G[i + 2] / 2, v: G[i + 3] === 2 ? 20 : G[i + 3] === 1 ? 5 : 1 });
     return v;
