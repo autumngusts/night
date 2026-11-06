@@ -226,15 +226,26 @@
       colliders.push({ x1: b.x - b.w / 2 - 0.6, z1: b.z - b.d / 2 - 0.6, x2: b.x + b.w / 2 + 0.6, z2: b.z + b.d / 2 + 0.6 });
       return g;
     }
-    function label(text, sub, color) {
+    // photo：名牌左邊的頭像（2026-11-05：照片／未認識時是剪影），由 opts.drawPhoto 非同步畫好再貼上
+    function label(text, sub, color, photo, sil) {
+      var px = photo ? 52 : 0;
       var tex = canvasTex(512, 160, function (g, w, h) {
         g.fillStyle = "rgba(255,255,255,0.88)";
         roundRect(g, 8, 18, w - 16, h - 36, 40); g.fill();
         g.strokeStyle = color || "#e76f9a"; g.lineWidth = 6; roundRect(g, 8, 18, w - 16, h - 36, 40); g.stroke();
         g.fillStyle = "#3a2a3a"; g.textAlign = "center"; g.textBaseline = "middle";
         g.font = "bold 54px 'Noto Sans TC','Noto Sans JP',sans-serif";
-        g.fillText(text, w / 2, sub ? h / 2 - 12 : h / 2);
-        if (sub) { g.font = "28px 'Noto Sans TC','Noto Sans JP',sans-serif"; g.fillStyle = "#8a5a7a"; g.fillText(sub, w / 2, h / 2 + 34); }
+        g.fillText(text, w / 2 + px, sub ? h / 2 - 12 : h / 2, w - 60 - px * 2);
+        if (sub) { g.font = "28px 'Noto Sans TC','Noto Sans JP',sans-serif"; g.fillStyle = "#8a5a7a"; g.fillText(sub, w / 2 + px, h / 2 + 34, w - 60 - px * 2); }
+        if (photo) { g.fillStyle = "#f3e8f0"; g.beginPath(); g.arc(78, h / 2, 54, 0, Math.PI * 2); g.fill(); }
+      });
+      if (photo && opts.drawPhoto) opts.drawPhoto(photo, !!sil, function (img) {
+        var g = tex.image.getContext("2d"), h = tex.image.height;
+        g.save(); g.beginPath(); g.arc(78, h / 2, 54, 0, Math.PI * 2); g.clip();
+        g.drawImage(img, 24, h / 2 - 54, 108, 108);
+        g.restore();
+        g.strokeStyle = color || "#e76f9a"; g.lineWidth = 5; g.beginPath(); g.arc(78, h / 2, 54, 0, Math.PI * 2); g.stroke();
+        tex.needsUpdate = true;
       });
       var sp = new T.Sprite(track(new T.SpriteMaterial({ map: tex, depthWrite: false, transparent: true })));
       sp.scale.set(6.4, 2.0, 1);
@@ -682,8 +693,8 @@
       var k = n - SLOTS.length, a = k * 0.83 + 0.4, r = 4.6 + Math.floor(k / 8) * 1.3;
       return [Math.cos(a) * r, Math.sin(a) * r];
     }
-    function heroLabel(text, sub, color) {
-      var sp = label(text, sub, color);
+    function heroLabel(text, sub, color, photo, sil) {
+      var sp = label(text, sub, color, photo, sil);
       sp.scale.set(4.2, 1.31, 1);
       return sp;
     }
@@ -693,7 +704,7 @@
       list.forEach(function (it) {
         keep[it.id] = true;
         var hv = heroines[it.id];
-        var sig = it.label + "|" + (it.sub || "") + "|" + (it.color || "");
+        var sig = it.label + "|" + (it.sub || "") + "|" + (it.color || "") + "|" + (it.photo || "") + (it.sil ? "|s" : "");
         if (!hv) {
           var hd = D.HEROINE_BY_ID[it.id];
           var obj = person(hd.look);
@@ -703,7 +714,7 @@
         }
         if (hv.sig !== sig) {
           if (hv.label) { hv.obj.remove(hv.label); hv.label.material.map.dispose(); hv.label.material.dispose(); }
-          hv.label = heroLabel(it.label, it.sub, it.color);
+          hv.label = heroLabel(it.label, it.sub, it.color, it.photo, it.sil);
           hv.label.position.y = 2.4;
           hv.label.scale.multiplyScalar(1 / (D.HEROINE_BY_ID[it.id].look.h || 1));
           hv.label.userData.hid = it.id;

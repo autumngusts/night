@@ -257,7 +257,7 @@
       })));
       body.push(panel(t("yk_cx_maps", { n: D.MAPS.length }), [el("div", { class: "yk-chips" }, D.MAPS.map(function (m) { return el("span", { class: "yk-chip" }, [L(m.name), "・", L(D.PREFS[m.pref].name)]); }))]));
     } else {
-      body.push(el("ul", { class: "yk-rules" }, [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return el("li", null, [t("yk_rule_" + i)]); })));
+      body.push(el("ul", { class: "yk-rules" }, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (i) { return el("li", null, [t("yk_rule_" + i)]); })));
       body.push(panel(t("yk_cx_pref"), [el("div", { class: "yk-cxgrid" }, Object.keys(D.PREFS).map(function (p) { var pr = D.PREFS[p]; return el("div", { class: "yk-cx", style: "border-left:4px solid " + hex(pr.color) }, [el("strong", null, [L(pr.name)]), el("div", { class: "yk-small" }, ["3：" + statText(pr.bonus[0][0], pr.bonus[0][1])]), el("div", { class: "yk-small" }, ["5：" + statText(pr.bonus[0][0], pr.bonus[0][1] * 1.5) + "・" + statText(pr.bonus[1][0], pr.bonus[1][1])])]); }))]));
     }
     app.appendChild(panel(null, body));
@@ -293,7 +293,7 @@
       onFull: function () { },
       onIntent: function (pid, it) { if (sess && sess.host && sess.s) Core.applyIntent(sess.s, pid, it); },
       onMove: function (pid, mv) { if (sess && sess.host && sess.s) sess.onMove(pid, mv); },
-      onHost: function () { if (sess && !sess.host) becomeHost(); }
+      onHost: function (w) { if (sess && !sess.host) becomeHost(w); }
     });
     var url = window.location.pathname + "?room=" + ui.room.id;
     window.history.replaceState(null, "", url);
@@ -307,6 +307,15 @@
     if (r.missing) { ui.screen = "lobby"; render(); return; }
     if (r.status() === "game" && ui.screen !== "game") { startNet(); return; }
     if (r.status() === "lobby" && ui.screen === "game" && sess && !sess.solo) { ui.screen = "lobby"; render(); return; }
+    // 房主被交接出去（切到背景後回來、或連線不穩被接手）：改當一般玩家，畫面沿用
+    if (ui.screen === "game" && sess && sess.host && !sess.solo && r.meta && !r.isHost()) {
+      var mine = sess.s && sess.s.P[r.pid];
+      local.me = mine ? { x: mine.x, z: mine.z, fx: mine.fx, fz: mine.fz } : null;
+      local.reset = !mine;
+      var keepView = sess.s;
+      sess = clientSession();
+      if (!sess.view) sess.view = keepView;
+    }
     if (ui.screen === "lobby") {
       var sig = JSON.stringify([r.list(), r.cfg, r.isHost(), r.loaded]);
       if (sig !== lastLobbySig) { lastLobbySig = sig; render(); }
@@ -375,7 +384,7 @@
     if (r.isHost()) {
       var s = ui.pendingHostState || (r.full && Core.deserialize(r.full.s));
       ui.pendingHostState = null;
-      if (!s) { setTimeout(startNet, 300); return; }
+      if (!s) { if (!r._fetching) { r._fetching = 1; r.fetchFull(function () { r._fetching = 0; }); } setTimeout(startNet, 300); return; }
       hostSession(s);
     } else {
       sess = clientSession();
@@ -385,13 +394,18 @@
   function hostSession(s) {
     var r = ui.room;
     Core.players(s).forEach(function (P) { P.local = P.pid === r.pid ? 1 : 0; });
-    var missing = {};
+    var missing = {}, lastMv = {}, lastN = {};
     sess = {
       solo: false, host: true, pid: r.pid, s: s, view: s, lastSnap: 0, lastFull: 0, lastSync: 0,
       send: function (it) { Core.applyIntent(s, r.pid, it); },
       onMove: function (pid, mv) {
         var P = s.P[pid];
         if (!P || P.local || !mv) return;
+        // 同一份位置會在別人更新時重複送來：序號沒變就不算新回報（掛機偵測才準）
+        if (mv.n !== undefined && mv.n === lastN[pid]) return;
+        lastN[pid] = mv.n;
+        lastMv[pid] = performance.now();
+        if (P.afk) { P.afk = 0; }
         var x = Number(mv.x), z = Number(mv.z);
         if (!isFinite(x) || !isFinite(z) || P.down) return;
         P.x = Math.max(-D.ARENA, Math.min(D.ARENA, x)); P.z = Math.max(-D.ARENA, Math.min(D.ARENA, z));
@@ -414,15 +428,25 @@
             if (now - missing[P.pid] > 4000) { Core.removePlayer(s, P.pid); delete missing[P.pid]; }
           });
         }
-        if (now - sess.lastSnap > 140) { sess.lastSnap = now; r.writeSnap(Core.snap(s)); }
-        if (now - sess.lastFull > 4000) { sess.lastFull = now; r.writeFull(Core.serialize(s)); }
+        // 掛機偵測：2.5 秒沒收到位置（對方切到背景、網路斷）→ 暫時無敵，敵人也不追他
+        Core.players(s).forEach(function (P) {
+          if (P.local) return;
+          if (!lastMv[P.pid]) lastMv[P.pid] = now;
+          var afk = now - lastMv[P.pid] > 2500 ? 1 : 0;
+          P.afk = afk;
+          if (afk) P.iv = Math.max(P.iv, 0.3);
+        });
+        // 只有自己一個人時不廣播快照；寫入有流量控制（上一筆沒送完就跳過）
+        var others = r.list().length > 1;
+        if (others && now - sess.lastSnap > 110 && !r.snapBusy()) { sess.lastSnap = now; r.writeSnap(Core.snap(s)); }
+        if (others && now - sess.lastFull > 4000) { sess.lastFull = now; r.writeFull(Core.serialize(s)); }
       }
     };
     return sess;
   }
-  function becomeHost() {
+  function becomeHost(w) {
     var r = ui.room;
-    var s = r.full && Core.deserialize(r.full.s);
+    var s = (w && Core.deserialize(w.s)) || (r.full && Core.deserialize(r.full.s));
     if (!s) return;
     var me = local.me;
     hostSession(s);
@@ -432,11 +456,25 @@
   }
   function clientSession() {
     var r = ui.room;
+    r.resetIntents();
+    var prevPos = {}, prevT = 0;
     var c = {
-      solo: false, host: false, pid: r.pid, s: null, view: null, lastMove: 0,
+      solo: false, host: false, pid: r.pid, s: null, view: null, lastMove: 0, snapAt: 0,
       send: function (it) { r.sendIntent(it); },
       onSnap: function (o) {
         var v = Core.unsnap(o);
+        // 外插推算：記住每個敵人／投射物／敵彈這一份與上一份快照的位置差，畫面依經過時間往前推（最多 0.3 秒）
+        var now = performance.now(), gap = prevT ? Math.min(0.5, Math.max(0.05, (v.t - prevT))) : 0.12, np = {};
+        [["e", v.E], ["s", v.S], ["b", v.B]].forEach(function (pair) {
+          pair[1].forEach(function (x) {
+            var key = pair[0] + x.id, pp = prevPos[key];
+            x.x0 = x.x; x.z0 = x.z;
+            if (pp) { x.vx = (x.x - pp[0]) / gap; x.vz = (x.z - pp[1]) / gap; if (x.vx * x.vx + x.vz * x.vz > 1600) { x.vx = 0; x.vz = 0; } }
+            else { x.vx = 0; x.vz = 0; }
+            np[key] = [x.x, x.z];
+          });
+        });
+        prevPos = np; prevT = v.t; c.snapAt = now;
         var mine = v.P[r.pid];
         if (mine) {
           if (!local.me || local.reset) { local.me = { x: mine.x, z: mine.z, fx: mine.fx, fz: mine.fz }; local.reset = false; }
@@ -448,7 +486,8 @@
         var now = performance.now();
         if (local.me && now - c.lastMove > 100) {
           c.lastMove = now;
-          r.sendMove({ x: Math.round(local.me.x * 100) / 100, z: Math.round(local.me.z * 100) / 100, fx: Math.round(local.me.fx * 100) / 100, fz: Math.round(local.me.fz * 100) / 100 });
+          c.mvN = (c.mvN || 0) + 1;
+          r.sendMove({ n: c.mvN, x: Math.round(local.me.x * 100) / 100, z: Math.round(local.me.z * 100) / 100, fx: Math.round(local.me.fx * 100) / 100, fz: Math.round(local.me.fz * 100) / 100 });
         }
       }
     };
@@ -502,6 +541,11 @@
     if (!sess.host && local.me && v.P[sess.pid]) {
       var P = v.P[sess.pid];
       if (!P.down) { P.x = local.me.x; P.z = local.me.z; P.fx = local.me.fx; P.fz = local.me.fz; }
+    }
+    if (!sess.host && sess.snapAt) {
+      var age = Math.min(0.3, (performance.now() - sess.snapAt) / 1000);
+      var ext = function (x) { if (x.x0 !== undefined) { x.x = x.x0 + (x.vx || 0) * age; x.z = x.z0 + (x.vz || 0) * age; } };
+      v.E.forEach(ext); v.S.forEach(ext); v.B.forEach(ext);
     }
     return v;
   }
@@ -685,6 +729,10 @@
     if (m.k === "ult") return D.ULTS[m.a].icon + " " + t("yk_msg_ult", { n: nm, u: L(D.ULTS[m.a].name) });
     if (m.k === "warashi") return "👧 " + t("yk_msg_warashi", { n: nm });
     if (m.k === "feat") return t("yk_feat_" + m.a);
+    if (m.k === "wx") return t("yk_wx_" + m.a);
+    if (m.k === "bounty") return "💰 " + t("yk_msg_bounty", { e: L((D.ENEMIES[m.a] || {}).name) });
+    if (m.k === "btykill") return "🎉 " + t("yk_msg_btykill", { n: nm || t("yk_noname") });
+    if (m.k === "renkei") { var Q2 = v.P[m.a]; return "🔥 " + t("yk_msg_renkei", { a: nm, b: Q2 ? (Q2.name || L(D.DAIMYO[Q2.dm].name)) : "" }); }
     if (m.k === "ultup") return "🌟 " + t("yk_msg_ultup", { n: nm, t: m.a });
     if (m.k === "pick" && mine && m.a && m.a.t === "m") return D.MODS[m.a.m].icon + " " + t("yk_msg_mod", { w: L(D.WEAPONS[m.a.id].name), m: L(D.MODS[m.a.m].name) });
     if (m.k === "combo") return "🔥 " + t("yk_msg_combo", { n: nm, c: m.a });
@@ -726,7 +774,9 @@
       hud.xp.lastChild.textContent = "Lv " + me.lv;
       hud.hp.firstChild.style.width = Math.max(0, me.hp / me.mhp * 100) + "%";
       hud.hp.lastChild.textContent = Math.ceil(me.hp) + " / " + me.mhp;
-      hud.info.textContent = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 });
+      var wxk = v.wx && v.wx.k || "clear";
+      var info = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 }) + (wxk !== "clear" ? "　" + t("yk_wxs_" + wxk) : "") + (me.jin ? "　" + t("yk_jin", { n: me.jin }) : "");
+      if (hud.info.textContent !== info) hud.info.textContent = info;
       var u = D.ULTS[D.DAIMYO[me.dm].ult];
       hud.ult.firstChild.textContent = u.icon;
       var tierN = Core.ultTier(me), ultTxt = (me.ult >= 100 ? L(u.name) : Math.floor(me.ult) + "%") + (tierN > 1 ? " ・" + "★".repeat(tierN - 1) : "");
@@ -774,17 +824,18 @@
     });
     if (ft) { hud.feat.classList.remove("yk-hidden"); if (hud.feat.textContent !== ft) hud.feat.textContent = ft; } else hud.feat.classList.add("yk-hidden");
     // 連斬
-    var cbt = me && me.cb >= 10 ? t("yk_combo", { n: me.cb, p: Math.round(Core.comboBonus(me) * 100) }) : "";
+    var cbp = me ? Math.round(Core.comboBonus(me) * 100) : 0;
+    var cbt = me && me.cb >= 10 ? (cbp > 0 ? t("yk_combo", { n: me.cb, p: cbp }) : t("yk_combo0", { n: me.cb })) : "";
     if (hud.combo.textContent !== cbt) hud.combo.textContent = cbt;
     // 隊伍
     var pids = Object.keys(v.P);
-    var tsig = pids.map(function (p) { var P = v.P[p]; return p + Math.round(P.hp / P.mhp * 20) + P.down + P.lv; }).join("|");
+    var tsig = pids.map(function (p) { var P = v.P[p]; return p + Math.round(P.hp / P.mhp * 20) + P.down + P.lv + (P.afk ? "z" : ""); }).join("|");
     if (tsig !== hud.teamSig && pids.length > 1) {
       hud.teamSig = tsig;
       hud.team.innerHTML = "";
       pids.forEach(function (p) {
         var P = v.P[p], d = D.DAIMYO[P.dm];
-        hud.team.appendChild(el("div", { class: "yk-tm" + (P.down ? " yk-tm-down" : "") }, [crestBadge(d), el("span", { class: "yk-tm-n" }, [(P.name || L(d.name)) + " Lv" + P.lv]), el("div", { class: "yk-tm-hp" }, [el("div", { style: "width:" + Math.max(0, P.hp / P.mhp * 100) + "%" })])]));
+        hud.team.appendChild(el("div", { class: "yk-tm" + (P.down ? " yk-tm-down" : "") }, [crestBadge(d), el("span", { class: "yk-tm-n" }, [(P.afk ? "💤 " : "") + (P.name || L(d.name)) + " Lv" + P.lv]), el("div", { class: "yk-tm-hp" }, [el("div", { style: "width:" + Math.max(0, P.hp / P.mhp * 100) + "%" })])]));
       });
     } else if (pids.length <= 1) hud.team.innerHTML = "";
     // 暫停
@@ -911,6 +962,11 @@
     ]));
   }
 
+  // 房主切到背景（手機鎖螢幕、切 App）時瀏覽器會暫停畫面更新，模擬就停了：把房主交給下一位玩家
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden || !sess || !sess.host || sess.solo || !ui.room || ui.screen !== "game") return;
+    if (sess.s && sess.s.ph === "play") ui.room.handoff(Core.serialize(sess.s));
+  });
   window.addEventListener("i18n:change", function () { if (ui.screen !== "game") render(); else if (hud) updateHud(true); });
   // 連結帶 ?room= 就直接進房（遊戲進行中＝中途加入）
   var rid = Net.roomFromUrl(window.location.href);

@@ -1,7 +1,7 @@
 // ============================================================================
 // 萬人迷（wanren）Playwright 流程檢查：
 //   標題（3D 校園載入）→ 新遊戲（1 學年）→ 入學典禮 → 早上回應迷妹 → 上課 → 自由時間（3D：走動的學生、女主角、快速前往、搭話、聊天）
-//   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
+//   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 甜言蜜語 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8951 --directory dist
@@ -34,12 +34,23 @@ async function clickText(page, label, partial) {
 function st(page) { return page.evaluate(function () { var s = window.PriTestWanren.state; return s && { day: s.day, phase: s.phase, stats: s.stats, ap: s.today && s.today.ap, apMax: s.today && s.today.apMax }; }); }
 // 隨機事件（每天早上有機率）會先蓋在畫面上：有的話選第一個選項
 async function clearEvents(page) {
+  await clearSweet(page);
   for (var i = 0; i < 5; i++) {
     await closeMsg(page);
     var n = await page.evaluate(function () { return window.PriTestWanren.state.events.length; });
     if (!n) return;
     await page.locator(".wr-event .wr-btn-opt").first().click();
     await page.waitForTimeout(100);
+  }
+}
+// 💕 她的甜言蜜語（2026-11-06）：有的話選第一個反應
+async function clearSweet(page) {
+  for (var i = 0; i < 3; i++) {
+    await closeMsg(page);
+    var has = await page.evaluate(function () { return !!window.PriTestWanren.state.sweet; });
+    if (!has) return;
+    await page.dispatchEvent(".wr-sweet-opt", "click");
+    await page.waitForTimeout(120);
   }
 }
 async function closeMsg(page) { await page.evaluate(function () { var m = document.querySelector(".wr-msg"); if (m) m.click(); }); await page.waitForTimeout(80); }
@@ -65,7 +76,9 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await clickText(page, "開始新的學期", true);
   var s = await st(page);
   assert.strictEqual(s.phase, "morning");
-  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.length; }), 232);
+  // 2026-11-06 起「1 學年」是濃縮版（每週 1 天，一學期約 30 分鐘）：36 天。舊的 232 天改名「慢活・1 學年」。
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.lengthId; }), "syear");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.length; }), 36);
   assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.today.kind; }), "entrance", "第一天是入學典禮");
   await clearEvents(page);
   var nAdm = await page.locator(".wr-adm").count();
@@ -125,6 +138,8 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   // 成就：第一次見面
   assert.ok(await page.evaluate(function () { return !!window.PriTestWanren.core.loadMeta().ach.meet1; }), "應該解鎖「初次見面」");
   // 學生餐廳的購買部
+  // 聊天（用掉行動點）後有 20% 機率觸發校園遭遇，事件畫面會蓋住「快速前往」：先清掉（2026-11-05 修正偶發失敗）
+  await clearEvents(page);
   await clickText(page, "學生餐廳", true);
   await page.waitForFunction(function () { return window.PriTestWanren.ui.loc === "cafeteria"; }, null, { timeout: 20000 });
   await clickText(page, "購買部", true);
@@ -151,7 +166,19 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   s = await st(page);
   assert.strictEqual(s.day, 1);
   assert.strictEqual(s.phase, "morning");
-  // 第 2 天是平日：要上課
+  // 濃縮版的第 2 天是星期六（每週只玩 1 天，雙週是星期六）：用 core 跳過，第 3 天（星期三）要上課
+  await clearEvents(page);
+  await page.evaluate(function () {
+    var W = window.PriTestWanren, S = W.state, C = W.core, g = 0;
+    while (S.today.kind !== "weekday" && g++ < 20) {
+      S.events = []; S.sweet = null;
+      if (S.phase === "morning") C.finishMorning(S);
+      else if (S.phase === "free") C.endFree(S);
+      else if (S.phase === "evening") C.doEvening(S, "rest");
+      else C.endDay(S);
+    }
+    W.render();
+  });
   await clearEvents(page);
   await clickText(page, "去上課", true);
   await clearEvents(page);
@@ -184,6 +211,30 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   for (var q = 0; q < nq; q++) { await page.locator(".wr-event .wr-btn-opt").first().click(); await page.waitForTimeout(80); await closeMsg(page); }
   s = await st(page);
   assert.strictEqual(s.phase, "night", "答完約會應該進入深夜");
+  await clearSweet(page);   // 約會很順利時可能由她說甜言蜜語
+
+  // 💕 她的甜言蜜語：強制觸發一次，選「甜甜回應」
+  var sw0 = await page.evaluate(function () {
+    var W = window.PriTestWanren, S = W.state, C = W.core;
+    var hid = window.PriTestWanrenData.HEROINES.filter(function (h) { return S.h[h.id].met; })[0].id;
+    S.today.sweetN = 0; S.today.sweetWho = {};
+    var ok = C.sweetStart(S, hid, "date");
+    W.render();
+    return { ok: ok, hid: hid, n: S.sweetN || 0, aff: S.h[hid].aff, line: S.sweet && S.sweet.line };
+  });
+  assert.ok(sw0.ok, "應該能觸發甜言蜜語");
+  assert.ok(sw0.line && !/\{y\}|\{me\}/.test(sw0.line), "她的台詞要代換稱呼：" + sw0.line);
+  assert.strictEqual(await page.locator(".wr-sweet-opt").count(), 3, "甜言蜜語有 3 種反應");
+  assert.ok(await page.locator(".wr-sweet-bubble").count(), "要顯示她說的話");
+  await page.screenshot({ path: path.join(SHOT_DIR, "05c_sweet.png") });
+  await page.locator(".wr-sweet-opt").nth(1).dispatchEvent("click");
+  await page.waitForTimeout(150);
+  var sw1 = await page.evaluate(function (hid) { var S = window.PriTestWanren.state; return { sweet: S.sweet, n: S.sweetN, aff: S.h[hid].aff, msg: document.querySelector(".wr-msg") ? document.querySelector(".wr-msg").textContent : "" }; }, sw0.hid);
+  assert.ok(!sw1.sweet, "選完反應應該結束");
+  assert.strictEqual(sw1.n, sw0.n + 1);
+  assert.ok(sw1.aff >= sw0.aff, "甜甜回應不會扣好感");
+  assert.ok(/我也是/.test(sw1.msg), "結果訊息應該有你的回應：" + sw1.msg);
+  await closeMsg(page);
   await clickText(page, "睡覺", true);
   await clearEvents(page);
 
@@ -193,6 +244,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
     var guard = 0;
     while (S.phase !== "report" && guard++ < 30000) {
       if (S.phase === "yearreport") { C.nextYear(S); continue; }
+      if (S.sweet) C.sweetReply(S, "sweet");
       while (S.events.length) C.resolveEvent(S, 0);
       if (S.phase === "morning") { S.today.admirers.forEach(function (a, i) { C.answerAdmirer(S, i, i % 3); }); C.finishMorning(S); continue; }
       if (S.phase === "class") { C.doClass(S, S.stats.stamina < 30 ? "doze" : "focus"); continue; }
@@ -247,6 +299,18 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.strictEqual(calInfo.last, "graduation");
   ["entrance", "newyear", "sports", "summerfest", "festival", "xmas", "valentine", "midterm", "final"].forEach(function (k) { assert.ok(calInfo.kinds[k] > 0, "完整版應該有 " + k); });
   assert.strictEqual(calInfo.kinds.midterm, 6);
+  // 濃縮版（2026-11-06）：完整版 108 天、1 學期 16 天，特殊日一個都不少
+  var calShort = await page.evaluate(function () {
+    var C = window.PriTestWanren.core, c = C.buildCal("sfull"), kinds = {};
+    c.forEach(function (d) { kinds[d.kind] = (kinds[d.kind] || 0) + 1; });
+    return { n: c.length, kinds: kinds, last: c[c.length - 1].kind, term: C.buildCal("sterm").length };
+  });
+  assert.strictEqual(calShort.n, 108);
+  assert.strictEqual(calShort.term, 16);
+  assert.strictEqual(calShort.last, "graduation");
+  ["entrance", "newyear", "sports", "summerfest", "festival", "clubcup", "xmas", "valentine"].forEach(function (k) { assert.ok(calShort.kinds[k] > 0, "濃縮完整版應該有 " + k); });
+  assert.strictEqual(calShort.kinds.midterm, 6);
+  assert.strictEqual(calShort.kinds.final, 6);
   await page.evaluate(function () {
     var W = window.PriTestWanren, C = W.core;
     var S = C.newGame({ length: "full", name: "三年君" });

@@ -9,6 +9,7 @@
   var UI = window.PriTestStarvUI;
   var t = UI.t, el = UI.el;
   var shown = {};
+  var fxExtras = [];   // 擴充效果的說明行（starv_plus_ui.js 的黑粉、核心粉、關係、連鎖）
 
   function signed(v, fmt) { return (v >= 0 ? "+" : "−") + (fmt ? fmt(Math.abs(v)) : Math.abs(v)); }
   function leftName(info) { return Core.artistName({ rosterId: info.rosterId || null, nameSeed: info.nameSeed || 0, gender: info.gender || "f" }, UI.lang()); }
@@ -39,12 +40,13 @@
     if (fx.retained && ev) out.push(t("sv_fx_retained", { name: ev.name }));
     if (fx.projectMod) out.push(t("sv_fx_projectMod", { v: signed(Math.round(fx.projectMod * 100)) }));
     if (fx.projectDays) out.push(t("sv_fx_projectDays", { n: fx.projectDays }));
+    fxExtras.forEach(function (fn) { out = out.concat(fn(st, fx, ev) || []); });
     return out;
   }
 
   function fill(text, vars) {
     return text.replace(/\{name\}/g, vars.name).replace(/\{n\}/g, vars.n == null ? "" : UI.num(vars.n))
-      .replace(/\{rival\}/g, vars.rival || "").replace(/\{star\}/g, vars.star || "");
+      .replace(/\{rival\}/g, vars.rival || "").replace(/\{star\}/g, vars.star || "").replace(/\{partner\}/g, vars.partner || "");
   }
 
   function open(App, uid) {
@@ -65,7 +67,8 @@
       ]));
       var ctx = (e || result).ctx;
       var starName = ctx.star ? Core.rivalStarName({ rosterId: ctx.star }, UI.lang()) : "";
-      box.appendChild(el("p", { class: "sv-ev-text", text: fill(UI.L(ev.text), { name: name, n: ctx.n, rival: ctx.rival ? UI.rivalName(st, ctx.rival) : "", star: starName }) }));
+      var pa = ctx.partner ? Core.artistById(st, ctx.partner) : null;
+      box.appendChild(el("p", { class: "sv-ev-text", text: fill(UI.L(ev.text), { name: name, n: ctx.n, rival: ctx.rival ? UI.rivalName(st, ctx.rival) : "", star: starName, partner: pa ? UI.name(pa) : "" }) }));
       if (result) {
         var lines = fxLines(st, result.fx, { name: name });
         box.appendChild(el("div", { class: "sv-ev-result" + (result.bad ? " sv-ev-bad" : "") }, [
@@ -112,5 +115,5 @@
     return null;
   });
 
-  window.PriTestStarvEventsUI = { open: open, fxLines: fxLines };
+  window.PriTestStarvEventsUI = { open: open, fxLines: fxLines, addFx: function (fn) { fxExtras.push(fn); } };
 })();

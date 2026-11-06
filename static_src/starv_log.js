@@ -9,6 +9,7 @@
   var t = UI.t, el = UI.el;
   var drawer = { open: false, aid: "" };
   var REPORT_LINES = 20;
+  var paramHooks = [];   // 擴充日誌類型的參數（starv_plus_ui.js）
 
   function artistLabel(st, id) { var a = Core.artistById(st, id); return a ? UI.name(a) : "—"; }
   // 已經不在公司的人（候補流失、解約）由日誌裡的 rosterId／nameSeed 還原名字
@@ -28,7 +29,7 @@
     } else if (e.type === "promo_done") p.fame = d.fame;
     else if (e.type === "job_done") {
       p.names = (d.aids || []).map(function (id) { return artistLabel(st, id); }).join("、");
-      p.title = Core.jobTitle({ dir: d.dir, title: d.title }, UI.lang());
+      p.title = Core.jobTitle({ dir: d.dir, title: d.title, titleDir: d.titleDir, seq: d.seq }, UI.lang());
       p.result = t("sv_result_" + d.result);
       p.pay = UI.money(d.pay);
       p.stars = new Array((d.stars || 0) + 1).join("★");
@@ -69,6 +70,7 @@
       p.title = ev2 ? UI.L(ev2.title) : String(d.ev);
       p.choice = ev2 && d.choice != null ? UI.L(ev2.choices[d.choice].label) : "";
     }
+    paramHooks.forEach(function (fn) { fn(st, e, p); });
     return t("sv_log_" + e.type, p);
   }
 
@@ -124,4 +126,5 @@
 
   UI.addExtra(drawerNode);
   UI.setReportHandler(report);
+  window.PriTestStarvLog = { text: text, addParams: function (fn) { paramHooks.push(fn); } };
 })();

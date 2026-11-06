@@ -17,6 +17,12 @@ WANREN_SCRIPTS: tuple[str, ...] = (
     "wanren_data4.js",
     # 追加的朋友・死黨・老師・家長・學姐 20 人與 8 種新個性（2026-11-04）
     "wanren_data5.js",
+    # 迷妹轉正、穿搭與房間、SNS、新成就（2026-11-05）
+    "wanren_data6.js",
+    # 手機聊天與全肯定（2026-11-05）
+    "wanren_data7.js",
+    # 心跳時刻（2026-11-06）
+    "wanren_data8.js",
     "wanren_core.js",
     "firebase_config.js",
     "game_storage.js",
@@ -29,7 +35,7 @@ WANREN_SCRIPTS: tuple[str, ...] = (
 def build_wanren_html() -> str:
     three_src = asset_url("../static/", "vendor/three.min.js")
     body = f"""    <div class="wr-wrap">
-      <div id="wr-app" data-three-src="{three_src}"></div>
+      <div id="wr-app" data-three-src="{three_src}" data-img="../static/images/jikan/"></div>
     </div>
 """
     return page_shell(

@@ -493,6 +493,16 @@
       scene.add(weather);
     }
 
+    // 雨（雨天／雷雨才顯示）
+    var rainN = low ? 400 : 1000, rainP = new Float32Array(rainN * 3);
+    for (var ri = 0; ri < rainN; ri++) { rainP[ri * 3] = (Math.random() - 0.5) * 50; rainP[ri * 3 + 1] = Math.random() * 20; rainP[ri * 3 + 2] = (Math.random() - 0.5) * 50; }
+    var rainG = new T.BufferGeometry();
+    rainG.setAttribute("position", new T.BufferAttribute(rainP, 3));
+    var rain = new T.Points(rainG, new T.PointsMaterial({ color: 0x9ab8e0, size: 0.13, transparent: true, opacity: 0.8, depthWrite: false }));
+    rain.visible = false;
+    scene.add(rain);
+    var stormT = 0;
+
     // ---- 實例化的群體 ----
     function pool(geo, cap, matOpts) {
       var m = new T.MeshLambertMaterial(Object.assign({ vertexColors: true }, matOpts || {}));
@@ -556,7 +566,7 @@
         var P = v.P[pid], d = D.DAIMYO[P.dm] || D.DAIMYO[0];
         list.push({ key: "p" + pid, x: P.x, z: P.z, cls: P.down ? "yk-pin-down" : "yk-pin-ally", label: P.down ? "💀" : D.L(d.name).charAt(0), color: P.down ? null : "#" + ("000000" + d.color.toString(16)).slice(-6) });
       });
-      v.E.forEach(function (e) { if (e.boss) list.push({ key: "b" + e.id, x: e.x, z: e.z, cls: "yk-pin-boss", label: "👹" }); });
+      v.E.forEach(function (e) { if (e.boss) list.push({ key: "b" + e.id, x: e.x, z: e.z, cls: "yk-pin-boss", label: "👹" }); else if (e.bty) list.push({ key: "b" + e.id, x: e.x, z: e.z, cls: "yk-pin-chest", label: "💰" }); });
       v.D.forEach(function (d) { if (d.k === "chest") list.push({ key: "c" + d.id, x: d.x, z: d.z, cls: "yk-pin-chest", label: "🎁" }); else if (d.k === "hokora") list.push({ key: "h" + d.id, x: d.x, z: d.z, cls: "yk-pin-hokora", label: "⛩" }); });
       list.forEach(function (t) {
         _pv.set(t.x, 1, t.z).project(camera);
@@ -716,7 +726,7 @@
     var flashLight = new T.PointLight(0xffffff, 0, 14);
     scene.add(flashLight);
     var flashT = 0;
-    function flash(x, z, c) { flashLight.position.set(x, 3, z); flashLight.color.setHex(c); flashLight.intensity = 2.2; flashT = 0.15; }
+    function flash(x, z, c) { flashLight.position.set(x, 3, z); flashLight.color.setHex(c); flashLight.intensity = 2.2; flashLight.distance = 14; flashT = 0.15; }
 
     // ---- 平滑位置 ----
     var smooth = {};
@@ -762,14 +772,29 @@
       var fe = v.fe || {};
       var night = (fe.on && fe.k === "darkness") || MAP.night;
       var bliz = fe.on && fe.k === "blizzard";
-      var camD = dist * 1.13, tgtFar = camD + (night ? 9 : bliz ? 14 : 45), tgtNear = camD + (night ? -8 : bliz ? -5 : 8);
+      var wxk = v.wx && v.wx.k || "clear", foggy = wxk === "fog";
+      var camD = dist * 1.13, tgtFar = camD + (night ? 9 : bliz ? 14 : foggy ? 12 : wxk === "storm" ? 26 : 45), tgtNear = camD + (night ? -8 : bliz ? -5 : foggy ? -6 : 8);
       scene.fog.far += (tgtFar - scene.fog.far) * dt * 2;
       scene.fog.near += (tgtNear - scene.fog.near) * dt * 2;
-      var lightK = night ? 0.35 : 1;
+      var lightK = night ? 0.35 : wxk === "storm" ? 0.6 : wxk === "rain" ? 0.8 : 1;
+      // 雨、雷雨
+      rain.visible = wxk === "rain" || wxk === "storm";
+      if (rain.visible) {
+        var rp = rain.geometry.attributes.position.array;
+        for (var r2 = 0; r2 < rp.length; r2 += 3) {
+          rp[r2 + 1] -= 26 * dt; rp[r2] += 2 * dt;
+          if (rp[r2 + 1] < 0 || Math.abs(rp[r2] - camX) > 26 || Math.abs(rp[r2 + 2] - camZ) > 26) { rp[r2 + 1] = 16 + Math.random() * 4; rp[r2] = camX + (Math.random() - 0.5) * 50; rp[r2 + 2] = camZ + (Math.random() - 0.5) * 50; }
+        }
+        rain.geometry.attributes.position.needsUpdate = true;
+      }
+      if (wxk === "storm") { stormT -= dt; if (stormT <= 0) { stormT = 2 + Math.random() * 4; flash(camX + (Math.random() - 0.5) * 20, camZ + (Math.random() - 0.5) * 16, 0xd0e0ff); flashLight.distance = 60; } }
       hemi.intensity += (0.5 * lightK - hemi.intensity) * dt * 2;
       sun.intensity += ((night ? 0.2 : 0.62) - sun.intensity) * dt * 2;
       if (night) { scene.fog.color.lerp(new T.Color(0x0a0c18), dt * 2); scene.background.lerp(new T.Color(0x0a0c18), dt * 2); }
-      else { scene.fog.color.lerp(bliz ? new T.Color(0xf0f4f8) : fogC, dt * 2); scene.background.lerp(bliz ? new T.Color(0xe8eef4) : sky, dt * 2); }
+      else {
+        var fogTo = bliz ? new T.Color(0xf0f4f8) : foggy ? new T.Color(0xd8dcdc) : wxk === "storm" ? new T.Color(0x505868) : wxk === "rain" ? new T.Color(0x8a96a4) : fogC;
+        scene.fog.color.lerp(fogTo, dt * 2); scene.background.lerp(fogTo, dt * 2);
+      }
       if (v.freeze) { amb.color.setHex(0x80c0ff); amb.intensity = 0.5; } else { amb.color.setHex(0xffffff); amb.intensity = night ? 0.2 : 0.08; }
       if (weather) {
         var wpA = weather.geometry.attributes.position.array, wspd = bliz ? 9 : 3, wwx = (fe.wx || 0) + (bliz ? 6 : 0.5);
@@ -823,6 +848,7 @@
         else if (sf & 8) tint.setRGB(0.6, 0.85, 1.5);
         else if (sf & 16) tint.setRGB(1.6, 0.8, 0.5);
         else if (sf & 32) tint.setRGB(0.8, 1.4, 0.6);
+        else if (e.bty) tint.setRGB(1.8, 1.45, 0.4);
         else if (e.el) tint.setRGB(1.3, 1.1, 0.7);
         else tint.copy(white);
         if (v.freeze) tint.setRGB(0.7, 0.9, 1.6);
