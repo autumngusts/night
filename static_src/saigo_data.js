@@ -23,9 +23,16 @@
   // 離最適跑法越遠適性越低（B／C／D），極速打折
   var STYLE_IDS = ["nige", "senko", "sashi", "oikomi"];
   var APT = [{ g: "A", spd: 1 }, { g: "B", spd: 0.985 }, { g: "C", spd: 0.965 }, { g: "D", spd: 0.94 }];
-  function aptitude(best, style) {
+  // up＝這個跑法的適性被提高了幾階（血統繼承的紅因子，2026-11-06）
+  function aptitude(best, style, up) {
     var a = STYLE_IDS.indexOf(best), b = STYLE_IDS.indexOf(style);
-    return a < 0 || b < 0 ? 0 : Math.abs(a - b);
+    return a < 0 || b < 0 ? 0 : Math.max(0, Math.abs(a - b) - (up | 0));
+  }
+  // 出賽資料的 aptUp 清理：只留 4 種跑法、0〜3 的整數
+  function cleanAptUp(o) {
+    var out = {};
+    STYLE_IDS.forEach(function (st) { var v = o && o[st] | 0; if (v > 0) out[st] = Math.min(3, v); });
+    return out;
   }
   // 個體差：65% 是犬種的跑法，其餘是相鄰的跑法
   function rollBestStyle(breedStyle, rnd) {
@@ -308,7 +315,7 @@
 
   window.PriTestSaigoData = {
     NPC_KENNELS: NPC_KENNELS, LINES: LINES, LINE_IDS: LINE_IDS,
-    C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES, STYLE_IDS: STYLE_IDS, APT: APT, aptitude: aptitude, rollBestStyle: rollBestStyle, breedRating: breedRating,
+    C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES, STYLE_IDS: STYLE_IDS, APT: APT, aptitude: aptitude, cleanAptUp: cleanAptUp, rollBestStyle: rollBestStyle, breedRating: breedRating,
     BREEDS: BREEDS, BREED_BY_ID: BREED_BY_ID,
     PARTS: PARTS, PART_WEIGHTS: PART_WEIGHTS, HURDLE_TYPES: HURDLE_TYPES, WEATHERS: WEATHERS, GROUNDS: GROUNDS, MOODS: MOODS,
     KINDS: KINDS, SURFACES: SURFACES, TERRAINS: TERRAINS, DISTANCES: DISTANCES, partName: partName,

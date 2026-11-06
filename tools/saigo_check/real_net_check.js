@@ -84,6 +84,8 @@ function kennelCoins(page) { return ev(page, function () { return window.PriTest
   // B 準備、A 開跑
   await ev(B, function () { Array.prototype.filter.call(document.querySelectorAll("#sg-app button"), function (x) { return x.textContent.indexOf("準備好了") >= 0; })[0].click(); });
   await until(A, function () { return window.PriTestSaigo.ui.room.list().every(function (p) { return p.ready || p.cid === window.PriTestSaigo.ui.room.cid; }); }, null, 10000, "B 準備");
+  // 房間資料更新後畫面最多晚 120 ms 才重畫，等開跑鍵真的可以按再按（2026-11-06 修正偶發失敗）
+  await until(A, function () { return Array.prototype.some.call(document.querySelectorAll("#sg-app button"), function (x) { return x.textContent.trim() === "開跑！" && !x.disabled; }); }, null, 10000, "A 開跑鍵可以按");
   await ev(A, function () { Array.prototype.filter.call(document.querySelectorAll("#sg-app button"), function (x) { return x.textContent.trim() === "開跑！" && !x.disabled; })[0].click(); });
   await until(B, function () { return window.PriTestSaigo.ui.screen === "race"; }, null, 10000, "B 比賽");
   await until(B, function () { var t = window.PriTestSaigo.ui.room.raceTime(); return t !== null && t > 2; }, null, 15000, "開跑 2 秒");

@@ -341,3 +341,15 @@
 @media (prefers-color-scheme: dark) {
   .sg-cr-goal-now { border-color: #ffb74d; color: #ffb74d; } .sg-cr-goal-ok { border-color: #81c784; color: #81c784; } .sg-cr-goal-ng { border-color: #ef9a9a; color: #ef9a9a; }
 }
+
+/* 血統書與繼承（2026-11-06） */
+.sg-ln-chip { display: inline-block; margin: 0.1rem 0.3rem 0.1rem 0; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.85em; border: 1px solid; }
+.sg-ln-blue { border-color: #1e88e5; background: rgba(30, 136, 229, 0.1); }
+.sg-ln-red { border-color: #e53935; background: rgba(229, 57, 53, 0.1); }
+.sg-ln-white { border-color: rgba(127, 127, 127, 0.6); background: rgba(127, 127, 127, 0.08); }
+.sg-ln-list { display: grid; gap: 0.6rem; }
+.sg-ln-card { padding: 0.5rem 0.7rem; border-radius: 10px; border: 1px solid rgba(127, 127, 127, 0.35); }
+.sg-ln-card .sg-grade { margin-left: 0.4rem; }
+.sg-ln-card .sg-actions { margin-top: 0.2rem; }
+.sg-ln-pick { margin-top: 0.6rem; padding-top: 0.4rem; border-top: 1px dashed rgba(127, 127, 127, 0.4); }
+.sg-ln-event { border-left: 4px solid #00897b; }

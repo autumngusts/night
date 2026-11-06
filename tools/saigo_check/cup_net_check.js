@@ -111,6 +111,7 @@ function cardOf(page) {
     if (leg === 2) await A.screenshot({ path: "/tmp/claude-0/-home-user-night/be67c67d-43f3-5efe-9133-302dba7c9278/scratchpad/shots/net_card.png", fullPage: true });
     await clickBtn(B, "準備好了");
     await until(A, function () { return window.PriTestSaigo.ui.room.list().every(function (p) { return p.ready || p.cid === window.PriTestSaigo.ui.room.cid; }); }, null, 10000, "B 準備");
+    await until(A, function () { return Array.prototype.some.call(document.querySelectorAll("#sg-app button"), function (x) { return x.textContent.trim() === "開跑！" && !x.disabled; }); }, null, 10000, "A 開跑鍵可以按");
     await clickBtn(A, "開跑！", true);
     await until(A, function () { return window.PriTestSaigo.ui.screen === "result"; }, null, 120000, "A 第 " + leg + " 場結果");
     await until(B, function () { return window.PriTestSaigo.ui.screen === "result"; }, null, 30000, "B 第 " + leg + " 場結果");

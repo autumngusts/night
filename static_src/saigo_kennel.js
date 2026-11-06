@@ -254,7 +254,7 @@
   function entry(id, owner, ownerName) {
     var d = dog(id);
     if (!d) return null;
-    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id, skills: skillsOf(d), line: lineOf(d), career: d.career ? 1 : 0 };
+    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id, skills: skillsOf(d), line: lineOf(d), career: d.career ? 1 : 0, aptUp: D.cleanAptUp(d.aptUp) };
   }
 
   // 賽後：自己的狗拿獎金、經驗、疲勞與心情變化。practice＝家園練習賽（沒有獎金，經驗減半）
@@ -306,7 +306,7 @@
     if (!g || s.dogs.length >= MAX_DOGS) return null;
     var d = { id: "d" + (s.nextId++), trainLeft: 0, breed: g.breed, best: g.best, runStyle: g.runStyle || g.best, skills: g.skills.slice(), permSkills: g.skills.slice(), skillExp: {},
       line: g.line, name: g.name, lv: g.lv || 0, exp: 0, train: JSON.parse(JSON.stringify(g.train)), fatigue: 0, mood: 3, bond: 30,
-      races: 0, wins: 0, top3: 0, earnings: 0, career: g.career, fans: 300 * (g.career.goals || []).filter(Boolean).length + 100 * (g.career.wins || 0) };
+      races: 0, wins: 0, top3: 0, earnings: 0, career: g.career, aptUp: D.cleanAptUp(g.aptUp), factors: g.factors || null, parents: g.parents || [], lineageId: g.lineageId || "", fans: 300 * (g.career.goals || []).filter(Boolean).length + 100 * (g.career.wins || 0) };
     s.dogs.push(d);
     save();
     return d;

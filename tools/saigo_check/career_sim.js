@@ -13,7 +13,7 @@ var path = require("path");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_career.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_lineage.js", "saigo_career.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
 var D = window.PriTestSaigoData, Core = window.PriTestSaigoCore, CR = window.PriTestSaigoCareer, SK = window.PriTestSaigoSkills;
 
 var N = Number(process.argv[2]) || 500;
@@ -37,8 +37,8 @@ function buySkills(c) {
     if (list.length && CR.learn(c, list[0].id)) bought = true;
   }
 }
-function autoCareer(breed, seed) {
-  var c = CR.create({ breed: breed, name: "auto", seed: seed }), rnd = Core.rng((seed ^ 0xa070) >>> 0);
+function autoCareer(breed, seed, parents) {
+  var c = CR.create({ breed: breed, name: "auto", seed: seed, parents: parents }), rnd = Core.rng((seed ^ 0xa070) >>> 0);
   var stat = { fail: 0, injured: 0, events: 0, races: 0 };
   var guard = 0;
   while (!c.done && guard++ < 100) {
@@ -125,3 +125,27 @@ var M = 40;
   var n = BREEDS.length;
   console.log("  " + cls + "：犬舍狗 勝率 " + pct(kw / n) + "／前三 " + pct(kt / n) + "　生涯中（CPU 不補強） 勝率 " + pct(cw / n) + "／前三 " + pct(ct / n) + "　畢業後（CPU 補強） 勝率 " + pct(bw / n) + "／前三 " + pct(bt / n));
 });
+
+// ---- 血統繼承（2026-11-06）：第 1 代的畢業狗當祖先跑第 2 代，第 2 代再當祖先跑第 3 代（有祖父母） ----
+var LN = window.PriTestSaigoLineage;
+function toRec(r) {
+  var g = CR.graduate(r.c);
+  return { name: "g", breed: g.breed, best: g.best, factors: g.factors, parents: g.parents };
+}
+function generation(prev, label) {
+  var out = [], tr = 0, ok = 0, all3 = 0, apt = 0, inh = 0, start = 0;
+  for (var i = 0; i < N; i++) {
+    var a = prev[(i * 7) % prev.length], b = prev[(i * 13 + 5) % prev.length];
+    var r = autoCareer(BREEDS[i % BREEDS.length], (i * 2246822519 + 77) >>> 0, [toRec(a), toRec(b)]);
+    out.push(r);
+    tr += sum(r.c.train);
+    if (r.c.goals.length === 3 && r.c.goals.every(Boolean)) all3++;
+    if (Object.keys(r.c.aptUp || {}).length) apt++;
+    r.c.inheritLog.forEach(function (x) { inh += x.procs.length; });
+    start += sum(LN.startBonus(LN.sources([toRec(a), toRec(b)])).bonus);
+  }
+  console.log(label + "：訓練加成合計 " + (tr / N).toFixed(1) + "（開始時加成 " + (start / N).toFixed(1) + "、繼承事件觸發 " + (inh / N).toFixed(1) + " 次）、3 場目標全部達成 " + pct(all3 / N) + "、跑法適性提高 " + pct(apt / N));
+  return out;
+}
+var g2 = generation(runs, "第 2 代（父母）");
+generation(g2, "第 3 代（父母＋祖父母）");

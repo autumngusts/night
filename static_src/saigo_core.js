@@ -254,7 +254,9 @@
       });
       if (e.rival) dogs[dogs.length - 1].rival = String(e.rival).slice(0, 16);   // 宿敵的王牌狗（saigo_league.js）
       if (e.npc) dogs[dogs.length - 1].npc = 1;
-      if (e.career) dogs[dogs.length - 1].career = 1;   // 生涯畢業的狗（關卡賽的 CPU 依它補強）   // 冠軍大會晉級的 NPC（只是顯示用）
+      if (e.career) dogs[dogs.length - 1].career = 1;
+      var au = D.cleanAptUp(e.aptUp);
+      if (Object.keys(au).length) dogs[dogs.length - 1].aptUp = au;   // 血統繼承提高的跑法適性   // 生涯畢業的狗（關卡賽的 CPU 依它補強）   // 冠軍大會晉級的 NPC（只是顯示用）
       if (e.ownerPid) dogs[dogs.length - 1].ownerPid = String(e.ownerPid).slice(0, 20);   // 冠軍大會：重新連線後用 pid 找回飼主
     });
     var used = {};
@@ -361,7 +363,7 @@
       return {
         i: i, e: e, size: b.size, pace: fieldPace(card, d.style), style: d.style,
         r: dogRng(base, i), kr: kakariRng(base, i),
-        vmax: vbase * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
+        vmax: vbase * D.APT[D.aptitude(d.best || d.style, d.style, d.aptUp && d.aptUp[d.style])].spd,
         sk: SK.runtime(d.skills, rng((base ^ 0x5c111 ^ Math.imul(i + 7, 0x2c1b3c6d)) >>> 0), e.foc), boost: null,
         cold: b.cold,
         acc: 2.5 + e.pow * 0.03 + (5 - b.size) * 0.4,

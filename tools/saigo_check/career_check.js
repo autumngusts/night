@@ -4,6 +4,7 @@
 //   → 中途重新整理，進度還在 → 畢業收進犬舍 → 犬舍：能力固定（沒有訓練按鈕、K.train 回 locked、不能重置）、
 //   生涯技能永久有效（假裝過了 1 小時仍帶進出賽資料）、entry 帶 career 旗標
 //   → 關卡賽有生涯狗出賽時 CPU 補強（同 seed 比較），沒有生涯狗時出賽表不變
+//   → 血統書（2026-11-06）：畢業寫入、選祖先開第二趟（開始加成、第 9 回合繼承事件）、送養寫入／更新、血統書畫面與刪除
 // 前置：py -3 generate.py、py -3 -m http.server 8947 --directory dist
 // 執行：node tools/saigo_check/career_check.js
 // ============================================================================
@@ -153,6 +154,63 @@ function clickText(page, text) {
   var avg = function (a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; };
   assert.ok(avg(boost.withC) > avg(boost.without), "生涯狗出賽時 CPU 補強（" + avg(boost.without).toFixed(1) + " → " + avg(boost.withC).toFixed(1) + "，生涯狗 " + boost.me.toFixed(1) + "）");
   assert.ok(boost.same, "沒有生涯狗時出賽表固定");
+  // ---- 血統書與繼承（2026-11-06）----
+  var ln = await ev(page, function () { return window.PriTestSaigoLineage.list(); });
+  assert.strictEqual(ln.length, 1, "畢業寫進血統書");
+  assert.ok(ln[0].factors && ln[0].factors.blue && ln[0].factors.red, "有因子");
+  assert.strictEqual(await ev(page, function () { return window.PriTestSaigoKennel.load().dogs[0].lineageId; }), ln[0].id, "犬舍的狗記著血統書編號");
+  // 選祖先開始第二趟生涯
+  await ev(page, function () { window.PriTestSaigo.go("career"); });
+  await page.waitForSelector('select[data-parent="crP1"]');
+  await page.selectOption('select[data-parent="crP1"]', ln[0].id);
+  await page.waitForTimeout(100);
+  assert.ok((await page.textContent("#sg-app")).indexOf("開始時的繼承加成") >= 0, "顯示繼承加成預覽");
+  await page.selectOption(".sg-panel select:not([data-parent])", "shiba");
+  await clickText(page, "開始養成");
+  await page.waitForSelector(".sg-cr-train");
+  var c2 = await career(page);
+  assert.strictEqual(c2.parents.length, 1); assert.strictEqual(c2.parents[0].name, "小育");
+  var f0 = ln[0].factors, exp = await ev(page, function (st) { return window.PriTestSaigoLineage.BLUE_START[st]; }, f0.blue.star);
+  assert.strictEqual(c2.train[f0.blue.stat], exp, "藍因子的開始加成");
+  // 玩到第 9 回合（直接用計算核心，畫面重畫一次），看繼承事件
+  await ev(page, function () {
+    var K = window.PriTestSaigoKennel, CRm = window.PriTestSaigoCareer, c = K.career(), g = 0;
+    while (c.turn < 9 && !c.done && g++ < 40) {
+      if (c.pending) { CRm.choose(c, 0); continue; }
+      if (CRm.goalNow(c)) CRm.applyRace(c, 0); else if (c.energy < 40) CRm.rest(c); else CRm.train(c, "speed");
+    }
+    K.setCareer(c);
+    window.PriTestSaigo.go("career");
+  });
+  c2 = await career(page);
+  if (c2.turn === 9) {
+    await page.waitForSelector(".sg-ln-event");
+    assert.strictEqual(c2.inheritLog.length, 1);
+    await page.screenshot({ path: path.join(SHOT_DIR, "career_inherit.png"), fullPage: true });
+  }
+  // 送養：生涯狗更新原本那一筆；一般的狗新增一筆
+  await ev(page, function () { var K = window.PriTestSaigoKennel; K.load().coins = 99999; K.save(); K.adopt("corgi", "柯柯"); window.PriTestSaigo.ui.selDog = K.load().dogs[1].id; window.PriTestSaigo.go("kennel"); });
+  await page.waitForSelector(".sg-dog-card");
+  await clickText(page, "送養");
+  await page.waitForTimeout(100);
+  ln = await ev(page, function () { return window.PriTestSaigoLineage.list(); });
+  assert.strictEqual(ln.length, 2, "一般的狗送養也寫進血統書");
+  assert.strictEqual(ln[0].name, "柯柯"); assert.ok(ln[0].factors.blue.star <= 2 && ln[0].factors.red.star === 1, "一般狗的因子較弱");
+  await ev(page, function () { window.PriTestSaigo.ui.selDog = window.PriTestSaigoKennel.load().dogs[0].id; window.PriTestSaigo.go("kennel"); });
+  await page.waitForSelector(".sg-cr-locked");
+  await clickText(page, "送養");
+  await page.waitForTimeout(100);
+  ln = await ev(page, function () { return window.PriTestSaigoLineage.list(); });
+  assert.strictEqual(ln.length, 2, "生涯狗送養是更新原本那一筆");
+  // 血統書畫面
+  await ev(page, function () { window.PriTestSaigo.go("lineage"); });
+  await page.waitForSelector(".sg-ln-card");
+  assert.strictEqual(await page.$$eval(".sg-ln-card", function (x) { return x.length; }), 2);
+  await page.screenshot({ path: path.join(SHOT_DIR, "lineage.png"), fullPage: true });
+  await clickText(page, "刪除");
+  await page.waitForTimeout(100);
+  assert.strictEqual(await page.$$eval(".sg-ln-card", function (x) { return x.length; }), 1, "刪除");
+
   assert.deepStrictEqual(errors, [], "沒有錯誤");
   console.log("saigo career_check OK");
   await browser.close();

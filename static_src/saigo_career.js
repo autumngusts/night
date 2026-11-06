@@ -14,6 +14,7 @@
   var Core = window.PriTestSaigoCore;
   var SK = window.PriTestSaigoSkills;
   var C = D.C;
+  function LN() { return window.PriTestSaigoLineage; }
 
   var TURNS = 24, YEAR = 8;
   // 目標賽：回合、賽事等級、要拿到的名次（含）
@@ -95,14 +96,23 @@
   function r1(x) { return Math.round(x * 10) / 10; }
 
   // ---------------- 建立 ----------------
-  // opts：{ breed, name, seed?, bonus?: { 能力: 加成 }（血統繼承的初始加成）, hints?: { 技能: 等級 } }
+  // opts：{ breed, name, seed?, bonus?: { 能力: 加成 }, hints?: { 技能: 等級 },
+  //         parents?: [血統書紀錄]（血統繼承，第 3 步：開始時的能力加成與跑法適性、第 9／17 回合的繼承事件）}
   function create(opts) {
     var b = D.BREED_BY_ID[opts.breed];
     if (!b) return null;
     var c = { v: 1, breed: b.id, name: String(opts.name || "").trim().slice(0, 12) || D.L(b.name), seed: (opts.seed === undefined ? Core.newSeed() : opts.seed) >>> 0, n: 0,
       turn: 1, energy: 100, mood: 2, train: {}, fac: {}, facN: {}, sp: 0, hints: {}, skills: [], table: [], exp: 0, lv: 0,
-      injured: 0, goals: [], done: false, failed: -1, pending: null, log: [], races: 0, wins: 0 };
-    D.STATS.forEach(function (k) { c.train[k] = (opts.bonus && opts.bonus[k]) || 0; });
+      injured: 0, goals: [], done: false, failed: -1, pending: null, log: [], races: 0, wins: 0,
+      parents: [], inherit: [], aptUp: {}, inheritLog: [] };
+    var bonus = opts.bonus || {};
+    if (opts.parents && opts.parents.length && LN()) {
+      c.parents = opts.parents.map(LN().brief);
+      c.inherit = LN().sources(opts.parents);
+      var sb = LN().startBonus(c.inherit);
+      bonus = sb.bonus; c.aptUp = sb.aptUp;
+    }
+    D.STATS.forEach(function (k) { c.train[k] = bonus[k] || 0; });
     TRAIN_IDS.forEach(function (k) { c.fac[k] = 1; c.facN[k] = 0; });
     var sr = function () { return roll(c); };
     c.best = D.rollBestStyle(b.style, sr);
@@ -189,7 +199,7 @@
   // 生涯的出賽資料（給 Core.makeCard 的 entry；owner＝"me" 讓畫面標成自己的狗）
   function entry(c) {
     return { breed: c.breed, name: c.name, best: c.best, style: c.style || c.best, train: JSON.parse(JSON.stringify(c.train)), lv: c.lv, mood: c.mood, fatigue: 0,
-      owner: "me", ownerName: "", dogId: "", skills: SK.sanitize(c.skills), line: c.line };
+      owner: "me", ownerName: "", dogId: "", skills: SK.sanitize(c.skills), line: c.line, aptUp: c.aptUp || {} };
   }
   // 這一回合要跑的比賽：目標賽（第 8／16／24 回合）或自選比賽（依年份：新手戰／一般戰／重賞）
   function raceSetup(c) {
@@ -263,7 +273,16 @@
   function advance(c) {
     if (c.done) return;
     c.turn++;
-    if (c.turn > TURNS) { c.turn = TURNS; c.done = true; }
+    if (c.turn > TURNS) { c.turn = TURNS; c.done = true; return; }
+    // 繼承事件（第 9、17 回合開始時）：祖先的因子依 ★ 機率觸發
+    if (c.inherit && c.inherit.length && LN() && LN().EVENT_TURNS.indexOf(c.turn) >= 0) {
+      var procs = LN().eventProcs(c.inherit, function () { return roll(c); });
+      procs.forEach(function (x) {
+        if (x.color === "blue") x.got = addStat(c, x.stat, x.add);
+        else if (x.color === "white") c.hints[x.skill] = Math.min(HINT_MAX, (c.hints[x.skill] || 0) + x.lv);
+      });
+      c.inheritLog.push({ turn: c.turn, procs: procs });
+    }
   }
   // 二選一事件
   function choose(c, i) {
@@ -301,7 +320,10 @@
   function graduate(c) {
     if (!c.done) return null;
     var r = rating(c);
+    // 因子：第一次叫的時候用生涯的亂數產生並記在生涯上（同一份存檔每次都一樣，重新整理也不能重擲）
+    if (!c.factors && LN()) c.factors = LN().makeFactors({ breed: c.breed, train: c.train, lv: c.lv, best: c.best, skills: c.skills, rating: r.pts }, true, function () { return roll(c); });
     return {
+      factors: c.factors || null, parents: c.parents || [], aptUp: c.aptUp || {},
       breed: c.breed, name: c.name, best: c.best, runStyle: c.best, line: c.line, lv: c.lv, exp: 0,
       train: JSON.parse(JSON.stringify(c.train)), skills: SK.sanitize(c.skills),
       career: { rating: r.pts, grade: r.grade, goals: c.goals.slice(), failed: c.failed, turns: c.turn, races: c.races, wins: c.wins, seed: c.seed }

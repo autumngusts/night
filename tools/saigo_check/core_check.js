@@ -11,6 +11,7 @@
 //   9. WIN5 與冠軍大會的純計算、宿敵王牌狗的實力、粉絲與重賞賽程（2026-11-05）
 //   10. 生涯養成的計算核心（2026-11-05）：確定性、失敗率、目標賽沒達成就結束、二選一事件、技能商店、畢業資料
 //       （平衡數字另外用 tools/saigo_check/career_sim.js 量）
+//   11. 血統繼承（2026-11-06）：因子範圍、開始加成與跑法適性、繼承事件、因子固定不重擲、適性提高會反映在模擬
 // 執行：node tools/saigo_check/core_check.js（約 1〜2 分鐘）
 // ============================================================================
 "use strict";
@@ -21,7 +22,7 @@ var assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_bet.js", "saigo_kennel.js", "saigo_press.js", "saigo_league.js", "saigo_cup.js", "saigo_career.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+["saigo_data.js", "saigo_skills.js", "saigo_core.js", "saigo_real.js", "saigo_bet.js", "saigo_kennel.js", "saigo_press.js", "saigo_league.js", "saigo_cup.js", "saigo_lineage.js", "saigo_career.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
 var D = window.PriTestSaigoData, Core = window.PriTestSaigoCore, Bet = window.PriTestSaigoBet, Real = window.PriTestSaigoReal, SK = window.PriTestSaigoSkills;
 
 // 1. 開跑後不能改跑法（改跑法指令一律無效）；真賽狗的喊聲：生效前每一步不變、同一份指令結果相同、次數與間隔上限
@@ -384,4 +385,54 @@ console.log("9. WIN5／冠軍大會／宿敵／粉絲 OK");
   assert.ok(CR.EVENTS.length >= 30, "事件至少 30 個");
 })();
 console.log("10. 生涯養成 OK");
+
+// 11. 血統繼承
+(function () {
+  var CR = window.PriTestSaigoCareer, LNm = window.PriTestSaigoLineage;
+  // 因子範圍
+  for (var i = 0; i < 200; i++) {
+    var r = Core.rng(i + 1), f = LNm.makeFactors({ breed: "greyhound", train: { spd: 40, sta: 20 }, lv: 5, best: "nige", skills: ["g_escape", "r_nige", "n_nige"], rating: 1600 }, i % 2 === 0, r);
+    assert.ok(LNm.BLUE_STATS.indexOf(f.blue.stat) >= 0 && f.blue.star >= 1 && f.blue.star <= 3);
+    assert.ok(f.red.style === "nige" && f.red.star >= 1 && f.red.star <= 3);
+    assert.ok(f.white.length <= 3 && f.white.every(function (w) { return SK.BY_ID[w.id] && w.star >= 1 && w.star <= 3; }));
+    if (i % 2) { assert.ok(f.blue.star <= 2, "非生涯狗藍最多 ★2"); assert.strictEqual(f.red.star, 1); }
+  }
+  // 開始加成：父母 ★3 速度＋祖父母 ★2 速度（減半）；紅因子 先行 ★3＋★1＝4 → 適性 +1
+  var P1 = { name: "A", breed: "shiba", factors: { blue: { stat: "spd", star: 3 }, red: { style: "senko", star: 3 }, white: [{ id: "n_corner", star: 3 }] }, parents: [{ name: "GA", breed: "shiba", factors: { blue: { stat: "spd", star: 2 }, red: { style: "senko", star: 2 }, white: [] } }] };
+  var P2 = { name: "B", breed: "akita", factors: { blue: { stat: "sta", star: 1 }, red: { style: "nige", star: 1 }, white: [] }, parents: [] };
+  var src = LNm.sources([P1, P2]), sb = LNm.startBonus(src);
+  assert.strictEqual(src.length, 3);
+  assert.strictEqual(sb.bonus.spd, LNm.BLUE_START[3] + LNm.BLUE_START[2] * 0.5);
+  assert.strictEqual(sb.bonus.sta, LNm.BLUE_START[1]);
+  assert.strictEqual(sb.red.senko, 4); assert.deepStrictEqual(sb.aptUp, { senko: 1 });
+  // 生涯：開始加成、繼承事件在第 9／17 回合、同 seed 結果一樣
+  function run(seed) {
+    var c = CR.create({ breed: "border", seed: seed, parents: [P1, P2] }), g = 0;
+    while (!c.done && g++ < 60) {
+      if (c.pending) { CR.choose(c, 0); continue; }
+      if (CR.goalNow(c)) CR.applyRace(c, 0); else if (c.energy < 40) CR.rest(c); else CR.train(c, "stamina");
+    }
+    return c;
+  }
+  var c1 = run(99), c2 = run(99);
+  assert.strictEqual(JSON.stringify(c1), JSON.stringify(c2), "繼承也是確定性的");
+  assert.deepStrictEqual(c1.inheritLog.map(function (x) { return x.turn; }), [9, 17], "繼承事件在第 9、17 回合");
+  assert.deepStrictEqual(c1.aptUp, { senko: 1 });
+  assert.strictEqual(CR.create({ breed: "border", seed: 5, parents: [P1, P2] }).train.spd, sb.bonus.spd, "開始時加成");
+  assert.strictEqual(CR.entry(c1).aptUp.senko, 1, "出賽資料帶適性提高");
+  // 畢業因子固定（叫兩次一樣）
+  var g1 = CR.graduate(c1), g2 = CR.graduate(c1);
+  assert.ok(g1.factors && JSON.stringify(g1.factors) === JSON.stringify(g2.factors), "畢業因子不重擲");
+  assert.strictEqual(g1.parents.length, 2);
+  // 適性提高會反映在模擬：同一隻狗跑「差」（最適＝逃，差 2 階＝C），aptUp 2 → A，時間變快
+  var e = { breed: "greyhound", name: "X", best: "nige", style: "sashi", train: {}, lv: 0, mood: 2, owner: "me", skills: [] };
+  var cA = Core.makeCard(31337, [e], { cls: "open" }), e2 = JSON.parse(JSON.stringify(e)); e2.aptUp = { sashi: 2, bogus: 5 };
+  var cB = Core.makeCard(31337, [e2], { cls: "open" });
+  var gi = cB.dogs.map(function (d) { return d.name; }).indexOf("X");
+  assert.deepStrictEqual(cB.dogs[gi].aptUp, { sashi: 2 }, "aptUp 清理");
+  assert.strictEqual(D.aptitude("nige", "sashi", 2), 0);
+  var tA = Core.simulate(cA, false).times[gi], tB = Core.simulate(cB, false).times[gi];
+  assert.ok(tB < tA, "適性提高跑得比較快（" + tA + " → " + tB + "）");
+})();
+console.log("11. 血統繼承 OK");
 console.log("saigo core_check OK");

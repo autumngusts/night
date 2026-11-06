@@ -16,6 +16,7 @@
   var League = window.PriTestSaigoLeague;
   var Cup = window.PriTestSaigoCup;
   var CR = window.PriTestSaigoCareer;
+  var LN = window.PriTestSaigoLineage;
   var app = document.getElementById("sg-app");
   if (!app || !D || !Core) return;
 
@@ -167,11 +168,12 @@
   function jackpotAmt() { return ui.room ? ui.room.jpAmt() : K.jackpot(); }
 
   // ---- 跑法 ----
-  function aptG(best, style) { return D.APT[D.aptitude(best || style, style)].g; }
-  function styleLabel(d) { return L(D.STYLES[d.style]) + "（" + aptG(d.best, d.style) + "）"; }
-  function stylePicker(best, cur, onPick, disabled) {
+  // up＝{ 跑法: 提高幾階 }（血統繼承的紅因子）
+  function aptG(best, style, up) { return D.APT[D.aptitude(best || style, style, up && up[style])].g; }
+  function styleLabel(d) { return L(D.STYLES[d.style]) + "（" + aptG(d.best, d.style, d.aptUp) + "）"; }
+  function stylePicker(best, cur, onPick, disabled, up) {
     return el("div", { class: "sg-seg" }, D.STYLE_IDS.map(function (st) {
-      return btn(L(D.STYLES[st]) + " " + aptG(best, st) + (st === best ? " ★" : ""), function () { onPick(st); }, "sg-seg-btn" + (st === cur ? " sg-on" : ""), { disabled: disabled, title: t("sg_apt_note") });
+      return btn(L(D.STYLES[st]) + " " + aptG(best, st, up) + (st === best ? " ★" : "") + (up && up[st] ? " 🧬" : ""), function () { onPick(st); }, "sg-seg-btn" + (st === cur ? " sg-on" : ""), { disabled: disabled, title: t("sg_apt_note") });
     }));
   }
   // 犬舍的狗：下次出賽的跑法
@@ -180,7 +182,7 @@
     if (!d) return null;
     return el("div", null, [
       el("h3", null, [t("sg_run_style") + "（" + t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "）"]),
-      stylePicker(K.bestStyle(d), K.runStyle(d), function (st) { K.setRunStyle(id, st); if (after) after(); rerenderKeep(); }, disabled),
+      stylePicker(K.bestStyle(d), K.runStyle(d), function (st) { K.setRunStyle(id, st); if (after) after(); rerenderKeep(); }, disabled, d.aptUp),
       el("p", { class: "sg-small sg-muted" }, [t("sg_apt_note")])
     ]);
   }
@@ -233,6 +235,7 @@
         btn(t("sg_menu_solo"), function () { go("setup"); }, "sg-big sg-primary"),
         Net ? btn(ui.room ? t("sg_menu_back_room") : t("sg_menu_net"), function () { if (ui.room) go("lobby"); else enterRoom(null); }, "sg-big") : null,
         btn(t("sg_menu_kennel"), function () { go("kennel"); }, "sg-big"),
+        LN ? btn("📜 " + t("sg_ln_title") + "（" + LN.list().length + "）", function () { go("lineage"); }, "sg-big") : null,
         CR ? btn("🎓 " + t("sg_cr_menu") + (K.career() ? "（" + t("sg_cr_menu_cont", { n: K.career().turn }) + "）" : ""), function () { go("career"); }, "sg-big") : null,
         btn(t("sg_menu_zukan"), function () { go("zukan"); }, "sg-big"),
         btn(t("sg_menu_record"), function () { go("record"); }, "sg-big")
@@ -362,11 +365,13 @@
           t("sg_mood") + " " + L(D.MOODS[d.mood].name) + D.MOODS[d.mood].icon + "・" + t("sg_fatigue") + " " + d.fatigue + "/100・" + t("sg_bond") + " " + d.bond
         ]),
         el("p", { class: "sg-small" }, [t("sg_dog_record", { r: d.races, w: d.wins, p: d.top3, e: money(d.earnings) })]),
+        LN && d.factors ? el("p", { class: "sg-small" }, ["🧬 " + t("sg_ln_factors") + "："].concat(factorChips(d.factors))) : null,
+        d.aptUp && Object.keys(d.aptUp).length ? el("p", { class: "sg-small" }, ["🧬 " + t("sg_ln_apt_up", { s: Object.keys(d.aptUp).map(function (st) { return L(D.STYLES[st]) + " +" + d.aptUp[st]; }).join("、") })]) : null,
         League ? el("p", { class: "sg-small" }, ["👥 " + t("sg_fans_line", { n: League.fansOf(d).toLocaleString(), r: L(League.fanRank(League.fansOf(d))) })]) : null,
         League && League.titlesOf(d).length ? el("p", { class: "sg-small sg-titles" }, ["🏆 " + t("sg_titles") + "：", League.titlesOf(d).map(function (x) {
           return el("span", { class: "sg-title-chip sg-grade-" + x.grade }, [t("sg_season_n", { n: x.season }) + " " + x.grade + " " + L(League.STAKE_BY_ID[x.id].name)]);
         })]) : null,
-        el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "・" + t("sg_run_style") + "：" + L(D.STYLES[K.runStyle(d)]) + "（" + aptG(K.bestStyle(d), K.runStyle(d)) + "）"]),
+        el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "・" + t("sg_run_style") + "：" + L(D.STYLES[K.runStyle(d)]) + "（" + aptG(K.bestStyle(d), K.runStyle(d), d.aptUp) + "）"]),
         statsTable(stats, d.train),
         el("p", { class: "sg-small sg-muted" }, [t("sg_train_cap", { n: K.TRAIN_CAP })]),
         (function () { var r = K.rating(d); return el("p", { class: "sg-rating-line" }, [t("sg_rating") + "：", el("b", { class: "sg-grade sg-grade-" + r.grade.replace("+", "p") }, [r.grade]), " " + r.pts + "pt（" + t("sg_rating_stat") + " " + r.stat + "＋" + t("sg_skills") + " " + r.skill + "）・" + t("sg_line") + "：" + L(D.LINES[K.lineOf(d)].name)]); })()
@@ -380,7 +385,12 @@
         skillPanel(d),
         el("div", { class: "sg-actions sg-sub" }, [
           btn(t("sg_rename"), function () { var n = window.prompt(t("sg_rename"), d.name); if (n) { K.rename(d.id, n); render(); } }, "sg-link"),
-          btn(t("sg_release"), function () { if (window.confirm(t("sg_release_confirm", { name: d.name }))) { K.release(d.id); ui.selDog = null; render(); } }, "sg-link sg-danger")
+          btn(t("sg_release"), function () {
+            var warn = LN && !d.lineageId && LN.full() ? "\n" + t("sg_ln_full_warn", { n: LN.LINEAGE_MAX }) : LN ? "\n" + t("sg_ln_release_note") : "";
+            if (!window.confirm(t("sg_release_confirm", { name: d.name }) + warn)) return;
+            if (LN) lineageFromKennelDog(d);
+            K.release(d.id); ui.selDog = null; render();
+          }, "sg-link sg-danger")
         ])
       ]));
     }
@@ -551,7 +561,7 @@
       var d = K.dog(id);
       return el("div", { class: "sg-entry-style" }, [
         el("b", null, [d.name + "（" + t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "）"]),
-        stylePicker(K.bestStyle(d), K.runStyle(d), function (st) { K.setRunStyle(id, st); if (onPick) onPick(); rerenderKeep(); })
+        stylePicker(K.bestStyle(d), K.runStyle(d), function (st) { K.setRunStyle(id, st); if (onPick) onPick(); rerenderKeep(); }, false, d.aptUp)
       ]);
     }));
   }
@@ -844,7 +854,7 @@
           md.style = st; card._odds = null; card._press = null;
           if (md.dogId) K.setRunStyle(md.dogId, st);
           rerenderKeep();
-        }, ui.tickets.length > 0),
+        }, ui.tickets.length > 0, md.aptUp),
         el("p", { class: "sg-small sg-muted" }, [ui.tickets.length ? t("sg_style_locked") : t("sg_apt_note")])
       ]));
     });
@@ -1503,6 +1513,71 @@
     freshSlip();
     go("card");
   }
+  // ---- 血統書（2026-11-06，saigo_lineage.js）----
+  var COLOR_ICON = { blue: "🟦", red: "🟥", white: "⬜" };
+  function starStr(n) { return "★★★".slice(0, n) + "☆☆☆".slice(0, 3 - n); }
+  function factorChips(f) {
+    if (!f) return [];
+    var out = [];
+    if (f.blue) out.push(el("span", { class: "sg-ln-chip sg-ln-blue" }, [COLOR_ICON.blue + " " + t("sg_stat_" + f.blue.stat) + " " + starStr(f.blue.star)]));
+    if (f.red) out.push(el("span", { class: "sg-ln-chip sg-ln-red" }, [COLOR_ICON.red + " " + L(D.STYLES[f.red.style]) + " " + starStr(f.red.star)]));
+    (f.white || []).forEach(function (w) { if (SK.BY_ID[w.id]) out.push(el("span", { class: "sg-ln-chip sg-ln-white" }, [COLOR_ICON.white + " " + L(SK.BY_ID[w.id].name) + " " + starStr(w.star)])); });
+    return out;
+  }
+  // 畢業資料（Career.graduate）或犬舍的狗 → 血統書紀錄
+  function lineageRecord(g, career) {
+    return { name: g.name, breed: g.breed, best: g.best, grade: g.career ? g.career.grade : g.grade, pts: g.career ? g.career.rating : g.pts, factors: g.factors,
+      parents: g.parents || [], career: !!career, races: g.career ? g.career.races : g.races || 0, wins: g.career ? g.career.wins : g.wins || 0, titles: g.titles || 0, goals: g.career ? g.career.goals : null };
+  }
+  // 送養：生涯狗更新原本的紀錄；其他狗（或血統書當時滿了的生涯狗）新增一筆
+  function lineageFromKennelDog(d) {
+    var titles = League ? League.titlesOf(d).length : 0;
+    if (d.lineageId && LN.get(d.lineageId)) { LN.update(d.lineageId, { races: (LN.get(d.lineageId).races || 0) + d.races, wins: (LN.get(d.lineageId).wins || 0) + d.wins, titles: titles }); return; }
+    var r = K.rating(d), f = d.factors || LN.makeFactors({ breed: d.breed, train: d.train, lv: d.lv, best: K.bestStyle(d), skills: K.skillsOf(d), rating: r.pts }, !!d.career, Math.random);
+    LN.add({ name: d.name, breed: d.breed, best: K.bestStyle(d), grade: r.grade, pts: r.pts, factors: f, parents: d.parents || [], career: !!d.career, races: d.races, wins: d.wins, titles: titles, goals: d.career ? d.career.goals : null });
+  }
+  function chosenParents() {
+    return [ui.crP1, ui.crP2].filter(function (id, i, a) { return id && a.indexOf(id) === i; }).map(LN.get).filter(Boolean);
+  }
+  function parentPickers() {
+    var lst = LN.list();
+    if (!lst.length) return el("p", { class: "sg-small sg-muted" }, ["🧬 " + t("sg_ln_none_yet")]);
+    function sel(key, other) {
+      return el("select", { class: "sg-input", "data-parent": key, onchange: function (e) { ui[key] = e.target.value; rerenderKeep(); } },
+        [el("option", { value: "" }, [t("sg_ln_no_parent")])].concat(lst.filter(function (x) { return x.id !== ui[other]; }).map(function (x) {
+          return el("option", { value: x.id, selected: ui[key] === x.id }, [x.name + "（" + L((D.BREED_BY_ID[x.breed] || D.BREEDS[0]).name) + "・" + (x.grade || "") + "）"]);
+        })));
+    }
+    var ps = chosenParents(), pv = ps.length ? LN.startBonus(LN.sources(ps)) : null;
+    return el("div", { class: "sg-ln-pick" }, [
+      el("h3", null, ["🧬 " + t("sg_ln_pick")]),
+      el("p", null, [t("sg_ln_parent", { n: 1 }) + " ", sel("crP1", "crP2")]),
+      el("p", null, [t("sg_ln_parent", { n: 2 }) + " ", sel("crP2", "crP1")])
+    ].concat(ps.map(function (p) { return el("p", { class: "sg-small" }, [el("b", null, [p.name]), "："].concat(factorChips(p.factors), (p.parents || []).length ? [el("small", { class: "sg-muted" }, ["　" + t("sg_ln_grand", { names: p.parents.map(function (x) { return x.name; }).join("、") })])] : [])); }), [
+      pv ? el("p", { class: "sg-good" }, [t("sg_ln_preview", {
+        b: Object.keys(pv.bonus).map(function (k) { return t("sg_stat_" + k) + " +" + pv.bonus[k]; }).join("、") || "—",
+        a: Object.keys(pv.aptUp).map(function (st) { return L(D.STYLES[st]) + " +" + pv.aptUp[st]; }).join("、") || "—"
+      })]) : null,
+      el("p", { class: "sg-small sg-muted" }, [t("sg_ln_pick_note")])
+    ]));
+  }
+  function screenLineage() {
+    var lst = LN.list();
+    app.appendChild(panel("📜 " + t("sg_ln_title") + "（" + lst.length + "/" + LN.LINEAGE_MAX + "）", [
+      el("p", { class: "sg-small sg-muted" }, [t("sg_ln_intro")]),
+      lst.length ? el("div", { class: "sg-ln-list" }, lst.map(function (x) {
+        var b = D.BREED_BY_ID[x.breed] || D.BREEDS[0];
+        return el("div", { class: "sg-ln-card" }, [
+          el("div", null, [el("b", null, [(x.career ? "🎓 " : "") + x.name]), " ", el("small", null, [L(b.name)]), x.grade ? el("b", { class: "sg-grade sg-grade-" + x.grade.replace("+", "p") }, [x.grade]) : null, " ",
+            el("small", { class: "sg-muted" }, [t("sg_ln_record", { r: x.races || 0, w: x.wins || 0 }) + (x.titles ? "・🏆" + x.titles : "")])]),
+          el("div", null, factorChips(x.factors)),
+          (x.parents || []).length ? el("small", { class: "sg-muted" }, [t("sg_ln_parents_of", { names: x.parents.map(function (p) { return p.name; }).join("、") })]) : null,
+          el("div", { class: "sg-actions" }, [btn(t("sg_ln_delete"), function () { if (window.confirm(t("sg_ln_delete_confirm", { name: x.name }))) { LN.remove(x.id); if (ui.crP1 === x.id) ui.crP1 = ""; if (ui.crP2 === x.id) ui.crP2 = ""; rerenderKeep(); } }, "sg-link sg-danger")])
+        ]);
+      })) : el("p", { class: "sg-muted" }, [t("sg_ln_empty")])
+    ]));
+    app.appendChild(el("div", { class: "sg-actions sg-next" }, [btn("🎓 " + t("sg_cr_menu"), function () { go("career"); }, "sg-btn sg-primary")]));
+  }
   function careerStart() {
     var b = D.BREED_BY_ID[ui.crBreed] ? ui.crBreed : "border";
     var sel = el("select", { class: "sg-input", onchange: function (e) { ui.crBreed = e.target.value; rerenderKeep(); } }, D.BREEDS.map(function (x) {
@@ -1516,9 +1591,10 @@
         el("p", null, [t("sg_cr_pick_breed") + " ", sel]),
         el("p", null, [traitLine(D.BREED_BY_ID[b])]),
         statsTable(D.BREED_BY_ID[b].base),
+        LN ? parentPickers() : null,
         el("p", null, [t("sg_dog_name") + " ", nameIn]),
         el("div", { class: "sg-actions" }, [btn("🎓 " + t("sg_cr_start"), function () {
-          K.setCareer(CR.create({ breed: b, name: nameIn.value }));
+          K.setCareer(CR.create({ breed: b, name: nameIn.value, parents: chosenParents() }));
           ui.careerMsg = null;
           render();
         }, "sg-btn sg-primary sg-big")])
@@ -1533,16 +1609,27 @@
       el("p", null, [t("sg_cr_grad_record", { r: c.races, w: c.wins })]),
       statsTable(CR.stats(c), c.train),
       el("p", { class: "sg-skills" }, [t("sg_skills") + "："].concat(g.skills.length ? g.skills.map(function (id) { return skillChip(id); }) : [el("span", { class: "sg-muted" }, [t("sg_no_skills")])])),
+      LN && g.factors ? el("p", null, ["🧬 " + t("sg_ln_factors") + "："].concat(factorChips(g.factors))) : null,
       el("p", { class: "sg-small sg-muted" }, [t("sg_cr_grad_note")]),
+      LN ? el("p", { class: "sg-small " + (LN.full() ? "sg-danger" : "sg-muted") }, [LN.full() ? t("sg_ln_full_warn", { n: LN.LINEAGE_MAX }) : t("sg_ln_grad_note")]) : null,
+      LN && LN.full() ? btn("📜 " + t("sg_ln_title"), function () { go("lineage"); }, "sg-link") : null,
       full ? el("p", { class: "sg-danger" }, [t("sg_cr_kennel_full", { n: K.MAX_DOGS })]) : null,
       el("div", { class: "sg-actions" }, [
         btn("🏠 " + t("sg_cr_adopt"), function () {
-          var d = K.adoptGraduate(CR.graduate(K.career()));
+          var gg = CR.graduate(K.career());
+          if (K.load().dogs.length >= K.MAX_DOGS) return;
+          var rec = LN ? LN.add(lineageRecord(gg, true)) : null;
+          if (rec) gg.lineageId = rec.id;
+          var d = K.adoptGraduate(gg);
           if (!d) return;
           K.setCareer(null); ui.careerMsg = null; ui.selDog = d.id; ui.msg = t("sg_msg_adopted", { name: d.name });
           go("kennel");
         }, "sg-btn sg-primary", { disabled: full }),
-        btn(t("sg_cr_discard"), function () { if (window.confirm(t("sg_cr_discard_confirm", { name: c.name }))) { K.setCareer(null); ui.careerMsg = null; render(); } }, "sg-link sg-danger")
+        btn(t("sg_cr_discard"), function () {
+          if (!window.confirm(t("sg_cr_discard_confirm", { name: c.name }))) return;
+          if (LN) LN.add(lineageRecord(CR.graduate(K.career()), true));
+          K.setCareer(null); ui.careerMsg = null; render();
+        }, "sg-link sg-danger")
       ])
     ]));
   }
@@ -1571,6 +1658,12 @@
     // 上一個行動的結果
     var ml = careerMsgLines(ui.careerMsg);
     if (ml.length) app.appendChild(panel("", ml, "sg-cr-msg"));
+    // 繼承事件（第 9、17 回合）：這一回合剛發生的才顯示
+    var ih = (c.inheritLog || []).filter(function (x) { return x.turn === c.turn; })[0];
+    if (ih) app.appendChild(panel("🧬 " + t("sg_ln_event", { n: c.turn }), ih.procs.length ? ih.procs.map(function (x) {
+      return el("p", null, [x.color === "blue" ? t("sg_ln_proc_blue", { name: x.name, s: t("sg_stat_" + x.stat), n: Math.round((x.got || 0) * 10) / 10 }) : t("sg_ln_proc_white", { name: x.name, s: L(SK.BY_ID[x.skill].name), n: x.lv })]);
+    }) : [el("p", { class: "sg-muted" }, [t("sg_ln_proc_none")])], "sg-ln-event"));
+    if (c.parents && c.parents.length && c.turn < 17) app.appendChild(el("p", { class: "sg-small sg-muted" }, ["🧬 " + t("sg_ln_parents_line", { names: c.parents.map(function (x) { return x.name; }).join("、") })]));
     // 二選一事件
     if (c.pending && CR.EVENT_BY_ID[c.pending]) {
       var ev = CR.EVENT_BY_ID[c.pending];
@@ -2027,7 +2120,7 @@
 
   var SCREENS = {
     home: function () { screenHome(); app.appendChild(settingsPanel()); },
-    zukan: screenZukan, kennel: screenKennel, record: screenRecord, career: screenCareer,
+    zukan: screenZukan, kennel: screenKennel, record: screenRecord, career: screenCareer, lineage: screenLineage,
     setup: screenSetup, card: screenCard, race: screenRace, result: screenResult, lobby: screenLobby, dash: screenDash
   };
 
