@@ -64,7 +64,7 @@ YUKIMURA_ZH: dict[str, str] = {
     "yk_title": "大名幸村",
     "yk_back": "← 返回",
     "yk_home": "回首頁",
-    "yk_intro": "戰國末年，東北大地妖氣四起。雪女、生剝鬼、河童、天狗與鬼的大軍從津輕一路蔓延到磐梯山。選一位大名，在 15 分鐘內活下來，等時辰一到，打倒現身的魔王！擊敗敵人收集經驗，每次升級從三樣裡選一樣：240 種武器、500 種東北工藝飾品，湊出屬於你的必殺組合。",
+    "yk_intro": "戰國末年，東北大地妖氣四起。雪女、生剝鬼、河童、天狗與鬼的大軍從津輕一路蔓延到磐梯山。選一位大名，在 15 分鐘內活下來，等時辰一到，打倒現身的魔王！擊敗敵人收集經驗，每次升級從三樣裡選一樣：360 種武器、900 種東北工藝飾品、50 種鄉土料理與道具，湊出屬於你的必殺組合。",
     "yk_home_meta": "已出陣 {g} 次・勝利 {w} 次・攻克 {c}/10 關・軍資金 {b}",
     "yk_menu_solo": "單人出陣",
     "yk_menu_coop": "多人連線（可中途加入）",
@@ -110,9 +110,9 @@ YUKIMURA_ZH: dict[str, str] = {
     "yk_cx_enemies": "敵人",
     "yk_cx_stages": "關卡與地圖",
     "yk_cx_rules": "進階規則",
-    "yk_cx_weapons_note": "24 種攻擊方式 × 10 個藩的風格＝{n} 種武器。藩的風格會改變數值並附加異常狀態。",
+    "yk_cx_weapons_note": "36 種攻擊方式 × 10 個藩的風格＝{n} 種武器。藩的風格會改變數值並附加異常狀態。",
     "yk_cx_variants": "十藩的風格",
-    "yk_cx_accs_note": "{c} 種東北傳統工藝 × {s} 種能力＝{n} 種飾品；另有 30 種鄉土料理與道具可以撿。★ 越多數值越高、越少出現。",
+    "yk_cx_accs_note": "{c} 種東北傳統工藝 × {s} 種能力＝{n} 種飾品；另有 50 種鄉土料理與道具可以撿。★ 越多數值越高、越少出現。",
     "yk_acc_sec": "附帶能力：{s}",
     "yk_acc_list": "這個工藝的 {n} 件飾品",
     "yk_evo_need": "Lv8 ＋ 持有「{s}」飾品",
@@ -248,7 +248,7 @@ YUKIMURA_JA: dict[str, str] = {
     "yk_title": "大名幸村",
     "yk_back": "← 戻る",
     "yk_home": "ホームへ",
-    "yk_intro": "戦国の終わり、東北の地に妖気が満ちた。雪女、なまはげ、河童、天狗、鬼の大軍が津軽から磐梯山まで広がっていく。大名をひとり選び、15 分間生き延びよ。刻が満ちれば現れる魔王を討て！敵を倒して経験を集め、レベルアップのたびに三つから一つを選ぶ。240 種の武器、500 種の東北工芸の飾りで、自分だけの必殺の組み合わせを作ろう。",
+    "yk_intro": "戦国の終わり、東北の地に妖気が満ちた。雪女、なまはげ、河童、天狗、鬼の大軍が津軽から磐梯山まで広がっていく。大名をひとり選び、15 分間生き延びよ。刻が満ちれば現れる魔王を討て！敵を倒して経験を集め、レベルアップのたびに三つから一つを選ぶ。360 種の武器、900 種の東北工芸の飾りで、自分だけの必殺の組み合わせを作ろう。",
     "yk_home_meta": "出陣 {g} 回・勝利 {w} 回・攻略 {c}/10 ステージ・軍資金 {b}",
     "yk_menu_solo": "ひとりで出陣",
     "yk_menu_coop": "マルチプレイ（途中参加可）",
@@ -294,9 +294,9 @@ YUKIMURA_JA: dict[str, str] = {
     "yk_cx_enemies": "敵",
     "yk_cx_stages": "ステージとマップ",
     "yk_cx_rules": "詳しいルール",
-    "yk_cx_weapons_note": "24 種の攻撃方法 × 10 藩の流儀＝{n} 種の武器。藩の流儀で数値が変わり、状態異常が付く。",
+    "yk_cx_weapons_note": "36 種の攻撃方法 × 10 藩の流儀＝{n} 種の武器。藩の流儀で数値が変わり、状態異常が付く。",
     "yk_cx_variants": "十藩の流儀",
-    "yk_cx_accs_note": "{c} 種の東北伝統工芸 × {s} 種の能力＝{n} 種の飾り。ほかに拾える郷土料理と道具が 30 種。★ が多いほど強く、出にくい。",
+    "yk_cx_accs_note": "{c} 種の東北伝統工芸 × {s} 種の能力＝{n} 種の飾り。ほかに拾える郷土料理と道具が 50 種。★ が多いほど強く、出にくい。",
     "yk_acc_sec": "副能力：{s}",
     "yk_acc_list": "この工芸の飾り {n} 種",
     "yk_evo_need": "Lv8 ＋「{s}」の飾り",
@@ -564,12 +564,18 @@ _TENKA_JA: dict[str, str] = {
     "yk_tk_book_note": "救出令で救った村娘がここに記される。",
     "yk_tk_book_empty": "まだ誰も救っていない。",
 }
+_TENKA_ZH.update({
+    "yk_fd_luck": "幸運提升 {n} 秒", "yk_fd_kek": "結界：防禦 +10（{n} 秒）", "yk_fd_team": "全隊回復 {n}", "yk_fd_chest": "立刻開一個寶箱", "yk_fd_lv": "立刻升 1 級",
+})
+_TENKA_JA.update({
+    "yk_fd_luck": "幸運アップ {n} 秒", "yk_fd_kek": "結界：防御 +10（{n} 秒）", "yk_fd_team": "全員回復 {n}", "yk_fd_chest": "その場で宝箱を開ける", "yk_fd_lv": "すぐに 1 レベルアップ",
+})
 YUKIMURA_ZH.update(_TENKA_ZH)
 YUKIMURA_JA.update(_TENKA_JA)
 
 # 首頁卡片（project_yukimura_* 不以 yk_ 開頭，留在共用 i18n.js）
 YUKIMURA_PROJECT: dict[str, dict[str, str]] = {
-    "zh": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戰國類倖存者：121 位大名・武將擇一，在 15 分鐘內活下來並打倒魔王。240 種武器、500 種東北工藝飾品，升級三選一、奧義進化、地緣與元素反應；十大關卡各有機制、20 張東北地圖，3D 建模，手機搖桿操作，多人可中途加入。新模式「天下布武」：天命、流派共鳴、軍令、天賦樹式的軍略樹與拼圖符文格"},
-    "ja": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戦国サバイバー：121 人の大名・武将から選び、15 分生き延びて魔王を討て。240 種の武器と 500 種の東北工芸の飾り、三択レベルアップ・奥義進化・地縁と元素反応。ギミック付き 10 ステージと東北マップ 20 枚、3D モデル、スマホはスティック操作、マルチは途中参加可。新モード「天下布武」：天命・流派共鳴・軍令、スキルツリー型の軍略樹とパズル式の符枠"},
-    "en": {"project_yukimura_name": "Daimyo Yukimura", "project_yukimura_desc": "Sengoku survivor-like set in Tohoku: pick one of 121 daimyo and generals, survive 15 minutes and defeat the final boss. 240 weapons, 500 craft accessories, pick-1-of-3 level ups, evolutions and synergies; 10 stages with unique mechanics, 20 Tohoku maps, 3D models, mobile joystick, drop-in/drop-out co-op"},
+    "zh": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戰國類倖存者：121 位大名・武將擇一，在 15 分鐘內活下來並打倒魔王。360 種武器、900 種東北工藝飾品、50 種鄉土料理與道具，升級三選一、奧義進化、地緣與元素反應；十大關卡各有機制、20 張東北地圖，3D 建模，手機搖桿操作，多人可中途加入。新模式「天下布武」：天命、流派共鳴、軍令、天賦樹式的軍略樹與拼圖符文格"},
+    "ja": {"project_yukimura_name": "大名幸村", "project_yukimura_desc": "東北戦国サバイバー：121 人の大名・武将から選び、15 分生き延びて魔王を討て。360 種の武器と 900 種の東北工芸の飾り、50 種の郷土料理と道具、三択レベルアップ・奥義進化・地縁と元素反応。ギミック付き 10 ステージと東北マップ 20 枚、3D モデル、スマホはスティック操作、マルチは途中参加可。新モード「天下布武」：天命・流派共鳴・軍令、スキルツリー型の軍略樹とパズル式の符枠"},
+    "en": {"project_yukimura_name": "Daimyo Yukimura", "project_yukimura_desc": "Sengoku survivor-like set in Tohoku: pick one of 121 daimyo and generals, survive 15 minutes and defeat the final boss. 360 weapons, 900 craft accessories, pick-1-of-3 level ups, evolutions and synergies; 10 stages with unique mechanics, 20 Tohoku maps, 3D models, mobile joystick, drop-in/drop-out co-op"},
 }

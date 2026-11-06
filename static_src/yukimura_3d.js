@@ -86,6 +86,11 @@
       part(prim("box", 0.14, 0.5 * h, 0.16), cl, [0.33, 0.8 * h, 0.04], [0.3, 0, -0.1])
     ];
     if (o.belt) L.push(part(prim("box", 0.52, 0.08, 0.34), o.belt, [0, 0.55 * h, 0]));
+    // 2026-11-06 精緻化：脖子、手掌、草鞋、衣襟
+    L.push(part(prim("cyl", 0.08, 0.09, 0.12, 6), sk, [0, 1.06 * h, 0]));
+    L.push(part(prim("sph", 0.075, 6, 5), sk, [-0.36, 0.56 * h, 0.12]), part(prim("sph", 0.075, 6, 5), sk, [0.36, 0.56 * h, 0.12]));
+    L.push(part(prim("box", 0.19, 0.06, 0.3), 0x4a3524, [-0.13, 0.03, 0.04]), part(prim("box", 0.19, 0.06, 0.3), 0x4a3524, [0.13, 0.03, 0.04]));
+    L.push(part(prim("box", 0.06, 0.4 * h, 0.02), 0xf0ead8, [-0.06, 0.86 * h, 0.165], [0, 0, 0.35]), part(prim("box", 0.06, 0.4 * h, 0.02), 0xf0ead8, [0.06, 0.86 * h, 0.165], [0, 0, -0.35]));
     if (o.eyes !== false) L.push(part(prim("box", 0.05, 0.04, 0.02), 0x111111, [-0.07, 1.25 * h, 0.19]), part(prim("box", 0.05, 0.04, 0.02), 0x111111, [0.07, 1.25 * h, 0.19]));
     return L;
   }
@@ -227,9 +232,17 @@
     hamaya: function () { return [part(prim("cyl", 0.03, 0.03, 1.2, 5), 0xf0e0b0, [0, 0, 0], [0, 0, Math.PI / 2]), part(prim("cone", 0.08, 0.26, 4), 0xffe060, [0.7, 0, 0], [0, 0, -Math.PI / 2]), part(prim("box", 0.24, 0.16, 0.02), 0xffffff, [-0.55, 0, 0]), part(prim("box", 0.14, 0.04, 0.03), 0xd02020, [-0.2, 0, 0]), part(prim("sph", 0.16, 8, 6), 0xfff0a0, [0.75, 0, 0])]; },
     nagi: function () { return [part(prim("cyl", 0.03, 0.03, 1.4, 5), 0x5a3a22, [-0.3, 0, 0], [0, 0, Math.PI / 2]), part(prim("box", 0.7, 0.04, 0.18), 0xe8ecf4, [0.6, 0, 0.05], [0, 0.25, 0])]; },
     bolt: function () { return [part(prim("box", 0.18, 1.2, 0.18), 0xfff080, [0, 0.6, 0], [0, 0, 0.35]), part(prim("box", 0.16, 1.2, 0.16), 0xfff8c0, [0.1, 1.7, 0], [0, 0, -0.4]), part(prim("box", 0.14, 1.2, 0.14), 0xfff080, [-0.05, 2.8, 0], [0, 0, 0.35])]; },
-    ofuda: function () { return [part(prim("box", 0.24, 0.5, 0.02), 0xf8f0d8, [0, 0, 0]), part(prim("box", 0.04, 0.36, 0.025), 0xd02020, [0, 0, 0])]; }
+    ofuda: function () { return [part(prim("box", 0.24, 0.5, 0.02), 0xf8f0d8, [0, 0, 0]), part(prim("box", 0.04, 0.36, 0.025), 0xd02020, [0, 0, 0])]; },
+    // 2026-11-06 新武器的投射物
+    dart: function () { return [part(prim("cyl", 0.012, 0.012, 0.5, 4), 0xc8c8d0, [0, 0, 0], [0, 0, Math.PI / 2]), part(prim("cone", 0.05, 0.12, 6), 0x7ab030, [-0.28, 0, 0], [0, 0, Math.PI / 2])]; },
+    fireball: function () { return [part(prim("sph", 0.22, 10, 8), 0xffa040, [0, 0, 0]), part(prim("cone", 0.18, 0.5, 8), 0xff6020, [-0.3, 0, 0], [0, 0, Math.PI / 2]), part(prim("sph", 0.1, 8, 6), 0xfff0a0, [0.05, 0.02, 0])]; },
+    chakram: function () { return [part(prim("tor", 0.42, 0.06, 20), 0xd8dce8, [0, 0, 0], [Math.PI / 2, 0, 0]), part(prim("tor", 0.3, 0.02, 16), 0xe0b030, [0, 0, 0], [Math.PI / 2, 0, 0])].concat([0, 1, 2, 3, 4, 5, 6, 7].map(function (i) { var a = i * Math.PI / 4; return part(prim("cone", 0.06, 0.16, 4), 0xeef0f8, [Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5], [0, -a, -Math.PI / 2]); })); },
+    pebble: function () { return [part(prim("dodec", 0.14), 0x8a8478, [0, 0, 0]), part(prim("dodec", 0.08), 0x6a665c, [0.1, 0.06, 0])]; },
+    leaf: function () { return [part(prim("sph", 0.25, 8, 4), 0x5ab040, [0, 0, 0], [0, 0, 0], [1, 0.12, 0.5]), part(prim("box", 0.45, 0.02, 0.02), 0x2a6a20, [0, 0.03, 0])]; },
+    mirror: function () { return [part(prim("cyl", 0.06, 0.06, 1.6, 6), 0xfff4c0, [0, 0, 0], [0, 0, Math.PI / 2]), part(prim("cyl", 0.3, 0.3, 0.05, 16), 0xe8c060, [0.8, 0, 0], [0, 0, Math.PI / 2]), part(prim("cyl", 0.22, 0.22, 0.06, 16), 0xfffbe8, [0.82, 0, 0], [0, 0, Math.PI / 2])]; },
+    ironball: function () { return [part(prim("sph", 0.32, 12, 10), 0x34343a, [0, 0, 0])].concat([0, 1, 2, 3, 4, 5].map(function (i) { var a = i * Math.PI / 3; return part(prim("cone", 0.07, 0.18, 5), 0x5a5a62, [Math.cos(a) * 0.33, 0, Math.sin(a) * 0.33], [0, -a, -Math.PI / 2]); })).concat([part(prim("cone", 0.07, 0.18, 5), 0x5a5a62, [0, 0.33, 0]), part(prim("cone", 0.07, 0.18, 5), 0x5a5a62, [0, -0.33, 0], [Math.PI, 0, 0])]); }
   };
-  var VIS2SHOT = { tachi: "crescent", yari: "spear", kusarigama: "kama", hamaya: "hamaya", naginata: "nagi", kaminari: "bolt", yumi: "arrow", teppo: "bullet", shuriken: "star", kunai: "kunai", horoku: "bomb", ozutsu: "ball", shikigami: "bird", tessen: "fan", kiba: "horse", tsurara: "ice", yanoame: "rainarrow" };
+  var VIS2SHOT = { tachi: "crescent", yari: "spear", kusarigama: "kama", hamaya: "hamaya", naginata: "nagi", kaminari: "bolt", yumi: "arrow", teppo: "bullet", shuriken: "star", kunai: "kunai", horoku: "bomb", ozutsu: "ball", shikigami: "bird", tessen: "fan", kiba: "horse", tsurara: "ice", yanoame: "rainarrow", fukiya: "dart", kitsunebi: "fireball", enbu: "chakram", tsubute: "pebble", konoha: "leaf", kagami: "mirror" };
   var PICKS = {
     gem0: function () { return [part(prim("oct", 0.2), 0x40a0ff, [0, 0, 0])]; },
     gem1: function () { return [part(prim("oct", 0.26), 0x40e070, [0, 0, 0])]; },
@@ -259,25 +272,58 @@
     legL.position.set(-0.15, 0.62, 0); legR.position.set(0.15, 0.62, 0);
     legL.add(mesh(new T.BoxGeometry(0.2, 0.6, 0.22), cDark, 0, -0.32, 0)); legR.add(mesh(new T.BoxGeometry(0.2, 0.6, 0.22), cDark, 0, -0.32, 0));
     legL.add(mesh(new T.BoxGeometry(0.22, 0.32, 0.06), cAcc, 0, -0.38, 0.12)); legR.add(mesh(new T.BoxGeometry(0.22, 0.32, 0.06), cAcc, 0, -0.38, 0.12));
+    // 2026-11-06 精緻化：草鞋、佩楯（大腿護甲）、脛當的綁繩
+    [legL, legR].forEach(function (lg) {
+      lg.add(mesh(new T.BoxGeometry(0.22, 0.06, 0.34), mat(0x6a5030), 0, -0.63, 0.05));
+      lg.add(mesh(new T.BoxGeometry(0.2, 0.025, 0.25), cLace, 0, -0.58, 0.05));
+      lg.add(mesh(new T.BoxGeometry(0.24, 0.24, 0.05), cMain, 0, -0.04, 0.13));
+      for (var hb = 0; hb < 3; hb++) lg.add(mesh(new T.BoxGeometry(0.25, 0.018, 0.055), cLace, 0, -0.12 + hb * 0.08, 0.135));
+      lg.add(mesh(new T.BoxGeometry(0.23, 0.02, 0.24), cLace, 0, -0.26, 0));
+    });
     body.add(legL, legR);
     // 草摺（裙甲）
     var skirt = mesh(new T.CylinderGeometry(0.32, 0.44, 0.38, 8, 1, true), cMain, 0, 0.72, 0);
     skirt.material = cMain.clone(); skirt.material.side = T.DoubleSide;
     body.add(skirt);
     for (var i = 0; i < 3; i++) addR(body, mesh(new T.TorusGeometry(0.34 + i * 0.04, 0.012, 4, 16), cLace, 0, 0.84 - i * 0.12, 0), Math.PI / 2);
+    // 草摺的垂板（7 片，每片 3 段綁繩）
+    for (var kz = 0; kz < 7; kz++) {
+      var ka = kz / 7 * Math.PI * 2, kp = new T.Group();
+      kp.position.set(Math.sin(ka) * 0.4, 0.72, Math.cos(ka) * 0.4); kp.rotation.set(0, ka, 0);
+      var plate = mesh(new T.BoxGeometry(0.2, 0.36, 0.035), cMain, 0, 0, 0); plate.rotation.x = 0.18; kp.add(plate);
+      for (var kl = 0; kl < 3; kl++) { var ln = mesh(new T.BoxGeometry(0.21, 0.016, 0.04), cLace, 0, 0.12 - kl * 0.11, 0.02 - kl * 0.02); ln.rotation.x = 0.18; kp.add(ln); }
+      body.add(kp);
+    }
     // 胴
     var torso = mesh(new T.BoxGeometry(0.62, 0.62, 0.4), cMain, 0, 1.18, 0);
     body.add(torso);
     for (var j = 0; j < 4; j++) body.add(mesh(new T.BoxGeometry(0.64, 0.025, 0.42), cLace, 0, 0.94 + j * 0.15, 0));
     body.add(mesh(new T.BoxGeometry(0.2, 0.2, 0.02), cAcc, 0, 1.25, 0.21));
+    // 胸板、鋲、腰帶、腰間的脇差
+    body.add(mesh(new T.BoxGeometry(0.5, 0.12, 0.05), cAcc, 0, 1.44, 0.2));
+    for (var rv = 0; rv < 4; rv++) body.add(mesh(new T.SphereGeometry(0.022, 6, 4), cAcc, -0.18 + rv * 0.12, 1.44, 0.23));
+    body.add(mesh(new T.BoxGeometry(0.66, 0.08, 0.44), mat(0x2a2030), 0, 0.9, 0));
+    var waki = new T.Group();
+    waki.position.set(-0.3, 0.9, 0.12); waki.rotation.set(0.2, 0.3, 1.25);
+    waki.add(mesh(new T.CylinderGeometry(0.028, 0.032, 0.62, 6), cDark, 0, -0.18, 0));
+    waki.add(mesh(new T.CylinderGeometry(0.06, 0.06, 0.02, 10), cAcc, 0, 0.14, 0));
+    waki.add(mesh(new T.CylinderGeometry(0.025, 0.025, 0.2, 6), mat(0xe8e0d0), 0, 0.25, 0));
+    body.add(waki);
     // 袖（肩甲）
     var sodeL = mesh(new T.BoxGeometry(0.1, 0.42, 0.36), cMain, -0.42, 1.3, 0), sodeR = mesh(new T.BoxGeometry(0.1, 0.42, 0.36), cMain, 0.42, 1.3, 0);
     sodeL.rotation.z = 0.25; sodeR.rotation.z = -0.25;
     body.add(sodeL, sodeR);
+    [sodeL, sodeR].forEach(function (sd) { for (var sl = 0; sl < 4; sl++) sd.add(mesh(new T.BoxGeometry(0.105, 0.016, 0.37), cLace, 0, 0.15 - sl * 0.1, 0)); sd.add(mesh(new T.BoxGeometry(0.11, 0.04, 0.38), cAcc, 0, 0.2, 0)); });
     // 手臂
     var armL = new T.Group(), armR = new T.Group();
     armL.position.set(-0.4, 1.42, 0); armR.position.set(0.4, 1.42, 0);
     armL.add(mesh(new T.BoxGeometry(0.15, 0.55, 0.16), cDark, 0, -0.3, 0)); armR.add(mesh(new T.BoxGeometry(0.15, 0.55, 0.16), cDark, 0, -0.3, 0));
+    // 籠手（前臂的鐵片）與手
+    [armL, armR].forEach(function (am) {
+      am.add(mesh(new T.BoxGeometry(0.16, 0.24, 0.05), cAcc, 0, -0.42, 0.07));
+      for (var kt = 0; kt < 3; kt++) am.add(mesh(new T.BoxGeometry(0.165, 0.014, 0.17), cLace, 0, -0.34 - kt * 0.08, 0));
+      am.add(mesh(new T.SphereGeometry(0.075, 8, 6), mat(0x2a2224), 0, -0.6, 0.02));
+    });
     body.add(armL, armR);
     // 武器（右手）
     var wpn = new T.Group();
@@ -294,6 +340,34 @@
       wpn.add(mesh(new T.BoxGeometry(0.06, 0.1, 0.4), wood, 0, 0.05, -0.3));
     } else if (ak === "tessen") {
       addR(wpn, mesh(new T.CylinderGeometry(0.4, 0.4, 0.02, 10, 1, false, 0, Math.PI), cAcc, 0, 0.1, 0), Math.PI / 2);
+    } else if (ak === "kanabo") {   // 金棒：粗棒＋鐵鋲
+      wpn.add(mesh(new T.CylinderGeometry(0.09, 0.04, 1.3, 8), mat(0x2a2a2e, { metalness: 0.6, roughness: 0.4 }), 0, 0.6, 0));
+      for (var st2 = 0; st2 < 10; st2++) { var sa2 = st2 * 2.4; wpn.add(mesh(new T.ConeGeometry(0.025, 0.07, 4), steel, Math.cos(sa2) * 0.085, 0.75 + (st2 % 5) * 0.09, Math.sin(sa2) * 0.085)); }
+    } else if (ak === "tekkyu") {   // 鐵球：鎖鏈＋刺球
+      wpn.add(mesh(new T.CylinderGeometry(0.03, 0.03, 0.3, 6), wood, 0, 0.1, 0));
+      wpn.add(mesh(new T.CylinderGeometry(0.012, 0.012, 0.5, 4), steel, 0, 0.5, 0));
+      wpn.add(mesh(new T.SphereGeometry(0.15, 10, 8), cDark, 0, 0.8, 0));
+    } else if (ak === "shakujo") {   // 錫杖：杖頭的環
+      wpn.add(mesh(new T.CylinderGeometry(0.025, 0.025, 2.0, 6), wood, 0, 0.4, 0));
+      wpn.add(mesh(new T.TorusGeometry(0.16, 0.02, 6, 16), cAcc, 0, 1.52, 0));
+      for (var rg = 0; rg < 4; rg++) wpn.add(mesh(new T.TorusGeometry(0.05, 0.012, 4, 10), cAcc, -0.12 + rg * 0.08, 1.4, 0));
+    } else if (ak === "kagami") {   // 八咫鏡：銅鏡
+      addR(wpn, mesh(new T.CylinderGeometry(0.24, 0.24, 0.04, 18), mat(0xc89a40, { metalness: 0.4, roughness: 0.35 }), 0, 0.35, 0), Math.PI / 2);
+      addR(wpn, mesh(new T.CylinderGeometry(0.18, 0.18, 0.045, 18), mat(0xfff8e0, { metalness: 0.2, roughness: 0.1, emissive: new T.Color(0x806838) }), 0, 0.35, 0.005), Math.PI / 2);
+    } else if (ak === "fukiya") {
+      wpn.add(mesh(new T.CylinderGeometry(0.025, 0.025, 1.2, 6), mat(0x8a7a40), 0, 0.5, 0));
+    } else if (ak === "enbu") {
+      addR(wpn, mesh(new T.TorusGeometry(0.3, 0.04, 6, 20), steel, 0, 0.3, 0), 0, Math.PI / 2, 0);
+    } else if (ak === "nito") {   // 二刀：右手＋左手各一把
+      wpn.add(mesh(new T.BoxGeometry(0.04, 1.0, 0.07), steel, 0, 0.55, 0));
+      wpn.add(mesh(new T.CylinderGeometry(0.06, 0.06, 0.02, 10), cAcc, 0, 0.05, 0));
+      wpn.add(mesh(new T.CylinderGeometry(0.03, 0.03, 0.24, 6), cDark, 0, -0.1, 0));
+      var w2 = new T.Group();
+      w2.add(mesh(new T.BoxGeometry(0.04, 0.75, 0.07), steel, 0, 0.42, 0));
+      w2.add(mesh(new T.CylinderGeometry(0.05, 0.05, 0.02, 10), cAcc, 0, 0.04, 0));
+      w2.add(mesh(new T.CylinderGeometry(0.03, 0.03, 0.2, 6), cDark, 0, -0.08, 0));
+      w2.position.set(0, -0.58, 0.08); w2.rotation.x = 0.9;
+      armL.add(w2);
     } else {
       wpn.add(mesh(new T.BoxGeometry(0.04, 1.1, 0.07), steel, 0, 0.6, 0));
       wpn.add(mesh(new T.BoxGeometry(0.16, 0.03, 0.12), cAcc, 0, 0.05, 0));
@@ -308,10 +382,23 @@
     head.add(mesh(new T.SphereGeometry(0.2, 12, 10), cSkin, 0, 0, 0));
     var menpo = mesh(new T.BoxGeometry(0.3, 0.14, 0.1), cDark, 0, -0.08, 0.15);   // 面頰
     head.add(menpo);
+    // 眼睛、眉、面頰的鬚與喉垂
+    var eyeM = mat(0x141014);
+    head.add(mesh(new T.BoxGeometry(0.05, 0.025, 0.02), eyeM, -0.07, 0.03, 0.19), mesh(new T.BoxGeometry(0.05, 0.025, 0.02), eyeM, 0.07, 0.03, 0.19));
+    head.add(mesh(new T.BoxGeometry(0.06, 0.015, 0.02), eyeM, -0.07, 0.07, 0.185), mesh(new T.BoxGeometry(0.06, 0.015, 0.02), eyeM, 0.07, 0.07, 0.185));
+    menpo.add(mesh(new T.BoxGeometry(0.18, 0.02, 0.02), mat(0xe8e0d0), 0, 0.02, 0.055));
+    menpo.add(mesh(new T.BoxGeometry(0.26, 0.1, 0.04), cMain, 0, -0.1, 0.0));
+    for (var yg = 0; yg < 2; yg++) menpo.add(mesh(new T.BoxGeometry(0.27, 0.012, 0.045), cLace, 0, -0.07 - yg * 0.04, 0));
     var kabuto = mesh(new T.SphereGeometry(0.27, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), cDark, 0, 0.04, 0);
     head.add(kabuto);
+    // 兜的眉庇、天邊（頂上的環）、筋（縱線）
+    var visor = mesh(new T.CylinderGeometry(0.28, 0.3, 0.05, 14, 1, true, -Math.PI * 0.35, Math.PI * 0.7), cDark, 0, 0.05, 0);
+    visor.material = cDark.clone(); visor.material.side = T.DoubleSide;
+    kabuto.add(visor);
+    kabuto.add(mesh(new T.TorusGeometry(0.05, 0.015, 6, 12), cAcc, 0, 0.26, 0));
+    for (var sj = 0; sj < 8; sj++) { var sja = sj / 8 * Math.PI * 2, sjm = mesh(new T.TorusGeometry(0.272, 0.006, 3, 12, Math.PI / 2), cAcc, 0, 0, 0); sjm.rotation.set(0, sja, Math.PI / 2); kabuto.add(sjm); }
     var shikoro = mesh(new T.CylinderGeometry(0.29, 0.4, 0.22, 12, 1, true, Math.PI * 0.25, Math.PI * 1.5), cMain, 0, -0.04, 0);
-    shikoro.material = cMain.clone(); shikoro.material.side = T.DoubleSide; shikoro.rotation.y = Math.PI;
+    shikoro.material = cMain.clone(); shikoro.material.side = T.DoubleSide;   // 2026-11-06 修正：錣（護頸）原本轉到臉的正面，改回後方與兩側
     head.add(shikoro);
     head.add(mesh(new T.BoxGeometry(0.12, 0.14, 0.03), cMain, -0.29, 0.02, 0.12), mesh(new T.BoxGeometry(0.12, 0.14, 0.03), cMain, 0.29, 0.02, 0.12));   // 吹返
     // 前立
@@ -531,7 +618,7 @@
     var sPools = {};
     function sPool(k) {
       if (sPools[k]) return sPools[k];
-      var p = pool(merge((SHOTS[k] || SHOTS.orb)()), k === "horse" ? 40 : 300, k === "orb" ? { emissive: new T.Color(0x801010) } : k === "ice" ? { emissive: new T.Color(0x204060) } : k === "crescent" ? { emissive: new T.Color(0x5080b0), transparent: true, opacity: 0.88 } : k === "hamaya" || k === "bolt" ? { emissive: new T.Color(0x806020) } : k === "spear" || k === "kama" || k === "nagi" ? { emissive: new T.Color(0x303038) } : null);
+      var p = pool(merge((SHOTS[k] || SHOTS.orb)()), k === "horse" ? 40 : 300, k === "orb" ? { emissive: new T.Color(0x801010) } : k === "ice" ? { emissive: new T.Color(0x204060) } : k === "crescent" ? { emissive: new T.Color(0x5080b0), transparent: true, opacity: 0.88 } : k === "hamaya" || k === "bolt" || k === "mirror" ? { emissive: new T.Color(0x806020) } : k === "fireball" ? { emissive: new T.Color(0xa04010) } : k === "spear" || k === "kama" || k === "nagi" ? { emissive: new T.Color(0x303038) } : null);
       sPools[k] = p;
       return p;
     }
@@ -689,6 +776,11 @@
       if (z.k === "pool") {
         g.add(new T.Mesh(discGeo, new T.MeshBasicMaterial({ color: 0xff4010, transparent: true, opacity: 0.7, depthWrite: false })));
         g.children[0].rotation.x = -Math.PI / 2; g.children[0].position.y = 0.05;
+      } else if (z.k === "kiri") {   // 毒霧：紫綠色的霧團
+        var fogM = new T.MeshBasicMaterial({ color: 0x7ab040, transparent: true, opacity: 0.16, depthWrite: false });
+        var fd = new T.Mesh(discGeo, fogM); fd.rotation.x = -Math.PI / 2; fd.position.y = 0.05; g.add(fd);
+        var puffM = new T.MeshBasicMaterial({ color: 0x9a6ac0, transparent: true, opacity: 0.15, depthWrite: false });
+        for (var pf = 0; pf < 6; pf++) { var pa = pf * 1.047; var pu = new T.Mesh(new T.SphereGeometry(0.55, 8, 6), puffM); pu.position.set(Math.cos(pa) * 0.55, 0.4 + (pf % 2) * 0.25, Math.sin(pa) * 0.55); pu.scale.set(1, 0.6, 1); g.add(pu); }
       } else if (z.k === "hata") {
         var dsk = new T.Mesh(discGeo, new T.MeshBasicMaterial({ color: z.c || 0xe0c040, transparent: true, opacity: 0.22, depthWrite: false }));
         dsk.rotation.x = -Math.PI / 2; dsk.position.y = 0.05;
@@ -951,10 +1043,12 @@
           if (kind === "orbit" && w.ot) {
             var n = 2 + (w.lv >= 2 ? 1 : 0) + (w.lv >= 5 ? 1 : 0) + (w.lv >= 8 ? 1 : 0) + (W.v === 5 ? 1 : 0) + (w.evo ? 1 : 0);
             var rad = 2.3 * (w.lv >= 4 ? 1.2 : 1) * (w.lv >= 8 ? 1.15 : 1);
-            for (var q = 0; q < n && orbPool.count < 290; q++) {
+            var heavy = D.ARCHES[W.a].k === "tekkyu", op = heavy ? sPool("ironball") : orbPool;
+            if (heavy) rad *= 1.2;
+            for (var q = 0; q < n && op.count < 290; q++) {
               var a = v.t * 3.2 + q * Math.PI * 2 / n;
-              _m.compose(_v.set(pm.g.position.x + Math.cos(a) * rad, 1.0, pm.g.position.z + Math.sin(a) * rad), _q.setFromEuler(_e.set(-0.9, -a + Math.PI / 2, 0)), _s.set(1.5, 1.5, 1.5));
-              orbPool.setMatrixAt(orbPool.count++, _m);
+              _m.compose(_v.set(pm.g.position.x + Math.cos(a) * rad, heavy ? 0.7 : 1.0, pm.g.position.z + Math.sin(a) * rad), _q.setFromEuler(heavy ? _e.set(tAcc * 4, a, 0) : _e.set(-0.9, -a + Math.PI / 2, 0)), _s.set(heavy ? 1.3 : 1.5, heavy ? 1.3 : 1.5, heavy ? 1.3 : 1.5));
+              op.setMatrixAt(op.count++, _m);
             }
           } else if (kind === "flame" && w.ft) flames.push(pm);
           else if (kind === "aura") {
@@ -992,7 +1086,9 @@
         var sy = sk === "bolt" ? Math.max(0, (sh.dl !== undefined && sh.dl >= 0 ? sh.dl : 0.1)) * 30 : sk === "ice" || sk === "rainarrow" ? 0.5 + Math.max(0, (sh.dl !== undefined && sh.dl >= 0 ? sh.dl : 0.3)) * 18 : sk === "horse" ? 0 : 0.9 + (sh.h || 0);
         var rotY = -(sh.a || 0), rotX = 0;
         if (sk === "star" || sk === "fan") rotY = tAcc * 18;
-        if (sk === "kama") rotY = tAcc * 16;
+        if (sk === "kama" || sk === "chakram") rotY = tAcc * 16;
+        if (sk === "leaf" || sk === "pebble") { rotY = tAcc * 10 + sh.id; rotX = tAcc * 6; }
+        if (sk === "fireball") rotX = Math.sin(tAcc * 9 + sh.id) * 0.3;
         var ssc = sk === "horse" ? 1.1 : sk === "ball" ? 1 : sk === "crescent" ? 1.5 : sk === "bolt" ? 1.4 : 1.2;
         _m.compose(_v.set(so.x, sy, so.z), _q.setFromEuler(_e.set(rotX, rotY, 0)), _s.set(ssc, ssc, ssc));
         sp.setMatrixAt(sp.count++, _m);
@@ -1040,6 +1136,7 @@
         var zm = zoneMesh(z);
         zm.position.set(z.x, 0, z.z);
         if (z.k === "pool" || z.k === "hata") zm.children[0].scale.setScalar(z.r);
+        if (z.k === "kiri") { zm.scale.set(z.r, 1 + Math.sin(tAcc * 2 + z.id) * 0.1, z.r); zm.rotation.y = tAcc * 0.4; }
         if (z.k === "hata") zm.children[2].rotation.y = Math.sin(tAcc * 3) * 0.3;
         if (z.k === "pool") zm.children[0].material.opacity = 0.5 + Math.sin(tAcc * 6) * 0.15;
       });

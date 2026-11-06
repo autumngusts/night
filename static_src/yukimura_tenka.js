@@ -15,15 +15,15 @@
 
   // ---------------- 流派（攻擊方式的分類；同流派湊 2／3／4 把得到共鳴）----------------
   var SCHOOLS = [
-    { k: "ken", icon: "⚔️", color: 0xc0262d, name: C("劍豪", "剣豪"), arches: ["tachi", "yari", "naginata", "kusarigama", "kiba"],
+    { k: "ken", icon: "⚔️", color: 0xc0262d, name: C("劍豪", "剣豪"), arches: ["tachi", "yari", "naginata", "kusarigama", "kiba", "kanabo", "nito", "tekkyu"],
       tiers: [[["might", 0.08]], [["area", 0.12], ["armor", 1]], [["might", 0.2], ["critDmg", 0.3]]], desc: C("近戰重擊。滿階：近戰擊中時 20% 機率追加一道斬擊", "近接の重撃。最大段階：近接命中時 20% で追撃の斬撃") },
-    { k: "kyu", icon: "🏹", color: 0x3a7ad0, name: C("弓馬", "弓馬"), arches: ["yumi", "teppo", "tessen", "yanoame"],
+    { k: "kyu", icon: "🏹", color: 0x3a7ad0, name: C("弓馬", "弓馬"), arches: ["yumi", "teppo", "tessen", "yanoame", "fukiya", "enbu"],
       tiers: [[["pspd", 0.15]], [["crit", 0.06], ["pspd", 0.1]], [["amount", 1], ["crit", 0.08]]], desc: C("遠距射擊。滿階：投射數 +1", "遠距離射撃。最大段階：投射数 +1") },
-    { k: "nin", icon: "🥷", color: 0x5a5a6a, name: C("忍術", "忍術"), arches: ["shuriken", "kunai", "makibishi", "horoku"],
+    { k: "nin", icon: "🥷", color: 0x5a5a6a, name: C("忍術", "忍術"), arches: ["shuriken", "kunai", "makibishi", "horoku", "tsubute", "konoha"],
       tiers: [[["cdr", 0.05]], [["speed", 0.1], ["crit", 0.05]], [["cdr", 0.08], ["luck", 0.2]]], desc: C("快速連擊。滿階：擊殺時 10% 機率重置一把武器的冷卻", "素早い連撃。最大段階：撃破時 10% で武器 1 つの冷却を即時完了") },
-    { k: "onmyo", icon: "☯️", color: 0x9a5ad0, name: C("陰陽", "陰陽"), arches: ["ofuda", "shikigami", "hamaya", "juzu"],
+    { k: "onmyo", icon: "☯️", color: 0x9a5ad0, name: C("陰陽", "陰陽"), arches: ["ofuda", "shikigami", "hamaya", "juzu", "kitsunebi", "kagami", "shakujo"],
       tiers: [[["dur", 0.12]], [["elem", 0.2], ["regen", 0.3]], [["dur", 0.2], ["might", 0.12]]], desc: C("咒術結界。滿階：每 12 秒張開結界，3 秒內受到傷害減半", "呪術の結界。最大段階：12 秒ごとに結界、3 秒間被ダメージ半減") },
-    { k: "tenko", icon: "🌩️", color: 0x30b0c0, name: C("天候", "天候"), arches: ["kaminari", "kaen", "tsurara"],
+    { k: "tenko", icon: "🌩️", color: 0x30b0c0, name: C("天候", "天候"), arches: ["kaminari", "kaen", "tsurara", "raisa", "dokugiri"],
       tiers: [[["elem", 0.15]], [["elem", 0.25], ["area", 0.08]], [["elem", 0.4], ["might", 0.1]]], desc: C("元素之力。滿階：異常狀態的敵人受到傷害 +25%", "元素の力。最大段階：状態異常の敵への与ダメージ +25%") },
     { k: "gunryaku", icon: "🚩", color: 0xd0a030, name: C("軍略", "軍略"), arches: ["horagai", "hata", "taiko", "ozutsu"],
       tiers: [[["knock", 0.2]], [["area", 0.1], ["maxHp", 20]], [["might", 0.15], ["armor", 2]]], desc: C("號令全軍。滿階：采配累積速度 +50%", "全軍に号令。最大段階：采配の溜まりが +50%") }

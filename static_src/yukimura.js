@@ -375,6 +375,11 @@
     if (e.gold) out.push(t("yk_fd_gold", { n: e.gold }));
     if (e.xp) out.push(t("yk_fd_xp"));
     if (e.ult) out.push(t("yk_fd_ult", { n: e.ult }));
+    if (e.luck) out.push(t("yk_fd_luck", { n: e.luck }));
+    if (e.kek) out.push(t("yk_fd_kek", { n: e.kek }));
+    if (e.team) out.push(t("yk_fd_team", { n: e.team }));
+    if (e.chest) out.push(t("yk_fd_chest"));
+    if (e.lv) out.push(t("yk_fd_lv"));
     return out.join("・");
   }
 

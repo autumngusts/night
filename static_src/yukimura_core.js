@@ -177,7 +177,8 @@
   // 武器的實際數值
   function wParams(P, w) {
     var W = D.WEAPONS[w.id], a = D.ARCHES[W.a], v = D.VARIANTS[W.v], m = v.m, st = P.st || baseStats();
-    var p = { dmg: a.b.dmg, cd: a.b.cd, area: a.b.area || 1, n: a.b.n || 1, spd: a.b.spd || 10, pierce: a.b.pierce || 0, dur: a.b.dur || 1, knock: 1, crit: 0, gold: 0, st: v.st || null, kind: a.kind, vis: a.k };
+    var p = { dmg: a.b.dmg, cd: a.b.cd, area: a.b.area || 1, n: a.b.n || 1, spd: a.b.spd || 10, pierce: a.b.pierce || 0, dur: a.b.dur || 1, knock: 1, crit: 0, gold: 0, st: a.st || v.st || null, kind: a.kind, vis: a.k, fv: a.fv || null };
+    if (a.st && v.st && v.st !== a.st) p.st2 = v.st;   // 攻擊方式本身帶異常時，藩的異常變成第二種
     if (m.dmg) p.dmg *= m.dmg;
     if (m.cd) p.cd *= m.cd;
     if (m.area) p.area *= m.area;
@@ -205,7 +206,7 @@
       else if (D.MOD_ST[m]) { if (!p.st) p.st = D.MOD_ST[m]; else if (p.st !== D.MOD_ST[m]) p.st2 = D.MOD_ST[m]; }
     });
     // 單發型（太刀、長槍、薙刀、鎖鎌、法螺貝、陣太鼓、破魔矢、騎馬）的「數量」限制在 3 以內，多的轉成傷害
-    var capN = { slash: 3, thrust: 3, spin: 2, whip: 2, wave: 2, pulse: 2, beam: 3, charge: 3, aura: 1, flame: 2, zone: 4, trail: 2 }[p.kind];
+    var capN = { slash: 3, thrust: 3, spin: 2, whip: 2, wave: 2, pulse: 2, beam: 3, charge: 3, aura: 1, flame: 2, zone: 4, trail: 2, slam: 2 }[p.kind];
     p.n += st.amount;
     if (capN && p.n > capN) { p.dmg *= 1 + 0.15 * (p.n - capN); p.n = capN; }
     p.dmg *= st.might * (1 + comboBonus(P));
@@ -810,7 +811,7 @@
       for (i = 0; i < p.n; i++) {
         e = randomNear(s, P, 10);
         var zx = e ? e.x : P.x + (rnd(s) - 0.5) * 6, zz = e ? e.z : P.z + (rnd(s) - 0.5) * 6;
-        s.Z.push({ id: nid(s), k: "hata", o: P.pid, x: zx, z: zz, r: p.area, t: p.dur, tk: 0, dmg: p.dmg, p: pack(p), c: D.VARIANTS[D.WEAPONS[w.id].v].color });
+        s.Z.push({ id: nid(s), k: p.vis === "dokugiri" ? "kiri" : "hata", o: P.pid, x: zx, z: zz, r: p.area, t: p.dur, tk: 0, dmg: p.dmg, p: pack(p), c: D.VARIANTS[D.WEAPONS[w.id].v].color });
       }
     } else if (k === "trail") {
       for (i = 0; i < p.n; i++) s.Z.push({ id: nid(s), k: "makibishi", o: P.pid, x: P.x - P.fx * 0.6 + (rnd(s) - 0.5) * i, z: P.z - P.fz * 0.6 + (rnd(s) - 0.5) * i, r: p.area, t: p.dur, tk: 0, dmg: p.dmg, p: pack(p) });
@@ -820,8 +821,41 @@
       // 破魔矢：發光的箭貫穿畫面
       for (i = 0; i < p.n; i++) {
         var bb = ba + (i - (p.n - 1) / 2) * 0.5;
-        fly(s, P, p, bb, "hamaya", 34, 20, p.area * 0.6 + 0.35);
+        fly(s, P, p, bb, p.fv || "hamaya", 34, 20, p.area * 0.6 + 0.35);
       }
+    } else if (k === "slam") {
+      // 金棒：朝最近的敵人（沒有就朝面向）砸地，範圍傷害＋暈眩＋往外擊退
+      var se = nearest(s, P.x, P.z, p.area * 2 + 2), sa = se ? Math.atan2(se.z - P.z, se.x - P.x) : fxa;
+      for (i = 0; i < p.n; i++) {
+        var sd = p.area * (0.7 + i * 0.9), cx = P.x + Math.cos(sa) * sd, cz = P.z + Math.sin(sa) * sd;
+        near(s, cx, cz, p.area, function (e2) {
+          var d2 = Math.sqrt(dist2(e2.x, e2.z, cx, cz)) || 1;
+          e2.stun = Math.max(e2.stun || 0, 0.7);
+          hitEnemy(s, P, e2, p.dmg, p, (e2.x - cx) / d2 * 1.5, (e2.z - cz) / d2 * 1.5);
+        });
+        addFx(s, "blast", cx, cz, 0, p.area, P.pid, w.evo ? 2 : 0);
+      }
+    } else if (k === "chain") {
+      // 雷鎖：從最近的敵人開始，在 area 範圍內跳躍（次數＝2＋數量×2），每跳傷害 ×0.88
+      for (i = 0; i < p.n; i++) {
+        var cur = i === 0 ? nearest(s, P.x, P.z, 14) : randomNear(s, P, 14);
+        if (!cur) break;
+        var hops = 2 + p.n * 2, hit2 = {}, dm2 = p.dmg, lx = P.x, lz = P.z;
+        for (var hop = 0; hop <= hops && cur; hop++) {
+          hit2[cur.id] = 1;
+          addFx(s, "chain", lx, lz, Math.atan2(cur.z - lz, cur.x - lx), Math.sqrt(dist2(lx, lz, cur.x, cur.z)), P.pid);
+          lx = cur.x; lz = cur.z;
+          hitEnemy(s, P, cur, dm2, p);
+          dm2 *= 0.88;
+          var nx2 = null, bd2 = p.area * p.area;
+          near(s, lx, lz, p.area, function (o) { if (hit2[o.id] || o.hp <= 0) return; var dd = dist2(lx, lz, o.x, o.z); if (dd < bd2) { bd2 = dd; nx2 = o; } });
+          cur = nx2;
+        }
+      }
+    } else if (k === "nova") {
+      // 木葉隱：向四周放射（6 片起，每多 1 數量 +2 片）
+      var cnt = 6 + 2 * (p.n - 1), off = rnd(s) * 6.28;
+      for (i = 0; i < cnt; i++) shoot(s, P, p, off + i * Math.PI * 2 / cnt, "arrow");
     } else if (k === "charge") {
       for (i = 0; i < p.n; i++) {
         var ca = rnd(s) * 6.28, ox = P.x - Math.cos(ca) * 14 + (-Math.sin(ca)) * (i - 1) * 2.5, oz = P.z - Math.sin(ca) * 14 + Math.cos(ca) * (i - 1) * 2.5;
@@ -920,7 +954,7 @@
   }
 
   // ---------------- 新模式「天下布武」（s.mode === "tenka"；資料在 yukimura_tenka.js）----------------
-  var MELEE = { slash: 1, thrust: 1, spin: 1, whip: 1, charge: 1 };
+  var MELEE = { slash: 1, thrust: 1, spin: 1, whip: 1, charge: 1, slam: 1 };
   var tkDepth = 0;   // 連帶效果的遞迴保護（附帶傷害不再觸發天命／符文效果）
   function tkTree(P) { return P.meta && P.meta.tk && P.meta.tk.tree || {}; }
   function tenkaInitPlayer(s, P) {
@@ -1605,8 +1639,13 @@
     if (e.gold) players(s).forEach(function (o) { o.gold += e.gold * o.st.greed; });
     if (e.xp) players(s).forEach(function (o) { gainExp(s, o, e.xp * (1 + s.t / 120)); });
     if (e.ult) P.ult = Math.min(100, P.ult + e.ult);
+    if (e.luck) P.buf.luck = Math.max(P.buf.luck || 0, e.luck);
+    if (e.kek) P.buf.kek = Math.max(P.buf.kek || 0, e.kek);
+    if (e.team) players(s).forEach(function (o) { if (!o.down) o.hp = Math.min(o.mhp, o.hp + e.team); });
+    if (e.lv) gainExp(s, P, Math.max(0, P.xn - P.xp) / Math.max(0.1, P.st.growth) + 0.01);
     calcStats(P, s);
     msg(s, "food", P.pid, d.f);
+    if (e.chest) { openChest(s, P, false); }
     addFx(s, "pick", d.x, d.z, 0, 1, P.pid, 1);
   }
 

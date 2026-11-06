@@ -93,7 +93,20 @@
     { k: "taiko", kind: "pulse", icon: "🥁", name: C("陣太鼓", "陣太鼓"), b: { dmg: 8, cd: 3, area: 3.6, n: 1 }, evo: "elem", evoName: C("雷鳴太鼓", "雷鳴太鼓"), desc: C("鼓聲震暈周圍敵人", "太鼓の音で周囲を気絶させる") },
     { k: "yanoame", kind: "rain", icon: "🎋", name: C("箭雨", "矢の雨"), b: { dmg: 9, cd: 2.9, area: 4.5, n: 6 }, evo: "amount", evoName: C("天降之矢", "天降る矢"), desc: C("箭如雨下", "矢が雨のように降る") },
     { k: "hamaya", kind: "beam", icon: "🏮", name: C("破魔矢", "破魔矢"), b: { dmg: 26, cd: 2.7, area: 0.8, n: 1 }, evo: "elem", evoName: C("破邪顯正", "破邪顕正"), desc: C("一道貫穿畫面的光", "画面を貫く光の矢") },
-    { k: "kiba", kind: "charge", icon: "🐎", name: C("騎馬突擊", "騎馬突撃"), b: { dmg: 30, cd: 4.8, area: 1.6, n: 1, spd: 20 }, evo: "speed", evoName: C("赤備", "赤備え"), desc: C("騎馬隊橫掃戰場", "騎馬隊が戦場を駆け抜ける") }
+    { k: "kiba", kind: "charge", icon: "🐎", name: C("騎馬突擊", "騎馬突撃"), b: { dmg: 30, cd: 4.8, area: 1.6, n: 1, spd: 20 }, evo: "speed", evoName: C("赤備", "赤備え"), desc: C("騎馬隊橫掃戰場", "騎馬隊が戦場を駆け抜ける") },
+    // 2026-11-06 追加 12 種（×10 藩＝120 把）。st：攻擊方式本身附帶的異常；fv：飛行投射物的外觀
+    { k: "kanabo", kind: "slam", icon: "🏏", name: C("金棒", "金棒"), b: { dmg: 34, cd: 2.6, area: 2.4, n: 1 }, evo: "knock", evoName: C("鬼之金棒", "鬼に金棒"), desc: C("朝前方重砸地面，震暈周圍", "前方の地面を叩き割り、周囲を気絶させる") },
+    { k: "nito", kind: "slash", icon: "⚔️", name: C("二刀", "二刀"), b: { dmg: 9, cd: 0.75, area: 2.2, n: 2 }, evo: "cdr", evoName: C("二天一流", "二天一流"), desc: C("前後雙斬的快刀", "前後へ素早く二刀で斬る") },
+    { k: "fukiya", kind: "arrow", st: "poison", icon: "🎐", name: C("吹矢", "吹き矢"), b: { dmg: 6, cd: 0.6, n: 1, spd: 22, pierce: 0 }, evo: "elem", evoName: C("蝮之吹矢", "蝮の吹き矢"), desc: C("連發帶毒的細針", "毒の針を連射する") },
+    { k: "tekkyu", kind: "orbit", icon: "⚫", name: C("鐵球", "鉄球"), b: { dmg: 20, cd: 4, area: 2.8, n: 1, dur: 3 }, evo: "armor", evoName: C("大車輪鐵球", "大車輪鉄球"), desc: C("沉重鐵球繞身旋轉，擊退強", "重い鉄球が周りを回り、強く弾き飛ばす") },
+    { k: "kitsunebi", kind: "homing", st: "burn", icon: "🦊", name: C("狐火", "狐火"), b: { dmg: 9, cd: 1.7, n: 3, spd: 8, pierce: 0 }, evo: "dur", evoName: C("九尾之火", "九尾の火"), desc: C("飄忽的火球追著敵人燃燒", "ゆらめく火の玉が敵を追って焼く") },
+    { k: "raisa", kind: "chain", st: "shock", icon: "🌩️", name: C("雷鎖", "雷鎖"), b: { dmg: 12, cd: 1.8, area: 4, n: 1 }, evo: "luck", evoName: C("建御雷", "建御雷"), desc: C("在敵人之間連鎖跳躍的雷", "敵から敵へ連鎖する雷") },
+    { k: "enbu", kind: "boomerang", icon: "⭕", name: C("圓月輪", "円月輪"), b: { dmg: 14, cd: 1.9, n: 1, spd: 15, pierce: 99 }, evo: "area", evoName: C("天輪", "天輪"), desc: C("鋼輪飛出貫穿敵陣再回來", "鋼の輪が敵陣を貫いて戻る") },
+    { k: "tsubute", kind: "fan", icon: "🪨", name: C("飛礫", "飛礫"), b: { dmg: 5, cd: 0.9, n: 5, spd: 15, pierce: 0 }, evo: "amount", evoName: C("石礫之雨", "礫の雨"), desc: C("一次擲出大量石子", "一度に多くの石つぶてを投げる") },
+    { k: "dokugiri", kind: "zone", st: "poison", icon: "☁️", name: C("毒霧", "毒霧"), b: { dmg: 4, cd: 3.6, area: 2.8, n: 1, dur: 4.5 }, evo: "elem", evoName: C("瘴氣", "瘴気"), desc: C("在敵群放出久久不散的毒霧", "敵の群れに消えない毒霧を放つ") },
+    { k: "shakujo", kind: "pulse", icon: "🦯", name: C("錫杖", "錫杖"), b: { dmg: 11, cd: 2.6, area: 3, n: 1 }, evo: "regen", evoName: C("地藏菩薩之錫杖", "地蔵菩薩の錫杖"), desc: C("鳴響錫杖，震懾周圍邪物", "錫杖を鳴らし周囲の物の怪をすくませる") },
+    { k: "kagami", kind: "beam", fv: "kagami", icon: "🪞", name: C("八咫鏡", "八咫鏡"), b: { dmg: 20, cd: 2.3, area: 1, n: 1 }, evo: "crit", evoName: C("天照之光", "天照の光"), desc: C("鏡子反射出貫穿一切的光", "鏡が全てを貫く光を放つ") },
+    { k: "konoha", kind: "nova", icon: "🍃", name: C("木葉隱", "木の葉隠れ"), b: { dmg: 7, cd: 2.2, n: 1, spd: 12, pierce: 1 }, evo: "pspd", evoName: C("木葉旋風", "木の葉旋風"), desc: C("向四周放射木葉刃", "四方へ木の葉の刃を放つ") }
   ];
   var MAX_WLV = 8, MAX_ALV = 5, MAX_W = 6, MAX_A = 6;
   // 每一級的成長（Lv2〜Lv8）：同一種規則套用在所有武器，數值由 kind 決定實際意義
@@ -112,7 +125,7 @@
 
   // ---------------- 秘傳（武器分歧強化，每把武器最多 2 個）----------------
   // proj：只對有投射物的武器有意義（升級選項只對這些武器出現）
-  var PROJ_KINDS = { arrow: 1, gun: 1, bounce: 1, fan: 1, homing: 1, boomerang: 1, thrust: 1, slash: 1, whip: 1, beam: 1, charge: 1 };
+  var PROJ_KINDS = { arrow: 1, gun: 1, bounce: 1, fan: 1, homing: 1, boomerang: 1, thrust: 1, slash: 1, whip: 1, beam: 1, charge: 1, nova: 1 };
   var MODS = {
     nitou: { icon: "✌️", name: C("二連", "二連"), desc: C("發動後 0.2 秒再發動一次（傷害 70%）", "発動 0.2 秒後にもう一度（威力 70%）") },
     bakuretsu: { icon: "💥", name: C("爆裂", "爆裂"), desc: C("命中時 25% 機率小爆炸（範圍傷害 50%）", "命中時 25% で小爆発（範囲 50%）") },
@@ -130,7 +143,7 @@
     doku: { icon: "☠️", name: C("毒之型", "毒の型"), desc: C("附加毒（持續傷害）", "毒（継続ダメージ）を付与") }
   };
   // 直線飛行的武器（追尾只對這些有效；鐵扇、鎖鎌是迴旋，手裏劍、式神本來就會追）
-  var STRAIGHT_KINDS = { arrow: 1, gun: 1, fan: 1, thrust: 1, slash: 1, beam: 1, charge: 1 };
+  var STRAIGHT_KINDS = { arrow: 1, gun: 1, fan: 1, thrust: 1, slash: 1, beam: 1, charge: 1, nova: 1 };
   var MOD_ST = { hyo: "chill", en: "burn", rai: "shock", doku: "poison" };
   // ---------------- 武器搭配（同時持有兩種攻擊方式）----------------
   // give：給 a 那把武器一個秘傳（不佔 2 格）；st：給角色的能力加成
@@ -150,7 +163,19 @@
     { a: "yumi", b: "teppo", give: "kantsu", name: C("遠矢", "遠矢") },
     { a: "tachi", b: "tessen", give: "shippu", name: C("劍舞", "剣舞") },
     { a: "yanoame", b: "hata", give: "bakuretsu", name: C("鶴翼之陣", "鶴翼の陣") },
-    { a: "kaminari", b: "taiko", give: "rai", name: C("雷鼓", "雷鼓") }
+    { a: "kaminari", b: "taiko", give: "rai", name: C("雷鼓", "雷鼓") },
+    // 2026-11-06 追加（新武器）
+    { a: "nito", b: "tachi", give: "nitou", name: C("二天一流・極", "二天一流・極") },
+    { a: "kanabo", b: "taiko", st: [["might", 0.12]], name: C("鬼之太鼓", "鬼太鼓") },
+    { a: "fukiya", b: "dokugiri", st: [["elem", 0.25]], name: C("毒使", "毒使い") },
+    { a: "raisa", b: "kaminari", give: "rensa", name: C("雷神降臨", "雷神降臨") },
+    { a: "kagami", b: "hamaya", st: [["crit", 0.08]], name: C("三種神器", "三種の神器") },
+    { a: "konoha", b: "shuriken", give: "bunretsu", name: C("木葉手裏劍", "木の葉手裏剣") },
+    { a: "tekkyu", b: "naginata", st: [["armor", 1.5]], name: C("豪傑", "豪傑") },
+    { a: "enbu", b: "tessen", give: "kantsu", name: C("舞扇圓月", "舞扇円月") },
+    { a: "kitsunebi", b: "ofuda", st: [["dur", 0.15]], name: C("狐之嫁入", "狐の嫁入り") },
+    { a: "shakujo", b: "juzu", st: [["regen", 0.5]], name: C("修驗道", "修験道") },
+    { a: "tsubute", b: "kunai", st: [["amount", 1]], name: C("石合戰", "石合戦") }
   ];
 
   // ---------------- 東北工藝（飾品 25 種 × 20 能力）----------------
@@ -180,7 +205,28 @@
     { name: N("こぎん刺し"), pref: "aomori", r: 1, sec: "maxHp" },
     { name: N("八幡馬"), pref: "aomori", r: 1, sec: "speed" },
     { name: N("秋田杉桶"), pref: "akita", r: 1, sec: "thorns" },
-    { name: N("岩谷堂箪笥"), pref: "iwate", r: 3, sec: "critDmg" }
+    { name: N("岩谷堂箪笥"), pref: "iwate", r: 3, sec: "critDmg" },
+    // 2026-11-06 追加 20 種工藝（×20 能力＝400 件）
+    { name: N("堤焼"), pref: "miyagi", r: 1, sec: "armor" },
+    { name: N("玉虫塗"), pref: "miyagi", r: 3, sec: "luck" },
+    { name: N("仙台平"), pref: "miyagi", r: 2, sec: "critDmg" },
+    { name: N("津軽びいどろ"), pref: "aomori", r: 2, sec: "pspd" },
+    { name: N("南部裂織"), pref: "aomori", r: 1, sec: "regen" },
+    { name: N("津軽打刃物"), pref: "aomori", r: 3, sec: "might" },
+    { name: N("小久慈焼"), pref: "iwate", r: 1, sec: "maxHp" },
+    { name: N("南部古代型染"), pref: "iwate", r: 2, sec: "elem" },
+    { name: N("秋田銀線細工"), pref: "akita", r: 3, sec: "crit" },
+    { name: N("楢岡焼"), pref: "akita", r: 1, sec: "armor" },
+    { name: N("秋田八丈"), pref: "akita", r: 2, sec: "dur" },
+    { name: N("山形打刃物"), pref: "yamagata", r: 2, sec: "might" },
+    { name: N("羽越しな布"), pref: "yamagata", r: 2, sec: "magnet" },
+    { name: N("平清水焼"), pref: "yamagata", r: 1, sec: "regen" },
+    { name: N("紅花染"), pref: "yamagata", r: 2, sec: "luck" },
+    { name: N("会津本郷焼"), pref: "fukushima", r: 2, sec: "maxHp" },
+    { name: N("奥会津編み組細工"), pref: "fukushima", r: 1, sec: "thorns" },
+    { name: N("会津絵ろうそく"), pref: "fukushima", r: 3, sec: "elem" },
+    { name: N("二本松萬古焼"), pref: "fukushima", r: 1, sec: "knock" },
+    { name: N("三春駒"), pref: "fukushima", r: 2, sec: "speed" }
   ];
   var RAR = [0, 1, 1.3, 1.6];
   var ACCS = [];
@@ -235,7 +281,28 @@
     { icon: "🛢️", w: 3, name: N("火薬樽"), e: { nuke: 80 } },
     { icon: "⏳", w: 3, name: N("時の砂時計"), e: { freeze: 7 } },
     { icon: "🧿", w: 3, name: N("不動明王の御守"), e: { inv: 8 } },
-    { icon: "📯", w: 3, name: N("采配"), e: { ult: 50 } }
+    { icon: "📯", w: 3, name: N("采配"), e: { ult: 50 } },
+    // 2026-11-06 追加：鄉土料理與道具 20 種（luck 幸運、chest 寶箱、lv 升級、kek 結界、team 全隊回復）
+    { icon: "🍠", w: 10, name: N("いぶりがっこ"), e: { heal: 15, luck: 20 } },
+    { icon: "🐟", w: 7, name: N("しょっつる鍋"), e: { heal: 45, armor: 8 } },
+    { icon: "🍲", w: 6, name: N("せり鍋"), e: { heal: 35, speed: 8 } },
+    { icon: "🍙", w: 8, name: N("味噌焼きおにぎり"), e: { heal: 30 } },
+    { icon: "🫘", w: 6, name: N("納豆汁"), e: { heal: 20, might: 10 } },
+    { icon: "🍜", w: 6, name: N("白河ラーメン"), e: { heal: 40, xp: 15 } },
+    { icon: "🥟", w: 6, name: N("円盤餃子"), e: { team: 25 } },
+    { icon: "🥮", w: 6, name: N("ままどおる"), e: { heal: 15, ult: 15 } },
+    { icon: "🍑", w: 7, name: N("福島の桃"), e: { heal: 20, luck: 15 } },
+    { icon: "🍈", w: 4, name: N("庄内メロン"), e: { team: 50 } },
+    { icon: "🦀", w: 3, name: N("毛ガニ"), e: { heal: 50, kek: 10 } },
+    { icon: "🐚", w: 4, name: N("ホタテ焼き"), e: { heal: 30, gold: 25 } },
+    { icon: "🍶", w: 3, name: N("南部杜氏の酒"), e: { might: 25, kek: 6 } },
+    { icon: "🎎", w: 3, name: N("おひなさま"), e: { luck: 40 } },
+    { icon: "🏮", w: 3, name: N("竿燈の提灯"), e: { nuke: 60, ult: 20 } },
+    { icon: "📦", w: 2, name: N("千両箱"), e: { chest: 1 } },
+    { icon: "📜", w: 2, name: N("兵法の巻物"), e: { lv: 1 } },
+    { icon: "🪔", w: 3, name: N("結界の灯"), e: { kek: 15 } },
+    { icon: "🐴", w: 3, name: N("チャグチャグ馬コ"), e: { speed: 25, magnet: 1 } },
+    { icon: "👹", w: 2, name: N("なまはげの面"), e: { freeze: 5, inv: 3 } }
   ];
 
   // ---------------- 采配（大名的大招，擊殺累積）----------------
