@@ -84,7 +84,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
 def build_starv_html() -> str:
     three_src = asset_url("../static/", "vendor/three.min.js")
     body = f"""    <div class="sv-root">
-      <div id="sv-app" data-three-src="{three_src}"></div>
+      <div id="sv-app" data-three-src="{three_src}" data-img="../static/images/jikan/"></div>
     </div>
 """
     return page_shell(

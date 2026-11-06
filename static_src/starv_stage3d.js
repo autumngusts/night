@@ -203,7 +203,7 @@
   // ---------- 2D 後備 ----------
   function play2d(view, opts, onDone) {
     var stage = el("div", { class: "sv-stage-2d sv-stage-2d-" + Spec.plan(opts).scene }, opts.performers.map(function (p, i) {
-      var a = UI.avatar({ look: p.look, rarity: p.rarity, dir: opts.dir }, 96);
+      var a = UI.avatar({ look: p.look, rarity: p.rarity, dir: opts.dir, gender: p.gender, rosterId: p.rosterId, nameSeed: p.nameSeed }, 96);
       a.style.animationDelay = (i * 0.15) + "s";
       return el("div", { class: "sv-stage-2d-actor" }, [a]);
     }));

@@ -7,6 +7,7 @@
   "use strict";
 
   var D = window.PriTestYukimuraData;
+  var TK = window.PriTestYukimuraTenka || null;   // 新模式「天下布武」的資料（yukimura_tenka.js）
   var AR = D.ARENA;
   var MAX_E = 240, MAX_G = 320;
 
@@ -41,6 +42,10 @@
       kills: 0, spawnAcc: 0, mids: [0, 0], boss: 0, bossName: null, fe: { on: 0, t: 0, k: st.feat, wx: 0, wz: 0, next: 40 },
       ev: { lantern: 8, warashi: 50, special: 20 }, freeze: 0, rivers: [], msg: []
     };
+    // 新模式「天下布武」：天命、軍令、逆鱗（cfg.mode === "tenka"）
+    if (cfg.mode === "tenka" && TK) {
+      s.mode = "tenka"; s.heat = clamp(cfg.heat | 0, 0, TK.HEAT_MAX); s.arcT = [0, 0]; s.q = null; s.qNext = 70; s.qN = 0;
+    }
     if (st.feat === "river" || D.MAPS[s.map].river) {
       var nr = Math.max(D.MAPS[s.map].river || 0, st.feat === "river" ? 2 : 0);
       for (var i = 0; i < nr; i++) s.rivers.push({ x: (rnd(s) - 0.5) * AR, z: (rnd(s) - 0.5) * AR, a: rnd(s) * Math.PI, w: 3 + rnd(s) * 1.5 });
@@ -71,6 +76,7 @@
       kills: 0, dmg: 0, gold: 0, meta: meta, rr: (meta.reroll | 0), rev: (meta.revive | 0), st: null, sp: 4.2, joinT: s.t, chestN: 0
     };
     P.W.push(newW(d.start));
+    if (s.mode === "tenka") tenkaInitPlayer(s, P);
     s.P[pid] = P;
     calcStats(P, s);
     P.hp = P.mhp;
@@ -141,6 +147,15 @@
     P.A.forEach(function (a) { var x = D.accStats(a.id, a.lv); Object.keys(x).forEach(function (k) { add(k, x[k]); }); });
     prefBonus(P).forEach(function (pb) { pb.b.forEach(function (b) { add(b[0], b[1]); }); });
     synergies(P).forEach(function (y) { (y.st || []).forEach(function (b) { add(b[0], b[1]); }); });
+    var tenka = s && s.mode === "tenka" && TK;
+    if (tenka) {
+      TK.applyStats(P, add);
+      P.tkf = TK.flags(P);
+      if (P.tkf.a_ougon) o.might += Math.max(0, o.greed - 1) * 0.5;
+      if (P.tkf.a_bushin) { var wl = 0; P.W.forEach(function (w) { wl += w.lv + (w.evo ? 2 : 0); }); o.might += 0.015 * wl; }
+      if (P.tkf.a_ikki) o.maxHp *= 0.7;
+      if (P.tkf.a_chikei) o.regen = 0;
+    } else P.tkf = null;
     var buf = P.buf || {};
     if (buf.might > 0) o.might += 0.4;
     if (buf.speed > 0) o.speed += 0.35;
@@ -203,7 +218,7 @@
   }
 
   // 連斬加成：每 50 連斬 +5%（最多 +30%），攻擊與拾取的錢都套用
-  function comboBonus(P) { return Math.min(0.3, Math.floor((P.cb || 0) / 50) * 0.05); }
+  function comboBonus(P) { return Math.min(P.tkf && P.tkf.renzan ? 0.6 : 0.3, Math.floor((P.cb || 0) / 50) * 0.05); }
 
   // ---------------- 升級三選一 ----------------
   function makeOpts(s, P) {
@@ -218,7 +233,7 @@
       if (r < 0.34 && wUp.length) o = pick(s, wUp);
       else if (r < 0.46 && mUp.length) {
         var wi = pick(s, mUp), ww = P.W[wi], kind = D.WEAPONS[ww.id].kind, have = weaponMods(P, ww);
-        var cands = Object.keys(D.MODS).filter(function (m) { return have.indexOf(m) < 0 && (!D.MODS[m].proj || D.PROJ_KINDS[kind]) && (!D.MODS[m].straight || D.STRAIGHT_KINDS[kind]); });
+        var cands = Object.keys(D.MODS).filter(function (m) { return have.indexOf(m) < 0 && !(P.ban && P.ban["m" + m]) && (!D.MODS[m].proj || D.PROJ_KINDS[kind]) && (!D.MODS[m].straight || D.STRAIGHT_KINDS[kind]); });
         if (cands.length) o = { t: "m", i: wi, id: ww.id, m: pick(s, cands) };
       }
       else if (r < 0.62 && aUp.length) o = pick(s, aUp);
@@ -226,7 +241,15 @@
         // 新武器：先抽攻擊方式（避免重複），藩隨機；有地緣的話偏向同縣
         var ownedA = {}; P.W.forEach(function (w) { ownedA[D.WEAPONS[w.id].a] = 1; });
         var ai = rint(s, D.ARCHES.length);
-        if (ownedA[ai]) continue;
+        // 天下布武：35% 偏向已持有的流派（方便湊流派共鳴）
+        if (s.mode === "tenka" && TK && rnd(s) < 0.35) {
+          var sc = TK.schoolCounts(P), sks = Object.keys(sc);
+          if (sks.length) {
+            var pool = TK.SCHOOL[pick(s, sks)].arches.map(function (k) { for (var q = 0; q < D.ARCHES.length; q++) if (D.ARCHES[q].k === k) return q; return -1; }).filter(function (q) { return q >= 0 && !ownedA[q]; });
+            if (pool.length) ai = pick(s, pool);
+          }
+        }
+        if (ownedA[ai] || (P.ban && P.ban["a" + ai])) continue;
         var pc = prefCounts(P), vi = rint(s, D.VARIANTS.length);
         if (rnd(s) < 0.35) {
           var best = Object.keys(pc).sort(function (a, b) { return pc[b] - pc[a]; })[0];
@@ -236,7 +259,7 @@
         o = { t: "w", id: ai * 10 + vi };
       } else if (P.A.length < D.MAX_A) {
         var ownedS = {}; P.A.forEach(function (a) { ownedS[D.ACCS[a.id].s] = 1; });
-        var acc = wpick(s, D.ACCS, function (a) { return (ownedS[a.s] ? 0.2 : 1) * (a.r === 3 ? 0.35 * (P.st ? P.st.luck : 1) : a.r === 2 ? 0.8 : 1.4); });
+        var acc = wpick(s, D.ACCS, function (a) { return (P.ban && P.ban["s" + a.s] ? 0 : 1) * (ownedS[a.s] ? 0.2 : 1) * (a.r === 3 ? 0.35 * (P.st ? P.st.luck : 1) : a.r === 2 ? 0.8 : 1.4); });
         o = { t: "a", id: acc.id };
       }
       if (!o) continue;
@@ -273,7 +296,7 @@
       w.evo = 1;
       res.push({ t: "evo", id: w.id });
     }
-    var n = big ? 3 : 1 + (rnd(s) < 0.3 * P.st.luck ? 1 : 0);
+    var n = (big ? 3 : 1 + (rnd(s) < 0.3 * P.st.luck ? 1 : 0)) + (P.tkf && P.tkf.a_tenun ? 1 : 0);
     for (var i = 0; i < n; i++) {
       var ups = [];
       P.W.forEach(function (w2, j) { if (w2.lv < D.MAX_WLV) ups.push({ t: "wu", i: j, id: w2.id }); });
@@ -340,6 +363,7 @@
     var crit = rnd(s) < st.crit + (p && p.crit || 0);
     if (crit) dmg *= st.critDmg;
     if (hasMod(p, "shokei") && e.hp < e.mhp * 0.3) dmg *= 2;
+    if (P && P.tkf) dmg *= tenkaDmgMul(s, P, e, p);
     var armor = (e.armor || 0);
     dmg = Math.max(1, dmg - armor);
     if (e.boss && e.shieldT > 0) dmg *= 0.3;
@@ -368,6 +392,7 @@
       e.kx = (e.kx || 0) + kx * kn; e.kz = (e.kz || 0) + kz * kn;
     }
     if (st.steal && e.hp <= 0 && P) P.hp = Math.min(P.mhp, P.hp + st.steal * 8);
+    if (P && P.tkf && !(p && p.tkSub)) tenkaOnHit(s, P, e, dmg, p, crit);
     if (e.hp <= 0) killEnemy(s, P, e, p);
   }
   function applyStatus(s, P, e, k, dmg) {
@@ -400,7 +425,7 @@
     e.hp = 0;
     s.kills++;
     if (P) {
-      P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9));
+      P.kills++; P.ult = Math.min(100, P.ult + (e.boss ? 25 : e.el ? 4 : 0.9) * (P.tkf && P.tkf.s_gunryaku ? 1.5 : 1));
       P.cb = (P.cb || 0) + 1; P.cbT = 3; if (P.cb > (P.cbMax || 0)) P.cbMax = P.cb;
       if (P.cb % 100 === 0) msg(s, "combo", P.pid, P.cb);
     }
@@ -420,6 +445,7 @@
       if (rnd(s) < 0.5) dropItem(s, "chest", e.x, e.z, {});
       else dropFood(s, e.x, e.z);
     } else if (rnd(s) < 0.004 * luck) dropFood(s, e.x, e.z);
+    if (s.mode === "tenka") tenkaOnKill(s, P, e);
     if (def.f && def.f.split && !e.small) {
       for (var i = 0; i < 2; i++) {
         var c = spawnEnemy(s, e.k, e.x + (i ? 0.6 : -0.6), e.z, 0.45);
@@ -469,10 +495,11 @@
     var def = D.ENEMIES[k];
     if (!def) return null;
     var n = Math.max(1, Object.keys(s.P).length), f = scaleF(s), dif = D.DIFFS[s.diff];
-    var hpm = (1 + 3.2 * Math.pow(f, 1.4) + s.stage * 0.13 * Math.min(1, 0.25 + f)) * (1 + 0.4 * (n - 1)) * dif.hp * (scl || 1);
+    var hm = s.mode === "tenka" && TK ? TK.heatMul(s.heat | 0) : null;
+    var hpm = (1 + 3.2 * Math.pow(f, 1.4) + s.stage * 0.13 * Math.min(1, 0.25 + f)) * (1 + 0.4 * (n - 1)) * dif.hp * (scl || 1) * (hm ? hm.hp : 1);
     var e = {
       id: nid(s), k: k, m: def.m, x: clamp(x, -AR, AR), z: clamp(z, -AR, AR), hp: def.hp * hpm, mhp: def.hp * hpm, spd: def.spd * (0.92 + rnd(s) * 0.16),
-      dmg: def.dmg * dif.dmg * (1 + f * 0.8 + s.stage * 0.08), xp: def.xp * (1 + s.stage * 0.08), r: def.r * (scl && scl < 1 ? 0.7 : 1), s: scl && scl < 1 ? 0.7 : 1,
+      dmg: def.dmg * dif.dmg * (1 + f * 0.8 + s.stage * 0.08) * (hm ? hm.dmg : 1), xp: def.xp * (1 + s.stage * 0.08), r: def.r * (scl && scl < 1 ? 0.7 : 1), s: scl && scl < 1 ? 0.7 : 1,
       armor: (def.f && def.f.armor || 0) + (D.STAGES[s.stage].feat === "iron" ? 2 : 0), fly: def.f && def.f.fly ? 1 : 0, cd: 1 + rnd(s) * 2, a: 0
     };
     if (D.STAGES[s.stage].feat === "gold") e.spd *= 1.08;
@@ -483,7 +510,7 @@
   function spawnAround(s, k, P, el) {
     var ang = rnd(s) * Math.PI * 2, r = 17 + rnd(s) * 5;
     var e = spawnEnemy(s, k, P.x + Math.cos(ang) * r, P.z + Math.sin(ang) * r);
-    if (e && el) { e.el = 1; e.hp *= 6; e.mhp *= 6; e.s = 1.45; e.r *= 1.4; e.dmg *= 1.4; }
+    if (e && el) { e.el = 1; e.hp *= 6; e.mhp *= 6; e.s = 1.45; e.r *= 1.4; e.dmg *= 1.4; if (s.mode === "tenka") tenkaAffix(s, e); }
     return e;
   }
   function roster(s) {
@@ -521,6 +548,7 @@
     var rate = (0.7 + 8 * Math.pow(Math.min(f, 1), 1.2) + s.stage * 0.25 * f) * (1 + 0.45 * (n - 1)) * dif.rate;
     if (s.boss) rate *= 0.45;
     if (s.freeze > 0) rate *= 0.3;
+    if (s.mode === "tenka" && TK) { rate *= TK.heatMul(s.heat | 0).rate; if (ps.some(function (q) { return q.tkf && q.tkf.a_hyakki; })) rate *= 1.35; }
     s.spawnAcc += rate * dt;
     var list = roster(s);
     while (s.spawnAcc >= 1) {
@@ -891,6 +919,186 @@
     if (b.tenrai > 0) { P._tr = (P._tr || 0) + dt; if (P._tr > 0.25) { P._tr = 0; var e = randomNear(s, P, 15); if (e) { near(s, e.x, e.z, 1.6, function (e2) { hitEnemy(s, P, e2, dmg, { st: "shock", knock: 1, crit: 0 }); }); addFx(s, "bolt", e.x, e.z, 0, 1.6, P.pid, 2); } } }
   }
 
+  // ---------------- 新模式「天下布武」（s.mode === "tenka"；資料在 yukimura_tenka.js）----------------
+  var MELEE = { slash: 1, thrust: 1, spin: 1, whip: 1, charge: 1 };
+  var tkDepth = 0;   // 連帶效果的遞迴保護（附帶傷害不再觸發天命／符文效果）
+  function tkTree(P) { return P.meta && P.meta.tk && P.meta.tk.tree || {}; }
+  function tenkaInitPlayer(s, P) {
+    var tree = tkTree(P);
+    P.arc = []; P.ban = {}; P.kg = 0;
+    P.arcQ = 1 + (s.arcT ? (s.arcT[0] ? 1 : 0) + (s.arcT[1] ? 1 : 0) : 0);
+    P.bn = TK.treeSp(tree, "ban"); P.sk = TK.treeSp(tree, "skip");
+    P.rr += TK.treeSp(tree, "rr"); P.rev += TK.treeSp(tree, "rev");
+    if (TK.treeSp(tree, "startLv")) P.W[0].lv = 2;
+    if (TK.treeSp(tree, "startW")) {
+      var a0 = D.WEAPONS[P.W[0].id].a, ai = rint(s, D.ARCHES.length);
+      if (ai === a0) ai = (ai + 1) % D.ARCHES.length;
+      P.W.push(newW(ai * 10 + rint(s, D.VARIANTS.length)));
+    }
+  }
+  // 天命選項（不重複已經選過的）
+  function arcOpts(s, P) {
+    var n = 3 + Math.min(1, TK.treeSp(tkTree(P), "arcN"));
+    var pool = TK.ARCANA.filter(function (a) { return (P.arc || []).indexOf(a.k) < 0; }).map(function (a) { return a.k; });
+    var out = [];
+    while (out.length < n && pool.length) out.push({ t: "arc", k: pool.splice(rint(s, pool.length), 1)[0] });
+    if (!out.length) { P.arcQ = 0; return null; }
+    return out;
+  }
+  function banish(s, P, i) {
+    if (!P.opts || !(P.bn > 0)) return false;
+    var o = P.opts[i];
+    if (!o || o.t === "arc") return false;
+    var key = o.t === "w" ? "a" + D.WEAPONS[o.id].a : o.t === "a" ? "s" + D.ACCS[o.id].s : o.t === "m" ? "m" + o.m : null;
+    if (!key) return false;
+    P.ban = P.ban || {};
+    P.ban[key] = 1; P.bn--;
+    P.opts = makeOpts(s, P); P.optT = 0;
+    msg(s, "ban", P.pid, o);
+    return true;
+  }
+  function skipOpt(s, P) {
+    if (!P.opts || !(P.sk > 0) || (P.opts[0] && P.opts[0].t === "arc")) return false;
+    P.sk--; P.opts = null; P.pend = Math.max(0, P.pend - 1);
+    P.gold += 15 * P.st.greed; P.hp = Math.min(P.mhp, P.hp + 15); P.iv = Math.max(P.iv, 1);
+    return true;
+  }
+  function awardKg(s, n, show) {
+    players(s).forEach(function (Q) { Q.kg = (Q.kg || 0) + n * (Q.tkf && Q.tkf.a_hyakki ? 1.3 : 1); });
+    if (show) msg(s, "kg", "", n);
+  }
+  function tenkaDmgMul(s, P, e, p) {
+    var f = P.tkf, m = 1, hpf = clamp(P.hp / (P.mhp || 1), 0, 1);
+    if (f.a_kajiba) m *= 1 + 0.8 * (1 - hpf);
+    if (f.haisui && hpf < 0.4) m *= 1.35;
+    if (P._still) { if (f.a_fudo) m *= 1.4; if (f.fudo) m *= 1.15; } else if (f.a_fuurin) m *= 1.15;
+    var S = e.sts;
+    if (S) {
+      if (f.a_hyogoku && S.chill > 0) m *= 1.3;
+      if (f.s_tenko && (S.chill > 0 || S.burn > 0 || S.poison > 0 || S.shock > 0)) m *= 1.25;
+    }
+    // 劍豪滿階：近戰命中 20% 追加一道斬擊（直接算進這一擊）
+    if (f.s_ken && p && MELEE[p.kind] && !tkDepth && rnd(s) < 0.2) { m *= 1.5; if (s.fx.length < 260) addFx(s, "slash", e.x, e.z, rnd(s) * 6.28, 1.2, P.pid); }
+    return m;
+  }
+  function tenkaOnHit(s, P, e, dmg, p, crit) {
+    if (tkDepth) return;
+    var f = P.tkf, sub = { tkSub: 1, knock: 0, crit: 0 };
+    tkDepth++;
+    if (e.hp > 0) {
+      if (f.doku && rnd(s) < 0.15) applyStatus(s, P, e, "poison", dmg);
+      if (f.honoo && rnd(s) < 0.15) applyStatus(s, P, e, "burn", dmg);
+      if (f.a_hyogoku && rnd(s) < 0.25) applyStatus(s, P, e, "chill", dmg);
+      if (f.a_ruten && rnd(s) < 0.15) applyStatus(s, P, e, pick(s, ["chill", "burn", "poison", "shock"]), dmg);
+    }
+    if (f.rai && crit && rnd(s) < 0.25) {
+      var ex = e.x, ez = e.z;
+      addFx(s, "bolt", ex, ez, 0, 1.4, P.pid, 2);
+      near(s, ex, ez, 1.4, function (o) { if (o !== e && o.hp > 0) hitEnemy(s, P, o, dmg * 0.6, sub); });
+    }
+    tkDepth--;
+  }
+  function tenkaOnKill(s, P, e) {
+    if (e.el) {
+      questProgress(s, "elite", 1);
+      if (rnd(s) < 0.3) awardKg(s, 1, false);
+      var eb = P ? TK.treeSp(tkTree(P), "elite") : 0;
+      if (eb && rnd(s) < 0.1 * eb) dropItem(s, "chest", e.x + 0.8, e.z, {});
+      if (e.af === "split") for (var i = 0; i < 3; i++) { var c = spawnEnemy(s, e.k, e.x + Math.cos(i * 2.1) * 0.8, e.z + Math.sin(i * 2.1) * 0.8, 0.6); if (c) c.small = 1; }
+      if (e.af === "blast") warn(s, "blast", e.x, e.z, 2.6, 0.9, e.dmg * 1.2);
+    }
+    if (e.bty) awardKg(s, 5, true);
+    if (e.boss) awardKg(s, e.fin ? 20 : 8, true);
+    questProgress(s, "kill", 1);
+    if (!P || !P.tkf) return;
+    if (P.tkf.a_bakuen && !e.boss && !tkDepth && rnd(s) < 0.3) {
+      tkDepth++;
+      var bd = 10 * P.st.might * (1 + s.t / s.dur * 2) + e.mhp * 0.15, bx = e.x, bz = e.z;
+      if (s.fx.length < 260) addFx(s, "boom", bx, bz, 0, 2.2, P.pid, 1);
+      near(s, bx, bz, 2.2, function (o) { if (o !== e && o.hp > 0) hitEnemy(s, P, o, bd * (o.boss ? 0.3 : 1), { tkSub: 1, knock: 1, crit: 0, st: "burn" }); });
+      tkDepth--;
+    }
+    if (P.tkf.kyuu) { P._kq = (P._kq || 0) + 1; if (P._kq >= 40) { P._kq = 0; P.hp = Math.min(P.mhp, P.hp + 6); } }
+    if (P.tkf.s_nin && rnd(s) < 0.1 && P.W.length) pick(s, P.W).cd = 0;
+  }
+  function tenkaAffix(s, e) {
+    var a = pick(s, TK.AFFIX).k;
+    e.af = a;
+    if (a === "swift") e.spd *= 1.45;
+    else if (a === "iron") { e.armor += 5; e.hp *= 1.3; e.mhp *= 1.3; }
+  }
+  // 軍令：約每 90〜130 秒一道，限時完成得到軍功與寶箱
+  function sumGold(s) { var g = 0; players(s).forEach(function (P) { g += P.gold; }); return g / Math.max(1, players(s).length); }
+  function questProgress(s, k, n) { if (s.q && s.q.k === k) s.q.h += n; }
+  function questEnd(s, ok) {
+    var q = s.q;
+    s.q = null;
+    s.qNext = s.t + 90 + rnd(s) * 40;
+    if (!ok) { msg(s, "qng", "", q.k); return; }
+    s.qN++;
+    var base = 6 + s.stage;
+    players(s).forEach(function (P) {
+      var r = base * (1 + 0.3 * TK.treeSp(tkTree(P), "quest"));
+      P.kg = (P.kg || 0) + r * (P.tkf && P.tkf.a_hyakki ? 1.3 : 1);
+      if (!P.down) dropItem(s, "chest", P.x + 1.2, P.z, {});
+    });
+    msg(s, "qok", "", q.k, base);
+  }
+  function questTick(s, dt) {
+    var q = s.q;
+    if (q) {
+      q.T -= dt;
+      if (q.k === "nohit") {
+        if (players(s).some(function (P) { return P._hitT !== undefined && P._hitT > q.t0; })) { questEnd(s, false); return; }
+        q.h = Math.min(q.n, s.t - q.t0);
+        if (q.T <= 0) questEnd(s, true);
+        return;
+      }
+      if (q.k === "gold") q.h = sumGold(s) - q.g0;
+      if (q.h >= q.n) { questEnd(s, true); return; }
+      if (q.T <= 0) questEnd(s, false);
+      return;
+    }
+    if (s.t < s.qNext || s.boss || s.t > s.dur - 20) return;
+    var k = pick(s, ["kill", "kill", "elite", "nohit", "gold"]);
+    var n = k === "kill" ? Math.round(40 + s.t / 6) : k === "elite" ? 2 : k === "nohit" ? 20 : Math.round(50 + s.t / 6);
+    s.q = { k: k, n: n, h: 0, T: k === "nohit" ? 20 : 45, t0: s.t, g0: sumGold(s) };
+    msg(s, "qnew", "", k, n);
+  }
+  function tenkaTick(s, dt) {
+    // 天命：第 1/3、2/3 再選一張
+    [1 / 3, 2 / 3].forEach(function (fr, i) {
+      if (!s.arcT[i] && s.t >= s.dur * fr) { s.arcT[i] = 1; players(s).forEach(function (P) { P.arcQ = (P.arcQ | 0) + 1; }); msg(s, "arcq", "", ""); }
+    });
+    players(s).forEach(function (P) {
+      var mv = P._px === undefined ? 0 : Math.abs(P.x - P._px) + Math.abs(P.z - P._pz);
+      P._px = P.x; P._pz = P.z;
+      P._stillT = mv < 0.002 ? (P._stillT || 0) + dt : 0;
+      P._still = P._stillT > 0.25 ? 1 : 0;
+      if (!P.tkf || P.down) return;
+      if (P.tkf.a_tenpen) {
+        P._tp = (P._tp || 0) + dt;
+        if (P._tp >= 6) {
+          P._tp = 0;
+          var dm = 22 * P.st.might * (1 + s.t / s.dur * 3);
+          for (var k = 0; k < 6; k++) {
+            var e = randomNear(s, P, 14);
+            if (!e) break;
+            addFx(s, "bolt", e.x, e.z, 0, 1.4, P.pid, 2);
+            hitEnemy(s, P, e, dm * (e.boss ? 0.5 : 1), { tkSub: 1, st: "shock", knock: 1, crit: 0 });
+          }
+        }
+      }
+      if (P.tkf.s_onmyo) {
+        P._barC = (P._barC || 0) + dt;
+        if (P._barC >= 12) { P._barC = 0; P._bar = 3; addFx(s, "revive", P.x, P.z, 0, 1.6, P.pid); }
+      }
+      if (P._bar > 0) P._bar -= dt;
+    });
+    for (var i = 0; i < s.E.length; i++) { var en = s.E[i]; if (en.af === "regen" && en.hp > 0) en.hp = Math.min(en.mhp, en.hp + en.mhp * 0.025 * dt); }
+    questTick(s, dt);
+  }
+
   // ---------------- 主迴圈 ----------------
   function step(s, dt) {
     if (s.ph !== "play") return;
@@ -906,6 +1114,7 @@
     weather(s, dt);
     bounty(s, dt);
     formation(s);
+    if (s.mode === "tenka") tenkaTick(s, dt);
     spawning(s, dt);
     ps.forEach(function (P) { stepPlayer(s, P, dt); });
     buildGrid(s);
@@ -938,8 +1147,10 @@
       return;
     }
     P.sp = moveSpeed(s, P);
-    if (P.local) stepMove(s, P, P.mvx, P.mvz, dt, P.sp);
+    // 2026-11-06 修正：有升級選項（或待選次數）時不能移動自己的角色（連線時遊戲不暫停，原本仍會照搖桿移動）
+    if (P.local && !P.opts && !(P.pend > 0) && !(P.arcQ > 0)) stepMove(s, P, P.mvx, P.mvz, dt, P.sp);
     // 升級選項：有待選次數就出三選一；連線中 15 秒沒選就自動選第一個
+    if (P.arcQ > 0 && !P.opts) { P.opts = arcOpts(s, P); P.optT = 0; pushAway(s, P, 2.8); }
     if (P.pend > 0 && !P.opts) { P.opts = makeOpts(s, P); P.optT = 0; pushAway(s, P, 2.8); }
     if (P.opts) {
       P.optT += dt;
@@ -1086,7 +1297,8 @@
 
   function hurtPlayer(s, P, dmg, src) {
     if (P.down || P.iv > 0) return;
-    var d = Math.max(1, dmg - P.st.armor);
+    var d = Math.max(1, dmg - P.st.armor - (P.tkf ? (P._still ? (P.tkf.fudo ? 3 : 0) + (P.tkf.a_fudo ? 4 : 0) : 0) : 0));
+    if (P.tkf) { if (P._bar > 0) d *= 0.5; P._hitT = s.t; }
     P.hp -= d;
     P.iv = 0.45;
     if (src && P.st.thorns > 0 && src.hp > 0) hitEnemy(s, P, src, P.st.thorns, null);
@@ -1378,6 +1590,15 @@
   function choose(s, P, i) {
     if (!P || !P.opts) return false;
     var o = P.opts[i] || P.opts[0];
+    if (o && o.t === "arc") {   // 天命：不消耗升級次數
+      P.arc = P.arc || [];
+      if (P.arc.indexOf(o.k) < 0) P.arc.push(o.k);
+      P.arcQ = Math.max(0, (P.arcQ | 0) - 1);
+      P.opts = null; P.iv = Math.max(P.iv, 1);
+      calcStats(P, s);
+      msg(s, "arc", P.pid, o.k);
+      return true;
+    }
     applyOpt(s, P, o);
     P.opts = null;
     P.iv = Math.max(P.iv, 1);   // 選完再無敵 1 秒
@@ -1389,7 +1610,9 @@
     var P = s.P[pid];
     if (!P || !it) return false;
     if (it.t === "pick") return choose(s, P, it.i | 0);
-    if (it.t === "reroll") { if (P.opts && P.rr > 0) { P.rr--; P.opts = makeOpts(s, P); P.optT = 0; return true; } return false; }
+    if (it.t === "reroll") { if (P.opts && P.rr > 0) { P.rr--; P.opts = P.opts[0] && P.opts[0].t === "arc" ? arcOpts(s, P) : makeOpts(s, P); P.optT = 0; return true; } return false; }
+    if (it.t === "banish") return banish(s, P, it.i | 0);
+    if (it.t === "skip") return skipOpt(s, P);
     if (it.t === "ult") return useUlt(s, P);
     return false;
   }
@@ -1397,12 +1620,12 @@
   // ---------------- 快照（連線廣播用，數值壓縮）----------------
   function r1(v) { return Math.round(v * 10) / 10; }
   function snap(s) {
-    var o = { t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
+    var o = { md: s.mode || undefined, ht: s.heat || undefined, q: s.q ? { k: s.q.k, n: s.q.n, h: Math.floor(s.q.h), T: r1(s.q.T) } : undefined, t: r1(s.t), ph: s.ph, st: s.stage, mp: s.map, du: s.dur, df: s.diff, k: s.kills, fz: s.freeze > 0 ? 1 : 0, fe: { on: s.fe.on, k: s.fe.k, wx: s.fe.wx, wz: s.fe.wz }, wx: s.wx ? s.wx.k : "clear", rv: s.rivers, P: {}, E: [], S: [], B: [], G: [], D: [], Z: [], W: [], fx: packFx(s), msg: s.msg.slice(-8), bn: s.bossName };
     players(s).forEach(function (P) {
       o.P[P.pid] = {
         n: P.name, dm: P.dm, x: r1(P.x), z: r1(P.z), fx: Math.round(P.fx * 100) / 100, fz: Math.round(P.fz * 100) / 100, hp: Math.ceil(P.hp), mh: P.mhp, lv: P.lv, xp: Math.round(P.xp), xn: P.xn,
         dn: P.down, rv: r1(P.rv), iv: P.iv > 0 ? 1 : 0, u: Math.floor(P.ult), sp: r1(P.sp), g: Math.floor(P.gold), kl: P.kills, dg: Math.round(P.dmg), rr: P.rr, re: P.rev, cb: P.cb || 0, cm: P.cbMax || 0, jn: P.jin || 0, af: P.afk ? 1 : 0,
-        un: P.ultN || 0,
+        un: P.ultN || 0, kg: P.kg ? Math.round(P.kg * 10) / 10 : undefined, ac: P.arc && P.arc.length ? P.arc : undefined, aq: P.arcQ || undefined, bn: P.bn || undefined, sk: P.sk || undefined,
         W: P.W.map(function (w) { return [w.id, w.lv, w.evo, w.ot > 0 ? 1 : 0, w.ft > 0 ? 1 : 0, (w.mods || []).join(",")]; }), A: P.A.map(function (a) { return [a.id, a.lv]; }),
         op: P.opts, pe: P.pend, bf: Object.keys(P.buf).filter(function (k) { return P.buf[k] > 0; }), m: P.meta
       };
@@ -1455,12 +1678,12 @@
   }
   // 把快照轉成畫面用的「view」（與房主的 s 同一種欄位名稱，畫面程式只寫一套）
   function unsnap(o) {
-    var v = { t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
+    var v = { mode: o.md, heat: o.ht | 0, q: o.q || null, t: o.t, ph: o.ph, stage: o.st, map: o.mp, dur: o.du, diff: o.df, kills: o.k, freeze: o.fz, fe: o.fe || {}, wx: { k: o.wx || "clear" }, rivers: o.rv || [], P: {}, E: [], S: [], B: [], G: [], D: [], Z: o.Z || [], W: o.W || [], fx: unpackFx(o.fx || []), msg: o.msg || [], bossName: o.bn, bh: o.bh, mb: o.mb, mbn: o.mbn };
     Object.keys(o.P || {}).forEach(function (pid) {
       var p = o.P[pid];
       v.P[pid] = {
         pid: pid, name: p.n, dm: p.dm, x: p.x, z: p.z, fx: p.fx, fz: p.fz, hp: p.hp, mhp: p.mh, lv: p.lv, xp: p.xp, xn: p.xn, down: p.dn, rv: p.rv, iv: p.iv, ult: p.u, sp: p.sp, gold: p.g, kills: p.kl, dmg: p.dg, rr: p.rr, rev: p.re, cb: p.cb, cbMax: p.cm, jin: p.jn || 0, afk: p.af || 0,
-        ultN: p.un || 0,
+        ultN: p.un || 0, kg: p.kg || 0, arc: p.ac || [], arcQ: p.aq || 0, bn: p.bn || 0, sk: p.sk || 0,
         W: (p.W || []).map(function (w) { return { id: w[0], lv: w[1], evo: w[2], ot: w[3], ft: w[4], mods: w[5] ? String(w[5]).split(",") : [] }; }), A: (p.A || []).map(function (a) { return { id: a[0], lv: a[1] }; }),
         opts: p.op || null, pend: p.pe, buf: (p.bf || []).reduce(function (m, k) { m[k] = 1; return m; }, {}), meta: p.m || {}
       };
@@ -1489,6 +1712,7 @@
     create: create, addPlayer: addPlayer, removePlayer: removePlayer, step: step, applyIntent: applyIntent, players: players,
     calcStats: calcStats, comboBonus: comboBonus, synergies: synergies, weaponMods: weaponMods, ultTier: ultTier, wParams: wParams, prefBonus: prefBonus, prefCounts: prefCounts, canEvolve: canEvolve, moveSpeed: moveSpeed, stepMove: stepMove, inRiver: inRiver,
     snap: snap, unsnap: unsnap, serialize: serialize, deserialize: deserialize, xpNeed: xpNeed, baseStats: baseStats,
+    schoolTiers: TK ? TK.schoolTiers : function () { return {}; },
     _rnd: rnd
   };
 })();

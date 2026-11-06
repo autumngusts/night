@@ -23,7 +23,7 @@
       st.staff.forEach(function (s) { if (s.hofId === h.id) staff = s; });
       var choice = view.hire[h.id] || (view.hire[h.id] = { role: "mentor", dir: h.dir });
       var body = [
-        UI.avatar({ look: h.look, rarity: h.rarity, dir: h.dir }, 64),
+        UI.avatar({ look: h.look, rarity: h.rarity, dir: h.dir, gender: h.gender, rosterId: h.rosterId, nameSeed: h.nameSeed }, 64),
         el("b", { text: UI.hallName(h) }),
         el("div", { class: "sv-small sv-muted", text: t("sv_hall_entry", { era: h.era, dir: UI.dirName(h.dir), score: h.score }) }),
         el("div", { class: "sv-small sv-warn", text: "🏆 " + h.trophies.length })

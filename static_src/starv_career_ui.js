@@ -10,7 +10,7 @@
   function open(App, s) {
     showing = s.id;
     UI.openModal(function (box, close) {
-      var look = { look: s.look, rarity: s.rarity, dir: s.dir };
+      var look = { look: s.look, rarity: s.rarity, dir: s.dir, gender: s.gender, rosterId: s.rosterId, nameSeed: s.nameSeed };
       box.appendChild(UI.modalHead(t("sv_retire_title"), close));
       box.appendChild(el("div", { class: "sv-retire-hero" }, [
         UI.avatar(look, 120),

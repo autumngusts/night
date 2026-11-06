@@ -187,3 +187,54 @@
 .yk-slot-mods { position: absolute; left: -4px; top: -7px; font-style: normal; font-size: 9px; line-height: 1; background: rgba(0, 0, 0, 0.7); border-radius: 4px; padding: 1px 2px; letter-spacing: -1px; }
 .yk-opt-mod { border-left: 4px solid #a070ff; }
 .yk-syn { border-color: #80c0ff !important; color: #c0e0ff; }
+
+/* ---------------- 新模式「天下布武」（2026-11-06） ---------------- */
+.yk-tk-menu { border-color: var(--yk-gold) !important; background: rgba(217, 165, 32, 0.1) !important; }
+.yk-tk-head { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.yk-tk-title { font-size: 1.2em; }
+.yk-tk-wallet { display: flex; gap: 0.4rem; }
+.yk-tk-kg { border: 1px solid var(--yk-gold); font-weight: bold; }
+/* 軍略樹 */
+.yk-tk-scroll { overflow-x: auto; max-width: 100%; padding-bottom: 0.3rem; }
+.yk-tk-tree { position: relative; margin: 0 auto; }
+.yk-tk-lines { position: absolute; inset: 0; pointer-events: none; }
+.yk-tk-lines line { stroke-width: 3; }
+.yk-tk-ln { stroke: rgba(127, 127, 127, 0.35); }
+.yk-tk-ln-on { stroke: var(--yk-gold); }
+.yk-tk-node { position: absolute; transform: translate(-50%, -50%); width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--yk-line); background: var(--yk-card); color: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; line-height: 1.05; }
+.yk-tk-ic { font-size: 19px; }
+.yk-tk-lv { font-size: 10px; }
+.yk-tk-lock { opacity: 0.4; }
+.yk-tk-open { border-color: var(--yk-accent); }
+.yk-tk-some { border-color: var(--yk-gold); background: rgba(217, 165, 32, 0.18); }
+.yk-tk-max { border-color: var(--yk-gold); background: var(--yk-gold); color: #2a1a00; }
+.yk-tk-node.yk-on { box-shadow: 0 0 0 3px var(--yk-accent); }
+.yk-tk-detail { border: 1px solid var(--yk-line); border-radius: 8px; padding: 0.55rem 0.7rem; margin-top: 0.4rem; }
+/* 符文格 */
+.yk-tk-boardrow { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.yk-tk-boardpad { padding: 0 20px 18px 0; }
+.yk-tk-board { position: relative; background: repeating-linear-gradient(0deg, transparent 0 33px, rgba(127, 127, 127, 0.25) 33px 34px), repeating-linear-gradient(90deg, transparent 0 33px, rgba(127, 127, 127, 0.25) 33px 34px); border: 2px solid var(--yk-gold); border-radius: 4px; box-sizing: content-box; }
+.yk-tk-cell { position: absolute; width: 34px; height: 34px; border: 1px solid transparent; background: transparent; color: #fff; padding: 0; font-size: 13px; font-weight: bold; font-family: serif; text-shadow: 0 0 2px #000; box-sizing: border-box; }
+.yk-tk-filled { border-color: rgba(0, 0, 0, 0.25); }
+.yk-tk-pv-ok { box-shadow: inset 0 0 0 3px #3fcf7f; background-color: rgba(63, 207, 127, 0.25); }
+.yk-tk-pv-ng { box-shadow: inset 0 0 0 3px #ff5050; background-color: rgba(255, 80, 80, 0.25); }
+.yk-tk-rowmark, .yk-tk-colmark { position: absolute; color: var(--yk-good); font-weight: bold; font-size: 13px; transform: translate(0, -50%); }
+.yk-tk-colmark { transform: translate(-50%, 0); }
+.yk-tk-boardinfo { flex: 1 1 14rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.yk-tk-hand { display: inline-flex; padding: 2px; border: 1px dashed var(--yk-accent); border-radius: 4px; }
+.yk-tk-inv { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.4rem; }
+.yk-tk-rune { display: flex; align-items: center; gap: 0.5rem; text-align: left; border: 1px solid var(--yk-line); border-radius: 8px; padding: 0.35rem 0.5rem; background: transparent; color: inherit; }
+.yk-tk-rune.yk-r3 { border-color: var(--yk-gold); }
+.yk-tk-rune.yk-r2 { border-color: #7aa0e0; }
+.yk-tk-used { opacity: 0.5; }
+.yk-tk-rune-b { display: flex; flex-direction: column; gap: 0.1rem; }
+.yk-tk-shape { display: inline-flex; flex: 0 0 auto; vertical-align: middle; }
+/* 戰場 */
+.yk-tk-quest { position: absolute; top: 74px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: bold; color: #ffe08a; background: rgba(0, 0, 0, 0.55); padding: 2px 10px; border-radius: 10px; white-space: nowrap; }
+@media (max-width: 520px) { .yk-tk-quest { top: 66px; font-size: 11px; } }
+.yk-tk-opt-arc { border-left: 4px solid #e8c547; }
+.yk-tk-arcbox { border-color: #e8c547; box-shadow: 0 0 18px rgba(232, 197, 71, 0.4); }
+.yk-tk-ban { font-size: 12px; padding: 0.2rem 0.5rem; }
+.yk-tk-school { border-color: #e8c547 !important; color: #ffe8a0; }
+.yk-tk-arcchip { border-color: #c080ff !important; color: #e8d0ff; }
+.yk-tk-result { border: 1px solid var(--yk-gold); border-radius: 8px; padding: 0.4rem 0.7rem; margin-bottom: 0.6rem; }

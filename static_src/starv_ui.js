@@ -56,10 +56,36 @@
   }
 
   // a 可以是藝人，也可以是名錄項目（兩者都有 look／rarity／dir）
+  // 2026-11-06 使用者指定：頭像改用時間管理大師（jikan）的插圖。插圖全是女生，所以只套用在女藝人；
+  // 男藝人（gender === "m"）維持原本的 SVG。同一組外觀＋名錄 id 一定對到同一張（雜湊），各畫面一致。
+  var IMG_BASE = (function () {
+    var app = document.getElementById("sv-app") || document.querySelector("[data-img]");
+    return (app && app.getAttribute("data-img")) || "../static/images/jikan/";
+  })();
+  var PHOTO_POOL = (function () {
+    var arr = [], i;
+    for (i = 0; i < 143; i++) arr.push("g_" + ("00" + i).slice(-3));
+    for (i = 0; i < 32; i++) arr.push("n_" + ("00" + i).slice(-3));
+    return arr;
+  })();
+  function photoKey(a) {
+    var lk = a.look || {};
+    var s = [a.rosterId || (a.addedIn ? a.id : "") || "", a.nameSeed || "", lk.face, lk.hair, lk.hairColor, lk.eye, lk.outfit, lk.acc, lk.skin].join("|");
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return PHOTO_POOL[(h >>> 0) % PHOTO_POOL.length];
+  }
   function avatar(a, size) {
     var d = D.DIR_BY_ID[a.dir];
+    var bg = d ? d.color : "#7c4dff";
     var node = el("span", { class: "sv-ava sv-ava-" + String(a.rarity).toLowerCase(), style: "--sv-size:" + (size || 56) + "px" });
-    node.innerHTML = Avatar.svg(a.look, { bg: d ? d.color : "#7c4dff" });
+    if (a.gender === "m" || !a.look) {
+      node.innerHTML = Avatar.svg(a.look, { bg: bg });
+      return node;
+    }
+    var im = el("img", { class: "sv-ava-photo", src: IMG_BASE + photoKey(a) + ".webp", alt: "", loading: "lazy", style: "background:" + bg });
+    im.addEventListener("error", function () { node.innerHTML = Avatar.svg(a.look, { bg: bg }); });
+    node.appendChild(im);
     return node;
   }
   function rarity(r) { return el("span", { class: "sv-rar sv-rar-" + String(r).toLowerCase(), text: r }); }

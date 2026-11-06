@@ -12,7 +12,7 @@
   var queue = [];
   var playing = false;
 
-  function performer(a) { return { look: a.look, rarity: a.rarity, gender: a.gender, name: UI.name(a) }; }
+  function performer(a) { return { look: a.look, rarity: a.rarity, gender: a.gender, rosterId: a.rosterId, nameSeed: a.nameSeed, name: UI.name(a) }; }
   function performers(st, ids) { return ids.map(function (id) { return Core.artistById(st, id); }).filter(Boolean).map(performer); }
 
   function enqueue(job) {

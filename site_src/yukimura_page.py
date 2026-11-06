@@ -4,6 +4,7 @@
 遊戲邏輯全部在瀏覽器端：static/yukimura_data.js（資料）→ yukimura_core.js（規則與模擬）
 → yukimura_net.js（多人連線：firebase_config.js／game_storage.js 的 rtState）→ yukimura_3d.js（three.js，進入戰場才載入）→ yukimura.js（畫面）。
 2026-11-05 依使用者需求新增。
+2026-11-06 新模式「天下布武」：yukimura_tenka.js（軍略樹、符文、天命、流派、軍令資料）、yukimura_tenka_ui.js（軍略樹與符文格畫面）。
 """
 
 from __future__ import annotations
@@ -12,12 +13,14 @@ from site_src.layout import asset_url, page_shell
 
 YUKIMURA_SCRIPTS: tuple[str, ...] = (
     "yukimura_data.js",
+    "yukimura_tenka.js",
     "yukimura_core.js",
     "firebase_config.js",
     "game_storage.js",
     "qrcode.js",
     "yukimura_net.js",
     "yukimura_3d.js",
+    "yukimura_tenka_ui.js",
     "yukimura.js",
 )
 

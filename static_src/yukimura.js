@@ -8,6 +8,7 @@
   "use strict";
 
   var D = window.PriTestYukimuraData, Core = window.PriTestYukimuraCore, V3 = window.PriTestYukimura3D, Net = window.PriTestYukimuraNet;
+  var TK = window.PriTestYukimuraTenka, TKUI = window.PriTestYukimuraTenkaUI;   // 新模式「天下布武」
   var app = document.getElementById("yk-app");
   if (!app) return;
   var PREF_KEY = "pritest-yukimura-pref", NAME_KEY = "pritest-yukimura-name", PROG_KEY = "pritest-yukimura-progress";
@@ -27,6 +28,31 @@
     return pg;
   }
   function saveProgress(pg) { lsSet(PROG_KEY, JSON.stringify(pg)); }
+  // 新模式「天下布武」的存檔：軍功（新幣別）、軍略樹、符文背包與符文格配置
+  var TK_KEY = "pritest-yukimura-tenka";
+  function tkProgress() {
+    var tp = jget(TK_KEY, {});
+    if (!tp.tree || typeof tp.tree !== "object") tp.tree = {};
+    if (!tp.best || typeof tp.best !== "object") tp.best = {};
+    if (!Array.isArray(tp.inv)) tp.inv = [];
+    if (!Array.isArray(tp.board)) tp.board = [];
+    tp.kg = Number(tp.kg) || 0; tp.nu = tp.nu | 0; tp.heat = tp.heat | 0; tp.games = tp.games | 0; tp.wins = tp.wins | 0;
+    tp.inv = tp.inv.filter(function (r) { return r && TK.RUNE[r.k]; });
+    var have = {};
+    tp.inv.forEach(function (r) { have[r.u] = 1; });
+    tp.board = tp.board.filter(function (b) { return b && have[b.u] && TK.RUNE[b.k]; });
+    // 第一次進入：送 5 個入門符文，讓玩家先試著拼
+    if (!tp.starter) { tp.starter = 1; ["bu", "ju", "soku", "kou", "kin"].forEach(function (k) { TKUI.addRune(tp, k); }); lsSet(TK_KEY, JSON.stringify(tp)); }
+    return tp;
+  }
+  function saveTk(tp) { lsSet(TK_KEY, JSON.stringify(tp)); }
+  // 出陣時帶進對局的 meta：原本的本陣強化＋天下布武的軍略（tk）
+  function sortieMeta(mode) {
+    var m = {}, pm = progress().meta;
+    Object.keys(pm).forEach(function (k) { m[k] = pm[k]; });
+    if (mode === "tenka") m.tk = TK.loadout(tkProgress());
+    return m;
+  }
   function unlockedStage(pg) { var n = 0; for (var i = 0; i < D.STAGES.length; i++) if (pg.cleared[i]) n = i + 1; return Math.min(D.STAGES.length - 1, n); }
 
   function el(tag, attrs, children) {
@@ -71,7 +97,8 @@
   var p0 = pref();
   var ui = {
     screen: "home", dm: D.DAIMYO[p0.dm] ? p0.dm : 0, stage: p0.stage | 0, map: p0.map === undefined ? -1 : p0.map, diff: p0.diff || "normal",
-    dur: p0.dur || 900, quality: p0.quality || (window.innerWidth < 700 ? "low" : "high"), codex: "daimyo", room: null, paused: false, dmFilter: ""
+    dur: p0.dur || 900, quality: p0.quality || (window.innerWidth < 700 ? "low" : "high"), codex: "daimyo", room: null, paused: false, dmFilter: "",
+    tkTab: "sortie", tkCtx: {}, mode: p0.mode === "tenka" ? "tenka" : "normal"
   };
   var sess = null, view3 = null;
 
@@ -86,6 +113,7 @@
     else if (ui.screen === "lobby") renderLobby();
     else if (ui.screen === "codex") renderCodex();
     else if (ui.screen === "meta") renderMeta();
+    else if (ui.screen === "tenka") renderTenka();
     else if (ui.screen === "result") renderResult();
   }
   function goHome() {
@@ -102,6 +130,7 @@
     ]));
     app.appendChild(el("div", { class: "yk-menu" }, [
       btn("⚔️ " + t("yk_menu_solo"), function () { ui.screen = "setup"; render(); }, "yk-big yk-primary-soft"),
+      btn("🎴 " + t("yk_menu_tenka"), function () { ui.screen = "tenka"; ui.tkTab = "sortie"; render(); }, "yk-big yk-tk-menu"),
       btn("🤝 " + t("yk_menu_coop"), function () { openRoom(null); }, "yk-big"),
       btn("🏯 " + t("yk_menu_meta"), function () { ui.screen = "meta"; render(); }, "yk-big"),
       btn("📜 " + t("yk_menu_codex"), function () { ui.screen = "codex"; render(); }, "yk-big")
@@ -184,7 +213,7 @@
       el("div", { class: "yk-field" }, [t("yk_diff"), seg(Object.keys(D.DIFFS).map(function (k) { return [k, L(D.DIFFS[k].name)]; }), ui.diff, function (k) { ui.diff = k; setPref({ diff: k }); render(); })]),
       el("div", { class: "yk-field" }, [t("yk_dur"), seg([[900, t("yk_dur_15")], [300, t("yk_dur_5")]], ui.dur, function (k) { ui.dur = Number(k); setPref({ dur: ui.dur }); render(); })]),
       el("p", { class: "yk-small yk-muted" }, [t("yk_dur_note")]),
-      el("div", { class: "yk-actions yk-next" }, [btn("⚔️ " + t("yk_start"), startSolo, "yk-btn yk-primary")])
+      el("div", { class: "yk-actions yk-next" }, [btn("⚔️ " + t("yk_start"), function () { startSolo("normal"); }, "yk-btn yk-primary")])
     ]));
   }
 
@@ -201,6 +230,69 @@
     app.appendChild(panel(t("yk_menu_meta"), [el("p", { class: "yk-small" }, [t("yk_meta_note", { b: Math.floor(pg.bank) })])].concat(rows, [
       el("div", { class: "yk-actions" }, [btn(t("yk_meta_reset"), function () { if (!window.confirm(t("yk_meta_reset_q"))) return; var p2 = progress(); var back = 0; D.META.forEach(function (m) { for (var i = 0; i < (p2.meta[m.k] | 0); i++) back += Math.round(m.cost * Math.pow(1.6, i)); }); p2.bank += back; p2.meta = {}; saveProgress(p2); render(); }, "yk-link")])
     ])));
+  }
+
+  // ---------------- 新模式「天下布武」：出陣／軍略樹／符文格／說明 ----------------
+  function tkCtx() {
+    var c = ui.tkCtx;
+    c.el = el; c.btn = btn; c.t = t; c.L = L; c.hex = hex; c.statText = statText;
+    c.get = tkProgress; c.save = saveTk; c.rerender = render;
+    return c;
+  }
+  function renderTenka() {
+    var tp = tkProgress(), pg = progress();
+    app.appendChild(el("div", { class: "yk-tk-head" }, [
+      el("div", null, [el("strong", { class: "yk-tk-title" }, ["🎴 " + t("yk_menu_tenka")]), el("div", { class: "yk-small yk-muted" }, [t("yk_tk_intro")])]),
+      el("div", { class: "yk-tk-wallet" }, [el("span", { class: "yk-chip yk-tk-kg" }, ["🎖️ " + Math.floor(tp.kg)]), el("span", { class: "yk-chip" }, ["💰 " + Math.floor(pg.bank)])])
+    ]));
+    app.appendChild(el("div", { class: "yk-field" }, [seg([["sortie", "⚔️ " + t("yk_tk_tab_sortie")], ["tree", "🏯 " + t("yk_tk_tab_tree")], ["runes", "🔲 " + t("yk_tk_tab_runes")], ["guide", "📜 " + t("yk_tk_tab_guide")]], ui.tkTab, function (k) { ui.tkTab = k; render(); })]));
+    if (ui.tkTab === "tree") { app.appendChild(panel(t("yk_tk_tab_tree"), [el("p", { class: "yk-small" }, [t("yk_tk_tree_note")]), TKUI.Tree(tkCtx())])); return; }
+    if (ui.tkTab === "runes") { app.appendChild(panel(t("yk_tk_tab_runes"), [el("p", { class: "yk-small" }, [t("yk_tk_runes_note")]), TKUI.Board(tkCtx())])); return; }
+    if (ui.tkTab === "guide") { renderTenkaGuide(); return; }
+    // 出陣
+    var maxSt = unlockedStage(pg);
+    if (ui.stage > maxSt) ui.stage = maxSt;
+    var lo = TK.loadout(tp), metaN = 0;
+    D.META.forEach(function (m) { metaN += pg.meta[m.k] | 0; });
+    var treeN = 0;
+    Object.keys(tp.tree).forEach(function (k) { treeN += tp.tree[k] | 0; });
+    var hm = TK.heatMul(tp.heat);
+    app.appendChild(panel(t("yk_tk_carry_title"), [
+      el("ul", { class: "yk-rules" }, [
+        el("li", null, [t("yk_tk_carry_meta", { n: metaN })]),
+        el("li", null, [t("yk_tk_carry_tree", { n: treeN })]),
+        el("li", null, [t("yk_tk_carry_runes", { n: lo.runes.length, l: lo.lines }), lo.perfect ? el("span", { class: "yk-chip yk-good" }, ["🌟 " + t("yk_tk_perfect")]) : null]),
+        el("li", null, [t("yk_tk_carry_extra", { b: TK.treeSp(tp.tree, "ban"), s: TK.treeSp(tp.tree, "skip"), a: 3 + Math.min(1, TK.treeSp(tp.tree, "arcN")) })])
+      ]),
+      el("div", { class: "yk-actions" }, [btn("🏯 " + t("yk_tk_tab_tree"), function () { ui.tkTab = "tree"; render(); }, "yk-btn"), btn("🔲 " + t("yk_tk_tab_runes"), function () { ui.tkTab = "runes"; render(); }, "yk-btn"), btn("🏯 " + t("yk_menu_meta"), function () { ui.screen = "meta"; render(); }, "yk-btn")])
+    ]));
+    app.appendChild(panel(t("yk_pick_daimyo"), [daimyoPicker(ui.dm, function (i) { ui.dm = i; setPref({ dm: i }); render(); })]));
+    app.appendChild(panel(t("yk_pick_stage"), [
+      stagePicker(ui.stage, ui.map, function (i) { ui.stage = i; ui.map = -1; setPref({ stage: i, map: -1 }); render(); }, function (m) { ui.map = Number(m); setPref({ map: ui.map }); render(); }, maxSt),
+      el("div", { class: "yk-field" }, [t("yk_diff"), seg(Object.keys(D.DIFFS).map(function (k) { return [k, L(D.DIFFS[k].name)]; }), ui.diff, function (k) { ui.diff = k; setPref({ diff: k }); render(); })]),
+      el("div", { class: "yk-field" }, [t("yk_dur"), seg([[900, t("yk_dur_15")], [300, t("yk_dur_5")]], ui.dur, function (k) { ui.dur = Number(k); setPref({ dur: ui.dur }); render(); })]),
+      el("div", { class: "yk-field" }, [t("yk_tk_heat"), seg([0, 1, 2, 3, 4, 5].map(function (h) { return [h, h ? "🐉" + h : t("yk_tk_heat0")]; }), tp.heat, function (h) { var p2 = tkProgress(); p2.heat = Number(h); saveTk(p2); render(); })]),
+      el("p", { class: "yk-small yk-muted" }, [t("yk_tk_heat_note", { hp: Math.round((hm.hp - 1) * 100), d: Math.round((hm.dmg - 1) * 100), m: Math.round((hm.medal - 1) * 100) })]),
+      el("div", { class: "yk-actions yk-next" }, [
+        btn("⚔️ " + t("yk_start"), function () { startSolo("tenka"); }, "yk-btn yk-primary"),
+        btn("🤝 " + t("yk_menu_coop"), function () { ui.mode = "tenka"; setPref({ mode: "tenka" }); openRoom(null); }, "yk-btn")
+      ])
+    ]));
+  }
+  function renderTenkaGuide() {
+    var body = [el("ul", { class: "yk-rules" }, [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return el("li", null, [t("yk_tk_help_" + i)]); }))];
+    body.push(panel(t("yk_tk_arcana", { n: TK.ARCANA.length }), [el("div", { class: "yk-cxgrid" }, TK.ARCANA.map(function (a) { return el("div", { class: "yk-cx" }, [el("strong", null, [a.icon, " ", L(a.name)]), el("div", { class: "yk-small" }, [L(a.desc)])]); }))]));
+    body.push(panel(t("yk_tk_schools"), [el("div", { class: "yk-cxgrid" }, TK.SCHOOLS.map(function (sc) {
+      return el("div", { class: "yk-cx", style: "border-left:4px solid " + hex(sc.color) }, [el("strong", null, [sc.icon, " ", L(sc.name)]),
+        el("div", { class: "yk-small" }, [sc.arches.map(function (k) { var A = D.ARCHES.filter(function (x) { return x.k === k; })[0]; return A ? A.icon + L(A.name) : k; }).join("・")]),
+        el("div", { class: "yk-small" }, sc.tiers.map(function (tier, i) { return el("div", null, [t("yk_tk_tier", { n: TK.TIER_N[i] }), "：", tier.map(function (b) { return statText(b[0], b[1]); }).join("・")]); })),
+        el("div", { class: "yk-small yk-muted" }, [L(sc.desc)])]);
+    }))]));
+    body.push(panel(t("yk_tk_runelist", { n: TK.RUNES.length }), [el("div", { class: "yk-cxgrid" }, TK.RUNES.map(function (r) {
+      return el("div", { class: "yk-cx" }, [el("div", { class: "yk-dmhead" }, [el("span", { class: "yk-tk-shape", html: TKUI.shapeSvg(r.k, 0, 11, tkCtx()) }), el("strong", null, [L(r.name)]), el("span", { class: "yk-chip" }, ["★".repeat(r.r)])]), el("div", { class: "yk-small" }, [TKUI.runeDesc(tkCtx(), r.k)])]);
+    }))]));
+    body.push(panel(t("yk_tk_affix"), [el("div", { class: "yk-chips" }, TK.AFFIX.map(function (a) { return el("span", { class: "yk-chip" }, [a.icon + " " + L(a.name) + "：" + t("yk_tk_af_" + a.k)]); }))]));
+    app.appendChild(panel(t("yk_tk_tab_guide"), body));
   }
 
   // ---------------- 圖鑑 ----------------
@@ -286,8 +378,8 @@
     if (ui.room) ui.room.close();
     var pg = progress();
     ui.room = Net.open({
-      roomId: roomId, name: myName(), dm: ui.dm, meta: pg.meta,
-      cfg: { stage: Math.min(ui.stage, unlockedStage(pg)), map: ui.map, diff: ui.diff, dur: ui.dur, maxStage: unlockedStage(pg) },
+      roomId: roomId, name: myName(), dm: ui.dm, meta: sortieMeta("tenka"),
+      cfg: { stage: Math.min(ui.stage, unlockedStage(pg)), map: ui.map, diff: ui.diff, dur: ui.dur, maxStage: unlockedStage(pg), mode: ui.mode, heat: tkProgress().heat },
       onChange: function () { roomChanged(); },
       onSnap: function (o) { if (sess && !sess.host) sess.onSnap(o); },
       onFull: function () { },
@@ -349,18 +441,20 @@
         stagePicker(cfg.stage | 0, cfg.map === undefined ? -1 : cfg.map, function (i) { r.setCfg(Object.assign({}, cfg, { stage: i, map: -1 })); render(); }, function (m) { r.setCfg(Object.assign({}, cfg, { map: Number(m) })); render(); }, maxSt),
         el("div", { class: "yk-field" }, [t("yk_diff"), seg(Object.keys(D.DIFFS).map(function (k) { return [k, L(D.DIFFS[k].name)]; }), cfg.diff || "normal", function (k) { r.setCfg(Object.assign({}, cfg, { diff: k })); render(); })]),
         el("div", { class: "yk-field" }, [t("yk_dur"), seg([[900, t("yk_dur_15")], [300, t("yk_dur_5")]], cfg.dur || 900, function (k) { r.setCfg(Object.assign({}, cfg, { dur: Number(k) })); render(); })]),
+        el("div", { class: "yk-field" }, [t("yk_tk_mode"), seg([["normal", t("yk_mode_normal")], ["tenka", "🎴 " + t("yk_menu_tenka")]], cfg.mode || "normal", function (k) { ui.mode = k; setPref({ mode: k }); r.setCfg(Object.assign({}, cfg, { mode: k })); render(); })]),
+        cfg.mode === "tenka" ? el("div", { class: "yk-field" }, [t("yk_tk_heat"), seg([0, 1, 2, 3, 4, 5].map(function (h) { return [h, h ? "🐉" + h : t("yk_tk_heat0")]; }), cfg.heat | 0, function (h) { r.setCfg(Object.assign({}, cfg, { heat: Number(h) })); render(); })]) : null,
         el("div", { class: "yk-actions yk-next" }, [btn("⚔️ " + t("yk_start"), hostStart, "yk-btn yk-primary")])
       ]));
     } else {
       var st = D.STAGES[cfg.stage | 0] || D.STAGES[0];
-      app.appendChild(panel(t("yk_pick_stage"), [el("p", null, [t("yk_stage_n", { n: (cfg.stage | 0) + 1 }), " ", L(st.name), "・", L((D.DIFFS[cfg.diff] || D.DIFFS.normal).name), "・", mmss(cfg.dur || 900)]), el("p", { class: "yk-muted" }, [t("yk_wait_host")])]));
+      app.appendChild(panel(t("yk_pick_stage"), [el("p", null, [t("yk_stage_n", { n: (cfg.stage | 0) + 1 }), " ", L(st.name), "・", L((D.DIFFS[cfg.diff] || D.DIFFS.normal).name), "・", mmss(cfg.dur || 900), cfg.mode === "tenka" ? "・🎴 " + t("yk_menu_tenka") + (cfg.heat ? " 🐉" + cfg.heat : "") : ""]), el("p", { class: "yk-muted" }, [t("yk_wait_host")])]));
     }
   }
   function hostStart() {
     var r = ui.room;
     if (!r || !r.isHost()) return;
     var cfg = r.cfg || {};
-    var s = Core.create({ stage: cfg.stage | 0, map: cfg.map === undefined ? -1 : cfg.map, diff: cfg.diff, dur: cfg.dur || 900, seed: (Date.now() & 0x7fffffff) });
+    var s = Core.create({ stage: cfg.stage | 0, map: cfg.map === undefined ? -1 : cfg.map, diff: cfg.diff, dur: cfg.dur || 900, seed: (Date.now() & 0x7fffffff), mode: cfg.mode, heat: cfg.heat | 0 });
     if (s.map < 0 || cfg.map < 0) s.map = D.STAGES[s.stage].maps[Math.floor(Math.random() * 2)];
     r.list().forEach(function (p) { Core.addPlayer(s, p.pid, p.name, p.dm, p.meta); });
     r.startGame(Core.serialize(s));
@@ -368,12 +462,12 @@
   }
 
   // ---------------- 場次 ----------------
-  function startSolo() {
-    var pg = progress();
-    var s = Core.create({ stage: ui.stage, map: ui.map, diff: ui.diff, dur: ui.dur, seed: (Date.now() & 0x7fffffff) });
+  function startSolo(mode) {
+    mode = mode === "tenka" ? "tenka" : "normal";
+    var s = Core.create({ stage: ui.stage, map: ui.map, diff: ui.diff, dur: ui.dur, seed: (Date.now() & 0x7fffffff), mode: mode, heat: mode === "tenka" ? tkProgress().heat : 0 });
     if (ui.map < 0) s.map = D.STAGES[ui.stage].maps[Math.floor(Math.random() * 2)];
     s.solo = true;
-    var P = Core.addPlayer(s, "me", myName(), ui.dm, pg.meta);
+    var P = Core.addPlayer(s, "me", myName(), ui.dm, sortieMeta(mode));
     P.local = 1;
     sess = { solo: true, host: true, pid: "me", s: s, view: s, send: function (it) { Core.applyIntent(s, "me", it); } };
     beginGame();
@@ -570,7 +664,7 @@
       if (sess.tick) sess.tick(dt);
     } else {
       var v = sess.view, mine = v && v.P[sess.pid];
-      if (mine && local.me && !mine.down && !mine.opts && v.ph === "play") {
+      if (mine && local.me && !mine.down && !mine.opts && !(mine.pend > 0) && !(mine.arcQ > 0) && !(hud && hud.modal && !hud.modal.classList.contains("yk-hidden")) && v.ph === "play") {
         var tmp = { x: local.me.x, z: local.me.z, fx: local.me.fx, fz: local.me.fz };
         Core.stepMove(v, tmp, mvx, mvz, dt, mine.sp || 4.2);
         local.me.x = tmp.x; local.me.z = tmp.z; local.me.fx = tmp.fx; local.me.fz = tmp.fz;
@@ -643,10 +737,11 @@
   function unbindInput() { if (bound) { bound(); bound = null; } input.keys = {}; input.jx = 0; input.jz = 0; }
   function useUlt() { var v = getView(), me = v && v.P[sess.pid]; if (me && me.ult >= 100 && !me.down) sess.send({ t: "ult" }); }
   var sentPick = "";
+  function optSig(me) { return JSON.stringify(me.opts) + (me.pend || 0) + ":" + (me.lv || 0) + ":" + (me.bn || 0) + ":" + (me.sk || 0) + ":" + (me.rr || 0) + ":" + (me.arcQ || 0); }
   function pickOpt(i) {
     var v = getView(), me = v && v.P[sess.pid];
     if (!me || !me.opts) return;
-    var sig = JSON.stringify(me.opts) + (me.pend || 0) + ":" + (me.lv || 0);
+    var sig = optSig(me);
     if (!sess.host && sentPick === sig) return;
     sentPick = sig;
     sess.send({ t: "pick", i: i });
@@ -654,6 +749,15 @@
     updateHud(true);
   }
   function reroll() { sentPick = ""; sess.send({ t: "reroll" }); }
+  // 天下布武：封印（這個選項之後不再出現）／略過（放棄這次升級，得到少量錢與回復）
+  function banishOpt(i) { sentPick = ""; sess.send({ t: "banish", i: i }); if (hud) hud.modalSig = ""; }
+  function skipLv() {
+    var v = getView(), me = v && v.P[sess.pid];
+    if (!me || !me.opts) return;
+    sess.send({ t: "skip" });
+    if (!sess.host && hud) { sentPick = optSig(me); hud.modal.classList.add("yk-hidden"); hud.modalSig = sentPick; }
+    updateHud(true);
+  }
   function togglePause() { ui.paused = !ui.paused; updateHud(true); }
 
   // ---------------- HUD ----------------
@@ -675,12 +779,14 @@
     ]);
     h.feat = el("div", { class: "yk-feat yk-hidden" });
     h.combo = el("div", { class: "yk-combo" });
+    h.quest = el("div", { class: "yk-tk-quest yk-hidden" });
     h.modal = el("div", { class: "yk-modal yk-hidden" });
     h.pause = el("div", { class: "yk-modal yk-hidden" });
     h.root.appendChild(h.xp);
     h.root.appendChild(el("div", { class: "yk-hudtop" }, [el("div", { class: "yk-hudleft" }, [h.hp, h.info, h.feat]), h.timer, h.menu]));
     h.root.appendChild(h.boss);
     h.root.appendChild(h.combo);
+    h.root.appendChild(h.quest);
     h.root.appendChild(h.items);
     h.root.appendChild(h.team);
     h.root.appendChild(h.toast);
@@ -736,6 +842,13 @@
     if (m.k === "ultup") return "🌟 " + t("yk_msg_ultup", { n: nm, t: m.a });
     if (m.k === "pick" && mine && m.a && m.a.t === "m") return D.MODS[m.a.m].icon + " " + t("yk_msg_mod", { w: L(D.WEAPONS[m.a.id].name), m: L(D.MODS[m.a.m].name) });
     if (m.k === "combo") return "🔥 " + t("yk_msg_combo", { n: nm, c: m.a });
+    if (m.k === "arc" && TK.ARC[m.a]) return TK.ARC[m.a].icon + " " + t("yk_tk_msg_arc", { n: nm, a: L(TK.ARC[m.a].name) });
+    if (m.k === "arcq") return "🎴 " + t("yk_tk_msg_arcq");
+    if (m.k === "kg") return "🎖️ " + t("yk_tk_msg_kg", { n: m.a });
+    if (m.k === "qnew" && TK.QUEST[m.a]) return "📜 " + t("yk_tk_msg_qnew", { q: L(TK.QUEST[m.a].name).replace("{n}", m.b) });
+    if (m.k === "qok") return "🎉 " + t("yk_tk_msg_qok", { n: m.b });
+    if (m.k === "qng") return "❌ " + t("yk_tk_msg_qng");
+    if (m.k === "ban" && mine) return "🚫 " + t("yk_tk_msg_ban");
     if (m.k === "bless") return "⛩ " + t("yk_msg_bless", { n: nm, b: t("yk_bless_" + m.a) });
     if (m.k === "chest" && mine) {
       return "🎁 " + t("yk_msg_chest") + (m.a || []).map(function (r) {
@@ -775,7 +888,7 @@
       hud.hp.firstChild.style.width = Math.max(0, me.hp / me.mhp * 100) + "%";
       hud.hp.lastChild.textContent = Math.ceil(me.hp) + " / " + me.mhp;
       var wxk = v.wx && v.wx.k || "clear";
-      var info = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 }) + (wxk !== "clear" ? "　" + t("yk_wxs_" + wxk) : "") + (me.jin ? "　" + t("yk_jin", { n: me.jin }) : "");
+      var info = "⚔️ " + (me.kills || 0) + "　💰 " + Math.floor(me.gold || 0) + (v.mode === "tenka" ? "　🎖️ " + Math.floor(me.kg || 0) + (v.heat ? "　🐉" + v.heat : "") : "") + "　" + D.FEATS[st.feat].icon + " " + t("yk_stage_n", { n: v.stage + 1 }) + (wxk !== "clear" ? "　" + t("yk_wxs_" + wxk) : "") + (me.jin ? "　" + t("yk_jin", { n: me.jin }) : "");
       if (hud.info.textContent !== info) hud.info.textContent = info;
       var u = D.ULTS[D.DAIMYO[me.dm].ult];
       hud.ult.firstChild.textContent = u.icon;
@@ -785,7 +898,7 @@
       if (hud.ult.className !== uc) hud.ult.className = uc;
       hud.ult.style.setProperty("--yk-ult", (Math.min(100, me.ult) * 3.6) + "deg");
       // 武器與飾品（有變化才重畫）
-      var sig = JSON.stringify([me.W, me.A]);
+      var sig = JSON.stringify([me.W, me.A, me.arc || []]);
       if (sig !== hud.itemsSig || force) {
         hud.itemsSig = sig;
         hud.items.innerHTML = "";
@@ -802,6 +915,11 @@
         var pb = Core.prefBonus(me);
         if (pb.length) hud.items.appendChild(el("span", { class: "yk-chip yk-pb" }, [pb.map(function (x) { return "🔗" + L(D.PREFS[x.p].name) + x.n; }).join(" ")]));
         Core.synergies(me).forEach(function (y) { hud.items.appendChild(el("span", { class: "yk-chip yk-pb yk-syn" }, ["🤝" + L(y.name)])); });
+        if (v.mode === "tenka") {
+          var tiers = Core.schoolTiers(me);
+          Object.keys(tiers).forEach(function (sk) { var sc = TK.SCHOOL[sk]; hud.items.appendChild(el("span", { class: "yk-chip yk-pb yk-tk-school", title: L(sc.desc) }, [sc.icon + L(sc.name) + "★".repeat(tiers[sk])])); });
+          (me.arc || []).forEach(function (k) { var a = TK.ARC[k]; if (a) hud.items.appendChild(el("span", { class: "yk-chip yk-pb yk-tk-arcchip", title: L(a.desc) }, [a.icon + L(a.name)])); });
+        }
       }
       // 選升級
       renderModal(me, v);
@@ -827,6 +945,10 @@
     var cbp = me ? Math.round(Core.comboBonus(me) * 100) : 0;
     var cbt = me && me.cb >= 10 ? (cbp > 0 ? t("yk_combo", { n: me.cb, p: cbp }) : t("yk_combo0", { n: me.cb })) : "";
     if (hud.combo.textContent !== cbt) hud.combo.textContent = cbt;
+    // 軍令
+    var q = v.q, qt = "";
+    if (q && TK.QUEST[q.k]) qt = "📜 " + L(TK.QUEST[q.k].name).replace("{n}", q.n) + "　" + (q.k === "nohit" ? Math.floor(q.h) + "/" + q.n + "s" : Math.min(q.n, Math.floor(q.h)) + "/" + q.n) + "　⏱" + Math.max(0, Math.ceil(q.T));
+    if (qt) { hud.quest.classList.remove("yk-hidden"); if (hud.quest.textContent !== qt) hud.quest.textContent = qt; } else hud.quest.classList.add("yk-hidden");
     // 隊伍
     var pids = Object.keys(v.P);
     var tsig = pids.map(function (p) { var P = v.P[p]; return p + Math.round(P.hp / P.mhp * 20) + P.down + P.lv + (P.afk ? "z" : ""); }).join("|");
@@ -860,7 +982,11 @@
   }
   function optCard(me, o, i) {
     var icon = "", title = "", sub = "", desc = "", cls = "yk-opt";
-    if (o.t === "m") {
+    if (o.t === "arc") {
+      var Ar = TK.ARC[o.k];
+      icon = Ar.icon; title = L(Ar.name); sub = t("yk_tk_opt_arc"); desc = L(Ar.desc);
+      cls += " yk-tk-opt-arc";
+    } else if (o.t === "m") {
       var Wm = D.WEAPONS[o.id], Md = D.MODS[o.m], curm = me.W[o.i];
       icon = Md.icon; title = L(Md.name) + "：" + L(Wm.name);
       sub = t("yk_opt_mod") + "（" + ((curm && curm.mods ? curm.mods.length : 0) + 1) + "/" + D.MAX_MOD + "）";
@@ -892,17 +1018,26 @@
   function renderModal(me, v) {
     var m = hud.modal;
     if (!me.opts || me.down || v.ph !== "play") { m.classList.add("yk-hidden"); hud.modalSig = ""; return; }
-    var sig = JSON.stringify(me.opts) + (me.pend || 0) + ":" + (me.lv || 0);
+    var sig = optSig(me);
     if (sig === hud.modalSig) return;
     if (!sess.host && sig === sentPick) return;   // 已送出，等房主的新快照
     hud.modalSig = sig;
     m.classList.remove("yk-hidden");
     m.innerHTML = "";
-    m.appendChild(el("div", { class: "yk-modal-box yk-lvbox" }, [
-      el("h2", null, ["⬆ " + t("yk_levelup", { n: me.lv }) + (me.pend > 1 ? "（" + t("yk_more", { n: me.pend - 1 }) + "）" : "")]),
+    var isArc = me.opts[0] && me.opts[0].t === "arc";
+    var banRow = null;
+    if (!isArc && me.bn > 0) {
+      var bans = [];
+      me.opts.forEach(function (o, i) { if (o.t === "w" || o.t === "a" || o.t === "m") bans.push(btn("🚫" + (i + 1), function (ev) { ev.stopPropagation(); banishOpt(i); }, "yk-btn yk-tk-ban", { title: t("yk_tk_ban_note") })); });
+      if (bans.length) banRow = el("div", { class: "yk-actions" }, [el("span", { class: "yk-small" }, [t("yk_tk_ban", { n: me.bn })])].concat(bans));
+    }
+    m.appendChild(el("div", { class: "yk-modal-box yk-lvbox" + (isArc ? " yk-tk-arcbox" : "") }, [
+      el("h2", null, [isArc ? "🎴 " + t("yk_tk_arc_title") : "⬆ " + t("yk_levelup", { n: me.lv }) + (me.pend > 1 ? "（" + t("yk_more", { n: me.pend - 1 }) + "）" : "")]),
       sess.solo ? null : el("p", { class: "yk-small yk-muted" }, [t("yk_lv_net_note")]),
       el("div", { class: "yk-opts" }, me.opts.map(function (o, i) { return optCard(me, o, i); })),
-      el("div", { class: "yk-actions" }, [me.rr > 0 ? btn("🎲 " + t("yk_reroll", { n: me.rr }), function (ev) { ev.stopPropagation(); reroll(); }, "yk-btn") : null])
+      banRow,
+      el("div", { class: "yk-actions" }, [me.rr > 0 ? btn("🎲 " + t("yk_reroll", { n: me.rr }), function (ev) { ev.stopPropagation(); reroll(); }, "yk-btn") : null,
+        !isArc && me.sk > 0 ? btn("⏭️ " + t("yk_tk_skip", { n: me.sk }), function (ev) { ev.stopPropagation(); skipLv(); }, "yk-btn") : null])
     ]));
   }
 
@@ -928,8 +1063,24 @@
     if (me && bkey && (!pg.best[bkey] || (pg.best[bkey].won ? 1 : 0) < (won ? 1 : 0) || (pg.best[bkey].won === won && pg.best[bkey].t < v.t))) pg.best[bkey] = { won: won, t: Math.round(v.t), lv: me.lv, k: me.kills };
     if (me) pg.used[me.dm] = (pg.used[me.dm] | 0) + 1;
     saveProgress(pg);
+    // 天下布武：結算軍功（新幣別）與符文
+    var tkRes = null;
+    if (v && v.mode === "tenka" && me) {
+      var tp = tkProgress(), heat = v.heat | 0, hm = TK.heatMul(heat);
+      var medalMul = hm.medal * (1 + 0.12 * TK.treeSp(tp.tree, "medal")) * (v.dur < 900 ? 0.4 : 1);
+      var parts = { run: me.kg || 0, time: Math.floor(v.t / 60) * 3, kills: Math.floor((me.kills || 0) / 150), win: won ? 25 + 10 * v.stage + { normal: 0, hard: 10, hell: 25 }[v.diff] : 0 };
+      var kg = Math.round((parts.run + parts.time + parts.kills + parts.win) * medalMul);
+      tp.kg += kg; tp.games++;
+      if (won) tp.wins++;
+      var nR = (won ? 2 : 0) + Math.min(2, Math.floor(v.t / 300)) + (heat >= 3 ? 1 : 0), got = [];
+      for (var ri = 0; ri < nR; ri++) { var rk = TKUI.rollRune(Math.random, Math.min(1, heat * 0.15 + v.stage * 0.05 + (won ? 0.15 : 0))); TKUI.addRune(tp, rk); got.push(rk); }
+      var tkey = v.stage + ":" + v.diff + ":" + heat;
+      if (!tp.best[tkey] || (tp.best[tkey].won ? 1 : 0) < (won ? 1 : 0) || (!!tp.best[tkey].won === won && tp.best[tkey].t < v.t)) tp.best[tkey] = { won: won, t: Math.round(v.t), lv: me.lv };
+      saveTk(tp);
+      tkRes = { kg: kg, parts: parts, mul: medalMul, runes: got, heat: heat, arc: me.arc || [] };
+    }
     lastResult = {
-      won: won, quit: quit, t: v ? v.t : 0, stage: v ? v.stage : 0, diff: v ? v.diff : "normal", dur: v ? v.dur : 900, gold: gold,
+      won: won, quit: quit, t: v ? v.t : 0, stage: v ? v.stage : 0, diff: v ? v.diff : "normal", dur: v ? v.dur : 900, gold: gold, tk: tkRes,
       players: v ? Object.keys(v.P).map(function (pid) { var P = v.P[pid]; return { me: pid === sess.pid, name: P.name, dm: P.dm, lv: P.lv, kills: P.kills, cbMax: P.cbMax || 0, dmg: P.dmg, W: P.W, A: P.A }; }) : []
     };
     setTimeout(function () {
@@ -948,6 +1099,12 @@
     app.appendChild(panel((r.won ? "🏆 " + t("yk_won") : r.quit ? "🚪 " + t("yk_quitted") : "💀 " + t("yk_lost")), [
       el("p", null, [t("yk_stage_n", { n: r.stage + 1 }), " ", L(st.name), "・", L(D.DIFFS[r.diff].name), "・", t("yk_survived", { t: mmss(r.t) })]),
       el("p", null, [t("yk_gold_got", { n: r.gold, b: Math.floor(progress().bank) })]),
+      r.tk ? el("div", { class: "yk-tk-result" }, [
+        el("p", null, ["🎖️ " + t("yk_tk_kg_got", { n: r.tk.kg, b: Math.floor(tkProgress().kg) })]),
+        el("p", { class: "yk-small yk-muted" }, [t("yk_tk_kg_parts", { a: Math.round(r.tk.parts.run), b: r.tk.parts.time, c: r.tk.parts.kills, d: r.tk.parts.win, m: Math.round(r.tk.mul * 100) / 100 })]),
+        r.tk.arc.length ? el("p", { class: "yk-small" }, [t("yk_tk_arc_used"), "：", r.tk.arc.map(function (k) { return TK.ARC[k] ? TK.ARC[k].icon + L(TK.ARC[k].name) : ""; }).join("・")]) : null,
+        r.tk.runes.length ? el("div", null, [el("p", null, ["🔲 " + t("yk_tk_runes_got", { n: r.tk.runes.length })]), el("div", { class: "yk-chips" }, r.tk.runes.map(function (k) { var R = TK.RUNE[k]; return el("span", { class: "yk-chip yk-r" + R.r }, [el("span", { class: "yk-tk-shape", html: TKUI.shapeSvg(k, 0, 8, tkCtx()) }), " ", L(R.name)]); }))]) : null
+      ]) : null,
       r.won && r.dur >= 900 && r.stage + 1 < D.STAGES.length ? el("p", { class: "yk-good" }, [t("yk_next_unlocked", { n: L(D.STAGES[r.stage + 1].name) })]) : null,
       el("table", { class: "yk-table" }, [el("tr", null, [t("yk_col_name"), t("yk_col_lv"), t("yk_col_kills"), t("yk_col_combo"), t("yk_col_dmg"), t("yk_col_build")].map(function (x) { return el("th", null, [x]); }))].concat(r.players.map(function (p) {
         var d = D.DAIMYO[p.dm];
@@ -955,8 +1112,9 @@
           el("td", { class: "yk-small" }, [p.W.map(function (w) { return D.WEAPONS[w.id].icon + (w.evo ? "★" : w.lv); }).join(" ") + "　" + p.A.map(function (a) { return D.STATS[D.ACCS[a.id].s].icon + a.lv; }).join(" ")])]);
       }))),
       el("div", { class: "yk-actions yk-next" }, [
-        ui.room ? btn(t("yk_back_lobby"), function () { ui.screen = "lobby"; render(); }, "yk-btn yk-primary") : btn("⚔️ " + t("yk_again"), function () { ui.screen = "setup"; if (r.won && r.dur >= 900 && r.stage + 1 < D.STAGES.length) { ui.stage = r.stage + 1; ui.map = -1; setPref({ stage: ui.stage, map: -1 }); } render(); }, "yk-btn yk-primary"),
+        ui.room ? btn(t("yk_back_lobby"), function () { ui.screen = "lobby"; render(); }, "yk-btn yk-primary") : btn("⚔️ " + t("yk_again"), function () { ui.screen = r.tk ? "tenka" : "setup"; ui.tkTab = "sortie"; if (r.won && r.dur >= 900 && r.stage + 1 < D.STAGES.length) { ui.stage = r.stage + 1; ui.map = -1; setPref({ stage: ui.stage, map: -1 }); } render(); }, "yk-btn yk-primary"),
         btn("🏯 " + t("yk_menu_meta"), function () { if (ui.room) { ui.room.close(); ui.room = null; } ui.screen = "meta"; render(); }, "yk-btn"),
+        r.tk ? btn("🎴 " + t("yk_menu_tenka"), function () { if (ui.room) { ui.room.close(); ui.room = null; } ui.screen = "tenka"; ui.tkTab = "tree"; render(); }, "yk-btn") : null,
         btn(t("yk_home"), goHome, "yk-btn")
       ])
     ]));
