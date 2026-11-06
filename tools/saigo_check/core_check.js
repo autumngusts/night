@@ -12,6 +12,7 @@
 //   10. 生涯養成的計算核心（2026-11-05）：確定性、失敗率、目標賽沒達成就結束、二選一事件、技能商店、畢業資料
 //       （平衡數字另外用 tools/saigo_check/career_sim.js 量）
 //   11. 血統繼承（2026-11-06）：因子範圍、開始加成與跑法適性、繼承事件、因子固定不重擲、適性提高會反映在模擬
+//   12. 借用血統（2026-11-06）：分享碼來回、偽造的數值被限制、壞掉的碼、借用不重複／上限、借來的祖先可以開生涯
 // 執行：node tools/saigo_check/core_check.js（約 1〜2 分鐘）
 // ============================================================================
 "use strict";
@@ -435,4 +436,41 @@ console.log("10. 生涯養成 OK");
   assert.ok(tB < tA, "適性提高跑得比較快（" + tA + " → " + tB + "）");
 })();
 console.log("11. 血統繼承 OK");
+
+// 12. 借用血統
+(function () {
+  var LNm = window.PriTestSaigoLineage, CR = window.PriTestSaigoCareer;
+  var rec = { name: "小育", breed: "border", best: "senko", grade: "A+", pts: 1600, career: true, races: 6, wins: 3, titles: 1,
+    factors: { blue: { stat: "spd", star: 3 }, red: { style: "senko", star: 2 }, white: [{ id: "n_corner", star: 2 }] },
+    parents: [{ name: "老邊", breed: "border", factors: { blue: { stat: "sta", star: 1 }, red: { style: "senko", star: 1 }, white: [] } }] };
+  var code = LNm.encode(rec, "阿明"), back = LNm.decode("看這個 " + code + " 謝謝");
+  assert.ok(code.indexOf("SG1-") === 0 && /^SG1-[A-Za-z0-9_-]+$/.test(code), "分享碼只有網址安全的字元");
+  assert.strictEqual(back.name, "小育"); assert.strictEqual(back.owner, "阿明"); assert.strictEqual(back.code, code);
+  assert.deepStrictEqual(back.factors, rec.factors); assert.strictEqual(back.parents[0].name, "老邊");
+  // 偽造：星數、未知技能、太多祖先、未知犬種
+  var fake = JSON.parse(JSON.stringify(rec));
+  fake.factors.blue.star = 9; fake.factors.white = [{ id: "no_such", star: 3 }, { id: "g_escape", star: 7 }, { id: "g_escape", star: 1 }, { id: "n_nige", star: 1 }, { id: "n_sashi", star: 1 }, { id: "n_spurt", star: 1 }];
+  fake.parents = [fake.parents[0], fake.parents[0], fake.parents[0]]; fake.pts = 99999;
+  var fx = LNm.sanitize(fake);
+  assert.strictEqual(fx.factors.blue.star, 3); assert.strictEqual(fx.factors.white.length, 3); assert.strictEqual(fx.factors.white[0].id, "g_escape"); assert.strictEqual(fx.factors.white[0].star, 3);
+  assert.strictEqual(fx.parents.length, 2); assert.strictEqual(fx.pts, 3000);
+  assert.strictEqual(LNm.sanitize({ breed: "wolf", factors: rec.factors }), null, "未知犬種");
+  assert.strictEqual(LNm.decode("SG1-@@@"), null); assert.strictEqual(LNm.decode("hello"), null); assert.strictEqual(LNm.decode("SG1-" + Buffer.from("{bad json").toString("base64")), null);
+  // 借用（假的 localStorage）
+  var mem = {};
+  global.localStorage = { getItem: function (k) { return mem[k] || null; }, setItem: function (k, v) { mem[k] = String(v); } };
+  try {
+    var K = window.PriTestSaigoKennel;
+    var b1 = LNm.borrow(back);
+    assert.ok(b1 && b1.id && b1.borrowed); assert.strictEqual(LNm.borrow(back), "dup", "同一個碼不重複");
+    assert.strictEqual(LNm.getAny(b1.id).name, "小育"); assert.strictEqual(LNm.list().indexOf(b1), -1, "不占血統書");
+    for (var i = 0; i < 12; i++) { var o = JSON.parse(JSON.stringify(rec)); o.name = "N" + i; LNm.borrow(o); }
+    assert.strictEqual(LNm.borrowed().length, LNm.BORROW_MAX); assert.strictEqual(LNm.borrow(Object.assign({}, rec, { name: "多" })), "full");
+    LNm.unborrow(b1.id); assert.strictEqual(LNm.getAny(b1.id), null);
+    var c = CR.create({ breed: "shiba", seed: 3, parents: [back] });
+    assert.strictEqual(c.train.spd, LNm.BLUE_START[3], "借來的祖先也有開始加成");
+    assert.strictEqual(c.parents[0].name, "小育");
+  } finally { delete global.localStorage; }
+})();
+console.log("12. 借用血統 OK");
 console.log("saigo core_check OK");

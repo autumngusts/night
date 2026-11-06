@@ -9,6 +9,7 @@
 // 繼承（開始生涯時選 2 隻祖先；祖先的祖先也算，效果減半）：
 //   開始時：藍 ★1／2／3＝該能力 +BLUE_START[★]；紅：同一種跑法的 ★ 合計（祖父母減半）≥ 2 提高適性 1 階、≥ 6 提高 2 階；
 //   第 9、17 回合的繼承事件：每個因子依 ★ 機率觸發（祖父母機率減半），藍＝再加能力、白＝技能提示 +★ 級。
+// 借用血統（分享碼／連線房間）見下方「借用血統」。
 (function () {
   "use strict";
 
@@ -121,7 +122,76 @@
     return out;
   }
 
+  // ---------------- 借用血統（2026-11-06，規劃 §2.4）----------------
+  // 分享碼＝「SG1-」＋紀錄的 JSON（base64url）。匯入的紀錄放在另一個清單（最多 BORROW_MAX 筆，不占血統書的 30 筆），
+  // 一趟生涯的 2 隻祖先裡最多 1 隻是借來的。連線房間裡每個人自動分享評分最高的 SHARE_N 筆，其他人可以直接借。
+  // 分享碼可以被手動改寫（朋友之間的遊戲，不做防偽），匯入時只把數值限制在合法範圍。
+  var CODE_PREFIX = "SG1-", BORROW_MAX = 10, SHARE_N = 5;
+  function b64e(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function b64d(s) { var b = s.replace(/-/g, "+").replace(/_/g, "/"); while (b.length % 4) b += "="; return decodeURIComponent(escape(atob(b))); }
+  function cleanFactors(f) {
+    if (!f || typeof f !== "object") return null;
+    var bl = f.blue || {}, rd = f.red || {};
+    if (BLUE_STATS.indexOf(bl.stat) < 0 || D.STYLE_IDS.indexOf(rd.style) < 0) return null;
+    var white = [];
+    (Array.isArray(f.white) ? f.white : []).forEach(function (w) { if (w && SK.BY_ID[w.id] && white.length < 3 && !white.some(function (x) { return x.id === w.id; })) white.push({ id: w.id, star: clamp(w.star | 0, 1, 3) }); });
+    return { blue: { stat: bl.stat, star: clamp(bl.star | 0, 1, 3) }, red: { style: rd.style, star: clamp(rd.star | 0, 1, 3) }, white: white };
+  }
+  function cleanName(n) { return String(n || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 12) || "?"; }
+  // 外來的紀錄 → 只留需要的欄位（祖先只留一層、最多 2 隻）
+  function sanitize(r) {
+    if (!r || typeof r !== "object" || !D.BREED_BY_ID[r.breed]) return null;
+    var f = cleanFactors(r.factors);
+    if (!f) return null;
+    var parents = (Array.isArray(r.parents) ? r.parents : []).slice(0, 2).map(function (p) {
+      var pf = p && cleanFactors(p.factors);
+      return pf && D.BREED_BY_ID[p.breed] ? { name: cleanName(p.name), breed: p.breed, factors: pf } : null;
+    }).filter(Boolean);
+    var grade = typeof r.grade === "string" && /^(SS|S|A\+|A|B\+|B|C\+|C|D|E|G)$/.test(r.grade) ? r.grade : "";
+    return { name: cleanName(r.name), breed: r.breed, best: D.STYLE_IDS.indexOf(r.best) >= 0 ? r.best : f.red.style, grade: grade, pts: Math.max(0, Math.min(3000, r.pts | 0)),
+      factors: f, parents: parents, career: !!r.career, races: Math.max(0, r.races | 0), wins: Math.max(0, r.wins | 0), titles: Math.max(0, r.titles | 0), owner: cleanName(r.owner || "") };
+  }
+  function encode(r, owner) {
+    var x = sanitize(r);
+    if (!x) return "";
+    return CODE_PREFIX + b64e(JSON.stringify({ n: x.name, b: x.breed, s: x.best, g: x.grade, p: x.pts, f: x.factors, pa: x.parents, c: x.career ? 1 : 0, r: x.races, w: x.wins, t: x.titles, o: cleanName(owner || r.owner || "") }));
+  }
+  function decode(code) {
+    var c = String(code || "").trim();
+    var m = c.match(/SG1-([A-Za-z0-9_-]+)/);
+    if (!m) return null;
+    try {
+      var o = JSON.parse(b64d(m[1]));
+      var x = sanitize({ name: o.n, breed: o.b, best: o.s, grade: o.g, pts: o.p, factors: o.f, parents: o.pa, career: o.c, races: o.r, wins: o.w, titles: o.t, owner: o.o });
+      if (x) x.code = CODE_PREFIX + m[1];
+      return x;
+    } catch (e) { return null; }
+  }
+  function borrowed() { var s = window.PriTestSaigoKennel.load(); if (!Array.isArray(s.lineageBorrowed)) s.lineageBorrowed = []; return s.lineageBorrowed; }
+  // 借用：同一個分享碼不重複；滿了回 "full"
+  function borrow(rec) {
+    var x = sanitize(rec), list = borrowed();
+    if (!x) return "bad";
+    x.code = rec.code || encode(x, x.owner);
+    if (list.some(function (b) { return b.code === x.code; })) return "dup";
+    if (list.length >= BORROW_MAX) return "full";
+    var s = window.PriTestSaigoKennel.load();
+    if (!isFinite(s.lineageNext)) s.lineageNext = 1;
+    x.id = "B" + (s.lineageNext++); x.borrowed = true; x.at = Date.now();
+    list.unshift(x);
+    window.PriTestSaigoKennel.save();
+    return x;
+  }
+  function unborrow(id) { var s = window.PriTestSaigoKennel.load(); s.lineageBorrowed = borrowed().filter(function (b) { return b.id !== id; }); window.PriTestSaigoKennel.save(); }
+  function getAny(id) { return get(id) || borrowed().filter(function (b) { return b.id === id; })[0] || null; }
+  // 連線房間要分享的：評分最高的 SHARE_N 筆（只放分享用的欄位）
+  function shareList(owner) {
+    return list().slice().sort(function (a, b) { return (b.pts || 0) - (a.pts || 0); }).slice(0, SHARE_N).map(function (r) { return { code: encode(r, owner) }; }).filter(function (x) { return x.code; });
+  }
+
   window.PriTestSaigoLineage = {
+    CODE_PREFIX: CODE_PREFIX, BORROW_MAX: BORROW_MAX, SHARE_N: SHARE_N,
+    sanitize: sanitize, encode: encode, decode: decode, borrowed: borrowed, borrow: borrow, unborrow: unborrow, getAny: getAny, shareList: shareList,
     LINEAGE_MAX: LINEAGE_MAX, BLUE_STATS: BLUE_STATS, BLUE_START: BLUE_START, BLUE_EVENT: BLUE_EVENT, PROC_P: PROC_P, RED_UP: RED_UP, EVENT_TURNS: EVENT_TURNS, COLORS: COLORS,
     makeFactors: makeFactors, list: list, get: get, full: full, add: add, update: update, remove: remove, brief: brief,
     sources: sources, startBonus: startBonus, eventProcs: eventProcs

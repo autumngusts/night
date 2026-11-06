@@ -3,7 +3,8 @@
 // 路徑：games/<roomId>/rtState/sg/...（沿用 game_storage.js 的 rtSet / rtSubscribe，database.rules.json 不用改）
 //   meta          { v: 1, host: cid, no: 場次編號, status: "lobby" | "card" | "race" }
 //   on/<cid>      true（onDisconnect 自動移除＝在線）
-//   pl/<cid>      { name, entry: JSON 字串 | ""（要派出賽的狗）, entries: JSON 陣列字串（真賽狗：可派好幾隻）, ready, no（ready 對應的場次）, at }
+//   pl/<cid>      { name, entry: JSON 字串 | ""（要派出賽的狗）, entries: JSON 陣列字串（真賽狗：可派好幾隻）, ready, no（ready 對應的場次）, at,
+//                   ln: JSON 陣列字串 [{ code }]（2026-11-06：分享給房間的血統書，最多 5 筆，其他人可以借用當祖先） }
 //   cfg           JSON 字串（房主的設定：賽事等級）
 //   m/<no>        { card: JSON（出賽表，含 seed）, startAt: 伺服器時刻 ms（0＝還在下注） }
 //   m/<no>/bets/<pid>  JSON { type: { combo: 金額 } }（彩池制：每個人目前的下注）
@@ -63,7 +64,7 @@
       bank: null, bal: {}, balLoaded: false, jp: null, w5: null, w5p: {}, cup: null,
       loaded: false, missing: false, closed: false,
       meta: null, online: {}, players: {}, cfg: opts.cfg || { cls: "open" }, match: null, matchNo: 0,
-      me: { name: opts.name || "", entry: null, entries: [], ready: false, no: 0, at: 0 }
+      me: { name: opts.name || "", entry: null, entries: [], ready: false, no: 0, at: 0, ln: [] }
     };
 
     function changed() { if (!room.closed && opts.onChange) opts.onChange(); }
@@ -79,13 +80,15 @@
       return Object.keys(room.players).filter(function (k) { return room.online[k]; }).map(function (k) {
         var p = room.players[k] || {};
         var es = parseJson(p.entries);
-        return { cid: k, pid: String(p.pid || ""), name: String(p.name || "").slice(0, 16), entry: parseJson(p.entry), entries: Array.isArray(es) ? es.slice(0, 6) : [], ready: !!p.ready && Number(p.no) === (room.meta && room.meta.no), at: Number(p.at) || 0 };
+        var ln = parseJson(p.ln);
+        return { cid: k, pid: String(p.pid || ""), name: String(p.name || "").slice(0, 16), entry: parseJson(p.entry), entries: Array.isArray(es) ? es.slice(0, 6) : [], ready: !!p.ready && Number(p.no) === (room.meta && room.meta.no), at: Number(p.at) || 0,
+          ln: Array.isArray(ln) ? ln.slice(0, 5).filter(function (x) { return x && typeof x.code === "string" && x.code.length < 4000; }) : [] };
       }).sort(function (x, y) { return (x.at - y.at) || (x.cid < y.cid ? -1 : 1); });
     };
 
     function pushMe() {
       var m = room.me;
-      return set("pl/" + cid, { pid: room.pid, name: m.name || "", entry: m.entry ? JSON.stringify(m.entry) : "", entries: m.entries && m.entries.length ? JSON.stringify(m.entries) : "", ready: !!m.ready, no: m.no || 0, at: m.at });
+      return set("pl/" + cid, { pid: room.pid, name: m.name || "", entry: m.entry ? JSON.stringify(m.entry) : "", entries: m.entries && m.entries.length ? JSON.stringify(m.entries) : "", ready: !!m.ready, no: m.no || 0, at: m.at, ln: m.ln && m.ln.length ? JSON.stringify(m.ln) : "" });
     }
     room.update = function (patch) {
       Object.keys(patch).forEach(function (k) { room.me[k] = patch[k]; });

@@ -5,6 +5,7 @@
 //   生涯技能永久有效（假裝過了 1 小時仍帶進出賽資料）、entry 帶 career 旗標
 //   → 關卡賽有生涯狗出賽時 CPU 補強（同 seed 比較），沒有生涯狗時出賽表不變
 //   → 血統書（2026-11-06）：畢業寫入、選祖先開第二趟（開始加成、第 9 回合繼承事件）、送養寫入／更新、血統書畫面與刪除
+//   → 借用血統（2026-11-06）：分享碼與 QR、另一台裝置打開分享連結借用、重複借用被擋、用借來的狗當祖先開生涯
 // 前置：py -3 generate.py、py -3 -m http.server 8947 --directory dist
 // 執行：node tools/saigo_check/career_check.js
 // ============================================================================
@@ -210,6 +211,44 @@ function clickText(page, text) {
   await clickText(page, "刪除");
   await page.waitForTimeout(100);
   assert.strictEqual(await page.$$eval(".sg-ln-card", function (x) { return x.length; }), 1, "刪除");
+
+  // ---- 借用血統（2026-11-06）：分享 → 另一台裝置打開連結 → 借用 → 當祖先 ----
+  await page.dispatchEvent(".sg-ln-card [data-share]", "click");
+  await page.waitForSelector(".sg-ln-code");
+  var code = await page.$eval(".sg-ln-code", function (x) { return x.value; });
+  assert.ok(/^SG1-[A-Za-z0-9_-]+$/.test(code), "分享碼");
+  assert.ok(await page.$(".sg-ln-share canvas"), "有 QR 碼");
+  await page.screenshot({ path: path.join(SHOT_DIR, "lineage_share.png"), fullPage: true });
+  var ctx2 = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+  await ctx2.addInitScript(function () { try { if (!sessionStorage.getItem("sg-init")) { sessionStorage.setItem("sg-init", "1"); localStorage.clear(); localStorage.setItem("pritest-lang", "zh"); localStorage.setItem("pritest-saigo-pref", JSON.stringify({ no3d: true })); } } catch (e) { /* 測試環境 */ } });
+  var p2 = await ctx2.newPage();
+  p2.on("pageerror", function (e) { errors.push("p2: " + e); });
+  await p2.goto(BASE + "?lineage=" + code);
+  await p2.waitForSelector("#sg-ln-borrow");
+  assert.strictEqual(await ev(p2, function () { return location.search; }), "", "網址上的分享碼拿掉了");
+  await p2.dispatchEvent("#sg-ln-borrow", "click");
+  await p2.waitForTimeout(100);
+  var bl = await ev(p2, function () { return window.PriTestSaigoLineage.borrowed(); });
+  assert.strictEqual(bl.length, 1); assert.strictEqual(bl[0].code, code);
+  // 貼同一個碼再借＝重複
+  await p2.fill(".sg-ln-input", "朋友傳來的：" + code);
+  await ev(p2, function () { Array.prototype.filter.call(document.querySelectorAll("#sg-app button"), function (x) { return x.textContent === "讀取"; })[0].click(); });
+  await p2.waitForSelector("#sg-ln-borrow");
+  await p2.dispatchEvent("#sg-ln-borrow", "click");
+  await p2.waitForTimeout(100);
+  assert.ok((await p2.textContent("#sg-app")).indexOf("已經借過") >= 0, "不能重複借");
+  // 第二台裝置用借來的狗當祖先開生涯
+  await ev(p2, function () { window.PriTestSaigo.go("career"); });
+  await p2.waitForSelector('select[data-parent="crP1"]');
+  var opt = await p2.$eval('select[data-parent="crP1"]', function (x) { return Array.prototype.map.call(x.options, function (o) { return o.textContent; }).join("|"); });
+  assert.ok(opt.indexOf("🤝") >= 0, "選單有借來的狗：" + opt);
+  await p2.selectOption('select[data-parent="crP1"]', bl[0].id);
+  await p2.waitForTimeout(100);
+  await ev(p2, function () { Array.prototype.filter.call(document.querySelectorAll("#sg-app button"), function (x) { return x.textContent.indexOf("開始養成") >= 0; })[0].click(); });
+  await p2.waitForSelector(".sg-cr-train");
+  var cc = await ev(p2, function () { return window.PriTestSaigoKennel.career(); });
+  assert.strictEqual(cc.parents.length, 1, "借來的祖先"); assert.strictEqual(cc.parents[0].name, bl[0].name);
+  await ctx2.close();
 
   assert.deepStrictEqual(errors, [], "沒有錯誤");
   console.log("saigo career_check OK");

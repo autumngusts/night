@@ -1,6 +1,6 @@
 // ============================================================================
 // 賽狗賽狗（saigo）連線房間的 WIN5 與冠軍大會檢查（2026-11-05）：Firebase emulator 上 2 個瀏覽器
-//   房主 A、玩家 B 各派一隻 → A 開啟 WIN5（短距離）→ A 開始冠軍大會（預賽 A）
+//   房主 A、玩家 B 各派一隻 → A 在大廳借用 B 分享的血統（2026-11-06）→ A 開啟 WIN5（短距離）→ A 開始冠軍大會（預賽 A）
 //   → 第 1 場兩人各買 WIN5（各扣 1000 籌碼）；A 每場都選真正的冠軍（自己先跑一次確定性模擬），B 選一定不會贏的狗
 //   → 預賽 A／預賽 B／敗部復活／決賽 4 關＋閉幕後再 1 場＝WIN5 的 5 場
 //   → 檢查：每關的出賽狗＝上一關的晉級名單（決賽＝兩組預賽前 2＋敗部復活前 2）、兩邊出賽表一致；
@@ -62,7 +62,11 @@ function cardOf(page) {
 (async function () {
   var browser = await chromium.launch();
   var A = await newPage(browser, "A", "房主", kennel("阿灰", "greyhound"));
-  var B = await newPage(browser, "B", "玩家B", kennel("小柯", "corgi"));
+  var bk = kennel("小柯", "corgi");
+  bk.lineage = [{ id: "L1", name: "老柯", breed: "corgi", best: "senko", grade: "A", pts: 1450, career: true, races: 5, wins: 2, titles: 0, parents: [], at: Date.now(),
+    factors: { blue: { stat: "sta", star: 2 }, red: { style: "senko", star: 2 }, white: [] } }];
+  bk.lineageNext = 2;
+  var B = await newPage(browser, "B", "玩家B", bk);
   A.on("dialog", function (d) { d.accept(); });
   await A.goto(BASE);
   await ev(A, function () { window.PriTestSaigo.enterRoom(null); });
@@ -78,6 +82,10 @@ function cardOf(page) {
   await until(A, function () { var r = window.PriTestSaigo.ui.room; return r.balLoaded && r.bal[r.pid]; }, null, 10000, "A 籌碼");
   await until(B, function () { var r = window.PriTestSaigo.ui.room; return r.balLoaded && r.bal[r.pid]; }, null, 10000, "B 籌碼");
   var a0 = await ev(A, function () { return window.PriTestSaigo.ui.room.coins(); });
+  // 借用房間裡的血統（2026-11-06）：B 的血統書有一筆 → A 的大廳看到並借用
+  await until(A, function () { return document.querySelector("[data-borrow]"); }, null, 15000, "A 看到 B 分享的血統");
+  await ev(A, function () { document.querySelector("[data-borrow]").click(); });
+  await until(A, function () { var b = window.PriTestSaigoLineage.borrowed(); return b.length === 1 && b[0].name === "老柯" && b[0].owner === "玩家B"; }, null, 5000, "A 借到 B 的血統");
   await clickBtn(A, "開始冠軍大會");
 
   var expectStages = ["h1", "h2", "rep", "final", null], prevCup = null;

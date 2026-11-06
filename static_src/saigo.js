@@ -1537,15 +1537,18 @@
     LN.add({ name: d.name, breed: d.breed, best: K.bestStyle(d), grade: r.grade, pts: r.pts, factors: f, parents: d.parents || [], career: !!d.career, races: d.races, wins: d.wins, titles: titles, goals: d.career ? d.career.goals : null });
   }
   function chosenParents() {
-    return [ui.crP1, ui.crP2].filter(function (id, i, a) { return id && a.indexOf(id) === i; }).map(LN.get).filter(Boolean);
+    var ps = [ui.crP1, ui.crP2].filter(function (id, i, a) { return id && a.indexOf(id) === i; }).map(LN.getAny).filter(Boolean), nb = 0;
+    // 借來的祖先最多 1 隻
+    return ps.filter(function (p) { if (!p.borrowed) return true; nb++; return nb <= 1; });
   }
   function parentPickers() {
-    var lst = LN.list();
+    var lst = LN.list().concat(LN.borrowed());
     if (!lst.length) return el("p", { class: "sg-small sg-muted" }, ["🧬 " + t("sg_ln_none_yet")]);
     function sel(key, other) {
+      var oth = LN.getAny(ui[other]);
       return el("select", { class: "sg-input", "data-parent": key, onchange: function (e) { ui[key] = e.target.value; rerenderKeep(); } },
-        [el("option", { value: "" }, [t("sg_ln_no_parent")])].concat(lst.filter(function (x) { return x.id !== ui[other]; }).map(function (x) {
-          return el("option", { value: x.id, selected: ui[key] === x.id }, [x.name + "（" + L((D.BREED_BY_ID[x.breed] || D.BREEDS[0]).name) + "・" + (x.grade || "") + "）"]);
+        [el("option", { value: "" }, [t("sg_ln_no_parent")])].concat(lst.filter(function (x) { return x.id !== ui[other] && !(x.borrowed && oth && oth.borrowed); }).map(function (x) {
+          return el("option", { value: x.id, selected: ui[key] === x.id }, [(x.borrowed ? "🤝 " : "") + x.name + "（" + L((D.BREED_BY_ID[x.breed] || D.BREEDS[0]).name) + "・" + (x.grade || "") + (x.borrowed && x.owner ? "・" + x.owner : "") + "）"]);
         })));
     }
     var ps = chosenParents(), pv = ps.length ? LN.startBonus(LN.sources(ps)) : null;
@@ -1572,11 +1575,75 @@
             el("small", { class: "sg-muted" }, [t("sg_ln_record", { r: x.races || 0, w: x.wins || 0 }) + (x.titles ? "・🏆" + x.titles : "")])]),
           el("div", null, factorChips(x.factors)),
           (x.parents || []).length ? el("small", { class: "sg-muted" }, [t("sg_ln_parents_of", { names: x.parents.map(function (p) { return p.name; }).join("、") })]) : null,
-          el("div", { class: "sg-actions" }, [btn(t("sg_ln_delete"), function () { if (window.confirm(t("sg_ln_delete_confirm", { name: x.name }))) { LN.remove(x.id); if (ui.crP1 === x.id) ui.crP1 = ""; if (ui.crP2 === x.id) ui.crP2 = ""; rerenderKeep(); } }, "sg-link sg-danger")])
+          el("div", { class: "sg-actions" }, [
+            btn("🔗 " + t("sg_ln_share"), function () { ui.lnShare = ui.lnShare === x.id ? "" : x.id; rerenderKeep(); }, "sg-btn" + (ui.lnShare === x.id ? " sg-primary" : ""), { "data-share": x.id }),
+            btn(t("sg_ln_delete"), function () { if (window.confirm(t("sg_ln_delete_confirm", { name: x.name }))) { LN.remove(x.id); if (ui.crP1 === x.id) ui.crP1 = ""; if (ui.crP2 === x.id) ui.crP2 = ""; rerenderKeep(); } }, "sg-link sg-danger")
+          ]),
+          ui.lnShare === x.id ? sharePanel(x) : null
         ]);
       })) : el("p", { class: "sg-muted" }, [t("sg_ln_empty")])
     ]));
+    app.appendChild(borrowPanel());
     app.appendChild(el("div", { class: "sg-actions sg-next" }, [btn("🎓 " + t("sg_cr_menu"), function () { go("career"); }, "sg-btn sg-primary")]));
+  }
+  // ---- 借用血統（2026-11-06）：分享碼／連結／QR、匯入、借來的清單 ----
+  function shareUrl(code) { return location.href.split(/[?#]/)[0] + "?lineage=" + code; }
+  function sharePanel(x) {
+    var code = LN.encode(x, lsGet(NAME_KEY)), url = shareUrl(code), qr = el("canvas", { class: "sg-qr" });
+    try { window.PriTestQRCode.renderToCanvas(qr, url, { level: "L", scale: 3, margin: 2 }); } catch (e) { qr = null; }
+    return el("div", { class: "sg-ln-share" }, [
+      qr,
+      el("div", null, [
+        el("p", { class: "sg-small" }, [t("sg_ln_share_note")]),
+        el("textarea", { class: "sg-input sg-ln-code", readonly: true, rows: "3", onclick: function (e) { e.target.select(); } }, [code]),
+        el("div", { class: "sg-actions" }, [
+          btn(t("sg_ln_copy_code"), function () { try { navigator.clipboard.writeText(code); ui.msg = t("sg_net_copied"); } catch (e) { ui.msg = ""; } rerenderKeep(); }, "sg-btn"),
+          btn(t("sg_ln_copy_link"), function () { try { navigator.clipboard.writeText(url); ui.msg = t("sg_net_copied"); } catch (e) { ui.msg = ""; } rerenderKeep(); }, "sg-btn")
+        ])
+      ])
+    ]);
+  }
+  function borrowMsg(r) { return r === "dup" ? t("sg_ln_borrow_dup") : r === "full" ? t("sg_ln_borrow_full", { n: LN.BORROW_MAX }) : r === "bad" ? t("sg_ln_code_bad") : t("sg_ln_borrowed_ok", { name: r.name }); }
+  function borrowPanel() {
+    var inp = el("input", { class: "sg-input sg-ln-input", placeholder: LN.CODE_PREFIX + "…", value: ui.lnImport || "" });
+    var pv = ui.lnImport ? LN.decode(ui.lnImport) : null, bl = LN.borrowed();
+    return panel("🤝 " + t("sg_ln_borrow_title") + "（" + bl.length + "/" + LN.BORROW_MAX + "）", [
+      el("p", { class: "sg-small sg-muted" }, [t("sg_ln_borrow_note")]),
+      el("div", { class: "sg-row" }, [inp, btn(t("sg_ln_check"), function () { ui.lnImport = inp.value.trim(); ui.lnMsg = LN.decode(ui.lnImport) ? "" : t("sg_ln_code_bad"); rerenderKeep(); }, "sg-btn")]),
+      pv ? el("div", { class: "sg-ln-card" }, [
+        el("div", null, [el("b", null, ["🤝 " + pv.name]), " ", el("small", null, [L(D.BREED_BY_ID[pv.breed].name) + (pv.owner ? "・" + t("sg_ln_from", { o: pv.owner }) : "")]), pv.grade ? el("b", { class: "sg-grade sg-grade-" + pv.grade.replace("+", "p") }, [pv.grade]) : null]),
+        el("div", null, factorChips(pv.factors)),
+        pv.parents.length ? el("small", { class: "sg-muted" }, [t("sg_ln_parents_of", { names: pv.parents.map(function (q) { return q.name; }).join("、") })]) : null,
+        el("div", { class: "sg-actions" }, [btn("🤝 " + t("sg_ln_borrow_btn"), function () { var r = LN.borrow(pv); ui.lnMsg = borrowMsg(r); if (typeof r === "object") ui.lnImport = ""; rerenderKeep(); }, "sg-btn sg-primary", { id: "sg-ln-borrow" })])
+      ]) : null,
+      ui.lnMsg ? el("p", { class: "sg-small sg-good" }, [ui.lnMsg]) : null,
+      bl.length ? el("div", { class: "sg-ln-list" }, bl.map(function (x) {
+        return el("div", { class: "sg-ln-card sg-ln-borrowed" }, [
+          el("div", null, [el("b", null, ["🤝 " + x.name]), " ", el("small", null, [L((D.BREED_BY_ID[x.breed] || D.BREEDS[0]).name) + (x.owner ? "・" + t("sg_ln_from", { o: x.owner }) : "")]), x.grade ? el("b", { class: "sg-grade sg-grade-" + x.grade.replace("+", "p") }, [x.grade]) : null]),
+          el("div", null, factorChips(x.factors)),
+          el("div", { class: "sg-actions" }, [btn(t("sg_ln_unborrow"), function () { LN.unborrow(x.id); if (ui.crP1 === x.id) ui.crP1 = ""; if (ui.crP2 === x.id) ui.crP2 = ""; rerenderKeep(); }, "sg-link sg-danger")])
+        ]);
+      })) : null
+    ], "sg-ln-borrow-panel");
+  }
+  // 連線房間：借用其他玩家分享的血統
+  function roomBorrowPanel(room) {
+    var have = {};
+    LN.borrowed().forEach(function (b) { have[b.code] = 1; });
+    var rows = [];
+    room.list().forEach(function (p) {
+      if (p.cid === room.cid) return;
+      (p.ln || []).forEach(function (x) {
+        var r = LN.decode(x.code);
+        if (!r) return;
+        rows.push(el("div", { class: "sg-ln-card" }, [
+          el("div", null, [el("b", null, [r.name]), " ", el("small", null, [L(D.BREED_BY_ID[r.breed].name) + "・" + t("sg_ln_from", { o: p.name || t("sg_net_noname") })]), r.grade ? el("b", { class: "sg-grade sg-grade-" + r.grade.replace("+", "p") }, [r.grade]) : null]),
+          el("div", null, factorChips(r.factors)),
+          el("div", { class: "sg-actions" }, [have[r.code] ? el("span", { class: "sg-small sg-good" }, ["✔ " + t("sg_ln_borrowed_already")]) : btn("🤝 " + t("sg_ln_borrow_btn"), function () { r.owner = p.name || r.owner; ui.msg = borrowMsg(LN.borrow(r)); rerenderKeep(); }, "sg-btn", { "data-borrow": r.code.slice(-12) })])
+        ]));
+      });
+    });
+    return panel("🤝 " + t("sg_ln_room_title"), [el("p", { class: "sg-small sg-muted" }, [t("sg_ln_room_note", { n: LN.SHARE_N })])].concat(rows.length ? [el("div", { class: "sg-ln-list" }, rows)] : [el("p", { class: "sg-muted" }, [t("sg_ln_room_none")])]));
   }
   function careerStart() {
     var b = D.BREED_BY_ID[ui.crBreed] ? ui.crBreed : "border";
@@ -1830,7 +1897,7 @@
     var nm = lsGet(NAME_KEY), cid = ui.room.cid;
     var e = ui.entryDog ? K.entry(ui.entryDog, cid, nm) : null;
     var es = ui.entryDogs.slice(0, ENTRY_MAX_NET).map(function (id) { return K.entry(id, cid, nm); }).filter(Boolean);
-    ui.room.update({ entry: e, entries: es, name: nm });
+    ui.room.update({ entry: e, entries: es, name: nm, ln: LN ? LN.shareList(nm) : [] });
   }
   function netCfg() { return { mode: ui.mode, cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "", rdist: ui.rmap.dist || "", rweather: ui.rmap.weather || "", pool: ui.pool, obs: ui.obs, w5: !!ui.w5 }; }
   function publishCard() {
@@ -2072,6 +2139,7 @@
       })),
       el("p", { class: "sg-small sg-muted" }, [t("sg_net_cpu_fill", { n: realRoom ? Real.FIELD : D.FIELD })])
     ]));
+    if (LN) app.appendChild(roomBorrowPanel(room));
     var st = room.status();
     app.appendChild(panel(t("sg_class"), [
       el("h3", null, [t("sg_mode")]),
@@ -2135,4 +2203,12 @@
 
   render();
   (function () { var id = Net ? Net.roomFromUrl(location.search) : null; if (id) enterRoom(id); })();
+  // 血統的分享連結（?lineage=SG1-…）：打開血統書並預覽，按「借用」才加入；網址上的參數拿掉
+  (function () {
+    var m = location.search.match(/[?&]lineage=(SG1-[A-Za-z0-9_-]+)/);
+    if (!m || !LN || ui.room) return;
+    ui.lnImport = m[1];
+    try { history.replaceState(null, "", location.href.split(/[?#]/)[0]); } catch (e) { /* file:// 等 */ }
+    go("lineage");
+  })();
 })();

@@ -508,6 +508,25 @@ SAIGO_ZH: dict[str, str] = {
     "sg_ln_proc_white": "{name} 的白因子：「{s}」提示 +{n}",
     "sg_ln_proc_none": "這次沒有因子觸發。",
     "sg_ln_parents_line": "祖先：{names}（第 9、17 回合有繼承事件）",
+    # ---- 2026-11-06：借用血統（分享碼／連線房間）----
+    "sg_ln_share": "分享",
+    "sg_ln_share_note": "把分享碼或連結傳給朋友，對方打開連結（或貼上分享碼）就能借用這隻狗當生涯養成的祖先。QR 碼是同一個連結。",
+    "sg_ln_copy_code": "複製分享碼",
+    "sg_ln_copy_link": "複製連結",
+    "sg_ln_borrow_title": "借來的血統",
+    "sg_ln_borrow_note": "貼上朋友的分享碼借用他的狗當祖先（最多 10 筆，不占血統書的位置）。一趟生涯的 2 隻祖先裡最多 1 隻可以是借來的。",
+    "sg_ln_check": "讀取",
+    "sg_ln_code_bad": "看不懂這個分享碼，請確認有沒有複製完整。",
+    "sg_ln_from": "來自 {o}",
+    "sg_ln_borrow_btn": "借用",
+    "sg_ln_unborrow": "歸還（刪除）",
+    "sg_ln_borrowed_ok": "借到了「{name}」！開始生涯養成時可以選牠當祖先。",
+    "sg_ln_borrow_dup": "已經借過這一隻了。",
+    "sg_ln_borrow_full": "借來的血統已滿（{n} 筆），先歸還一筆。",
+    "sg_ln_borrowed_already": "已借用",
+    "sg_ln_room_title": "房間裡的血統",
+    "sg_ln_room_note": "房間裡每個人會自動分享血統書裡評分最高的 {n} 筆，可以直接借來當祖先。",
+    "sg_ln_room_none": "其他人還沒有血統書（完成生涯養成或送養就會有）。",
 }
 
 SAIGO_JA: dict[str, str] = {
@@ -1002,6 +1021,25 @@ SAIGO_JA: dict[str, str] = {
     "sg_ln_proc_white": "{name} の白因子：「{s}」のヒント +{n}",
     "sg_ln_proc_none": "今回は因子が発動しなかった。",
     "sg_ln_parents_line": "親：{names}（9・17 ターン目に継承イベント）",
+    # ---- 2026-11-06：借用血統（分享碼／連線房間）----
+    "sg_ln_share": "共有",
+    "sg_ln_share_note": "共有コードかリンクを友だちに送ると、リンクを開く（またはコードを貼る）だけでこの犬を育成の親として借りられます。QR コードも同じリンク。",
+    "sg_ln_copy_code": "共有コードをコピー",
+    "sg_ln_copy_link": "リンクをコピー",
+    "sg_ln_borrow_title": "借りた血統",
+    "sg_ln_borrow_note": "友だちの共有コードを貼ると、その犬を親として借りられます（最大 10 件、血統書の枠は使わない）。1 回の育成の親 2 頭のうち借りた犬は 1 頭まで。",
+    "sg_ln_check": "読み込む",
+    "sg_ln_code_bad": "この共有コードは読み取れません。最後までコピーされているか確認してください。",
+    "sg_ln_from": "{o} から",
+    "sg_ln_borrow_btn": "借りる",
+    "sg_ln_unborrow": "返す（削除）",
+    "sg_ln_borrowed_ok": "「{name}」を借りた！育成開始時に親として選べます。",
+    "sg_ln_borrow_dup": "この犬はもう借りています。",
+    "sg_ln_borrow_full": "借りた血統がいっぱい（{n} 件）です。先に 1 件返してください。",
+    "sg_ln_borrowed_already": "借用済み",
+    "sg_ln_room_title": "ルームの血統",
+    "sg_ln_room_note": "ルームのみんなは血統書の評価上位 {n} 件を自動で共有しています。そのまま親として借りられます。",
+    "sg_ln_room_none": "ほかの人にはまだ血統書がありません（育成を終えるか譲渡すると増えます）。",
 }
 
 SAIGO_EN: dict[str, str] = {

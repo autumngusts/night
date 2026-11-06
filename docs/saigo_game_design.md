@@ -294,4 +294,4 @@
 
 ## 生涯養成（2026-11-06，v2.26.0）
 
-詳見 `docs/saigo_career_plan.md`（規劃、決定事項、平衡數字）。2026-11-06（v2.30.0）加上血統書與繼承（`saigo_lineage.js`）。重點：首頁「🎓 生涯養成」，24 回合養一隻狗、3 場目標賽，畢業收進犬舍後能力固定、生涯技能永久有效；生涯中的比賽不能下注；有生涯畢業狗出賽的關卡賽，CPU 依出賽玩家最強的狗補強。計算核心 `saigo_career.js`、平衡模擬 `tools/saigo_check/career_sim.js`、畫面檢查 `tools/saigo_check/career_check.js`。
+詳見 `docs/saigo_career_plan.md`（規劃、決定事項、平衡數字）。2026-11-06（v2.30.0）加上血統書與繼承（`saigo_lineage.js`），v2.31.0 加上分享碼／連線房間借用血統。重點：首頁「🎓 生涯養成」，24 回合養一隻狗、3 場目標賽，畢業收進犬舍後能力固定、生涯技能永久有效；生涯中的比賽不能下注；有生涯畢業狗出賽的關卡賽，CPU 依出賽玩家最強的狗補強。計算核心 `saigo_career.js`、平衡模擬 `tools/saigo_check/career_sim.js`、畫面檢查 `tools/saigo_check/career_check.js`。
