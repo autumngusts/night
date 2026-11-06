@@ -104,6 +104,7 @@
   // 剩餘訓練次數。改版前的狗（沒有 trainLeft）依已練的總量換算已用次數（每次約 5.5），已練的能力不扣回
   function trainLeft(d) {
     if (!d) return 0;
+    if (d.career) return 0;
     if (typeof d.trainLeft !== "number") {
       var sum = 0;
       D.STATS.forEach(function (k) { sum += (d.train && d.train[k]) || 0; });
@@ -115,6 +116,7 @@
   function train(id, kind) {
     var d = dog(id), tr = TRAININGS[kind];
     if (!d || !tr) return null;
+    if (d.career) return { locked: true };   // 生涯畢業的狗能力固定（2026-11-05 使用者確認）
     if (d.fatigue >= 95) return { tired: true };
     var moodF = [0.8, 0.9, 1, 1.1, 1.2][d.mood];
     var fatF = d.fatigue > 70 ? 0.75 : 1;
@@ -142,7 +144,7 @@
   //   訓練加成全部歸零、剩餘次數回到 TRAIN_TIMES；等級、經驗、技能、戰績、心情、疲勞不變
   function resetTraining(id) {
     var d = dog(id);
-    if (!d) return false;
+    if (!d || d.career) return false;
     D.STATS.forEach(function (k) { d.train[k] = 0; });
     d.trainLeft = TRAIN_TIMES;
     save();
@@ -163,7 +165,9 @@
   //   但仍留在欄位上顯示「已過期」，學新技能時同一階的過期技能會被替換掉。d.skillExp[id]＝到期時刻（毫秒）；
   //   沒有記錄的（這次改版前學的）一律視為已過期。
   function expOf(d, id) { return (d && d.skillExp && d.skillExp[id]) || 0; }
-  function skillsOf(d) { return SK.sanitize((d && d.skills || []).filter(function (id) { return expOf(d, id) > now(); })); }
+  // 生涯學到的技能（d.permSkills）永久有效，不套用 30 分鐘期限（2026-11-05 使用者確認）
+  function isPerm(d, id) { return !!(d && Array.isArray(d.permSkills) && d.permSkills.indexOf(id) >= 0); }
+  function skillsOf(d) { return SK.sanitize((d && d.skills || []).filter(function (id) { return isPerm(d, id) || expOf(d, id) > now(); })); }
   function expiredSkillsOf(d) {
     var ok = skillsOf(d);
     return (d && d.skills || []).filter(function (id) { return SK.BY_ID[id] && ok.indexOf(id) < 0; });
@@ -194,6 +198,7 @@
     if (!d) return;
     d.skills = (d.skills || []).filter(function (x) { return x !== skillId; });
     if (d.skillExp) delete d.skillExp[skillId];
+    if (Array.isArray(d.permSkills)) d.permSkills = d.permSkills.filter(function (x) { return x !== skillId; });
     save();
   }
   function lineOf(d) { return D.LINES[d.line] ? d.line : D.LINE_IDS[parseInt(String(d.id).replace(/\D/g, ""), 10) % 3 || 0]; }
@@ -249,7 +254,7 @@
   function entry(id, owner, ownerName) {
     var d = dog(id);
     if (!d) return null;
-    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id, skills: skillsOf(d), line: lineOf(d) };
+    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id, skills: skillsOf(d), line: lineOf(d), career: d.career ? 1 : 0 };
   }
 
   // 賽後：自己的狗拿獎金、經驗、疲勞與心情變化。practice＝家園練習賽（沒有獎金，經驗減半）
@@ -292,6 +297,21 @@
     save();
   }
 
+  // ---------------- 生涯養成（saigo_career.js；同時只有一趟） ----------------
+  function career() { return load().career || null; }
+  function setCareer(c) { load().career = c || null; save(); }
+  // 畢業的狗收進犬舍（g＝Career.graduate 的結果）。犬舍滿了回傳 null
+  function adoptGraduate(g) {
+    var s = load();
+    if (!g || s.dogs.length >= MAX_DOGS) return null;
+    var d = { id: "d" + (s.nextId++), trainLeft: 0, breed: g.breed, best: g.best, runStyle: g.runStyle || g.best, skills: g.skills.slice(), permSkills: g.skills.slice(), skillExp: {},
+      line: g.line, name: g.name, lv: g.lv || 0, exp: 0, train: JSON.parse(JSON.stringify(g.train)), fatigue: 0, mood: 3, bond: 30,
+      races: 0, wins: 0, top3: 0, earnings: 0, career: g.career, fans: 300 * (g.career.goals || []).filter(Boolean).length + 100 * (g.career.wins || 0) };
+    s.dogs.push(d);
+    save();
+    return d;
+  }
+
   // 單機的累積彩金
   function jackpot() { return load().jp; }
   function setJackpot(n) { load().jp = n; save(); }
@@ -301,6 +321,6 @@
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
     train: train, resetTraining: resetTraining, rest: rest, restLeft: restLeft, REST_CD_MIN: REST_CD_MIN, play: play, treat: treat, expNeed: expNeed,
     pool: pool, learn: learn, forget: forget, skillsOf: skillsOf, expiredSkillsOf: expiredSkillsOf, skillLeft: skillLeft, lineOf: lineOf, stats: stats, rating: rating,
-    entry: entry, afterRace: afterRace, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
+    entry: entry, afterRace: afterRace, career: career, setCareer: setCareer, adoptGraduate: adoptGraduate, isPerm: isPerm, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
   };
 })();

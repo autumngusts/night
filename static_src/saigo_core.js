@@ -253,7 +253,8 @@
         mood: clamp(m, 0, 4), cpu: false, owner: e.owner || "", ownerName: e.ownerName || "", dogId: e.dogId || ""
       });
       if (e.rival) dogs[dogs.length - 1].rival = String(e.rival).slice(0, 16);   // 宿敵的王牌狗（saigo_league.js）
-      if (e.npc) dogs[dogs.length - 1].npc = 1;   // 冠軍大會晉級的 NPC（只是顯示用）
+      if (e.npc) dogs[dogs.length - 1].npc = 1;
+      if (e.career) dogs[dogs.length - 1].career = 1;   // 生涯畢業的狗（關卡賽的 CPU 依它補強）   // 冠軍大會晉級的 NPC（只是顯示用）
       if (e.ownerPid) dogs[dogs.length - 1].ownerPid = String(e.ownerPid).slice(0, 20);   // 冠軍大會：重新連線後用 pid 找回飼主
     });
     var used = {};
@@ -273,6 +274,22 @@
       used[nm] = 1;
       var mx = r(), mood = mx < 0.08 ? 0 : mx < 0.28 ? 1 : mx < 0.72 ? 2 : mx < 0.92 ? 3 : 4;
       dogs.push({ breed: b.id, name: nm, train: train, lv: Math.round(between(r, 0, cls.cpu[1] / 3)), mood: mood, cpu: true, owner: "", ownerName: "", dogId: "", skills: [] });
+    }
+    // 生涯畢業的狗出賽時（2026-11-05 使用者選 B「只在有生涯畢業狗出賽時補強」）：CPU 依出賽玩家裡最強的狗補強，
+    //   做法同真賽狗的 NPC（實力分低於 top 的 96〜103% 就把訓練補上去、等級貼近 top、調子至少普通）。
+    //   用另一條亂數；沒有生涯狗的出賽表與改版前逐位相同。
+    if (dogs.some(function (d) { return d.career; })) {
+      var RL = Real(), top = null, br = rng((seed ^ 0xca2ee) >>> 0);
+      dogs.forEach(function (d) { if (d.cpu) return; var sv = RL.strength(d.breed, d.train, d.lv); if (!top || sv > top.s) top = { s: sv, lv: d.lv || 0 }; });
+      dogs.forEach(function (d) {
+        if (!d.cpu) return;
+        var tgt = top.s * between(br, 0.96, 1.03), lv2 = clamp(top.lv + Math.round(between(br, -2, 2)), 0, 20);
+        if (RL.strength(d.breed, d.train, d.lv) >= tgt) return;
+        var tAdd = tgt - RL.strength(d.breed, null, lv2);
+        D.STATS.forEach(function (k) { d.train[k] = Math.round(clamp(tAdd + between(br, -4, 4), -15, 70)); });
+        d.lv = lv2;
+        if (d.mood < 2) d.mood = 2;
+      });
     }
     // 枠順抽籤
     for (var i = dogs.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var tmp = dogs[i]; dogs[i] = dogs[j]; dogs[j] = tmp; }

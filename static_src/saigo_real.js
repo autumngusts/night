@@ -78,7 +78,8 @@
         mood: clamp(m, 0, 4), cpu: false, owner: e.owner || "", ownerName: e.ownerName || "", dogId: e.dogId || ""
       });
       if (e.rival) dogs[dogs.length - 1].rival = String(e.rival).slice(0, 16);   // 宿敵的王牌狗（saigo_league.js）
-      if (e.npc) dogs[dogs.length - 1].npc = 1;   // 冠軍大會晉級的 NPC（只是顯示用）
+      if (e.npc) dogs[dogs.length - 1].npc = 1;
+      if (e.career) dogs[dogs.length - 1].career = 1;   // 生涯畢業的狗（關卡賽的 CPU 依它補強）   // 冠軍大會晉級的 NPC（只是顯示用）
       if (e.ownerPid) dogs[dogs.length - 1].ownerPid = String(e.ownerPid).slice(0, 20);   // 冠軍大會：重新連線後用 pid 找回飼主
     });
     // NPC：依賽事等級配對（同關卡賽），名字與所屬犬舍各自抽

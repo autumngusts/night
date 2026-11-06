@@ -15,6 +15,7 @@
   var Press = window.PriTestSaigoPress;
   var League = window.PriTestSaigoLeague;
   var Cup = window.PriTestSaigoCup;
+  var CR = window.PriTestSaigoCareer;
   var app = document.getElementById("sg-app");
   if (!app || !D || !Core) return;
 
@@ -232,6 +233,7 @@
         btn(t("sg_menu_solo"), function () { go("setup"); }, "sg-big sg-primary"),
         Net ? btn(ui.room ? t("sg_menu_back_room") : t("sg_menu_net"), function () { if (ui.room) go("lobby"); else enterRoom(null); }, "sg-big") : null,
         btn(t("sg_menu_kennel"), function () { go("kennel"); }, "sg-big"),
+        CR ? btn("🎓 " + t("sg_cr_menu") + (K.career() ? "（" + t("sg_cr_menu_cont", { n: K.career().turn }) + "）" : ""), function () { go("career"); }, "sg-big") : null,
         btn(t("sg_menu_zukan"), function () { go("zukan"); }, "sg-big"),
         btn(t("sg_menu_record"), function () { go("record"); }, "sg-big")
       ]),
@@ -303,7 +305,7 @@
       var b = breedOf(d);
       return el("button", { type: "button", class: "sg-dog-card" + (d.id === ui.selDog ? " sg-on" : ""), onclick: function () { ui.selDog = d.id; ui.msg = ""; render(); } }, [
         el("span", { class: "sg-swatch", style: "background:" + b.model.c1 + ";border-color:" + b.model.c2 }),
-        el("b", null, [d.name]), el("small", null, [L(b.name) + " Lv" + d.lv]),
+        el("b", null, [(d.career ? "🎓 " : "") + d.name]), el("small", null, [L(b.name) + " Lv" + d.lv]),
         el("small", null, [L(D.MOODS[d.mood].name) + " " + D.MOODS[d.mood].icon + "・" + t("sg_fatigue") + " " + d.fatigue]),
         League ? el("small", null, ["👥 " + League.fansOf(d).toLocaleString() + (League.titlesOf(d).length ? "・🏆" + League.titlesOf(d).length : "")]) : null
       ]);
@@ -326,7 +328,9 @@
           }, "sg-btn", { title: t("sg_stat_" + tr.main) + " / " + t("sg_stat_" + tr.sub), disabled: d.fatigue >= 95, "data-train": k });
         }));
       }
-      var trainBtns = el("div", { class: "sg-train-wrap" }, [
+      var trainBtns = d.career ? el("div", { class: "sg-train-wrap" }, [
+        el("p", { class: "sg-cr-locked" }, ["🎓 " + t("sg_cr_dog_locked", { g: d.career.grade, p: d.career.rating })])
+      ]) : el("div", { class: "sg-train-wrap" }, [
         el("div", { class: "sg-train-head" }, [
           el("p", { class: "sg-train-left" + (tLeft ? "" : " sg-muted") }, [t("sg_train_left", { n: tLeft, max: K.TRAIN_TIMES })]),
           btn("↺ " + t("sg_train_reset"), function () {
@@ -417,7 +421,7 @@
       var mineT = have.filter(function (id) { return SK.BY_ID[id].tier === tier; }), oldT = old.filter(function (id) { return SK.BY_ID[id].tier === tier; }), cells = [];
       for (var i = 0; i < SK.TIERS[tier].slots; i++) {
         var id = mineT[i], oid = !id ? oldT[i - mineT.length] : null;
-        if (id) cells.push(skillChip(id, [el("small", { class: "sg-skill-left" }, [t("sg_skill_left", { m: Math.ceil(K.skillLeft(d, id) / 60000) })]), forgetBtn(id)]));
+        if (id) cells.push(skillChip(id, [el("small", { class: "sg-skill-left" }, [K.isPerm(d, id) ? "♾ " + t("sg_cr_perm") : t("sg_skill_left", { m: Math.ceil(K.skillLeft(d, id) / 60000) })]), forgetBtn(id)]));
         else if (oid) cells.push(el("span", { class: "sg-skill sg-skill-expired sg-skill-" + tier, title: t("sg_skill_expired_note") }, [SK.BY_ID[oid].icon + " " + L(SK.BY_ID[oid].name), el("small", null, ["⌛ " + t("sg_skill_expired")]), forgetBtn(oid)]));
         else cells.push(el("span", { class: "sg-skill sg-skill-empty sg-skill-" + tier }, [SK.TIERS[tier].icon + " " + t("sg_slot_empty")]));
       }
@@ -599,6 +603,7 @@
   function freshSlip() { ui.result = null; ui.tickets = []; ui.openDog = -1; ui.slip = { type: "win", method: "normal", picks: [], key: null, stake: ui.slip.stake || 100 }; }
   function startStakes() {
     var cur = League.current(), st = cur.stake, ids = stakeDogIds(st);
+    ui.careerRace = null;
     if (!ids.length || !League.canEnter(ids, st)) return;
     var entries = ids.map(function (id) { return K.entry(id, "me", ""); }).filter(Boolean);
     var rv = League.pickRivals(st.grade === "G1" ? 2 : 1).map(function (id) { return League.rivalEntry(id, entries); });
@@ -618,6 +623,7 @@
   }
   function startSolo(practice, dogId) {
     var entries = [];
+    ui.careerRace = null;
     if (!practice && ui.mode === "real") {
       ui.practice = false;
       ui.entryDogs.forEach(function (id) { var e1 = K.entry(id, "me", ""); if (e1) entries.push(e1); });
@@ -709,6 +715,7 @@
     var cls = D.CLASSES.filter(function (c) { return c.id === card.cls; })[0];
     var TR = D.TERRAINS[card.terrain] || D.TERRAINS.park;
     var stk = League && card.stakes && League.STAKE_BY_ID[card.stakes.id];
+    if (ui.careerRace && ui.card === card) return "🎓 " + (ui.careerRace.goal ? t("sg_cr_goal_race", { n: CR.GOALS.indexOf(ui.careerRace.goal) + 1 }) : t("sg_cr_free_race_short")) + "・" + L(cls.name) + "・" + L(TR.name) + "・" + card.course.length + "m";
     if (stk) return "🏆 " + stk.grade + " " + L(stk.name) + "・" + L(TR.name) + "・" + card.course.length + "m";
     if (card.cup) return "🏆 " + t("sg_cup_stage_" + card.cup.stage) + "・" + L(TR.name) + "・" + card.course.length + "m";
     if (isOval(card)) return "🏟 " + t("sg_mode_real") + "・" + L(cls.name) + "・" + card.length + "m";
@@ -827,10 +834,10 @@
       el("tbody", null, rows)
     ]), el("p", { class: "sg-small sg-muted" }, [t("sg_click_detail") + (isReal(card) ? " " + t("sg_card_skill_tap") : "")])]));
 
-    if (!ui.practice && Press) app.appendChild(pressPanel(card));
+    if (!ui.practice && !ui.careerRace && Press) app.appendChild(pressPanel(card));
 
     // 單機：自己的狗可以在出賽表上改跑法（買了票之後就鎖定，免得先下注再改）
-    if (!ui.room && !ui.practice) card.dogs.forEach(function (md) {
+    if (!ui.room && !ui.practice && !ui.careerRace) card.dogs.forEach(function (md) {
       if (!isMine(md)) return;
       app.appendChild(panel(t("sg_style_pick_title", { name: md.name }), [
         stylePicker(md.best || md.style, md.style, function (st) {
@@ -842,7 +849,8 @@
       ]));
     });
     if (ui.room && card.w5 && Cup) app.appendChild(w5Panel(card));
-    if (!ui.practice) app.appendChild(betSlip(card, od));
+    if (ui.careerRace) app.appendChild(panel("🎓 " + t("sg_cr_race_title"), [el("p", null, [ui.careerRace.goal ? t("sg_cr_goal_line", { n: ui.careerRace.goal.place, c: L(D.CLASSES.filter(function (c) { return c.id === ui.careerRace.goal.cls; })[0].name) }) : t("sg_cr_free_race")]), el("p", { class: "sg-small sg-muted" }, [t("sg_cr_no_bet")])]));
+    else if (!ui.practice) app.appendChild(betSlip(card, od));
     app.appendChild(cardActions());
   }
   // 賽前情報（2026-11-05）：看板＋3 位記者的預測印＋記者戰績
@@ -933,6 +941,12 @@
   }
 
   function cardActions() {
+    if (ui.careerRace) {
+      return el("div", { class: "sg-actions sg-next" }, [
+        btn(t("sg_cr_back"), function () { ui.careerRace = null; go("career"); }, "sg-btn"),
+        btn("🏁 " + t("sg_cr_go"), function () { startRace(); }, "sg-btn sg-primary sg-big")
+      ]);
+    }
     if (!ui.room) {
       return el("div", { class: "sg-actions sg-next" }, [
         btn(t("sg_reroll"), function () { if (ui.card && ui.card.stakes) startStakes(); else startSolo(ui.practice, ui.entryDog); }, "sg-btn"),
@@ -1298,6 +1312,16 @@
     var key = ui.room ? "n" + ui.netNo : "solo" + ui.card.seed;
     if (ui.settled[key]) return;
     ui.settled[key] = true;
+    // 生涯的比賽：不下注、不進犬舍，名次寫回生涯（2026-11-05）
+    if (ui.careerRace) {
+      var c0 = K.career(), gate = ui.card.dogs.map(function (d) { return d.owner; }).indexOf("me");
+      if (c0 && c0.turn === ui.careerRace.turn && !c0.done) {
+        ui.careerMsg = { res: CR.applyRace(c0, ui.result.order.indexOf(gate)) };
+        K.setCareer(c0);
+      }
+      ui.lastSettle = { rows: [], spent: 0, won: 0 }; ui.dogRewards = []; ui.leagueOut = null; ui.jpWin = null; ui.finalOdds = null;
+      return;
+    }
     var card = ui.card, res = ui.result, order = res.order;
     // 彩池制：票上記的是買的當下的預估賠率，換成開跑時鎖定的最終賠率
     ui.finalOdds = poolMode(card) ? curOdds(card, order) : null;
@@ -1341,6 +1365,7 @@
   }
   function screenResult() {
     var card = ui.card, res = ui.result, order = res.order, sum = ui.lastSettle || { rows: [], spent: 0, won: 0 };
+    if (ui.careerRace) { careerResult(card, res); return; }
     var winT = res.times[order[0]];
     app.appendChild(panel(t("sg_result_title") + "・" + raceTitle(card), [
       res.photo ? el("p", { class: "sg-big-line" }, ["📷 " + t("sg_photo_line", { name: (res.photo.a + 1) + " " + card.dogs[res.photo.a].name, m: t("sg_margin_" + (Core.marginKind(res.photo.gap) || "nose")) })]) : null,
@@ -1423,6 +1448,199 @@
     return panel("💰 " + t("sg_jp_title"), lines);
   }
 
+  // ---------------- 生涯養成（2026-11-05，saigo_career.js）----------------
+  // 一次只有一趟，存在犬舍（K.career()）；每個行動後立刻存檔，重新整理也接著玩、不能重擲
+  function clsName(id) { return L((D.CLASSES.filter(function (c) { return c.id === id; })[0] || D.CLASSES[1]).name); }
+  function gainsText(g) {
+    return Object.keys(g || {}).filter(function (k) { return g[k]; }).map(function (k) { return t("sg_stat_" + k) + (g[k] > 0 ? " +" : " ") + Math.round(g[k] * 10) / 10; }).join("、");
+  }
+  function effText(o) {
+    if (!o) return "";
+    var parts = [];
+    if (o.gains && gainsText(o.gains)) parts.push(gainsText(o.gains));
+    if (o.energy) parts.push(t("sg_cr_energy") + (o.energy > 0 ? " +" : " ") + o.energy);
+    if (o.mood) parts.push(t("sg_mood") + (o.mood > 0 ? " ↑" : " ↓"));
+    if (o.sp) parts.push(t("sg_cr_sp") + " +" + o.sp);
+    if (o.hint && SK.BY_ID[o.hint]) parts.push(t("sg_cr_hint_got", { s: L(SK.BY_ID[o.hint].name) }));
+    return parts.join("、");
+  }
+  // 上一個行動的結果（ui.careerMsg：{ res } 或 { choice }）
+  function careerMsgLines(m) {
+    var out = [];
+    if (!m) return out;
+    var r = m.res;
+    if (r) {
+      if (r.act === "train") {
+        var tn = L(CR.TRAINS[r.kind].name);
+        if (r.fail) out.push(el("p", { class: "sg-danger" }, ["💥 " + t("sg_cr_fail", { t: tn }) + (gainsText(r.gains) ? "（" + gainsText(r.gains) + "）" : "") + (r.injured ? " " + t("sg_cr_injured") : "")]));
+        else out.push(el("p", null, [CR.TRAINS[r.kind].icon + " " + tn + "：" + gainsText(r.gains) + (r.facUp ? "　" + t("sg_cr_fac_up", { t: tn, n: r.facUp }) : "")]));
+      } else if (r.act === "rest") out.push(el("p", null, ["😴 " + t(r.bad ? "sg_cr_rest_bad" : "sg_cr_rest_ok", { n: r.energy })]));
+      else if (r.act === "outing") out.push(el("p", null, ["🎾 " + t("sg_cr_outing_ok")]));
+      else if (r.act === "race") {
+        out.push(el("p", { class: r.place === 0 ? "sg-good" : "" }, ["🏁 " + t("sg_cr_race_res", { p: r.place + 1, sp: r.sp }) + (gainsText(r.gains) ? "（" + gainsText(r.gains) + "）" : "")]));
+        if (r.goal >= 0) out.push(el("p", { class: r.goalOk ? "sg-good sg-big-line" : "sg-danger sg-big-line" }, [r.goalOk ? "🎯 " + t("sg_cr_goal_ok", { n: r.goal + 1 }) : "❌ " + t("sg_cr_goal_fail", { n: r.goal + 1 })]));
+      }
+      if (r.event && CR.EVENT_BY_ID[r.event] && !CR.EVENT_BY_ID[r.event].choices) out.push(el("p", { class: "sg-cr-event" }, ["📖 " + L(CR.EVENT_BY_ID[r.event].text) + (effText(r.eventEff) ? "（" + effText(r.eventEff) + "）" : "")]));
+    }
+    if (m.choice) out.push(el("p", { class: "sg-cr-event" }, ["📖 " + effText(m.choice)]));
+    return out;
+  }
+  function careerAct(fn) {
+    var c = K.career();
+    if (!c) return;
+    var r = fn(c);
+    if (!r) return;
+    K.setCareer(c);
+    ui.careerMsg = { res: r };
+    rerenderKeep();
+  }
+  function startCareerRace() {
+    var c = K.career(), st = c && CR.raceSetup(c);
+    if (!st) return;
+    ui.practice = false;
+    ui.card = Core.makeCard(st.seed, [st.entry], { cls: st.cls });
+    ui.careerRace = { turn: c.turn, goal: st.goal, cls: st.cls };
+    freshSlip();
+    go("card");
+  }
+  function careerStart() {
+    var b = D.BREED_BY_ID[ui.crBreed] ? ui.crBreed : "border";
+    var sel = el("select", { class: "sg-input", onchange: function (e) { ui.crBreed = e.target.value; rerenderKeep(); } }, D.BREEDS.map(function (x) {
+      return el("option", { value: x.id, selected: x.id === b }, [L(x.name)]);
+    }));
+    var nameIn = el("input", { class: "sg-input", maxlength: "12", placeholder: t("sg_dog_name") });
+    app.appendChild(panel("🎓 " + t("sg_cr_title"), [
+      el("p", null, [t("sg_cr_intro", { n: CR.TURNS })]),
+      el("ul", { class: "sg-rules" }, ["sg_cr_rule_1", "sg_cr_rule_2", "sg_cr_rule_3", "sg_cr_rule_4"].map(function (k) { return el("li", null, [t(k, { n: CR.TURNS })]); })),
+      el("div", { class: "sg-zukan-detail" }, [previewBox(b, 0), el("div", null, [
+        el("p", null, [t("sg_cr_pick_breed") + " ", sel]),
+        el("p", null, [traitLine(D.BREED_BY_ID[b])]),
+        statsTable(D.BREED_BY_ID[b].base),
+        el("p", null, [t("sg_dog_name") + " ", nameIn]),
+        el("div", { class: "sg-actions" }, [btn("🎓 " + t("sg_cr_start"), function () {
+          K.setCareer(CR.create({ breed: b, name: nameIn.value }));
+          ui.careerMsg = null;
+          render();
+        }, "sg-btn sg-primary sg-big")])
+      ])])
+    ]));
+  }
+  function careerGraduate(c) {
+    var g = CR.graduate(c), full = K.load().dogs.length >= K.MAX_DOGS;
+    app.appendChild(panel("🎓 " + t("sg_cr_grad_title", { name: c.name }), [
+      el("p", { class: "sg-rating-line" }, [t("sg_rating") + "：", el("b", { class: "sg-grade sg-grade-" + g.career.grade.replace("+", "p") }, [g.career.grade]), " " + g.career.rating + "pt"]),
+      el("p", { class: c.failed < 0 ? "sg-good" : "sg-danger" }, [c.failed < 0 ? "🏆 " + t("sg_cr_grad_all") : t("sg_cr_grad_failed", { n: c.failed + 1, turn: CR.GOALS[c.failed].turn })]),
+      el("p", null, [t("sg_cr_grad_record", { r: c.races, w: c.wins })]),
+      statsTable(CR.stats(c), c.train),
+      el("p", { class: "sg-skills" }, [t("sg_skills") + "："].concat(g.skills.length ? g.skills.map(function (id) { return skillChip(id); }) : [el("span", { class: "sg-muted" }, [t("sg_no_skills")])])),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_cr_grad_note")]),
+      full ? el("p", { class: "sg-danger" }, [t("sg_cr_kennel_full", { n: K.MAX_DOGS })]) : null,
+      el("div", { class: "sg-actions" }, [
+        btn("🏠 " + t("sg_cr_adopt"), function () {
+          var d = K.adoptGraduate(CR.graduate(K.career()));
+          if (!d) return;
+          K.setCareer(null); ui.careerMsg = null; ui.selDog = d.id; ui.msg = t("sg_msg_adopted", { name: d.name });
+          go("kennel");
+        }, "sg-btn sg-primary", { disabled: full }),
+        btn(t("sg_cr_discard"), function () { if (window.confirm(t("sg_cr_discard_confirm", { name: c.name }))) { K.setCareer(null); ui.careerMsg = null; render(); } }, "sg-link sg-danger")
+      ])
+    ]));
+  }
+  function screenCareer() {
+    var c = K.career();
+    if (!c) { careerStart(); return; }
+    if (c.done) { careerGraduate(c); return; }
+    var B = D.BREED_BY_ID[c.breed], g = CR.goalNow(c), mood = D.MOODS[c.mood], rt = CR.rating(c);
+    var next = CR.GOALS.filter(function (x) { return x.turn >= c.turn; })[0];
+    // 狀態
+    app.appendChild(panel("🎓 " + c.name + "（" + L(B.name) + "）・" + t("sg_cr_turn", { n: c.turn, m: CR.TURNS, y: CR.year(c) }), [
+      el("div", { class: "sg-cr-goals" }, CR.GOALS.map(function (x, i) {
+        var st = c.goals[i] === true ? "ok" : c.goals[i] === false ? "ng" : x === next ? "now" : "";
+        return el("span", { class: "sg-cr-goal sg-cr-goal-" + st }, [t("sg_cr_goal_chip", { n: i + 1, t: x.turn, c: clsName(x.cls), p: x.place }) + (st === "ok" ? " ✔" : st === "ng" ? " ✘" : "")]);
+      })),
+      next ? el("p", { class: g ? "sg-big-line sg-danger" : "" }, [g ? "🎯 " + t("sg_cr_goal_now", { c: clsName(g.cls), p: g.place }) : t("sg_cr_goal_next", { k: next.turn - c.turn, c: clsName(next.cls), p: next.place })]) : null,
+      el("div", { class: "sg-cr-status" }, [
+        el("span", null, [t("sg_cr_energy") + " ", el("span", { class: "sg-bar sg-cr-energy" + (c.energy < 50 ? " sg-cr-low" : "") }, [el("i", { style: "width:" + c.energy + "%" })]), " " + c.energy]),
+        el("span", { class: "sg-mood sg-mood-" + c.mood }, [t("sg_mood") + " " + mood.icon + " " + L(mood.name)]),
+        el("span", null, [t("sg_cr_sp") + " ", el("b", null, [String(c.sp)])]),
+        el("span", null, [t("sg_rating") + " ", el("b", { class: "sg-grade sg-grade-" + rt.grade.replace("+", "p") }, [rt.grade]), " " + rt.pts]),
+        c.injured ? el("span", { class: "sg-danger" }, ["🩹 " + t("sg_cr_injured_left", { n: c.injured })]) : null
+      ]),
+      statsTable(CR.stats(c), c.train)
+    ]));
+    // 上一個行動的結果
+    var ml = careerMsgLines(ui.careerMsg);
+    if (ml.length) app.appendChild(panel("", ml, "sg-cr-msg"));
+    // 二選一事件
+    if (c.pending && CR.EVENT_BY_ID[c.pending]) {
+      var ev = CR.EVENT_BY_ID[c.pending];
+      app.appendChild(panel("📖 " + t("sg_cr_event"), [el("p", { class: "sg-big-line" }, [L(ev.text)]), el("div", { class: "sg-actions" }, ev.choices.map(function (ch, i) {
+        return btn(L(ch.text), function () { var cc = K.career(), o = CR.choose(cc, i); if (!o) return; K.setCareer(cc); ui.careerMsg = { choice: o }; rerenderKeep(); }, "sg-btn" + (i === 0 ? " sg-primary" : ""));
+      }))], "sg-cr-event-panel"));
+    } else {
+      // 行動
+      var fr = CR.failRate(c), canT = CR.canTrain(c), canF = CR.canFree(c);
+      var trains = el("div", { class: "sg-cr-trains" }, CR.TRAIN_IDS.map(function (k) {
+        var tr = CR.TRAINS[k], pv = CR.preview(c, k);
+        return el("button", { type: "button", class: "sg-cr-train", disabled: !canT, "data-train": k, onclick: function () { careerAct(function (cc) { return CR.train(cc, k); }); } }, [
+          el("b", null, [tr.icon + " " + L(tr.name)]), el("small", null, ["Lv" + c.fac[k] + (c.fac[k] < CR.FAC_MAX ? "（" + c.facN[k] + "/" + CR.FAC_STEP * c.fac[k] + "）" : "")]),
+          el("small", null, [gainsText(pv)]),
+          el("small", { class: fr > 0 ? "sg-danger" : "sg-muted" }, [t("sg_cr_fail_rate", { p: Math.round(fr * 100) })])
+        ]);
+      }));
+      app.appendChild(panel(g ? "🎯 " + t("sg_cr_goal_turn") : t("sg_cr_actions"), [
+        g ? null : trains,
+        g ? null : el("div", { class: "sg-actions" }, [
+          btn("😴 " + t("sg_cr_rest"), function () { careerAct(function (cc) { return CR.rest(cc); }); }, "sg-btn", { disabled: !canF, id: "sg-cr-rest" }),
+          btn("🎾 " + t("sg_cr_outing"), function () { careerAct(function (cc) { return CR.outing(cc); }); }, "sg-btn", { disabled: !canF, id: "sg-cr-outing" }),
+          btn("🏁 " + t("sg_cr_free_race_btn", { c: clsName(["rookie", "open", "stakes"][CR.year(c) - 1]) }), startCareerRace, "sg-btn", { disabled: !canF || c.injured > 0, id: "sg-cr-race" })
+        ]),
+        g ? el("div", { class: "sg-actions" }, [btn("🎯 " + t("sg_cr_goal_go"), startCareerRace, "sg-btn sg-primary sg-big", { id: "sg-cr-goal" })]) : null,
+        c.injured ? el("p", { class: "sg-small sg-danger" }, [t("sg_cr_injured_note")]) : null,
+        el("p", { class: "sg-small sg-muted" }, [t("sg_cr_action_note")])
+      ]));
+    }
+    // 技能商店
+    var shop = CR.shop(c).sort(function (a, b) { return SK.TIER_IDS.indexOf(SK.BY_ID[a.id].tier) - SK.TIER_IDS.indexOf(SK.BY_ID[b.id].tier) || a.price - b.price; });
+    app.appendChild(panel("🛒 " + t("sg_cr_shop", { n: c.sp }), [
+      el("p", { class: "sg-skills" }, [t("sg_cr_learned") + "："].concat(c.skills.length ? c.skills.map(function (id) { return skillChip(id); }) : [el("span", { class: "sg-muted" }, [t("sg_no_skills")])])),
+      el("div", { class: "sg-cr-shop" }, shop.filter(function (x) { return !x.have; }).map(function (x) {
+        var sk = SK.BY_ID[x.id];
+        return el("div", { class: "sg-cr-shop-item" }, [
+          skillTap(x.id, "cr"),
+          x.hint ? el("small", { class: "sg-good" }, ["💡" + x.hint]) : null,
+          el("small", null, [x.price + "pt"]),
+          btn(t("sg_cr_learn"), function () { var cc = K.career(); if (CR.learn(cc, x.id)) { K.setCareer(cc); ui.careerMsg = null; rerenderKeep(); } }, "sg-btn", { disabled: !x.can, "data-skill": x.id })
+        ]);
+      })),
+      skillDesc(shop.map(function (x) { return x.id; }), "cr"),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_cr_shop_note")])
+    ]));
+    app.appendChild(el("div", { class: "sg-actions sg-sub" }, [btn(t("sg_cr_quit"), function () {
+      if (window.confirm(t("sg_cr_quit_confirm"))) { var cc = K.career(); cc.done = true; cc.failed = CR.GOALS.indexOf(next || CR.GOALS[2]); K.setCareer(cc); ui.careerMsg = null; render(); }
+    }, "sg-link sg-danger")]));
+  }
+  // 生涯比賽的結果畫面
+  function careerResult(card, res) {
+    var order = res.order, winT = res.times[order[0]];
+    app.appendChild(panel(t("sg_result_title") + "・" + raceTitle(card), [
+      el("table", { class: "sg-table" }, [
+        el("thead", null, [el("tr", null, [t("sg_col_rank"), "", t("sg_col_dog"), t("sg_col_time"), t("sg_col_margin")].map(function (h) { return el("th", null, [h]); }))]),
+        el("tbody", null, order.map(function (i, n) {
+          var d = card.dogs[i], tm = res.times[i];
+          return el("tr", { class: isMine(d) ? "sg-mine" : "" }, [el("td", null, [n + 1 + ""]), el("td", null, [gateBadge(i)]), el("td", null, [el("b", null, [d.name]), " ", el("small", null, [L(breedOf(d).name)])]),
+            el("td", null, [tm === null ? t("sg_dnf") : fmtTime(tm)]), el("td", null, [n === 0 || tm === null ? "" : "+" + (tm - winT).toFixed(2) + marginText(tm, res.times[order[n - 1]])])]);
+        }))
+      ])
+    ]));
+    var ml = careerMsgLines(ui.careerMsg);
+    if (ml.length) app.appendChild(panel("🎓 " + t("sg_cr_title"), ml, "sg-cr-msg"));
+    app.appendChild(el("div", { class: "sg-actions sg-next" }, [
+      btn(t("sg_replay"), function () { ui.replay = true; ui.raceT = -1; ui.speed = 1; go("race"); }, "sg-btn"),
+      btn("🎓 " + t("sg_cr_back"), function () { ui.careerRace = null; go("career"); }, "sg-btn sg-primary", { id: "sg-cr-back" })
+    ]));
+  }
+
   // ---------------- WIN5（連線，2026-11-05）----------------
   function w5Panel(card, order) {
     var room = ui.room, w = card.w5, mine = room.w5Mine(w.ser), res = (room.w5 && room.w5.ser === w.ser && room.w5.res) || {};
@@ -1499,6 +1717,7 @@
   function enterRoom(roomId) {
     if (!Net) return;
     if (ui.room) ui.room.leave();
+    ui.careerRace = null;
     ui.room = Net.open({ roomId: roomId || null, name: lsGet(NAME_KEY), cfg: netCfg(), onChange: onRoomChange });
     ui.netNo = 0; ui.tickets = []; ui.card = null; ui.practice = false;
     try { history.replaceState(null, "", roomUrl(ui.room.id)); } catch (e) { /* file:// 等 */ }
@@ -1808,7 +2027,7 @@
 
   var SCREENS = {
     home: function () { screenHome(); app.appendChild(settingsPanel()); },
-    zukan: screenZukan, kennel: screenKennel, record: screenRecord,
+    zukan: screenZukan, kennel: screenKennel, record: screenRecord, career: screenCareer,
     setup: screenSetup, card: screenCard, race: screenRace, result: screenResult, lobby: screenLobby, dash: screenDash
   };
 

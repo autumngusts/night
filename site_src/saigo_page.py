@@ -5,7 +5,7 @@
 → saigo_kennel.js（犬舍，localStorage）→ saigo_net.js（多裝置連線：firebase_config.js／game_storage.js 的 rtState）
 → saigo_3d.js（three.js 建模與轉播，第一次用到才載入 vendor/three.min.js）→ saigo.js（畫面）。
 2026-11-02：saigo_skills.js（被動技能）、saigo_real.js（真賽狗模擬）、saigo_real3d.js（真賽狗 3D）、saigo_mic.js（喊「賽狗」）。
-2026-11-05：saigo_press.js（看板＋報紙預測）、saigo_league.js（宿敵、重賞賽程、粉絲）、saigo_cup.js（連線的 WIN5 與冠軍大會）。
+2026-11-05：saigo_press.js（看板＋報紙預測）、saigo_league.js（宿敵、重賞賽程、粉絲）、saigo_cup.js（連線的 WIN5 與冠軍大會）、saigo_career.js（生涯養成）。
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ SAIGO_SCRIPTS: tuple[str, ...] = (
     "saigo_kennel.js",
     "saigo_press.js",
     "saigo_league.js",
+    "saigo_career.js",
     "firebase_config.js",
     "game_storage.js",
     "qrcode.js",

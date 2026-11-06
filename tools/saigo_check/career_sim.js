@@ -109,7 +109,7 @@ var kTrain = sum(kennelDog("border").train);
 console.log("犬舍 20 次訓練的狗：訓練加成合計 " + kTrain + "（生涯／犬舍＝" + (tot.train / N / kTrain).toFixed(2) + " 倍）");
 var M = 40;
 ["rookie", "open", "stakes"].forEach(function (cls) {
-  var kw = 0, kt = 0, cw = 0, ct = 0;
+  var kw = 0, kt = 0, cw = 0, ct = 0, bw = 0, bt = 0;
   BREEDS.forEach(function (b, bi) {
     var k = winRate(kennelDog(b), cls, M, 1000 + bi);
     kw += k.win; kt += k.top3;
@@ -117,7 +117,11 @@ var M = 40;
     var e = CR.entry(grad.c);
     var g = winRate(e, cls, M, 1000 + bi);
     cw += g.win; ct += g.top3;
+    // 畢業後在犬舍出賽（帶 career 旗標）：關卡賽的 CPU 會依它補強（2026-11-05 使用者選 B）
+    e.career = 1;
+    var gb = winRate(e, cls, M, 1000 + bi);
+    bw += gb.win; bt += gb.top3;
   });
   var n = BREEDS.length;
-  console.log("  " + cls + "：犬舍狗 勝率 " + pct(kw / n) + "／前三 " + pct(kt / n) + "　生涯畢業狗 勝率 " + pct(cw / n) + "／前三 " + pct(ct / n));
+  console.log("  " + cls + "：犬舍狗 勝率 " + pct(kw / n) + "／前三 " + pct(kt / n) + "　生涯中（CPU 不補強） 勝率 " + pct(cw / n) + "／前三 " + pct(ct / n) + "　畢業後（CPU 補強） 勝率 " + pct(bw / n) + "／前三 " + pct(bt / n));
 });
