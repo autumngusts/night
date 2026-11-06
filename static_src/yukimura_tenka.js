@@ -216,7 +216,14 @@
     { k: "hyakki", icon: "👻", name: C("百鬼夜行", "百鬼夜行") }
   ];
   // 天下布武限定妖怪的出現時期（0〜1＝經過時間比例）
-  var TK_ROSTER = [[0, ["hitotsume", "kasaobake"]], [0.3, ["kasaobake", "rokurokubi", "hitotsume"]], [0.55, ["rokurokubi", "nue", "nurikabe"]], [0.75, ["nue", "nurikabe", "gashadokuro"]]];
+  var TK_ROSTER = [
+    [0, ["hitotsume", "kasaobake", "kamaitachi", "azukiarai", "chochin", "hyosube"]],
+    [0.15, ["kasaobake", "noppera", "ittanmomen", "tanuki", "bakeneko", "kamaitachi", "chochin"]],
+    [0.3, ["rokurokubi", "yamauba", "aobozu", "kyokotsu", "bakeneko", "noppera", "ittanmomen"]],
+    [0.45, ["rokurokubi", "hannya", "konakijiji", "raiju", "jorogumo", "kyokotsu", "yamauba"]],
+    [0.6, ["nue", "nurikabe", "tsurube", "baku", "hannya", "raiju", "jorogumo"]],
+    [0.75, ["nue", "gashadokuro", "onimusha", "omukade", "umibozu", "baku", "tsurube"]]
+  ];
 
   // ---------------- 軍令（限時任務）----------------
   var QUESTS = [

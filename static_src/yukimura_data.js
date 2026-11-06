@@ -494,7 +494,28 @@
     rokurokubi: { m: "rokurokubi", tk: 1, name: N("ろくろ首"), hp: 38, spd: 2.4, dmg: 9, xp: 3, r: 0.5 },
     nue: { m: "nue", tk: 1, name: N("鵺"), hp: 90, spd: 3.2, dmg: 12, xp: 6, r: 0.75, f: { charge: 1 } },
     nurikabe: { m: "nurikabe", tk: 1, name: N("ぬりかべ"), hp: 260, spd: 1.0, dmg: 14, xp: 10, r: 1.0, f: { armor: 6 } },
-    gashadokuro: { m: "gashadokuro", tk: 1, name: N("がしゃどくろ"), hp: 380, spd: 1.4, dmg: 18, xp: 14, r: 1.1 }
+    gashadokuro: { m: "gashadokuro", tk: 1, name: N("がしゃどくろ"), hp: 380, spd: 1.4, dmg: 18, xp: 14, r: 1.1 },
+    // 2026-11-06 再追加 20 種
+    kamaitachi: { m: "kamaitachi", tk: 1, name: N("鎌鼬"), hp: 14, spd: 4.4, dmg: 6, xp: 2, r: 0.4 },
+    noppera: { m: "noppera", tk: 1, name: N("のっぺらぼう"), hp: 22, spd: 2.6, dmg: 7, xp: 2, r: 0.45, f: { ghost: 1 } },
+    azukiarai: { m: "azukiarai", tk: 1, name: N("小豆洗い"), hp: 16, spd: 3.0, dmg: 5, xp: 1, r: 0.4 },
+    hyosube: { m: "hyosube", tk: 1, name: N("ひょうすべ"), hp: 18, spd: 3.4, dmg: 6, xp: 2, r: 0.42 },
+    chochin: { m: "chochin", tk: 1, name: N("提灯お化け"), hp: 15, spd: 3.2, dmg: 5, xp: 1, r: 0.42, f: { fly: 1, ghost: 1 } },
+    ittanmomen: { m: "ittanmomen", tk: 1, name: N("一反木綿"), hp: 20, spd: 4.0, dmg: 6, xp: 2, r: 0.5, f: { fly: 1 } },
+    tanuki: { m: "tanuki", tk: 1, name: N("化け狸"), hp: 30, spd: 2.4, dmg: 7, xp: 3, r: 0.55, f: { split: 1 } },
+    bakeneko: { m: "bakeneko", tk: 1, name: N("化け猫"), hp: 26, spd: 3.8, dmg: 8, xp: 3, r: 0.5 },
+    yamauba: { m: "yamauba", tk: 1, name: N("山姥"), hp: 45, spd: 2.6, dmg: 9, xp: 4, r: 0.5, f: { ranged: 1 } },
+    aobozu: { m: "aobozu", tk: 1, name: N("青坊主"), hp: 40, spd: 2.3, dmg: 9, xp: 3, r: 0.55 },
+    hannya: { m: "hannya", tk: 1, name: N("般若"), hp: 55, spd: 3.0, dmg: 11, xp: 4, r: 0.5 },
+    kyokotsu: { m: "kyokotsu", tk: 1, name: N("狂骨"), hp: 35, spd: 2.2, dmg: 8, xp: 3, r: 0.5, f: { ghost: 1 } },
+    konakijiji: { m: "konakijiji", tk: 1, name: N("子泣き爺"), hp: 60, spd: 1.8, dmg: 10, xp: 4, r: 0.45, f: { armor: 3 } },
+    raiju: { m: "raiju", tk: 1, name: N("雷獣"), hp: 45, spd: 4.2, dmg: 10, xp: 4, r: 0.55, f: { charge: 1 } },
+    jorogumo: { m: "jorogumo", tk: 1, name: N("絡新婦"), hp: 70, spd: 2.9, dmg: 11, xp: 5, r: 0.7, f: { ranged: 1 } },
+    tsurube: { m: "tsurube", tk: 1, name: N("釣瓶落とし"), hp: 80, spd: 1.6, dmg: 13, xp: 5, r: 0.7, f: { charge: 1 } },
+    baku: { m: "baku", tk: 1, name: N("獏"), hp: 110, spd: 2.0, dmg: 12, xp: 7, r: 0.8 },
+    onimusha: { m: "onimusha", tk: 1, name: N("鬼武者"), hp: 150, spd: 2.2, dmg: 15, xp: 9, r: 0.7, f: { armor: 4 } },
+    omukade: { m: "omukade", tk: 1, name: N("大百足"), hp: 180, spd: 2.6, dmg: 14, xp: 10, r: 0.85, f: { charge: 1 } },
+    umibozu: { m: "umibozu", tk: 1, name: N("海坊主"), hp: 220, spd: 1.3, dmg: 16, xp: 12, r: 1.1, f: { armor: 3 } }
   };
 
   // ---------------- 首領 ----------------
