@@ -272,4 +272,43 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   console.log("7. 店員／招牌／伴侶 OK");
 })();
 
+// ---------------- 8. 即時尖峰 ----------------
+(function () {
+  var Rush = window.PriTestIzakayaRush;
+  var s = game(2, 31); stockUp(s);
+  Core.setBoard(s, ["negima", "karaage", "hiyayakko", "oden", "nama", "oolong"]);
+  s.phase = "service"; s.night = { groups: [{ kind: "rush", step: "rush" }], i: 0, rev: 0, satSum: 0, satN: 0, high: [] };
+  Rush.start(s);
+  assert.strictEqual(s.rush.seats.length, 4 + s.maxStar);
+  for (var i = 0; i < 20 && !s.rush.seats.some(function (x) { return x.gid; }); i++) Rush.step(s, 1);
+  var seat = s.rush.seats.filter(function (x) { return x.gid; })[0];
+  assert.ok(seat, "有客人入座");
+  var k = 0, item = seat.items[k], st = D.DISHES[item.d].st, role = Rush.STATION_ROLE[st];
+  var wrong = s.order.filter(function (p) { return !Core.hasRole(s, p, role); })[0];
+  if (wrong) assert.ok(!Rush.intent(s, wrong, { a: "rc", seat: seat.id, k: k }), "不是這站的人不能做");
+  var who = s.order.filter(function (p) { return Core.hasRole(s, p, role); })[0];
+  assert.ok(Rush.intent(s, who, { a: "rc", seat: seat.id, k: k })); assert.strictEqual(item.s, "cook");
+  var slot = s.rush.st[st].findIndex(function (x) { return x && x.seat === seat.id; });
+  assert.ok(!Rush.intent(s, who, { a: "rt", st: st, slot: slot }), "還沒熟不能起鍋");
+  Rush.step(s, D.DISHES[item.d].cook + 0.1);
+  assert.ok(Rush.intent(s, who, { a: "rt", st: st, slot: slot })); assert.strictEqual(item.s, "ready");
+  var hall = s.order.filter(function (p) { return Core.hasRole(s, p, "hall"); })[0];
+  assert.ok(Rush.intent(s, hall, { a: "rs", seat: seat.id, k: k })); assert.strictEqual(item.s, "done");
+  // 燒焦：串燒放著不管
+  var s2 = game(1, 32); stockUp(s2); Core.setBoard(s2, ["negima"]);
+  s2.phase = "service"; s2.night = { groups: [{ kind: "rush", step: "rush" }], i: 0, rev: 0, satSum: 0, satN: 0, high: [] };
+  Rush.start(s2);
+  for (i = 0; i < 20 && !s2.rush.seats.some(function (x) { return x.gid; }); i++) Rush.step(s2, 1);
+  var se2 = s2.rush.seats.filter(function (x) { return x.gid; })[0];
+  Rush.intent(s2, "p0", { a: "rc", seat: se2.id, k: 0 });
+  Rush.step(s2, D.DISHES.negima.cook * 2);
+  assert.strictEqual(s2.rush.stats.burnt, 1); assert.strictEqual(se2.items[0].s, "wait", "燒焦回到待做");
+  // 決定性：同一種子、同一串操作，結果相同
+  var a = game(1, 50), b = game(1, 50);
+  [a, b].forEach(function (x) { stockUp(x); Core.setBoard(x, ["negima", "nama"]); x.phase = "service"; x.night = { groups: [{ kind: "rush", step: "rush" }], i: 0, rev: 0, satSum: 0, satN: 0, high: [] }; Rush.start(x); for (var j = 0; j < 100; j++) Rush.step(x, 1); });
+  assert.deepStrictEqual(a.night, b.night); assert.strictEqual(a.cash, b.cash);
+  assert.strictEqual(a.rush, null, "90 秒後結束"); assert.strictEqual(a.night.i, 1, "結束後換下一組");
+  console.log("8. 即時尖峰 OK");
+})();
+
 console.log("ALL OK");
