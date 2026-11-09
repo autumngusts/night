@@ -222,6 +222,11 @@
     if (g.kind === "reg" && Story() && Story().eligible) {
       var present = s.night.groups.filter(function (x) { return x.kind === "reg"; }).map(function (x) { return x.gid; });
       var sc = Story().eligible(s, { at: "visit", who: g.gid, present: present });
+      // 日常小劇場（批次 D）：沒有主線劇情時，有 D.DAILY_CHANCE 機率從符合條件的小劇場裡隨機抽一段
+      if (!sc && rnd(s) < D.DAILY_CHANCE) {
+        var pool = Story().all().filter(function (x) { return Story().condOk(s, x, { at: "daily", who: g.gid, present: present }); });
+        if (pool.length) sc = pool[rint(s, pool.length)];
+      }
       if (sc) { g.step = "story"; Story().begin(s, sc.id, null); }
     }
   }

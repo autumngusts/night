@@ -5,7 +5,7 @@ var fs = require("fs"), path = require("path"), assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js", "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js"].forEach(function (f) {
+["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js", "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData, Cast = window.PriTestIzakayaCast, St = window.PriTestIzakayaStory;
@@ -20,7 +20,7 @@ scenes.forEach(function (sc) {
 var ARCS = ["band", "contest", "dance", "invest", "will", "master", "truth"];
 scenes.forEach(function (sc) {
   var c = sc.cond || {};
-  chk(["visit", "close", "holiday", "date"].indexOf(sc.at) >= 0, sc.id + " 的 at 不合法");
+  chk(["visit", "close", "holiday", "date", "daily"].indexOf(sc.at) >= 0, sc.id + " 的 at 不合法");
   chk(sc.who && sc.who.length, sc.id + " 沒有 who");
   (sc.who || []).concat(c.present || []).concat(Object.keys(c.aff || {})).forEach(function (k) { chk(!!Cast.byId(k), sc.id + " 引用不存在的角色：" + k); });
   (c.seen || []).concat(c.notSeen || []).forEach(function (k) { chk(!!ids[k], sc.id + " 的前置場景不存在：" + k); });

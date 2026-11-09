@@ -9,7 +9,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData;
@@ -390,6 +390,12 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   assert.ok(!St.condOk(s4, scR, { at: "close", who: "mio" }), "沒交往不成立");
   s4.rel.mio = { pid: "p0", stage: 1, dates: 0 }; assert.ok(!St.condOk(s4, scR, { at: "close", who: "mio" }), "交往但未訂婚");
   s4.rel.mio.stage = 2; assert.ok(St.condOk(s4, scR, { at: "close", who: "mio" }), "訂婚成立");
+  // 批次 D：日常小劇場——沒有主線劇情時隨機抽，at 必須是 "daily"
+  var dl = St.all().filter(function (x) { return x.at === "daily"; });
+  assert.ok(dl.length >= 80, "日常小劇場至少 80 段：" + dl.length);
+  var s5 = game(1, 9); s5.day = 10; var hits = 0;
+  for (var q = 0; q < 40; q++) { s5.story.cur = null; s5.night = { groups: [{ kind: "reg", gid: "rin", step: "talk" }], i: 0 }; s5.story.seen = { rin_01: 1, rin_02: 1, contest_01: 1 }; Core.enterGroup(s5); if (s5.story.cur && St.byId(s5.story.cur.id).at === "daily") hits++; }
+  assert.ok(hits > 0, "常客到店時會抽到日常小劇場");
   console.log("11. 跨局記憶與多重結局 OK");
 })();
 
