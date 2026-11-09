@@ -5,11 +5,12 @@ var fs = require("fs"), path = require("path"), assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js", "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js"].forEach(function (f) {
+["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js", "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData, Cast = window.PriTestIzakayaCast, St = window.PriTestIzakayaStory;
-var MIN_REG = +(process.env.IZ_MIN_REG || 10), MIN_STAFF = +(process.env.IZ_MIN_STAFF || 6);
+// 批次 C（2026-11-09）：常客每人至少 15 段、店員至少 10 段
+var MIN_REG = +(process.env.IZ_MIN_REG || 15), MIN_STAFF = +(process.env.IZ_MIN_STAFF || 10);
 var scenes = St.all(), ids = {}, flagsMade = {}, problems = [];
 function chk(ok, msg) { if (!ok) problems.push(msg); }
 scenes.forEach(function (sc) {

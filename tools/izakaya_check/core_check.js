@@ -9,7 +9,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData;
@@ -385,6 +385,11 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   var s3 = game(1, 7); s3.day = 30; s3.phase = "close"; Core.nextDay(s3);
   assert.strictEqual(s3.end.ending, "redevelop");
   assert.ok(D.ENDINGS.every(function (e) { return e.id && e.name && e.desc; }), "結局資料完整");
+  // 批次 C：劇情條件 rel（關係階段）
+  var s4 = game(1, 8), scR = { id: "t_rel", who: ["mio"], at: "close", cond: { rel: 2 } };
+  assert.ok(!St.condOk(s4, scR, { at: "close", who: "mio" }), "沒交往不成立");
+  s4.rel.mio = { pid: "p0", stage: 1, dates: 0 }; assert.ok(!St.condOk(s4, scR, { at: "close", who: "mio" }), "交往但未訂婚");
+  s4.rel.mio.stage = 2; assert.ok(St.condOk(s4, scR, { at: "close", who: "mio" }), "訂婚成立");
   console.log("11. 跨局記憶與多重結局 OK");
 })();
 

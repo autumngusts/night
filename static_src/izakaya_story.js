@@ -33,6 +33,8 @@
     if (c.arc && !Object.keys(c.arc).every(function (k) { return (st.arcs[k] || 0) >= c.arc[k]; })) return false;
     if (c.spot && c.spot !== ctx.spot) return false;
     if (c.staff && (s.staff.crew || []).indexOf(c.staff) < 0) return false;
+    // rel：主角（who[0]）和某位玩家的關係階段 ≥ n（1 交往、2 訂婚、3 結婚；批次 C 的戀愛後段落）
+    if (c.rel) { var rl = s.rel[sc.who[0]]; if (!rl || rl.stage < c.rel || (sc.priv && ctx.pid && rl.pid !== ctx.pid)) return false; }
     // 跨局記憶：run＝已完成幾輪、ever＝以前的輪看過、secret＝以前的輪解開的祕密（或這一輪剛解開）
     var lg = s.legacy || { runs: 0, seen: {}, secrets: {} };
     if (c.run && (lg.runs || 0) < c.run) return false;

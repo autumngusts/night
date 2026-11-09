@@ -21,6 +21,8 @@ IZAKAYA_SCRIPTS: tuple[str, ...] = (
     "izakaya_story_staff2.js",
     "izakaya_story_heart.js",
     "izakaya_story_truth.js",
+    "izakaya_story_deep.js",
+    "izakaya_story_deep_staff.js",
     "izakaya_rush.js",
     "izakaya_core.js",
     "firebase_config.js",
