@@ -133,7 +133,61 @@
     list.sort(function (a, b) { return a - b; });
     return true;
   }
+  // 一鍵備料（2026-11-10）：依今晚預估的出菜數（一般組＋常客＋尖峰）算出黑板上每道菜要用的食材，扣掉冰箱與備料後的缺額。
+  // 黑板還沒排（第 1 天）就用已會做的菜。回傳 { 食材: 份數 }，實際買多少再受冰箱容量與現金限制。
+  function stockPlan(s) {
+    var known = Object.keys(s.known).filter(function (k) { return D.DISHES[k] && !D.DISHES[k].creative; });
+    var ids = (s.board.length ? s.board : known).filter(function (k) { return D.DISHES[k] && !D.DISHES[k].creative; });
+    var foods = ids.filter(function (k) { return D.DISHES[k].cat !== "drink"; }).slice(0, D.BOARD_MAX);
+    var drinks = ids.filter(function (k) { return D.DISHES[k].cat === "drink"; }).slice(0, 4);
+    var serv = D.BASE_GROUPS + s.maxStar * 2 + 3 + (isRushDay(s.day) ? 14 : 0), need = {};
+    function add(list, total) {
+      if (!list.length) return;
+      var each = Math.ceil(total / list.length);
+      list.forEach(function (k) {
+        var d = D.DISHES[k], left = Math.max(0, each - (s.prepped[k] || 0)), sets = d.prep ? Math.ceil(left / D.PREP_PORTIONS) : left;
+        Object.keys(d.ing).forEach(function (i) { if (D.INGS[i]) need[i] = (need[i] || 0) + d.ing[i] * sets; });
+      });
+    }
+    add(foods, serv); add(drinks, Math.ceil(serv * 0.85));
+    var out = {};
+    Object.keys(need).forEach(function (k) { var n = need[k] - stock(s, k); if (n > 0) out[k] = n; });
+    return out;
+  }
+  // 依 stockPlan 實際採買：先買缺最多的，冰箱滿或錢不夠就停
+  function autoStock(s) {
+    var plan = stockPlan(s), bought = 0;
+    Object.keys(plan).sort(function (a, b) { return plan[b] - plan[a]; }).forEach(function (k) {
+      for (var i = 0; i < plan[k]; i++) { if (!buy(s, k, 1)) break; bought++; }
+    });
+    return bought;
+  }
   function hasIngs(s, ing) { return Object.keys(ing).every(function (k) { return stock(s, k) >= ing[k]; }); }
+  // 做這道菜還缺哪些食材（{ 食材: 份數 }；有備料就不缺）
+  function shortOf(s, id) {
+    var d = D.DISHES[id], out = {};
+    if (!d || (s.prepped[id] || 0) > 0) return out;
+    Object.keys(d.ing).forEach(function (k) { var n = d.ing[k] - stock(s, k); if (n > 0) out[k] = n; });
+    return out;
+  }
+  function restockCost(s, id) { return Math.round((s.mk[id] || 0) * D.RESTOCK_MULT); }
+  function shortCost(s, id) {
+    var sh = shortOf(s, id), c = 0;
+    Object.keys(sh).forEach(function (k) { c += restockCost(s, k) * sh[k]; });
+    return c;
+  }
+  // 臨時加碼（2026-11-10 使用者回報「食材一沒有就只能 pass」）：缺的食材以 1.3 倍價直接買來做這一份。
+  // 創作料理（__create）等市場買不到的就不行。
+  function canBuyShort(s, id) {
+    var sh = shortOf(s, id), ks = Object.keys(sh);
+    return ks.length > 0 && ks.every(function (k) { return D.INGS[k] && s.mk[k]; }) && shortCost(s, id) <= s.cash;
+  }
+  function buyShort(s, id) {
+    if (!canBuyShort(s, id)) return false;
+    var sh = shortOf(s, id);
+    Object.keys(sh).forEach(function (k) { restock(s, k, sh[k]); });
+    return hasIngs(s, D.DISHES[id].ing);
+  }
   function useIngs(s, ing) {
     if (!hasIngs(s, ing)) return false;
     Object.keys(ing).forEach(function (k) { s.fridge[k].splice(0, ing[k]); if (!s.fridge[k].length) delete s.fridge[k]; });
@@ -440,13 +494,32 @@
   }
   // 採買的夜間工作：洗碗、緊急補貨、處理突發狀況
   function wash(s) { if (!s.night || !s.night.dirty) return false; s.night.dirty = 0; return true; }
-  function restock(s, id) {
+  // 營業中補貨直接拿到檯面上用，不受冰箱容量限制（2026-11-10）；n 份一次買
+  function restock(s, id, n) {
+    n = Math.max(1, n | 0);
     if (!D.INGS[id] || !s.mk[id]) return false;
-    var cost = Math.round(s.mk[id] * 1.3);
-    if (cost > s.cash || fridgeCount(s) + 1 > fridgeCap(s)) return false;
+    var cost = restockCost(s, id) * n;
+    if (cost > s.cash) return false;
     s.cash -= cost;
     var list = s.fridge[id] || (s.fridge[id] = []);
-    list.push(s.day + D.INGS[id].fresh); list.sort(function (a, b) { return a - b; });
+    for (var i = 0; i < n; i++) list.push(s.day + D.INGS[id].fresh);
+    list.sort(function (a, b) { return a - b; });
+    return true;
+  }
+  // 沒有能做的菜時的替代方案（取代原本只能 pass 的 −20）：
+  // 點菜時送招待小菜（滿意度 −6、不收菜錢，接著還能點飲料）；點飲料時奉茶（−2、不收飲料錢，結帳）
+  function fallback(s) {
+    var g = curGroup(s);
+    if (!g || (g.step !== "order" && g.step !== "drink")) return false;
+    if (g.step === "order") {
+      g.sat = clamp(g.sat - 6, 0, 100);
+      g.food = null; g.otoshi = true; g.step = "drink";
+      g.last = { id: null, delta: -6, taboo: false, clue: null, otoshi: true };
+    } else {
+      g.sat = clamp(g.sat - 2, 0, 100);
+      g.drink = null; g.tea = true;
+      pay(s, g);
+    }
     return true;
   }
   function handleIncident(s) { var ic = s.night && s.night.incident; if (!ic || ic.done) return false; ic.done = true; s.rep += 1; return true; }
@@ -623,7 +696,7 @@
       afterHoliday(s);
     }
   }
-  var MOD = { buy: "buyer", haggle: "buyer", resv: "buyer", wash: "buyer", restock: "buyer", incident: "buyer", banquet: "hall", serveBanquet: "chef", bartalk: "bar",
+  var MOD = { buy: "buyer", stock: "buyer", fallback: "hall", haggle: "buyer", resv: "buyer", wash: "buyer", restock: "buyer", incident: "buyer", banquet: "hall", serveBanquet: "chef", bartalk: "bar",
     board: "hall", sig: "hall", prep: "chef", dev: "chef", create: "chef", devDrink: "bar", talk: "hall", rush: "hall", hire: "hall", fire: "hall" };
   function applyIntent(s, pid, it) {
     // 中途加入（2026-11-09）：營業以外的階段、最多 4 人；職位依每個人想要的重新分配
@@ -654,6 +727,7 @@
     switch (a) {
       case "ready": if (s.phase === "service") return false; s.ready[pid] = !!it.v; onReady(s); return true;
       case "buy": return s.phase === "market" && buy(s, it.id, it.n);
+      case "stock": return s.phase === "market" && autoStock(s) > 0;
       case "board": return s.phase === "prep" && setBoard(s, it.ids);
       case "sig": return s.phase === "prep" && setSig(s, it.id);
       case "prep": return s.phase === "prep" && prep(s, it.id);
@@ -668,7 +742,7 @@
       case "serveBanquet": { if (s.phase !== "service" || s.rush) return false; var sb = serveBanquet(s); if (sb.ok && !curGroup(s) && !s.story.cur) closeService(s); return sb.ok; }
       case "bartalk": return s.phase === "service" && !s.rush && barTalk(s, it.c).ok;
       case "wash": return s.phase === "service" && wash(s);
-      case "restock": return s.phase === "service" && restock(s, it.id);
+      case "restock": return s.phase === "service" && restock(s, it.id, it.n);
       case "incident": return s.phase === "service" && handleIncident(s);
       case "create": {
         if (s.phase !== "prep" && s.phase !== "holiday") return false;
@@ -679,6 +753,8 @@
       case "serve": {
         if (s.phase !== "service" || s.rush || !D.DISHES[it.id]) return false;
         if (!hasRole(s, pid, D.DISHES[it.id].cat === "drink" ? "bar" : "chef")) return false;
+        // buy：缺料時先臨時加碼再出菜（負責出菜的人自己就能按，不用等採買）
+        if (it.buy && !canMake(s, it.id) && !buyShort(s, it.id)) return false;
         var res = serve(s, it.id); s.lastServe = res;
         if (res.ok && !curGroup(s) && !s.story.cur) closeService(s);
         return res.ok;
@@ -688,6 +764,11 @@
         if (s.phase !== "service" || !gs || (gs.step !== "order" && gs.step !== "drink") || !hasRole(s, pid, "hall")) return false;
         gs.sat = clamp(gs.sat - 20, 0, 100);
         pay(s, gs);
+        if (!curGroup(s) && !s.story.cur) closeService(s);
+        return true;
+      }
+      case "fallback": {
+        if (s.phase !== "service" || s.rush || !fallback(s)) return false;
         if (!curGroup(s) && !s.story.cur) closeService(s);
         return true;
       }
@@ -739,7 +820,8 @@
   window.PriTestIzakayaCore = {
     rnd: rnd, rint: rint, clamp: clamp, seasonOf: seasonOf, dowOf: dowOf, isRushDay: isRushDay,
     assignRoles: assignRoles, hasRole: hasRole, newGame: newGame,
-    startMarket: startMarket, fridgeCap: fridgeCap, fridgeCount: fridgeCount, stock: stock, buy: buy,
+    startMarket: startMarket, stockPlan: stockPlan, autoStock: autoStock, shortOf: shortOf, shortCost: shortCost, canBuyShort: canBuyShort, buyShort: buyShort,
+    restockCost: restockCost, fallback: fallback, fridgeCap: fridgeCap, fridgeCount: fridgeCount, stock: stock, buy: buy,
     hasIngs: hasIngs, useIngs: useIngs, canMake: canMake, makeOne: makeOne,
     setBoard: setBoard, prep: prep, dev: dev, devDrink: devDrink, photoOf: photoOf,
     openService: openService, enterGroup: enterGroup, curGroup: curGroup, guestOf: guestOf, note: note, talk: talk,

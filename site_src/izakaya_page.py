@@ -13,6 +13,7 @@ IZAKAYA_SCRIPTS: tuple[str, ...] = (
     "gousei_data_food.js",   # 創作料理用的「世界美食」配方（武俠合成的資料，唯讀共用）
     "izakaya_data.js",
     "izakaya_cast.js",
+    "izakaya_chatter.js",   # 劇情前後的鋪陳對話、入座閒聊（2026-11-10）
     "izakaya_story.js",
     "izakaya_story_main.js",
     "izakaya_story_arcs.js",

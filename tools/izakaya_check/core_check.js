@@ -8,7 +8,7 @@ var fs = require("fs"), path = require("path"), assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["gousei_data_food.js", "izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
+["gousei_data_food.js", "izakaya_data.js", "izakaya_cast.js", "izakaya_chatter.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
  "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js", "izakaya_story_e.js", "izakaya_story_g.js", "izakaya_story_heart2.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
@@ -494,6 +494,67 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   Core.applyIntent(s, "p0", { a: "ready", v: true }); Core.applyIntent(s, "p9", { a: "ready", v: true });
   assert.strictEqual(s.phase, "prep", "暫離的人不用等");
   console.log("13. 玩法補完 OK");
+})();
+
+// 2026-11-10：冰箱加大、一鍵備料、臨時加碼出菜、招待小菜／奉茶、尖峰自動加碼、劇情前後的鋪陳
+(function () {
+  var Core = window.PriTestIzakayaCore, Story = window.PriTestIzakayaStory, Chatter = window.PriTestIzakayaChatter;
+  assert.ok(D.FRIDGE_CAP >= 80 && D.FRIDGE_CAP_STAR2 >= 120, "冰箱加大");
+  // 一鍵備料：第 1 天黑板空的也估得出來，買完後缺額變少、不超過冰箱容量
+  var s = game(1, 91), plan = Core.stockPlan(s);
+  assert.ok(Object.keys(plan).length > 0, "有備料計畫");
+  assert.ok(Core.applyIntent(s, "p0", { a: "stock" }), "一鍵備料");
+  assert.ok(Core.fridgeCount(s) > 0 && Core.fridgeCount(s) <= Core.fridgeCap(s), "備料不超過冰箱容量");
+  var left = 0; Object.keys(Core.stockPlan(s)).forEach(function (k) { left += Core.stockPlan(s)[k]; });
+  var before = 0; Object.keys(plan).forEach(function (k) { before += plan[k]; });
+  assert.ok(left < before, "備料後缺額變少");
+  // 臨時加碼出菜：冰箱沒雞肉也能出蔥雞串（1.3 倍價）
+  s = game(1, 92); s.fridge = {}; Core.setBoard(s, ["negima", "oolong"]); s.phase = "prep"; Core.openService(s); s.story.cur = null;
+  var g = Core.curGroup(s); while (g && g.kind !== "walk" && g.kind !== "reg") { s.night.i++; g = Core.curGroup(s); }
+  g.step = "order";
+  assert.ok(!Core.canMake(s, "negima") && Core.canBuyShort(s, "negima"), "缺料但買得起");
+  var c0 = s.cash, cost = Core.shortCost(s, "negima");
+  assert.strictEqual(cost, Core.restockCost(s, "chicken") + Core.restockCost(s, "negi"));
+  assert.ok(!Core.applyIntent(s, "p0", { a: "serve", id: "negima" }), "沒有 buy 旗標就出不了");
+  assert.ok(Core.applyIntent(s, "p0", { a: "serve", id: "negima", buy: true }), "加碼出菜");
+  assert.strictEqual(c0 - s.cash, cost); assert.strictEqual(g.food, "negima"); assert.strictEqual(g.step, "drink");
+  // 奉茶：飲料做不出來 → −2、結帳
+  s.cash = 0;
+  var sat = g.sat, i0 = s.night.i;
+  assert.ok(Core.applyIntent(s, "p0", { a: "fallback" }), "奉茶");
+  assert.strictEqual(g.sat, sat - 2); assert.ok(g.tea && g.step === "done" && s.night.i > i0, "奉茶後結帳");
+  // 招待小菜：點菜時 −6、進到飲料
+  g = Core.curGroup(s);
+  if (g && (g.kind === "walk" || g.kind === "reg")) {
+    s.story.cur = null; g.step = "order"; sat = g.sat;
+    assert.ok(Core.applyIntent(s, "p0", { a: "fallback" }), "招待小菜");
+    assert.strictEqual(g.sat, sat - 6); assert.ok(g.otoshi && g.step === "drink" && g.food === null);
+  }
+  // 營業中補貨不受冰箱容量限制，可以一次買 3 份
+  s = game(1, 93); stockUp(s); s.phase = "service"; s.cash = 99999;
+  var t0 = Core.stock(s, "tofu");
+  assert.ok(Core.fridgeCount(s) >= Core.fridgeCap(s) && Core.restock(s, "tofu", 3) && Core.stock(s, "tofu") === t0 + 3, "補貨 ×3");
+  // 尖峰缺料自動加碼
+  s = game(1, 94); s.fridge = {}; Core.setBoard(s, ["negima"]); s.cash = 99999;
+  window.PriTestIzakayaRush.start(s);
+  var seat = s.rush.seats[0]; seat.gid = s.pool[0].id; seat.items = [{ d: "negima", s: "wait" }]; seat.max = seat.pat = 40;
+  assert.ok(window.PriTestIzakayaRush.intent(s, "p0", { a: "rc", seat: 0, k: 0 }) && seat.items[0].s === "cook", "尖峰自動加碼開做");
+  // 劇情鋪陳：一般場景前面多了開場，兩個選項以上的場景選完有反應；結算後 last.n 遞增
+  var sc = Story.byId("mio_01");
+  assert.ok(Story.script(sc).length > sc.lines.length, "開場鋪陳");
+  assert.ok(Story.afterLines(sc, 0).length >= 1, "選項後的反應");
+  assert.strictEqual(Chatter.mood(sc, 0, { id: "mio" }), "good");
+  var dates = Story.all().filter(function (x) { return x.at === "date"; });
+  assert.ok(!dates.length || Story.script(dates[0]).length === dates[0].lines.length, "約會場景不加鋪陳");
+  Story.all().forEach(function (x) {   // 每個場景都產得出來、說話者都是有效的 id 或旁白
+    Story.script(x).concat(x.ch ? Story.afterLines(x, 0) : []).forEach(function (l) { assert.ok(Array.isArray(l) && typeof l[1] === "string" && l[1].indexOf("{n}") < 0, x.id); });
+  });
+  s = game(1, 95); Story.begin(s, "mio_01", null);
+  assert.ok(Core.applyIntent(s, "p0", { a: "vote", c: 0 }) && s.story.last.n === 1 && s.story.last.c === 0, "last.n");
+  // 入座閒聊
+  var line = Chatter.chat({ persona: "genki", topic: "food", dish: "蔥雞串" }, function () { return 0.1; });
+  assert.ok(typeof line === "string" && line.length > 2 && line.indexOf("{dish}") < 0, "閒聊");
+  console.log("14. 備料、加碼、劇情鋪陳 OK");
 })();
 
 console.log("ALL OK");

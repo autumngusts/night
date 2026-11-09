@@ -79,7 +79,7 @@
     var lead = Core().addAff && sc.who && sc.who[0];
     if (lead) (cur.pid ? [cur.pid] : s.order).forEach(function (p) { Core().addAff(s, p, lead, 2); });
     s.story.seen[sc.id] = 1;
-    s.story.last = { id: sc.id, c: top };
+    s.story.last = { id: sc.id, c: top, pid: cur.pid || null, n: ((s.story.last && s.story.last.n) || 0) + 1 };
     s.story.cur = null;
     if (sc.next) begin(s, sc.next, cur.pid);
   }
@@ -96,5 +96,19 @@
     if (fx.met) s.staff.met[fx.met] = 1;
   }
 
-  window.PriTestIzakayaStory = { RELS: RELS, allVoted: allVoted, all: all, byId: byId, condOk: condOk, eligible: eligible, begin: begin, choose: choose, force: force, resolve: resolve, apply: apply };
+  // 劇情前後的鋪陳（izakaya_chatter.js）：畫面演出用，不影響狀態
+  function leadOf(sc) {
+    var c = window.PriTestIzakayaCast && sc.who && window.PriTestIzakayaCast.byId(sc.who[0]);
+    return c ? { id: c.id, name: D.L(c.name), persona: c.persona } : null;
+  }
+  function script(sc) {
+    var Ch = window.PriTestIzakayaChatter;
+    return (Ch ? Ch.pre(sc, leadOf(sc)) : []).concat(sc.lines);
+  }
+  function afterLines(sc, c) {
+    var Ch = window.PriTestIzakayaChatter;
+    return Ch ? Ch.after(sc, c, leadOf(sc)) : [];
+  }
+
+  window.PriTestIzakayaStory = { RELS: RELS, script: script, afterLines: afterLines, allVoted: allVoted, all: all, byId: byId, condOk: condOk, eligible: eligible, begin: begin, choose: choose, force: force, resolve: resolve, apply: apply };
 })();

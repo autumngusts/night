@@ -1,6 +1,7 @@
 // 深夜居酒屋（izakaya）：即時尖峰（週五、週六 20:00 前後，約 90 秒）。房主用固定步長 step(s, dt) 推進；
 // 玩家意圖：rc＝開始做、rt＝起鍋、rs＝上菜。每個工作站有負責的職位（連線分工），單機一人全包。
 // 串燒與炸物超過烹調時間 1.7 倍會燒焦，回到待做。結束後把營收與滿意度併入當晚結算。
+// 缺料時開做會自動臨時加碼（Core.buyShort），錢不夠才做不了。
 (function () {
   "use strict";
   var D = window.PriTestIzakayaData;
@@ -99,7 +100,10 @@
       var st = D.DISHES[item.d].st;
       if (!K.hasRole(s, pid, STATION_ROLE[st])) return false;
       var free = R.st[st].indexOf(null);
-      if (free < 0 || !K.makeOne(s, item.d)) return false;
+      if (free < 0) return false;
+      // 尖峰缺料時自動以 1.3 倍價臨時加碼（2026-11-10：手忙腳亂時不用再切去補貨）
+      if (!K.canMake(s, item.d)) K.buyShort(s, item.d);
+      if (!K.makeOne(s, item.d)) return false;
       R.st[st][free] = { seat: seat.id, k: it.k, d: item.d, t0: R.t, cook: cookTime(s, item.d) };
       item.s = "cook";
       return true;

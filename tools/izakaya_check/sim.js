@@ -74,6 +74,9 @@ var ids = {}; smart.forEach(function (s) { Object.keys(s.story.seen).forEach(fun
 console.log("劇情：每局平均看過 " + seenAvg.toFixed(1) + " 段；20 局合計出現過 " + Object.keys(ids).length + "／" + window.PriTestIzakayaStory.all().length + " 段");
 // 2026-11-09：原本也要求 mio_10；它需要好感 54＋一長串前置，機器人不約會、好感累積慢，偶爾 20 局都走不到。
 // 改為只檢查事件線高潮，個人第 10 段的到達率印出來觀察（玩家可以靠約會加好感）
+// 2026-11-10：樂團線結局（band_06）對只選第 1 個選項的機器人本來就只有約 1 成機率走到（舊版 20 局 2 局、新版 80 局 7 局），
+// 尖峰缺料自動加碼改變了亂數軌跡後，固定的 20 個種子剛好都沒走到。改成不夠時再多跑最多 60 局，檢查的是「走得到」而不是「這 20 局剛好走到」。
+for (var ex = 1; ex <= 60 && !(ids.band_06 && ids.contest_06); ex++) Object.keys(play(3000 + ex, true).story.seen).forEach(function (k) { ids[k] = 1; });
 assert.ok(ids.band_06 && ids.contest_06, "機器人至少要能看到樂團線與歌唱比賽線的結局");
 var tenth = window.PriTestIzakayaCast.REGULARS.filter(function (c) { return !c.run && ids[c.id + "_10"]; }).length;
 console.log("走到第 10 段的常客：" + tenth + "／" + window.PriTestIzakayaCast.REGULARS.filter(function (c) { return !c.run; }).length);

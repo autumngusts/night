@@ -9,7 +9,7 @@
   "use strict";
 
   var D = window.PriTestIzakayaData, Core = window.PriTestIzakayaCore, Cast = window.PriTestIzakayaCast;
-  var Story = window.PriTestIzakayaStory, Rush = window.PriTestIzakayaRush, V3 = window.PriTestIzakaya3D, Net = window.PriTestIzakayaNet;
+  var Story = window.PriTestIzakayaStory, Chatter = window.PriTestIzakayaChatter, Rush = window.PriTestIzakayaRush, V3 = window.PriTestIzakaya3D, Net = window.PriTestIzakayaNet;
   var app = document.getElementById("iz-app");
   if (!app) return;
   var IMG = app.getAttribute("data-img") || "../static/images/jikan/";
@@ -49,7 +49,7 @@
   function nameOf(s, id) { var c = Cast.byId(id); if (c) return L(c.name); var g = s.pool.filter(function (x) { return x.id === id; })[0]; return g ? L(g.name) : id; }
   function hearts(n) { return "♥".repeat(Math.round((n || 0) / 20)) + "♡".repeat(5 - Math.round((n || 0) / 20)); }
 
-  var ui = { screen: "home", tab: "date", datePick: null, devSel: [], devM: "yaki", crSel: [], line: 0, lineId: "", notes: false, noteSel: null, toast: [], quality: pref().quality || "high", want: pref().role || "hall" };
+  var ui = { screen: "home", tab: "date", datePick: null, devSel: [], devM: "yaki", crSel: [], line: 0, lineId: "", notes: false, noteSel: null, after: null, lastN: null, chatAt: 0, chatLast: "", toast: [], quality: pref().quality || "high", want: pref().role || "hall" };
   var sess = null, view3 = null, lastPush = 0, refs = {}, sig = {}, raf = 0, lastT = 0;
 
   // ---------------- 場次 ----------------
@@ -87,7 +87,7 @@
   // ---------------- 畫面切換 ----------------
   function go(screen) {
     if (view3) { view3.dispose(); view3 = null; }
-    ui.screen = screen; refs = {}; sig = {};
+    ui.screen = screen; refs = {}; sig = {}; ui.after = null; ui.lastN = null;
     render();
   }
   function render() {
@@ -142,7 +142,7 @@
     app.appendChild(topBar());
     if (!s) { app.appendChild(panel(null, [el("p", { class: "iz-muted" }, [t("iz_connecting")])])); return; }
     refs.hud = el("div", { class: "iz-hud" });
-    refs.stage = el("div", { class: "iz-stage", id: "iz-stage" }, [refs.toast = el("div", { class: "iz-toasts" })]);
+    refs.stage = el("div", { class: "iz-stage", id: "iz-stage" }, [refs.toast = el("div", { class: "iz-toasts" }), refs.chat = el("div", { class: "iz-chat", id: "iz-chat" })]);
     refs.side = el("div", { class: "iz-side", id: "iz-side" });
     refs.story = el("div", { class: "iz-overlay-host" });
     refs.notes = el("div", { class: "iz-overlay-host" });
@@ -188,6 +188,7 @@
       if (sess.solo) { if (!s.rush) saveSolo(); } else pushState(false);
     }
     update();
+    chatTick(s, now);
   }
   function update() {
     var s = S();
@@ -197,7 +198,8 @@
     if (hs !== sig.hud) { sig.hud = hs; drawHud(s); }
     var ss = sideSig(s) + "|" + lang;
     if (ss !== sig.side) { sig.side = ss; drawSide(s); }
-    var st = s.story.cur ? JSON.stringify(s.story.cur) + ui.line + lang : "";
+    watchAfter(s);
+    var st = (s.story.cur ? JSON.stringify(s.story.cur) + ui.line + lang : "") + (ui.after ? "|A" + ui.after.id + ui.after.line + lang : "");
     if (st !== sig.story) { sig.story = st; drawStory(s); }
     var ns = ui.notes ? "n" + ui.noteSel + Object.keys(s.notes).length + JSON.stringify(s.story.links) + lang : "";
     if (ns !== sig.notes) { sig.notes = ns; drawNotes(s); }
@@ -269,7 +271,17 @@
       }))]);
     });
     var lh = s.lastHaggle ? el("p", { class: s.lastHaggle.cut ? "iz-good iz-small" : "iz-bad iz-small" }, [t(s.lastHaggle.cut ? "iz_haggle_ok" : "iz_haggle_ng", { n: L(D.INGS[s.lastHaggle.id].name) })]) : null;
-    return [panel(null, [head, can ? el("p", { class: "iz-small iz-muted" }, [t("iz_market_hint")]) : roleNeed("buyer"), lh, resvBox(s, can)].concat(groups).concat([readyBar(s, t("iz_to_prep"))]))];
+    return [panel(null, [head, can ? el("p", { class: "iz-small iz-muted" }, [t("iz_market_hint")]) : roleNeed("buyer"), autoStockBox(s, can), lh, resvBox(s, can)].concat(groups).concat([readyBar(s, t("iz_to_prep"))]))];
+  }
+  // 一鍵備料（2026-11-10）：依今晚預估客數，把黑板上的菜要用的食材一次買齊
+  function autoStockBox(s, can) {
+    var plan = Core.stockPlan(s), ks = Object.keys(plan), n = 0, cost = 0;
+    ks.forEach(function (k) { n += plan[k]; cost += s.mk[k] * plan[k]; });
+    if (!ks.length) return el("p", { class: "iz-small iz-good" }, ["✅ " + t("iz_stock_ok")]);
+    return el("div", { class: "iz-row iz-autostock" }, [
+      btn("🧺 " + t("iz_stock_auto", { n: n, c: yen(cost) }), function () { send({ a: "stock" }); }, "iz-btn iz-primary", { "data-act": "stock", disabled: !can || Core.fridgeCount(s) >= Core.fridgeCap(s) ? true : null }),
+      el("span", { class: "iz-small iz-muted" }, [t(s.board.length ? "iz_stock_hint" : "iz_stock_hint0")])
+    ]);
   }
   // 明日預約（★2）：採買決定接不接；今晚的預約客也列出來
   function resvBox(s, can) {
@@ -424,6 +436,7 @@
   }
   function reaction(g) {
     if (!g.last) return null;
+    if (g.last.otoshi) return el("p", null, [t("iz_react_otoshi")]);
     if (g.last.taboo) return el("p", { class: "iz-bad" }, [t("iz_react_taboo")]);
     var c = g.last.clue;
     if (!c || c.k !== "pref") return el("p", null, [g.last.delta >= 0 ? t("iz_react_ok") : t("iz_react_meh")]);
@@ -466,8 +479,11 @@
       var hints = s.night.hints || {};
       kids.push(el("div", { class: "iz-serve" }, opts.map(function (k) {
         var d = D.DISHES[k], hinted = Object.keys(hints).filter(function (p) { return hints[p] === k; }).map(function (p) { return s.players[p].name; });
+        var ok = Core.canMake(s, k);
         return el("div", { class: "iz-serve-row" }, [
-          btn(L(d.name), function () { send({ a: "serve", id: k }); }, "iz-btn" + (s.sig === k ? " iz-sig" : ""), { "data-serve": k, disabled: !mine || !Core.canMake(s, k) ? true : null }),
+          btn(L(d.name), function () { send({ a: "serve", id: k }); }, "iz-btn" + (s.sig === k ? " iz-sig" : ""), { "data-serve": k, disabled: !mine || !ok ? true : null }),
+          // 缺料：負責出菜的人可以直接臨時加碼（1.3 倍價）再出
+          !ok && mine && Core.canBuyShort(s, k) ? btn("🛒 " + t("iz_buyserve", { c: yen(Core.shortCost(s, k)) }), function () { send({ a: "serve", id: k, buy: true }); }, "iz-btn iz-small", { "data-buyserve": k, title: t("iz_buyserve_t") }) : null,
           flavor(d),
           d.tags.length ? el("span", { class: "iz-small iz-muted" }, [d.tags.map(function (x) { return L(D.TAG_NAMES[x]); }).join("・")]) : null,
           hinted.length ? el("span", { class: "iz-hinted" }, ["👉 " + hinted.join("、")]) : null,
@@ -475,7 +491,11 @@
         ]);
       })));
       if (!mine) kids.push(roleNeed(role));
-      if (!opts.some(function (k) { return Core.canMake(s, k); }) && hall) kids.push(btn(t("iz_skip"), function () { send({ a: "skip" }); }, "iz-btn", { "data-act": "skip" }));
+      // 黑板上沒有一道做得出來：送招待小菜／奉茶（取代原本只能請客人結帳）
+      if (!opts.some(function (k) { return Core.canMake(s, k); }) && hall) {
+        kids.push(el("div", { class: "iz-row" }, [btn((drinkStep ? "🍵 " + t("iz_tea") : "🥢 " + t("iz_otoshi")), function () { send({ a: "fallback" }); }, "iz-btn", { "data-act": "fallback" }),
+          el("span", { class: "iz-small iz-muted" }, [t(drinkStep ? "iz_tea_hint" : "iz_otoshi_hint")])]));
+      }
       kids.push(notesMini(s, g.gid));
       kids.push(barBox(s, g));
     }
@@ -508,7 +528,11 @@
         btn(L(ic.fix), function () { send({ a: "incident" }); }, "iz-btn iz-small iz-primary", { "data-act": "incident", disabled: !buyer ? true : null })]) : null,
       n.incident && n.incident.done && !n.incident.missed ? el("p", { class: "iz-small iz-good" }, [t("iz_incident_done")]) : null,
       Object.keys(need).length ? el("div", null, [el("span", { class: "iz-small" }, [t("iz_restock") + " "])].concat(Object.keys(need).map(function (k) {
-        return btn(L(D.INGS[k].name) + " " + yen(Math.round(s.mk[k] * 1.3)), function () { send({ a: "restock", id: k }); }, "iz-btn iz-small", { "data-restock": k, disabled: !buyer ? true : null });
+        var c1 = Core.restockCost(s, k);
+        return el("span", { class: "iz-restock" }, [
+          btn(L(D.INGS[k].name) + " " + yen(c1), function () { send({ a: "restock", id: k }); }, "iz-btn iz-small", { "data-restock": k, disabled: !buyer || s.cash < c1 ? true : null }),
+          btn("×3", function () { send({ a: "restock", id: k, n: 3 }); }, "iz-btn iz-small", { "data-restock3": k, title: yen(c1 * 3), disabled: !buyer || s.cash < c1 * 3 ? true : null })
+        ]);
       }))) : null,
       buyer ? null : roleNeed("buyer")
     ], "iz-nightwork");
@@ -697,17 +721,19 @@
   function drawStory(s) {
     var host = refs.story;
     host.innerHTML = "";
+    if (ui.after) { drawAfter(s); return; }
     var cur = s.story.cur;
     if (!cur) { ui.lineId = ""; return; }
     var sc = Story.byId(cur.id);
     if (!sc) return;
     if (ui.lineId !== cur.id) { ui.lineId = cur.id; ui.line = 0; }
+    var lines = Story.script(sc);
     var priv = cur.pid && cur.pid !== me();
     if (priv) {
       host.appendChild(el("div", { class: "iz-overlay", id: "iz-story" }, [el("div", { class: "iz-story-box" }, [el("p", null, [t("iz_private", { n: s.players[cur.pid].name })])])]));
       return;
     }
-    var shown = sc.lines.slice(0, ui.line + 1), last = ui.line >= sc.lines.length - 1;
+    var shown = lines.slice(0, ui.line + 1), last = ui.line >= lines.length - 1;
     var sp = shown[shown.length - 1][0];
     var votes = cur.votes || {}, myVote = votes[me()];
     var choices = sc.ch || [{ t: t("iz_continue_story") }];
@@ -721,6 +747,60 @@
       last && s.order.length > 1 && !cur.pid ? el("p", { class: "iz-small iz-muted" }, [t("iz_vote_wait", { n: Object.keys(votes).length, m: s.order.length })]) : null,
       last && s.order.length > 1 && s.order[0] === me() && Object.keys(votes).length ? btn(t("iz_force"), function () { send({ a: "vforce" }); }, "iz-btn iz-small", { "data-act": "vforce" }) : null
     ])]));
+  }
+
+  // 選完選項後的反應對話（只在自己的畫面演出，不擋其他人）：劇情結算時 s.story.last.n 會加一
+  function watchAfter(s) {
+    var la = s.story.last, n = (la && la.n) || 0;
+    if (ui.lastN === null) { ui.lastN = n; return; }   // 剛進畫面：之前的劇情不重播
+    if (n === ui.lastN) return;
+    ui.lastN = n;
+    if (!la || (la.pid && la.pid !== me())) return;
+    var sc = Story.byId(la.id), ls = sc ? Story.afterLines(sc, la.c) : [];
+    if (ls.length) ui.after = { id: la.id, c: la.c, lines: ls, line: 0 };
+  }
+  function drawAfter(s) {
+    var af = ui.after, sc = Story.byId(af.id), shown = af.lines.slice(0, af.line + 1), last = af.line >= af.lines.length - 1;
+    var sp = shown[shown.length - 1][0], o = sc && sc.ch && sc.ch[af.c];
+    refs.story.appendChild(el("div", { class: "iz-overlay", id: "iz-story" }, [el("div", { class: "iz-story-box" }, [
+      sp ? el("div", { class: "iz-story-who" }, [photo(s, sp, "iz-ph-l"), el("b", null, [nameOf(s, sp)])]) : null,
+      o ? el("p", { class: "iz-small iz-muted iz-picked" }, ["▶ " + o.t]) : null,
+      el("div", { class: "iz-story-lines" }, shown.map(function (l, i) { return el("p", { class: (l[0] ? "iz-line" : "iz-narr") + (i === shown.length - 1 ? " iz-cur" : "") }, [(l[0] && i !== shown.length - 1 ? nameOf(s, l[0]) + "：" : "") + l[1]]); })),
+      btn(last ? t("iz_after_close") : t("iz_next"), function () {
+        if (last) ui.after = null; else ui.after.line++;
+        sig.story = null; update();
+      }, "iz-btn iz-primary", { "data-next": "1" })
+    ])]));
+  }
+
+  // ---------------- 入座閒聊（2026-11-10）：營業中在店的客人輪流冒出頭像＋一句話，純畫面效果 ----------------
+  function chatCands(s) {
+    if (s.phase !== "service" || s.story.cur || ui.after) return [];
+    if (s.rush) return s.rush.seats.filter(function (se) { return se.gid; }).map(function (se) { return { gid: se.gid, dish: se.items[0] && se.items[0].s === "done" ? se.items[0].d : "" }; });
+    var n = s.night, out = [];
+    if (!n) return out;
+    for (var i = Math.max(0, n.i - 3); i <= n.i && i < n.groups.length; i++) {
+      var g = n.groups[i];
+      if (g.kind === "walk" || g.kind === "reg") out.push({ gid: g.gid, dish: g.food || "" });
+    }
+    return out;
+  }
+  function chatTick(s, now) {
+    var box = refs.chat;
+    if (!box || !Chatter || now < ui.chatAt) return;
+    ui.chatAt = now + 3200 + Math.random() * 2200;
+    var cands = chatCands(s).filter(function (c) { return c.gid !== ui.chatLast; });
+    if (!cands.length) return;
+    var c = cands[Math.floor(Math.random() * cands.length)];
+    var guest = Core.guestOf(s, { kind: Cast.byId(c.gid) ? "reg" : "walk", gid: c.gid });
+    if (!guest) return;
+    ui.chatLast = c.gid;
+    var text = Chatter.chat({ persona: guest.persona, topic: guest.topic, dish: c.dish && D.DISHES[c.dish] ? L(D.DISHES[c.dish].name) : "" }, Math.random);
+    var b = el("div", { class: "iz-bubble" }, [photo(s, c.gid, "iz-ph-s"), el("div", null, [el("b", null, [nameOf(s, c.gid)]), el("span", null, [text])])]);
+    box.appendChild(b);
+    while (box.children.length > 3) box.removeChild(box.firstChild);
+    setTimeout(function () { b.classList.add("iz-bye"); }, 5200);
+    setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 5800);
   }
 
   // ---------------- 筆記本與關係圖 ----------------
