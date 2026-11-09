@@ -9,7 +9,7 @@
 
   var RELS = {
     ex_band: C("前團員", "元バンドメンバー"), sister: C("姊妹", "姉妹"), rival: C("死對頭", "宿敵"), ex_lover: C("前戀人", "元恋人"),
-    boss: C("老闆與部下", "上司と部下"), friend: C("好友", "親友"), debt: C("欠債", "借金"), secret: C("祕密", "秘密")
+    boss: C("老闆與部下", "上司と部下"), friend: C("好友", "親友"), debt: C("欠債", "借金"), secret: C("祕密", "秘密"), parent: C("母女", "母娘")
   };
   function all() { return window.PriTestIzakayaScenes; }
   function byId(id) { var a = all(); for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
