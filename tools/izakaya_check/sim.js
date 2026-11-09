@@ -57,6 +57,11 @@ var smart = [], dumb = [];
 for (var i = 1; i <= 20; i++) { smart.push(play(1000 + i, true)); dumb.push(play(2000 + i, false)); }
 function avg(a, f) { return a.reduce(function (t, x) { return t + f(x); }, 0) / a.length; }
 var sm = avg(smart, function (s) { return s.maxStar; }), dm = avg(dumb, function (s) { return s.maxStar; });
+if (process.env.IZ_UNSEEN) { var idsU = {}; smart.forEach(function (s) { Object.keys(s.story.seen).forEach(function (k) { idsU[k] = 1; }); }); console.log("沒出現過：" + window.PriTestIzakayaStory.all().filter(function (x) { return !idsU[x.id]; }).map(function (x) { return x.id; }).join(" ")); }
+var seenAvg = avg(smart, function (s) { return Object.keys(s.story.seen).length; });
+var ids = {}; smart.forEach(function (s) { Object.keys(s.story.seen).forEach(function (k) { ids[k] = 1; }); });
+console.log("劇情：每局平均看過 " + seenAvg.toFixed(1) + " 段；20 局合計出現過 " + Object.keys(ids).length + "／" + window.PriTestIzakayaStory.all().length + " 段");
+assert.ok(ids.mio_10 && ids.band_06 && ids.contest_06, "機器人至少要能看到樂團線與歌唱比賽線的結局");
 console.log("會推理：平均最高星 " + sm.toFixed(2) + "、資金 " + Math.round(avg(smart, function (s) { return s.cash; })));
 console.log("亂選：平均最高星 " + dm.toFixed(2) + "、資金 " + Math.round(avg(dumb, function (s) { return s.cash; })));
 assert.ok(sm >= 3 && sm <= 4.8, "會推理的機器人應能到 ★3〜★4.8（★5 留給認真玩的玩家）");

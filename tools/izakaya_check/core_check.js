@@ -180,7 +180,8 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
 // ---------------- 5. 劇情引擎 ----------------
 (function () {
   var St = window.PriTestIzakayaStory;
-  var base = St.all().length;
+  // 正式劇情（Task 11）加入後會跟測試場景搶觸發：測試期間先把正式場景移開，結束再放回
+  var saved = window.PriTestIzakayaScenes.splice(0);
   window.PriTestIzakayaScenes.push(
     { id: "t_a", who: ["mio"], at: "visit", cond: { day: [1, 5] }, lines: [["mio", "測試"]], ch: [{ t: "甲", fx: { aff: { mio: 5 }, flag: ["fa"] } }, { t: "乙", fx: { flag: ["fb"] } }] },
     { id: "t_b", who: ["mio"], at: "visit", pri: 5, cond: { seen: ["t_a"], present: ["mio", "chinatsu"] }, lines: [["", "旁白"]], next: "t_c", ch: [{ t: "好", fx: { link: [["mio", "chinatsu", "ex_band"]], arc: { band: 1 } } }] },
@@ -212,7 +213,8 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   assert.ok(!St.choose(s, "p0", 0), "別人不能投私密場景");
   St.choose(s, "p1", 0);
   assert.strictEqual(s.players.p1.aff.mio, 13); assert.strictEqual(s.players.p0.aff.mio, 5);
-  window.PriTestIzakayaScenes.splice(base, 4);
+  window.PriTestIzakayaScenes.splice(0);
+  Array.prototype.push.apply(window.PriTestIzakayaScenes, saved);
   console.log("5. 劇情引擎 OK");
 })();
 
