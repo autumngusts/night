@@ -9,7 +9,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData;
@@ -46,7 +46,9 @@ var D = window.PriTestIzakayaData;
 // ---------------- 2. 角色名單 ----------------
 (function () {
   var Cast = window.PriTestIzakayaCast;
-  assert.strictEqual(Cast.REGULARS.length, 12, "1b 常客 12 人");
+  // 1b 常客 12 人＋批次 B 的隱藏常客「夜」（第 2 年起出現）
+  assert.strictEqual(Cast.REGULARS.filter(function (c) { return !c.run; }).length, 12, "1b 常客 12 人");
+  assert.ok(Cast.byId("yoru").run === 1 && Cast.byId("yoru").noLove, "隱藏常客：第 2 年起出現、不能約會");
   assert.strictEqual(Cast.STAFF.length, 30, "1b 店員 30 人");
   assert.strictEqual(Cast.ALL_PHOTOS.length, 191, "照片 191 張");
   Cast.ALL_PHOTOS.forEach(function (p) { assert.ok(fs.existsSync(path.join(SRC, "images", "jikan", p + ".webp")), "照片不存在：" + p); });
@@ -66,7 +68,7 @@ var D = window.PriTestIzakayaData;
   function rng(seed) { return function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
   var a = Cast.assignPhotos(rng(7)), b = Cast.assignPhotos(rng(8)), a2 = Cast.assignPhotos(rng(7));
   var used = Object.keys(a.photos).map(function (k) { return a.photos[k]; });
-  assert.strictEqual(used.length, 42); assert.strictEqual(new Set(used.concat(a.rest)).size, 191, "同一局內不重複");
+  assert.strictEqual(used.length, 43); assert.strictEqual(new Set(used.concat(a.rest)).size, 191, "同一局內不重複");
   assert.notDeepStrictEqual(a.photos, b.photos, "不同局要輪換");
   assert.deepStrictEqual(a.photos, a2.photos, "同一種子同一結果");
   var pool = Cast.genPool(rng(9), 60, a.rest);

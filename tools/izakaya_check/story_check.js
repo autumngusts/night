@@ -5,7 +5,7 @@ var fs = require("fs"), path = require("path"), assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js", "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js"].forEach(function (f) {
+["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js", "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData, Cast = window.PriTestIzakayaCast, St = window.PriTestIzakayaStory;
@@ -16,7 +16,7 @@ scenes.forEach(function (sc) {
   chk(!ids[sc.id], "場景 id 重複：" + sc.id); ids[sc.id] = sc;
   (sc.ch || []).forEach(function (o) { var fx = o.fx || {}; (fx.flag || []).forEach(function (f) { flagsMade[f] = 1; }); });
 });
-var ARCS = ["band", "contest", "dance", "invest", "will", "master"];
+var ARCS = ["band", "contest", "dance", "invest", "will", "master", "truth"];
 scenes.forEach(function (sc) {
   var c = sc.cond || {};
   chk(["visit", "close", "holiday", "date"].indexOf(sc.at) >= 0, sc.id + " 的 at 不合法");

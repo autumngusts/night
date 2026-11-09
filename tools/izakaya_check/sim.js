@@ -6,7 +6,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
 var D = window.PriTestIzakayaData, Core = window.PriTestIzakayaCore, Rush = window.PriTestIzakayaRush;
 
 function guessScore(s, gid, id) {
@@ -15,8 +15,8 @@ function guessScore(s, gid, id) {
   D.DIMS.forEach(function (k, i) { var p = n.pref[k]; if (p) sc += p.v * d.f[i]; });
   return sc;
 }
-function play(seed, smart) {
-  var s = Core.newGame({ seed: seed, players: [{ pid: "p0", name: "bot" }] }), guard = 0;
+function play(seed, smart, legacy) {
+  var s = Core.newGame({ seed: seed, players: [{ pid: "p0", name: "bot" }], legacy: legacy }), guard = 0;
   while (s.phase !== "end" && guard++ < 20000) {
     if (s.story.cur) { Core.applyIntent(s, "p0", { a: "vote", c: 0 }); continue; }
     if (s.phase === "market") {
@@ -69,4 +69,20 @@ console.log("亂選：平均最高星 " + dm.toFixed(2) + "、資金 " + Math.ro
 assert.ok(sm >= 3 && sm <= 4.8, "會推理的機器人應能到 ★3〜★4.8（★5 留給認真玩的玩家）");
 assert.ok(dm < sm, "亂選要比推理差");
 assert.ok(smart.every(function (s) { return s.cash > 0; }), "會推理的不會破產");
+// 批次 B（使用者指定 2026-11-09：不跑 3 輪以上很難串到最深處的祕密）：帶著跨局記憶連續經營，
+// 真結局（secret_truth）第 1、2 年絕對到不了，第 3 年以後要到得了
+var chains = [], firstTruth = [];
+for (var c = 1; c <= 12; c++) {
+  var leg = Core.emptyLegacy(), got = 0, ends = [];
+  for (var y = 1; y <= 4 && !got; y++) {
+    var sy = play(5000 + c * 10 + y, true, leg);
+    ends.push(sy.end.ending);
+    if (sy.story.flags.secret_truth) got = y;
+    leg = Core.mergeLegacy(leg, sy);
+  }
+  chains.push(ends.join(">")); firstTruth.push(got);
+}
+console.log("多輪：" + chains.slice(0, 4).join("　") + "　…　真結局在第幾年：" + firstTruth.join(","));
+assert.ok(firstTruth.every(function (y) { return y === 0 || y >= 3; }), "真結局不能在前兩年達成");
+assert.ok(firstTruth.some(function (y) { return y >= 3; }), "連續經營 3〜4 年要能到達真結局");
 console.log("sim OK");

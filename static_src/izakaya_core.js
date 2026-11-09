@@ -188,6 +188,7 @@
     for (var r = regs.length - 1; r > 0; r--) { var q = rint(s, r + 1), x = regs[r]; regs[r] = regs[q]; regs[q] = x; }
     regs.forEach(function (c) {
       if (c.from > s.day || groups.length >= D.REG_PER_NIGHT) return;
+      if (c.run && ((s.legacy && s.legacy.runs) || 0) < c.run) return;   // 隱藏常客：第 run+1 年起才出現
       if (rnd(s) < c.freq + avgAff(s, c.id) / 200) { groups.push(newGroup(s, "reg", c.id, 1)); used[c.id] = 1; }
     });
     var refer = s.refer || [], guard = 0, walkTotal = groups.length + total;
@@ -359,7 +360,8 @@
   // ---------------- 戀愛（使用者指定 2026-11-09：★3 約會、★4 心動、★5 告白～結婚；每位玩家各自計算）----------------
   function affOf(s, pid, cid) { return s.players[pid].aff[cid] || 0; }
   function canDate(s, pid, cid) {
-    if (s.phase !== "holiday" || s.maxStar < 3 || !Cast().byId(cid) || s.date[pid]) return false;
+    var who = Cast().byId(cid);
+    if (s.phase !== "holiday" || s.maxStar < 3 || !who || who.noLove || s.date[pid]) return false;
     if (affOf(s, pid, cid) < D.DATE_AFF) return false;
     if (s.rel[cid] && s.rel[cid].pid !== pid) return false;
     return !Object.keys(s.date).some(function (p) { return s.date[p].cid === cid; });
@@ -392,7 +394,7 @@
     dt.done = true;
   }
   function confess(s, pid, cid) {
-    if (s.maxStar < 5 || affOf(s, pid, cid) < D.CONFESS_AFF) return { ok: false };
+    if (s.maxStar < 5 || affOf(s, pid, cid) < D.CONFESS_AFF || !Cast().byId(cid) || Cast().byId(cid).noLove) return { ok: false };
     var r = s.rel[cid];
     if (!r) { s.rel[cid] = { pid: pid, stage: 1, dates: 0 }; return { ok: true }; }
     if (r.pid === pid) return { ok: false };

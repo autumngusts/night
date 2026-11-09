@@ -519,7 +519,7 @@
         lovePanel(s, dt.cid)
       ]);
     }
-    var cands = Cast.REGULARS.concat(Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; }));
+    var cands = Cast.REGULARS.filter(function (c) { return !c.noLove; }).concat(Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; }));
     var list = el("div", { class: "iz-cands" }, cands.map(function (c) {
       var ok = Core.canDate(s, pid, c.id), aff = Core.affOf(s, pid, c.id), rel = s.rel[c.id];
       return el("div", { class: "iz-cand" + (ui.datePick === c.id ? " iz-on" : "") }, [
@@ -621,7 +621,7 @@
     host.innerHTML = "";
     if (!ui.notes) return;
     var pid = me();
-    var regs = Cast.REGULARS.concat(Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; }));
+    var regs = Cast.REGULARS.filter(function (c) { return !c.run || ((s.legacy && s.legacy.runs) || 0) >= c.run; }).concat(Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; }));
     var walks = s.pool.filter(function (g) { return s.notes[g.id]; });
     function row(id, sub) {
       return btn("", function () { ui.noteSel = ui.noteSel === id ? null : id; sig.notes = null; update(); }, "iz-note-row" + (ui.noteSel === id ? " iz-on" : ""), { "data-note": id });
@@ -646,7 +646,7 @@
   }
   // 人物關係圖：照片排成圓形，關係線用 inline SVG（只有線用 SVG，頭像仍是照片）
   function relGraph(s) {
-    var ids = Cast.REGULARS.concat(Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; })).map(function (c) { return c.id; });
+    var ids = Cast.REGULARS.filter(function (c) { return !c.run || ((s.legacy && s.legacy.runs) || 0) >= c.run; }).concat(Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; })).map(function (c) { return c.id; });
     var R = 120, C0 = 150, pos = {};
     ids.forEach(function (id, i) { var a = i / ids.length * Math.PI * 2 - Math.PI / 2; pos[id] = [C0 + Math.cos(a) * R, C0 + Math.sin(a) * R]; });
     var NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg");

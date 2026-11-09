@@ -65,7 +65,12 @@
     ch({ id: "chizuru", zh: "霧島 千鶴", age: 52, jobZh: "老料亭女將", persona: "otona", pref: [1, 0, 0, 2, 0], taboo: null, drink: 2, topic: "food",
       likes: ["honest", "calm"], favSpot: "beach", arcs: ["master"], from: 6, freq: 0.5,
       bioZh: "隔壁街老料亭「霧島」的女將。每次吃你的菜，都會露出懷念又悲傷的表情。",
-      lines: { heart: "「都這把年紀了……還會心跳加速，真是傷腦筋。」", confess: "「我等了一個人二十年。現在，我想讓自己往前走。」", propose: "「餘生的每一頓飯，我們一起做吧。」", wedding: "「我的婚禮料理……當然由我們兩個人來做。」" } })
+      lines: { heart: "「都這把年紀了……還會心跳加速，真是傷腦筋。」", confess: "「我等了一個人二十年。現在，我想讓自己往前走。」", propose: "「餘生的每一頓飯，我們一起做吧。」", wedding: "「我的婚禮料理……當然由我們兩個人來做。」" } }),
+    // ---- 批次 B：第 2 年起才出現的神祕女客（真身是師娘志乃；母親的角色，不能約會）----
+    ch({ id: "yoru", zh: "夜", ja: "夜", age: 52, jobZh: "不明", persona: "otona", pref: [1, 1, 0, 2, 0], taboo: null, drink: 1, topic: "family",
+      likes: ["calm", "honest"], favSpot: "hanami", arcs: ["truth"], from: 1, freq: 0.5, run: 1, noLove: true,
+      bioZh: "第二年起每晚出現的女客。總是坐在最裡面的位子，只點菜單上沒有的「月見燉菜」。左手戴著長手套。",
+      lines: { heart: "「……謝謝你，願意陪我這個老太婆。」", confess: "「傻孩子，那句話要留給重要的人。」", propose: "「傻孩子。」", wedding: "「……要幸福喔。」" } })
   ];
 
   // ---------------- 店員（★4 雇用；面試劇情在 ★3 起的公休日出現）----------------
