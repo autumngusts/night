@@ -569,7 +569,8 @@
     var e = s.end || {}, pid = me(), partner = Core.partnerOf(s, pid);
     // 事件線的結局：看過該線的高潮段落就算完成（1b：六條線）
     var arcs = [["band_06", "iz_end_band"], ["contest_06", "iz_end_contest"], ["dance_06", "iz_end_dance"], ["invest_06", "iz_end_invest"],
-      ["will_06", "iz_end_will"], ["master_06", "iz_end_master"]].filter(function (x) { return s.story.seen[x[0]]; }).map(function (x) { return t(x[1]); });
+      ["will_06", "iz_end_will"], ["master_06", "iz_end_master"],
+      ["bride_06", "iz_end_bride"], ["critic_06", "iz_end_critic"], ["idol_06", "iz_end_idol"]].filter(function (x) { return s.story.seen[x[0]]; }).map(function (x) { return t(x[1]); });
     lsSet(SAVE_KEY, null);
     if (ui.recorded !== s.seed) { ui.recorded = s.seed; recordLegacy(s); }
     var ed = D.ENDINGS.filter(function (x) { return x.id === e.ending; })[0];
