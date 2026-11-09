@@ -514,7 +514,8 @@
         el("div", { class: "iz-guest" }, [photo(s, dt.cid, "iz-ph-l"), el("div", null, [el("b", null, [nameOf(s, dt.cid)]), el("div", null, [hearts(Core.affOf(s, pid, dt.cid))])])]),
         // 心動：在角色最愛的地點會演專屬場景（劇情視窗）；其他地點用該地點的通用描寫＋角色台詞
         dt.heart ? el("div", { class: "iz-heart" }, [el("b", null, [t("iz_heart")]),
-          dt.spot !== c.favSpot ? el("p", { class: "iz-small" }, [D.SPOTS.filter(function (x) { return x.id === dt.spot; })[0].heart]) : null,
+          // 批次 F 後每人每地點都有心動場景（劇情視窗演過了）；沒有場景時才補地點的通用描寫
+          !Story.all().some(function (x) { return x.at === "date" && x.who[0] === dt.cid && x.cond.spot === dt.spot; }) ? el("p", { class: "iz-small" }, [D.SPOTS.filter(function (x) { return x.id === dt.spot; })[0].heart]) : null,
           el("p", null, [c.lines.heart])]) : null,
         lovePanel(s, dt.cid)
       ]);

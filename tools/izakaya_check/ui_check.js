@@ -194,8 +194,9 @@ async function patchSave(page, fn) {
   for (r = 0; r < 3; r++) await act(page, '[data-dc="0"]');
   await clearStory(page);
   await page.waitForSelector(".iz-heart");
-  var heartTxt = await page.textContent(".iz-heart");
-  assert.ok(heartTxt.indexOf("夕陽") >= 0, "非最愛地點顯示地點的通用心動描寫：" + heartTxt);
+  // 批次 F：每人每地點都有心動場景（劇情視窗）——綾乃在海邊的場景要演過
+  s = await state(page);
+  assert.ok(s.story.seen.heart_ayano_beach, "非最愛地點也有專屬心動場景");
   // 筆記本與關係圖
   await patchSave(page, "s.story.links['chinatsu|mio'] = 'ex_band';");
   await act(page, '[data-act="notes"]');

@@ -9,7 +9,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js", "izakaya_story_e.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js", "izakaya_story_e.js", "izakaya_story_heart2.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData;
@@ -396,6 +396,14 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   var s5 = game(1, 9); s5.day = 10; var hits = 0;
   for (var q = 0; q < 40; q++) { s5.story.cur = null; s5.night = { groups: [{ kind: "reg", gid: "rin", step: "talk" }], i: 0 }; s5.story.seen = { rin_01: 1, rin_02: 1, contest_01: 1 }; Core.enterGroup(s5); if (s5.story.cur && St.byId(s5.story.cur.id).at === "daily") hits++; }
   assert.ok(hits > 0, "常客到店時會抽到日常小劇場");
+  // 批次 F：每位可戀愛的角色 × 每個約會地點，都有一段心動場景
+  var C2 = window.PriTestIzakayaCast;
+  C2.REGULARS.filter(function (c) { return !c.noLove; }).concat(C2.STAFF).forEach(function (c) {
+    D.SPOTS.forEach(function (sp) {
+      var n = St.all().filter(function (x) { return x.at === "date" && x.who[0] === c.id && x.cond.spot === sp.id; }).length;
+      assert.strictEqual(n, 1, "心動場景：" + c.id + "×" + sp.id + " 要剛好 1 段（實際 " + n + "）");
+    });
+  });
   console.log("11. 跨局記憶與多重結局 OK");
 })();
 
