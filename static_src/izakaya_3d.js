@@ -54,11 +54,13 @@
     scene.background = new T.Color(0x1a1210);
     scene.fog = new T.Fog(0x1a1210, 12, 26);
     var cam = new T.PerspectiveCamera(40, W0 / H0, 0.1, 100);
-    var view = { yaw: 0, base: 7.5 };
+    // wide：★2 起多了右側的 4 人桌，鏡頭往右拉遠一點
+    var view = { yaw: 0, base: 7.5, wide: false };
     function placeCam() {
-      var a = (box.clientWidth || W0) / (box.clientHeight || H0), d = view.base * (a < 1 ? 1.45 : a < 1.4 ? 1.15 : 1);
-      cam.position.set(Math.sin(view.yaw) * d + 0.6, 4.3, Math.cos(view.yaw) * d + 0.4);
-      cam.lookAt(0.6, 0.9, 0.4);
+      var a = (box.clientWidth || W0) / (box.clientHeight || H0), d = (view.wide ? 8.6 : view.base) * (a < 1 ? 1.45 : a < 1.4 ? 1.15 : 1);
+      var cx = view.wide ? 1.3 : 0.6;
+      cam.position.set(Math.sin(view.yaw) * d + cx, 4.3, Math.cos(view.yaw) * d + 0.4);
+      cam.lookAt(cx, 0.9, 0.6);
     }
     placeCam();
 
@@ -232,6 +234,7 @@
       var s = opts.getState(), u = (opts.getUi && opts.getUi()) || {};
       if (s) {
         tableParts.forEach(function (m) { m.visible = s.maxStar >= 2; });
+        view.wide = s.maxStar >= 2;
         syncGuests(s);
         var R = s.rush;
         guestObjs.forEach(function (o) {

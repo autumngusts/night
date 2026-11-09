@@ -96,15 +96,22 @@
       set("pl/" + cid, null);
     };
 
+    // 房主看起來離線時，等 2.5 秒再確認才接手：剛連上時「在線名單」可能還沒收齊（先只看到自己），
+    // 不等的話新加入的人會誤以為房主不在而搶走房主（2026-11-09 連線檢查發現）
+    var takeTimer = null;
     function maybeTakeHost() {
-      if (!room.meta || room.hostOnline()) return;
-      var first = room.list()[0];
-      if (!first || first.cid !== cid) return;
-      G.rtTransaction(roomId, CLOUD, path("meta"), function (m) {
-        if (!m || m.host !== room.meta.host) return;
-        m.host = cid;
-        return m;
-      });
+      if (!room.meta || room.hostOnline() || takeTimer) return;
+      takeTimer = setTimeout(function () {
+        takeTimer = null;
+        if (room.closed || !room.meta || room.hostOnline()) return;
+        var first = room.list()[0];
+        if (!first || first.cid !== cid) return;
+        G.rtTransaction(roomId, CLOUD, path("meta"), function (m) {
+          if (!m || m.host !== room.meta.host) return;
+          m.host = cid;
+          return m;
+        });
+      }, 2500);
     }
     function onIn(v) {
       if (!room.isHost() || !v) return;

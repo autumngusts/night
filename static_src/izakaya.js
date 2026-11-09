@@ -77,7 +77,8 @@
   function S() { return sess && sess.s; }
   function me() { return sess ? sess.pid : ""; }
   function has(role) { var s = S(); return !!s && Core.hasRole(s, me(), role); }
-  function send(it) { if (sess) sess.send(it); sig = {}; }
+  // 送出後立刻重繪（不等下一影格），避免畫面上留著已經過時的按鈕被點到
+  function send(it) { if (sess) sess.send(it); sig = {}; if (ui.screen === "game") update(); }
 
   // ---------------- 畫面切換 ----------------
   function go(screen) {
