@@ -42,4 +42,36 @@ var D = window.PriTestIzakayaData;
   console.log("1. 資料完整性 OK（料理 " + food.length + "、酒飲 " + drinks.length + "）");
 })();
 
+// ---------------- 2. 角色名單 ----------------
+(function () {
+  var Cast = window.PriTestIzakayaCast;
+  assert.strictEqual(Cast.REGULARS.length, 6, "1a 常客 6 人");
+  assert.strictEqual(Cast.STAFF.length, 10, "1a 店員 10 人");
+  assert.strictEqual(Cast.ALL_PHOTOS.length, 191, "照片 191 張");
+  Cast.ALL_PHOTOS.forEach(function (p) { assert.ok(fs.existsSync(path.join(SRC, "images", "jikan", p + ".webp")), "照片不存在：" + p); });
+  var ids = {};
+  Cast.REGULARS.concat(Cast.STAFF).forEach(function (c) {
+    assert.ok(!ids[c.id], "角色 id 重複：" + c.id); ids[c.id] = 1;
+    assert.ok(c.photo === undefined, c.id + " 不可寫死照片（每局輪換）");
+    assert.ok(c.age >= 20, c.id + " 必須成年");
+    assert.strictEqual(c.pref.length, 5);
+    assert.strictEqual(c.likes.length, 2);
+    c.likes.forEach(function (t) { assert.ok(D.LIKE_TAGS.indexOf(t) >= 0, c.id + " 的 likes 不合法：" + t); });
+    assert.ok(D.SPOTS.some(function (s) { return s.id === c.favSpot; }), c.id + " 的 favSpot 不存在");
+    ["confess", "propose", "wedding", "heart"].forEach(function (k) { assert.ok(c.lines[k], c.id + " 缺台詞 " + k); });
+  });
+  Cast.STAFF.forEach(function (c) { assert.ok(["fast", "memo", "bar", "host"].indexOf(c.ability) >= 0 && c.wage > 0, c.id + " 店員能力／薪水"); });
+  // 照片輪換：同一局內不重複；不同種子的分配不同；同一種子結果相同
+  function rng(seed) { return function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
+  var a = Cast.assignPhotos(rng(7)), b = Cast.assignPhotos(rng(8)), a2 = Cast.assignPhotos(rng(7));
+  var used = Object.keys(a.photos).map(function (k) { return a.photos[k]; });
+  assert.strictEqual(used.length, 16); assert.strictEqual(new Set(used.concat(a.rest)).size, 191, "同一局內不重複");
+  assert.notDeepStrictEqual(a.photos, b.photos, "不同局要輪換");
+  assert.deepStrictEqual(a.photos, a2.photos, "同一種子同一結果");
+  var pool = Cast.genPool(rng(9), 60, a.rest);
+  assert.strictEqual(pool.length, 60);
+  pool.forEach(function (g) { assert.ok(a.rest.indexOf(g.photo) >= 0, "一般客只用剩下的照片：" + g.photo); });
+  console.log("2. 角色名單 OK");
+})();
+
 console.log("ALL OK");
