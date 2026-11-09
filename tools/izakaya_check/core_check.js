@@ -9,7 +9,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
 var D = window.PriTestIzakayaData;

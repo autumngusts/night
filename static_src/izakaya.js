@@ -502,7 +502,10 @@
       var c = Cast.byId(dt.cid);
       return panel("💗 " + t("iz_date_done"), [
         el("div", { class: "iz-guest" }, [photo(s, dt.cid, "iz-ph-l"), el("div", null, [el("b", null, [nameOf(s, dt.cid)]), el("div", null, [hearts(Core.affOf(s, pid, dt.cid))])])]),
-        dt.heart ? el("div", { class: "iz-heart" }, [el("b", null, [t("iz_heart")]), el("p", null, [c.lines.heart])]) : null,
+        // 心動：在角色最愛的地點會演專屬場景（劇情視窗）；其他地點用該地點的通用描寫＋角色台詞
+        dt.heart ? el("div", { class: "iz-heart" }, [el("b", null, [t("iz_heart")]),
+          dt.spot !== c.favSpot ? el("p", { class: "iz-small" }, [D.SPOTS.filter(function (x) { return x.id === dt.spot; })[0].heart]) : null,
+          el("p", null, [c.lines.heart])]) : null,
         lovePanel(s, dt.cid)
       ]);
     }
@@ -554,9 +557,9 @@
   // 結局
   function sideEnd(s) {
     var e = s.end || {}, pid = me(), partner = Core.partnerOf(s, pid);
-    var arcs = [];
-    if ((e.arcs && e.arcs.band) >= 6) arcs.push(t("iz_end_band"));
-    if ((e.arcs && e.arcs.contest) >= 5) arcs.push(t("iz_end_contest"));
+    // 事件線的結局：看過該線的高潮段落就算完成（1b：六條線）
+    var arcs = [["band_06", "iz_end_band"], ["contest_06", "iz_end_contest"], ["dance_06", "iz_end_dance"], ["invest_06", "iz_end_invest"],
+      ["will_06", "iz_end_will"], ["master_06", "iz_end_master"]].filter(function (x) { return s.story.seen[x[0]]; }).map(function (x) { return t(x[1]); });
     lsSet(SAVE_KEY, null);
     return [el("section", { class: "iz-panel", id: "iz-end" }, [
       el("h2", null, ["🎆 " + t("iz_end_title")]),
@@ -648,7 +651,8 @@
     var wrap = el("div", { class: "iz-rel", id: "iz-rel" }, [svg]);
     ids.forEach(function (id) {
       var im = photo(s, id, "iz-rel-ph");
-      im.setAttribute("style", "left:" + (pos[id][0] / 3) + "%;top:" + (pos[id][1] / 3) + "%");
+      // 人數多時（1b 常客 12 人＋店員）照片縮小，避免蓋住關係名稱
+      im.setAttribute("style", "left:" + (pos[id][0] / 3) + "%;top:" + (pos[id][1] / 3) + "%" + (ids.length > 10 ? ";width:" + Math.max(7, 13 - (ids.length - 10) * 0.5) + "%" : ""));
       im.setAttribute("title", nameOf(s, id));
       wrap.appendChild(im);
     });

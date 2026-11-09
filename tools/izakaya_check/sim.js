@@ -6,7 +6,7 @@ global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
 ["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
- "izakaya_story_staff.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+ "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
 var D = window.PriTestIzakayaData, Core = window.PriTestIzakayaCore, Rush = window.PriTestIzakayaRush;
 
 function guessScore(s, gid, id) {
@@ -62,6 +62,8 @@ var seenAvg = avg(smart, function (s) { return Object.keys(s.story.seen).length;
 var ids = {}; smart.forEach(function (s) { Object.keys(s.story.seen).forEach(function (k) { ids[k] = 1; }); });
 console.log("劇情：每局平均看過 " + seenAvg.toFixed(1) + " 段；20 局合計出現過 " + Object.keys(ids).length + "／" + window.PriTestIzakayaStory.all().length + " 段");
 assert.ok(ids.mio_10 && ids.band_06 && ids.contest_06, "機器人至少要能看到樂團線與歌唱比賽線的結局");
+// 1b：六條事件線的高潮段落都要在 30 天內觸發得到（後期到店的常客與公休日的數量是瓶頸）
+["dance_06", "invest_06", "will_06", "master_06"].forEach(function (k) { assert.ok(ids[k], "1b 事件線的高潮要觸發得到：" + k); });
 console.log("會推理：平均最高星 " + sm.toFixed(2) + "、資金 " + Math.round(avg(smart, function (s) { return s.cash; })));
 console.log("亂選：平均最高星 " + dm.toFixed(2) + "、資金 " + Math.round(avg(dumb, function (s) { return s.cash; })));
 assert.ok(sm >= 3 && sm <= 4.8, "會推理的機器人應能到 ★3〜★4.8（★5 留給認真玩的玩家）");

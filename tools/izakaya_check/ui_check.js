@@ -185,6 +185,15 @@ async function patchSave(page, fn) {
   assert.ok(s.date[s.order[0]].done && s.players[s.order[0]].aff.mio > 60, "約會完成並加好感");
   await noMissingKeys(page, "date");
   await page.screenshot({ path: path.join(SHOTS, "date.png") });
+  // 1b：★4 在非最愛的地點約會 → 心動事件顯示該地點的通用描寫（新地點 beach）
+  await patchSave(page, "s.date = {}; s.players[s.order[0]].aff.ayano = 70;");
+  await act(page, '[data-date="ayano"]');
+  await act(page, '[data-spot="beach"]');
+  for (r = 0; r < 3; r++) await act(page, '[data-dc="0"]');
+  await clearStory(page);
+  await page.waitForSelector(".iz-heart");
+  var heartTxt = await page.textContent(".iz-heart");
+  assert.ok(heartTxt.indexOf("夕陽") >= 0, "非最愛地點顯示地點的通用心動描寫：" + heartTxt);
   // 筆記本與關係圖
   await patchSave(page, "s.story.links['chinatsu|mio'] = 'ex_band';");
   await act(page, '[data-act="notes"]');

@@ -403,12 +403,17 @@
   // ---------------- 意圖 ----------------
   function allReady(s) { return s.order.every(function (p) { return s.ready[p]; }); }
   function runQueue(s) { var id = s.story.queue.shift(); if (id) Story().begin(s, id, null); }
+  // 店員面試（店員的第 1 段）一個公休日最多 2 段：1b 店員增加到 30 人，★3 之後的第一個公休日會一口氣塞滿面試
+  var MAX_INTERVIEWS = 2;
   function findScenes(s, at) {
-    var out = [];
+    var out = [], interviews = 0;
     if (!Story() || !Story().eligible) return out;
-    Cast().REGULARS.concat(Cast().STAFF).forEach(function (c) {
+    var list = Cast().REGULARS.concat(Cast().STAFF), off = s.day % list.length;
+    list.slice(off).concat(list.slice(0, off)).forEach(function (c) {
       var sc = Story().eligible(s, { at: at, who: c.id, present: [] });
-      if (sc && out.indexOf(sc.id) < 0) out.push(sc.id);
+      if (!sc || out.indexOf(sc.id) >= 0) return;
+      if (c.ability && sc.id === c.id + "_01") { if (interviews >= MAX_INTERVIEWS) return; interviews++; }
+      out.push(sc.id);
     });
     return out;
   }
