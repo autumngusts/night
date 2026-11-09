@@ -214,4 +214,62 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   console.log("5. 劇情引擎 OK");
 })();
 
+// ---------------- 6. 戀愛 ----------------
+(function () {
+  var s = game(2, 5); s.phase = "holiday"; s.maxStar = 2;
+  s.players.p0.aff.mio = 40;
+  assert.ok(!Core.canDate(s, "p0", "mio"), "★3 才能約會");
+  s.maxStar = 3; assert.ok(Core.canDate(s, "p0", "mio"));
+  s.players.p1.aff.mio = 10; assert.ok(!Core.canDate(s, "p1", "mio"), "好感不夠");
+  assert.ok(Core.startDate(s, "p0", "mio", "yakei"));
+  s.players.p1.aff.mio = 40; assert.ok(!Core.canDate(s, "p1", "mio"), "同一角色同一天只能被一人約");
+  var mio = window.PriTestIzakayaCast.byId("mio"), spot = D.SPOTS.filter(function (x) { return x.id === "yakei"; })[0];
+  for (var r = 0; r < 3; r++) {
+    var ci = spot.rounds[r].ch.map(function (o) { return o.tag; }).findIndex(function (t) { return mio.likes.indexOf(t) >= 0; });
+    Core.dateChoice(s, "p0", ci < 0 ? 0 : ci);
+  }
+  assert.ok(s.date.p0.done); assert.ok(s.players.p0.aff.mio > 40 + 5, "約會加好感（含喜歡的地點）");
+  assert.ok(!s.date.p0.heart, "★3 沒有心動事件");
+  // 告白、三角戀
+  s.maxStar = 5; s.players.p0.aff.mio = 90; s.players.p1.aff.mio = 85;
+  assert.ok(Core.confess(s, "p1", "mio").ok); assert.strictEqual(s.rel.mio.pid, "p1");
+  var t = Core.confess(s, "p0", "mio");
+  assert.ok(t.tri && t.winner === "p0", "三角戀：好感高的人贏");
+  assert.strictEqual(s.rel.mio.pid, "p0"); assert.strictEqual(s.players.p1.aff.mio, 70, "輸的一方 -15");
+  assert.ok(s.story.flags.tri_mio);
+  // 求婚：需要交往後 3 次約會且好感 95
+  s.players.p0.aff.mio = 96;
+  assert.ok(!Core.propose(s, "p0", "mio"), "交往後約會不到 3 次");
+  s.rel.mio.dates = 3; assert.ok(Core.propose(s, "p0", "mio")); assert.strictEqual(s.rel.mio.stage, 2);
+  s.phase = "holiday"; assert.ok(Core.wedding(s, "p0", "mio")); assert.strictEqual(Core.partnerOf(s, "p0"), "mio");
+  console.log("6. 戀愛 OK");
+})();
+
+// ---------------- 7. 店員、招牌、伴侶、評論家 ----------------
+(function () {
+  var s = game(1, 11); stockUp(s);
+  assert.ok(!Core.hire(s, "akari"), "★4 前不能雇");
+  s.maxStar = 4; assert.ok(!Core.hire(s, "akari"), "沒面試過不能雇");
+  s.staff.met.reina = 1; assert.ok(Core.hire(s, "reina")); assert.strictEqual(s.staff.hired, "reina");
+  // 調酒店員：飲料 ×1.1；薪水在打烊扣
+  Core.setBoard(s, ["karaage", "nama"]);
+  var g = { kind: "walk", gid: s.pool[0].id, n: 1, sat: 60, food: "karaage", drink: "nama", step: "drink" };
+  s.night = { groups: [g], i: 0, rev: 0, satSum: 0, satN: 0, high: [] };
+  var cash = s.cash; Core.pay(s, g);
+  assert.strictEqual(s.cash - cash, Math.round(D.DISHES.karaage.price + D.DISHES.nama.price * 1.1));
+  cash = s.cash; s.night.i = 1; Core.closeService(s);
+  assert.strictEqual(cash - s.cash, D.RENT + window.PriTestIzakayaCast.byId("reina").wage);
+  // 招牌菜 ×1.2（★3）
+  assert.ok(!Core.setSig(s, "nama"), "飲料不能當招牌");
+  assert.ok(Core.setSig(s, "karaage"));
+  var g2 = { kind: "walk", gid: s.pool[1].id, n: 2, sat: 60, food: "karaage", drink: "nama", step: "drink" };
+  s.night = { groups: [g2], i: 0, rev: 0, satSum: 0, satN: 0, high: [] }; cash = s.cash; Core.pay(s, g2);
+  assert.strictEqual(s.cash - cash, Math.round((D.DISHES.karaage.price * 1.2 + D.DISHES.nama.price * 1.1) * 2));
+  // 伴侶 +5 滿意度
+  s.rel.mio = { pid: "p0", stage: 3, dates: 3 };
+  s.staff.hired = "yuzu"; s.staff.met.yuzu = 1;
+  assert.strictEqual(Core.staffSatBonus(s), 10, "招呼店員 5＋伴侶 5");
+  console.log("7. 店員／招牌／伴侶 OK");
+})();
+
 console.log("ALL OK");
