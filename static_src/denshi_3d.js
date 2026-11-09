@@ -35,62 +35,9 @@
   function wx(x) { return x - W / 2; }
   function wz(y) { return y - H / 2; }
 
-  // opts：{ getState(), getUi() → { ghost, ghostOk, range, sel, hoverTower }, onCell(x, y), onHover(x, y|null), onFrame(dt), quality }
-  function create(box, opts) {
-    var T = window.THREE;
-    var low = opts.quality === "low";
-    var W0 = box.clientWidth || 800, H0 = box.clientHeight || 500;
-    var renderer = new T.WebGLRenderer({ antialias: !low, preserveDrawingBuffer: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, low ? 1 : 2));
-    renderer.setSize(W0, H0);
-    renderer.outputEncoding = T.sRGBEncoding;
-    renderer.toneMapping = T.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
-    renderer.shadowMap.enabled = !low;
-    renderer.shadowMap.type = T.PCFSoftShadowMap;
-    renderer.domElement.className = "ds-canvas";
-    box.appendChild(renderer.domElement);
-
-    var s0 = opts.getState();
-    var theme = D.MAPS[s0.map] || D.MAPS[0];
-    var scene = new T.Scene();
-    var bgc = new T.Color(theme.board).multiplyScalar(0.35);
-    scene.background = bgc;
-    scene.fog = new T.Fog(bgc, 50, 120);
-
-    var cam = new T.PerspectiveCamera(42, W0 / H0, 0.1, 200);
-    var view = { yaw: 0, pitch: 0.98, dist: 19, tx: 0, tz: 0.6 }, MAXD = 48;
-    function placeCam() {
-      var cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
-      cam.position.set(view.tx + Math.sin(view.yaw) * cp * view.dist, sp * view.dist, view.tz + Math.cos(view.yaw) * cp * view.dist);
-      cam.lookAt(view.tx, 0, view.tz);
-    }
-    // 依畫面長寬比算出剛好裝得下整塊電路板的距離；直立畫面把電路板轉 90 度（長邊朝上下）
-    function fitCam() {
-      var a = (box.clientWidth || W0) / (box.clientHeight || H0), portrait = a < 1.1;
-      view.yaw = portrait ? Math.PI / 2 : 0;
-      view.tx = portrait ? 0.6 : 0; view.tz = portrait ? 0 : 0.6;
-      var ew = (portrait ? H : W) / 2 + 0.9, ed = (portrait ? W : H) / 2 + 0.9;
-      var tv = Math.tan(cam.fov * Math.PI / 360), th = tv * a;
-      var dW = ew / th + ed * Math.cos(view.pitch), dH = (ed * Math.sin(view.pitch) + 0.6) / tv + ed * Math.cos(view.pitch) * 0.5;
-      view.dist = Math.max(8, Math.min(MAXD, Math.max(dW, dH) * 1.04));
-    }
-    fitCam(); placeCam();
-
-    // ---------------- 光 ----------------
-    scene.add(new T.HemisphereLight(0xbfd8ff, 0x10140c, 0.55));
-    var sun = new T.DirectionalLight(0xffffff, 1.1);
-    sun.position.set(-8, 16, 10);
-    sun.castShadow = !low;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -13; sun.shadow.camera.right = 13; sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
-    sun.shadow.camera.near = 1; sun.shadow.camera.far = 50;
-    sun.shadow.bias = -0.0008;
-    scene.add(sun);
-    var rim = new T.DirectionalLight(theme.glow, 0.35);
-    rim.position.set(10, 6, -12);
-    scene.add(rim);
-
+  // 模型工具組：素材與各種模型的建構函式。遊戲畫面（create）與 3D 模型圖鑑（createViewer）共用，
+  // 兩邊看到的是同一個模型。theme＝地圖配色（核心、通電地基的發光顏色）。
+  function kit(T, low, theme) {
     // ---------------- 共用素材 ----------------
     var matCache = {};
     function M(color, o) {
@@ -138,79 +85,6 @@
       at: function (o, x, y, z) { o.position.set(x, y, z); return o; }
     };
 
-    // ---------------- 電路板 ----------------
-    function pcbTexture() {
-      var S = 96, c = document.createElement("canvas");
-      c.width = W * S; c.height = H * S;
-      var g = c.getContext("2d");
-      var bc = new T.Color(theme.board), tc = new T.Color(theme.trace);
-      g.fillStyle = "#" + bc.getHexString(); g.fillRect(0, 0, c.width, c.height);
-      // 微微的雜訊
-      for (var i = 0; i < 2600; i++) { g.fillStyle = "rgba(255,255,255," + (hash(i, 7) * 0.035) + ")"; g.fillRect(hash(i, 1) * c.width, hash(i, 2) * c.height, 2, 2); }
-      var trace = "rgba(" + Math.round(tc.r * 255) + "," + Math.round(tc.g * 255) + "," + Math.round(tc.b * 255) + ",";
-      // 走線（直角＋45 度轉角）
-      g.lineCap = "round"; g.lineJoin = "round";
-      for (var k = 0; k < 70; k++) {
-        var x = Math.floor(hash(k, 11) * W * 4) * S / 4, y = Math.floor(hash(k, 12) * H * 4) * S / 4;
-        g.strokeStyle = trace + (0.25 + hash(k, 13) * 0.3) + ")";
-        g.lineWidth = 3 + Math.floor(hash(k, 14) * 3) * 2;
-        g.beginPath(); g.moveTo(x, y);
-        var dir = Math.floor(hash(k, 15) * 4);
-        for (var st = 0; st < 5; st++) {
-          var len = (1 + Math.floor(hash(k, 20 + st) * 4)) * S / 2;
-          var dd = [[1, 0], [0, 1], [-1, 0], [0, -1]][dir];
-          x += dd[0] * len; y += dd[1] * len;
-          g.lineTo(x, y);
-          var diag = S / 4;
-          var turn = hash(k, 30 + st) < 0.5 ? 1 : 3;
-          var nd = (dir + turn) % 4, n2 = [[1, 0], [0, 1], [-1, 0], [0, -1]][nd];
-          x += (dd[0] + n2[0]) * diag; y += (dd[1] + n2[1]) * diag;
-          g.lineTo(x, y);
-          dir = nd;
-        }
-        g.stroke();
-        g.fillStyle = trace + "0.7)";
-        g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
-        g.fillStyle = "#" + bc.getHexString();
-        g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill();
-      }
-      // 導通孔
-      for (k = 0; k < 160; k++) {
-        var vx = hash(k, 41) * c.width, vy = hash(k, 42) * c.height;
-        g.fillStyle = trace + "0.55)"; g.beginPath(); g.arc(vx, vy, 5, 0, Math.PI * 2); g.fill();
-        g.fillStyle = "rgba(0,0,0,0.6)"; g.beginPath(); g.arc(vx, vy, 2, 0, Math.PI * 2); g.fill();
-      }
-      // 絲印文字
-      g.font = "bold 18px monospace"; g.fillStyle = "rgba(255,255,255,0.28)";
-      var labels = ["R", "C", "U", "Q", "L", "D", "J", "TP"];
-      for (k = 0; k < 40; k++) g.fillText(labels[k % labels.length] + (1 + Math.floor(hash(k, 51) * 98)), hash(k, 52) * c.width, hash(k, 53) * c.height);
-      // 格線
-      g.strokeStyle = "rgba(255,255,255,0.07)"; g.lineWidth = 2;
-      for (x = 0; x <= W; x++) { g.beginPath(); g.moveTo(x * S, 0); g.lineTo(x * S, c.height); g.stroke(); }
-      for (y = 0; y <= H; y++) { g.beginPath(); g.moveTo(0, y * S); g.lineTo(c.width, y * S); g.stroke(); }
-      var t = new T.CanvasTexture(c);
-      t.encoding = T.sRGBEncoding;
-      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      return t;
-    }
-    var board = new T.Mesh(new T.BoxGeometry(W, 0.4, H), [DARK, DARK, M(0xffffff, { m: 0.25, r: 0.7 }), DARK, DARK, DARK]);
-    board.material[2] = new T.MeshStandardMaterial({ map: pcbTexture(), metalness: 0.25, roughness: 0.7 });
-    board.position.y = -0.2;
-    board.receiveShadow = true;
-    scene.add(board);
-    // 機殼外框與螺絲
-    var caseFrame = G.box(W + 1.6, 0.5, H + 1.6, M(0x1a1c20, { m: 0.7, r: 0.35 }));
-    caseFrame.position.y = -0.45; scene.add(caseFrame);
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (p) {
-      var sc = G.cyl(0.22, 0.22, 0.08, SILVER, 20); G.at(sc, p[0] * (W / 2 + 0.4), -0.17, p[1] * (H / 2 + 0.4)); scene.add(sc);
-      var sl = G.box(0.3, 0.02, 0.05, BLACK); G.at(sl, p[0] * (W / 2 + 0.4), -0.12, p[1] * (H / 2 + 0.4)); sl.rotation.y = 0.6; scene.add(sl);
-    });
-    var under = new T.Mesh(new T.PlaneGeometry(200, 200), new T.MeshStandardMaterial({ color: bgc.clone().multiplyScalar(0.8), roughness: 1 }));
-    under.rotation.x = -Math.PI / 2; under.position.y = -0.72; under.receiveShadow = true; scene.add(under);
-
-    // ---------------- 地形（晶片、匯流排、散熱片、輸送帶、光纖、壞軌、入口、核心） ----------------
-    var terGroup = new T.Group(); scene.add(terGroup);
-    var terKey = "", beltTex = null, badMeshes = [], portals = [], pinRings = [];
     function chipMesh(x, y, big) {
       var g = new T.Group(), sz = 0.82;
       var body = G.box(sz, 0.22, sz, M(0x15161a, { m: 0.15, r: 0.55 }));
@@ -237,66 +111,56 @@
       var stripe = G.box(0.08, 0.66, 0.02, M(0xdddddd, { r: 0.6 })); G.at(stripe, 0, 0.35, 0.3); g.add(stripe);
       return g;
     }
-    function rebuildTerrain(s) {
-      var key = s.ter.join("") + "|" + s.core.join(",");
-      if (key === terKey) return;
-      terKey = key;
-      while (terGroup.children.length) terGroup.remove(terGroup.children[0]);
-      badMeshes = []; portals = []; pinRings = [];
-      var x, y, i;
-      for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
-        i = y * W + x;
-        var t = s.ter[i], px = wx(x) + 0.5, pz = wz(y) + 0.5, hv = hash(x, y);
-        if (t === "#") {
-          var m = hv < 0.35 ? capMesh(hash(y, x)) : chipMesh(x, y, hv > 0.85);
-          G.at(m, px, 0, pz); m.rotation.y = Math.floor(hash(x + 5, y) * 4) * Math.PI / 2;
-          terGroup.add(m);
-        } else if (t === "b") {
-          for (var k = 0; k < 6; k++) { var ln = G.box(1, 0.012, 0.05, GOLD); G.at(ln, px, 0.006, pz - 0.36 + k * 0.144); terGroup.add(ln); }
-        } else if (t === "c") {
-          for (k = 0; k < 5; k++) { var fin = G.box(0.06, 0.32, 0.92, M(0xaab4c0, { m: 0.9, r: 0.35 })); G.at(fin, px - 0.36 + k * 0.18, 0.16, pz); terGroup.add(fin); }
-          var base = G.box(0.96, 0.04, 0.96, M(0x8a96a4, { m: 0.9, r: 0.4 })); G.at(base, px, 0.02, pz); terGroup.add(base);
-        } else if (t === "v") {
-          if (!beltTex) {
-            var bc = document.createElement("canvas"); bc.width = 64; bc.height = 64;
-            var bg = bc.getContext("2d"); bg.fillStyle = "#2b2d33"; bg.fillRect(0, 0, 64, 64);
-            bg.fillStyle = "#ffcf5a"; bg.beginPath(); bg.moveTo(18, 14); bg.lineTo(44, 32); bg.lineTo(18, 50); bg.lineTo(26, 32); bg.fill();
-            beltTex = new T.CanvasTexture(bc); beltTex.wrapS = beltTex.wrapT = T.RepeatWrapping; beltTex.encoding = T.sRGBEncoding;
-          }
-          var belt = new T.Mesh(new T.BoxGeometry(1, 0.05, 0.86), new T.MeshStandardMaterial({ map: beltTex, roughness: 0.8, emissive: 0x332200, emissiveMap: beltTex }));
-          belt.receiveShadow = true; G.at(belt, px, 0.025, pz); terGroup.add(belt);
-          var rail1 = G.box(1, 0.08, 0.05, METAL); G.at(rail1, px, 0.04, pz - 0.46); terGroup.add(rail1);
-          var rail2 = rail1.clone(); rail2.position.z = pz + 0.46; terGroup.add(rail2);
-        } else if (t === "f") {
-          var fb = G.box(0.9, 0.04, 0.12, glowM(0x35e0ff)); G.at(fb, px, 0.02, pz); terGroup.add(fb);
-          var fb2 = G.box(0.12, 0.04, 0.9, glowM(0x35e0ff)); G.at(fb2, px, 0.02, pz); terGroup.add(fb2);
-        } else if (t === "p") {
-          // 電源排針：黑色塑膠座＋2×3 根鍍金針腳，底下一圈發光
-          var hdr = G.box(0.62, 0.12, 0.42, M(0x111214, { r: 0.6 })); G.at(hdr, px, 0.06, pz); terGroup.add(hdr);
-          for (var pr = 0; pr < 6; pr++) { var pin2 = G.box(0.06, 0.34, 0.06, GOLD); G.at(pin2, px - 0.2 + (pr % 3) * 0.2, 0.25, pz - 0.1 + Math.floor(pr / 3) * 0.2); terGroup.add(pin2); }
-          var pring = new T.Mesh(new T.RingGeometry(0.4, 0.47, 32), M(0xffd04a, { e: 0xffd04a, ei: 1.5, t: 0.8, ds: true }));
-          pring.rotation.x = -Math.PI / 2; G.at(pring, px, 0.015, pz); terGroup.add(pring); pinRings.push(pring);
-          var plab = new T.Mesh(new T.PlaneGeometry(0.9, 0.9), new T.MeshBasicMaterial({ map: modTextureChar("⚡", "#ffd04a"), transparent: true, depthWrite: false }));
-          plab.rotation.x = -Math.PI / 2; G.at(plab, px, 0.012, pz); terGroup.add(plab);
-        } else if (t === "x") {
-          var bad = new T.Mesh(new T.BoxGeometry(0.94, 0.1, 0.94), new T.MeshStandardMaterial({ color: 0x400010, emissive: 0xff1a3a, emissiveIntensity: 0.8, roughness: 0.6 }));
-          G.at(bad, px, 0.05, pz); terGroup.add(bad); badMeshes.push(bad);
-          for (k = 0; k < 3; k++) { var gl = G.box(0.2 + hash(k, i) * 0.5, 0.02, 0.06, glowM(0xff5577)); G.at(gl, px - 0.2 + hash(i, k) * 0.4, 0.11, pz - 0.3 + k * 0.3); terGroup.add(gl); }
-        } else if (t === "S") {
-          var pg = new T.Group();
-          var ring = G.tor(0.42, 0.07, glowM(0xff3ad0), 32); ring.rotation.y = Math.PI / 2; ring.position.y = 0.5; pg.add(ring);
-          var ring2 = G.tor(0.3, 0.03, glowM(0xffffff), 32); ring2.rotation.y = Math.PI / 2; ring2.position.y = 0.5; pg.add(ring2);
-          var pad = G.cyl(0.46, 0.5, 0.06, M(0x301030, { m: 0.6, r: 0.3 }), 24); pad.position.y = 0.03; pg.add(pad);
-          var gs = glow(0xff3ad0, 1.4, 0.8); gs.position.y = 0.5; pg.add(gs);
-          G.at(pg, px, 0, pz); terGroup.add(pg);
-          portals.push({ g: pg, r: ring, r2: ring2, gl: gs, i: s.spawns.findIndex(function (p) { return p[0] === x && p[1] === y; }) });
+    // 單一地形格的模型（原點在格子中心）；動畫要用的零件放在 userData（bad／pin／portal）
+    var beltTex = null;
+    function terrainMesh(t, x, y) {
+      var g = new T.Group(), i = y * W + x, hv = hash(x, y), k;
+      if (t === "#") {
+        var m = hv < 0.35 ? capMesh(hash(y, x)) : chipMesh(x, y, hv > 0.85);
+        m.rotation.y = Math.floor(hash(x + 5, y) * 4) * Math.PI / 2;
+        g.add(m);
+      } else if (t === "b") {
+        for (k = 0; k < 6; k++) { var ln = G.box(1, 0.012, 0.05, GOLD); G.at(ln, 0, 0.006, -0.36 + k * 0.144); g.add(ln); }
+      } else if (t === "c") {
+        for (k = 0; k < 5; k++) { var fin = G.box(0.06, 0.32, 0.92, M(0xaab4c0, { m: 0.9, r: 0.35 })); G.at(fin, -0.36 + k * 0.18, 0.16, 0); g.add(fin); }
+        var base = G.box(0.96, 0.04, 0.96, M(0x8a96a4, { m: 0.9, r: 0.4 })); G.at(base, 0, 0.02, 0); g.add(base);
+      } else if (t === "v") {
+        if (!beltTex) {
+          var bc = document.createElement("canvas"); bc.width = 64; bc.height = 64;
+          var bg = bc.getContext("2d"); bg.fillStyle = "#2b2d33"; bg.fillRect(0, 0, 64, 64);
+          bg.fillStyle = "#ffcf5a"; bg.beginPath(); bg.moveTo(18, 14); bg.lineTo(44, 32); bg.lineTo(18, 50); bg.lineTo(26, 32); bg.fill();
+          beltTex = new T.CanvasTexture(bc); beltTex.wrapS = beltTex.wrapT = T.RepeatWrapping; beltTex.encoding = T.sRGBEncoding;
         }
-      }
-      buildCore(s);
+        var belt = new T.Mesh(new T.BoxGeometry(1, 0.05, 0.86), new T.MeshStandardMaterial({ map: beltTex, roughness: 0.8, emissive: 0x332200, emissiveMap: beltTex }));
+        belt.receiveShadow = true; G.at(belt, 0, 0.025, 0); g.add(belt);
+        var rail1 = G.box(1, 0.08, 0.05, METAL); G.at(rail1, 0, 0.04, -0.46); g.add(rail1);
+        var rail2 = rail1.clone(); rail2.position.z = 0.46; g.add(rail2);
+      } else if (t === "f") {
+        var fb = G.box(0.9, 0.04, 0.12, glowM(0x35e0ff)); G.at(fb, 0, 0.02, 0); g.add(fb);
+        var fb2 = G.box(0.12, 0.04, 0.9, glowM(0x35e0ff)); G.at(fb2, 0, 0.02, 0); g.add(fb2);
+      } else if (t === "p") {
+        // 電源排針：黑色塑膠座＋2×3 根鍍金針腳，底下一圈發光
+        var hdr = G.box(0.62, 0.12, 0.42, M(0x111214, { r: 0.6 })); G.at(hdr, 0, 0.06, 0); g.add(hdr);
+        for (var pr = 0; pr < 6; pr++) { var pin2 = G.box(0.06, 0.34, 0.06, GOLD); G.at(pin2, -0.2 + (pr % 3) * 0.2, 0.25, -0.1 + Math.floor(pr / 3) * 0.2); g.add(pin2); }
+        var pring = new T.Mesh(new T.RingGeometry(0.4, 0.47, 32), M(0xffd04a, { e: 0xffd04a, ei: 1.5, t: 0.8, ds: true }));
+        pring.rotation.x = -Math.PI / 2; G.at(pring, 0, 0.015, 0); g.add(pring); g.userData.pin = pring;
+        var plab = new T.Mesh(new T.PlaneGeometry(0.9, 0.9), new T.MeshBasicMaterial({ map: modTextureChar("⚡", "#ffd04a"), transparent: true, depthWrite: false }));
+        plab.rotation.x = -Math.PI / 2; G.at(plab, 0, 0.012, 0); g.add(plab);
+      } else if (t === "x") {
+        var bad = new T.Mesh(new T.BoxGeometry(0.94, 0.1, 0.94), new T.MeshStandardMaterial({ color: 0x400010, emissive: 0xff1a3a, emissiveIntensity: 0.8, roughness: 0.6 }));
+        G.at(bad, 0, 0.05, 0); g.add(bad); g.userData.bad = bad;
+        for (k = 0; k < 3; k++) { var gl = G.box(0.2 + hash(k, i) * 0.5, 0.02, 0.06, glowM(0xff5577)); G.at(gl, -0.2 + hash(i, k) * 0.4, 0.11, -0.3 + k * 0.3); g.add(gl); }
+      } else if (t === "S") {
+        var ring = G.tor(0.42, 0.07, glowM(0xff3ad0), 32); ring.rotation.y = Math.PI / 2; ring.position.y = 0.5; g.add(ring);
+        var ring2 = G.tor(0.3, 0.03, glowM(0xffffff), 32); ring2.rotation.y = Math.PI / 2; ring2.position.y = 0.5; g.add(ring2);
+        var pad = G.cyl(0.46, 0.5, 0.06, M(0x301030, { m: 0.6, r: 0.3 }), 24); pad.position.y = 0.03; g.add(pad);
+        var gs = glow(0xff3ad0, 1.4, 0.8); gs.position.y = 0.5; g.add(gs);
+        g.userData.portal = { r: ring, r2: ring2, gl: gs };
+      } else return null;
+      return g;
     }
     // 核心＝CPU（散熱蓋＋發光晶粒＋全像環）
-    var coreObj = null;
-    function buildCore(s) {
+    function coreMesh() {
       var g = new T.Group();
       var sub = G.box(1.5, 0.12, 1.5, M(0x1f6b3a, { m: 0.3, r: 0.6 })); sub.position.y = 0.06; g.add(sub);
       for (var i = 0; i < 10; i++) {
@@ -311,14 +175,9 @@
       var gem = new T.Mesh(new T.OctahedronGeometry(0.22, 0), M(theme.glow, { e: theme.glow, ei: 1.6, t: 0.85, m: 0.2, r: 0.1 })); holo.add(gem);
       var gl = glowOwn(theme.glow, 2.6); gl.position.y = 1; g.add(gl);
       var pl = new T.PointLight(theme.glow, 1.6, 6); pl.position.y = 1.2; g.add(pl);
-      G.at(g, wx(s.core[0]) + 0.5, 0, wz(s.core[1]) + 0.5);
-      terGroup.add(g);
-      coreObj = { g: g, holo: holo, hr1: hr1, hr2: hr2, gem: gem, gl: gl, die: die, pl: pl, flash: 0 };
+      return { g: g, holo: holo, hr1: hr1, hr2: hr2, gem: gem, gl: gl, die: die, pl: pl };
     }
-
-    // ---------------- 地基 ----------------
-    var foundGroup = new T.Group(); scene.add(foundGroup);
-    var foundKey = "", foundMeshes = {}, modTex = {};
+    var modTex = {};
     function modTextureChar(ch, col) {
       var key = "c:" + ch + col;
       if (modTex[key]) return modTex[key];
@@ -358,27 +217,6 @@
         var ml = G.box(0.98, 0.03, 0.98, M(mc, { e: mc, ei: 0.9, t: 0.5 })); ml.position.y = 0.02; g.add(ml);
       }
       return g;
-    }
-    function rebuildFound(s) {
-      var key = s.fo.join(",") + "|" + s.fm.join(",") + "|" + s.ter.join("");
-      if (key === foundKey) return;
-      foundKey = key;
-      var seen = {}, net = window.PriTestDenshiCore.nets(s);
-      for (var i = 0; i < s.fo.length; i++) {
-        if (!s.fo[i]) continue;
-        var cpw = net.comp[i] >= 0 && net.info[net.comp[i]].pw;
-        var k = i + ":" + s.fm[i] + ":" + s.fo[i] + ":" + (cpw ? 1 : 0);
-        seen[k] = 1;
-        if (foundMeshes[k]) continue;
-        var p = s.players[s.fo[i]], col = D.PLAYER_COLORS[p ? p.ci : 0];
-        var m = foundationMesh(s.fm[i], col, cpw);
-        var x = i % W, y = (i - x) / W;
-        G.at(m, wx(x) + 0.5, 1.2, wz(y) + 0.5);
-        m.userData.drop = 1.2;
-        foundGroup.add(m);
-        foundMeshes[k] = m;
-      }
-      Object.keys(foundMeshes).forEach(function (k) { if (!seen[k]) { foundGroup.remove(foundMeshes[k]); delete foundMeshes[k]; } });
     }
 
     // ---------------- 砲塔模型 ----------------
@@ -670,8 +508,206 @@
       ice.position.y = 0.25 + hover; ice.visible = false; g.add(ice);
       var slowGl = glow(0x6ad1ff, 0.9, 0.5); slowGl.position.y = 0.2 + hover; slowGl.visible = false; g.add(slowGl);
       if (def.boss) body.scale.setScalar(1.2);
-      return { g: g, body: body, parts: parts, hpFg: hpFg, shFg: shFg, hpW: hpW, ice: ice, slowGl: slowGl, def: def };
+      return { g: g, body: body, parts: parts, hpFg: hpFg, shFg: shFg, hpW: hpW, ice: ice, slowGl: slowGl, def: def, bars: [hpBg, hpFg, shFg] };
     }
+
+    return {
+      M: M, G: G, glowM: glowM, glow: glow, glowOwn: glowOwn, glowTex: glowTex,
+      METAL: METAL, DARK: DARK, BLACK: BLACK, COPPER: COPPER, GOLD: GOLD, SILVER: SILVER,
+      chipMesh: chipMesh, capMesh: capMesh, terrainMesh: terrainMesh, coreMesh: coreMesh,
+      modTexture: modTexture, modTextureChar: modTextureChar, foundationMesh: foundationMesh, buildTower: buildTower, buildEnemy: buildEnemy,
+      tick: function (dt) { if (beltTex) beltTex.offset.x -= dt * 1.2; }
+    };
+  }
+
+  // opts：{ getState(), getUi() → { ghost, ghostOk, range, sel, hoverTower }, onCell(x, y), onHover(x, y|null), onFrame(dt), quality }
+  function create(box, opts) {
+    var T = window.THREE;
+    var low = opts.quality === "low";
+    var W0 = box.clientWidth || 800, H0 = box.clientHeight || 500;
+    var renderer = new T.WebGLRenderer({ antialias: !low, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, low ? 1 : 2));
+    renderer.setSize(W0, H0);
+    renderer.outputEncoding = T.sRGBEncoding;
+    renderer.toneMapping = T.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    renderer.shadowMap.enabled = !low;
+    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.domElement.className = "ds-canvas";
+    box.appendChild(renderer.domElement);
+
+    var s0 = opts.getState();
+    var theme = D.MAPS[s0.map] || D.MAPS[0];
+    var scene = new T.Scene();
+    var bgc = new T.Color(theme.board).multiplyScalar(0.35);
+    scene.background = bgc;
+    scene.fog = new T.Fog(bgc, 50, 120);
+
+    var cam = new T.PerspectiveCamera(42, W0 / H0, 0.1, 200);
+    var view = { yaw: 0, pitch: 0.98, dist: 19, tx: 0, tz: 0.6 }, MAXD = 48;
+    function placeCam() {
+      var cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+      cam.position.set(view.tx + Math.sin(view.yaw) * cp * view.dist, sp * view.dist, view.tz + Math.cos(view.yaw) * cp * view.dist);
+      cam.lookAt(view.tx, 0, view.tz);
+    }
+    // 依畫面長寬比算出剛好裝得下整塊電路板的距離；直立畫面把電路板轉 90 度（長邊朝上下）
+    function fitCam() {
+      var a = (box.clientWidth || W0) / (box.clientHeight || H0), portrait = a < 1.1;
+      view.yaw = portrait ? Math.PI / 2 : 0;
+      view.tx = portrait ? 0.6 : 0; view.tz = portrait ? 0 : 0.6;
+      var ew = (portrait ? H : W) / 2 + 0.9, ed = (portrait ? W : H) / 2 + 0.9;
+      var tv = Math.tan(cam.fov * Math.PI / 360), th = tv * a;
+      var dW = ew / th + ed * Math.cos(view.pitch), dH = (ed * Math.sin(view.pitch) + 0.6) / tv + ed * Math.cos(view.pitch) * 0.5;
+      view.dist = Math.max(8, Math.min(MAXD, Math.max(dW, dH) * 1.04));
+    }
+    fitCam(); placeCam();
+
+    // ---------------- 光 ----------------
+    scene.add(new T.HemisphereLight(0xbfd8ff, 0x10140c, 0.55));
+    var sun = new T.DirectionalLight(0xffffff, 1.1);
+    sun.position.set(-8, 16, 10);
+    sun.castShadow = !low;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -13; sun.shadow.camera.right = 13; sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 50;
+    sun.shadow.bias = -0.0008;
+    scene.add(sun);
+    var rim = new T.DirectionalLight(theme.glow, 0.35);
+    rim.position.set(10, 6, -12);
+    scene.add(rim);
+
+    // ---------------- 共用素材與模型（kit） ----------------
+    var K = kit(T, low, theme);
+    var M = K.M, G = K.G, glowM = K.glowM, glow = K.glow, glowOwn = K.glowOwn, glowTex = K.glowTex;
+    var METAL = K.METAL, DARK = K.DARK, BLACK = K.BLACK, COPPER = K.COPPER, GOLD = K.GOLD, SILVER = K.SILVER;
+    var modTexture = K.modTexture, foundationMesh = K.foundationMesh, buildTower = K.buildTower, buildEnemy = K.buildEnemy;
+
+    // ---------------- 電路板 ----------------
+    function pcbTexture() {
+      var S = 96, c = document.createElement("canvas");
+      c.width = W * S; c.height = H * S;
+      var g = c.getContext("2d");
+      var bc = new T.Color(theme.board), tc = new T.Color(theme.trace);
+      g.fillStyle = "#" + bc.getHexString(); g.fillRect(0, 0, c.width, c.height);
+      // 微微的雜訊
+      for (var i = 0; i < 2600; i++) { g.fillStyle = "rgba(255,255,255," + (hash(i, 7) * 0.035) + ")"; g.fillRect(hash(i, 1) * c.width, hash(i, 2) * c.height, 2, 2); }
+      var trace = "rgba(" + Math.round(tc.r * 255) + "," + Math.round(tc.g * 255) + "," + Math.round(tc.b * 255) + ",";
+      // 走線（直角＋45 度轉角）
+      g.lineCap = "round"; g.lineJoin = "round";
+      for (var k = 0; k < 70; k++) {
+        var x = Math.floor(hash(k, 11) * W * 4) * S / 4, y = Math.floor(hash(k, 12) * H * 4) * S / 4;
+        g.strokeStyle = trace + (0.25 + hash(k, 13) * 0.3) + ")";
+        g.lineWidth = 3 + Math.floor(hash(k, 14) * 3) * 2;
+        g.beginPath(); g.moveTo(x, y);
+        var dir = Math.floor(hash(k, 15) * 4);
+        for (var st = 0; st < 5; st++) {
+          var len = (1 + Math.floor(hash(k, 20 + st) * 4)) * S / 2;
+          var dd = [[1, 0], [0, 1], [-1, 0], [0, -1]][dir];
+          x += dd[0] * len; y += dd[1] * len;
+          g.lineTo(x, y);
+          var diag = S / 4;
+          var turn = hash(k, 30 + st) < 0.5 ? 1 : 3;
+          var nd = (dir + turn) % 4, n2 = [[1, 0], [0, 1], [-1, 0], [0, -1]][nd];
+          x += (dd[0] + n2[0]) * diag; y += (dd[1] + n2[1]) * diag;
+          g.lineTo(x, y);
+          dir = nd;
+        }
+        g.stroke();
+        g.fillStyle = trace + "0.7)";
+        g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
+        g.fillStyle = "#" + bc.getHexString();
+        g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill();
+      }
+      // 導通孔
+      for (k = 0; k < 160; k++) {
+        var vx = hash(k, 41) * c.width, vy = hash(k, 42) * c.height;
+        g.fillStyle = trace + "0.55)"; g.beginPath(); g.arc(vx, vy, 5, 0, Math.PI * 2); g.fill();
+        g.fillStyle = "rgba(0,0,0,0.6)"; g.beginPath(); g.arc(vx, vy, 2, 0, Math.PI * 2); g.fill();
+      }
+      // 絲印文字
+      g.font = "bold 18px monospace"; g.fillStyle = "rgba(255,255,255,0.28)";
+      var labels = ["R", "C", "U", "Q", "L", "D", "J", "TP"];
+      for (k = 0; k < 40; k++) g.fillText(labels[k % labels.length] + (1 + Math.floor(hash(k, 51) * 98)), hash(k, 52) * c.width, hash(k, 53) * c.height);
+      // 格線
+      g.strokeStyle = "rgba(255,255,255,0.07)"; g.lineWidth = 2;
+      for (x = 0; x <= W; x++) { g.beginPath(); g.moveTo(x * S, 0); g.lineTo(x * S, c.height); g.stroke(); }
+      for (y = 0; y <= H; y++) { g.beginPath(); g.moveTo(0, y * S); g.lineTo(c.width, y * S); g.stroke(); }
+      var t = new T.CanvasTexture(c);
+      t.encoding = T.sRGBEncoding;
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return t;
+    }
+    var board = new T.Mesh(new T.BoxGeometry(W, 0.4, H), [DARK, DARK, M(0xffffff, { m: 0.25, r: 0.7 }), DARK, DARK, DARK]);
+    board.material[2] = new T.MeshStandardMaterial({ map: pcbTexture(), metalness: 0.25, roughness: 0.7 });
+    board.position.y = -0.2;
+    board.receiveShadow = true;
+    scene.add(board);
+    // 機殼外框與螺絲
+    var caseFrame = G.box(W + 1.6, 0.5, H + 1.6, M(0x1a1c20, { m: 0.7, r: 0.35 }));
+    caseFrame.position.y = -0.45; scene.add(caseFrame);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (p) {
+      var sc = G.cyl(0.22, 0.22, 0.08, SILVER, 20); G.at(sc, p[0] * (W / 2 + 0.4), -0.17, p[1] * (H / 2 + 0.4)); scene.add(sc);
+      var sl = G.box(0.3, 0.02, 0.05, BLACK); G.at(sl, p[0] * (W / 2 + 0.4), -0.12, p[1] * (H / 2 + 0.4)); sl.rotation.y = 0.6; scene.add(sl);
+    });
+    var under = new T.Mesh(new T.PlaneGeometry(200, 200), new T.MeshStandardMaterial({ color: bgc.clone().multiplyScalar(0.8), roughness: 1 }));
+    under.rotation.x = -Math.PI / 2; under.position.y = -0.72; under.receiveShadow = true; scene.add(under);
+
+    // ---------------- 地形（晶片、匯流排、散熱片、輸送帶、光纖、壞軌、入口、核心） ----------------
+    var terGroup = new T.Group(); scene.add(terGroup);
+    var terKey = "", badMeshes = [], portals = [], pinRings = [];
+    function rebuildTerrain(s) {
+      var key = s.ter.join("") + "|" + s.core.join(",");
+      if (key === terKey) return;
+      terKey = key;
+      while (terGroup.children.length) terGroup.remove(terGroup.children[0]);
+      badMeshes = []; portals = []; pinRings = [];
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        var m = K.terrainMesh(s.ter[y * W + x], x, y);
+        if (!m) continue;
+        G.at(m, wx(x) + 0.5, 0, wz(y) + 0.5);
+        terGroup.add(m);
+        var u = m.userData;
+        if (u.bad) badMeshes.push(u.bad);
+        if (u.pin) pinRings.push(u.pin);
+        if (u.portal) portals.push({ g: m, r: u.portal.r, r2: u.portal.r2, gl: u.portal.gl, i: findSpawn(s, x, y) });
+      }
+      buildCore(s);
+    }
+    function findSpawn(s, x, y) { return s.spawns.findIndex(function (p) { return p[0] === x && p[1] === y; }); }
+    var coreObj = null;
+    function buildCore(s) {
+      var c = K.coreMesh();
+      G.at(c.g, wx(s.core[0]) + 0.5, 0, wz(s.core[1]) + 0.5);
+      terGroup.add(c.g);
+      c.flash = 0;
+      coreObj = c;
+    }
+
+    // ---------------- 地基 ----------------
+    var foundGroup = new T.Group(); scene.add(foundGroup);
+    var foundKey = "", foundMeshes = {};
+    function rebuildFound(s) {
+      var key = s.fo.join(",") + "|" + s.fm.join(",") + "|" + s.ter.join("");
+      if (key === foundKey) return;
+      foundKey = key;
+      var seen = {}, net = window.PriTestDenshiCore.nets(s);
+      for (var i = 0; i < s.fo.length; i++) {
+        if (!s.fo[i]) continue;
+        var cpw = net.comp[i] >= 0 && net.info[net.comp[i]].pw;
+        var k = i + ":" + s.fm[i] + ":" + s.fo[i] + ":" + (cpw ? 1 : 0);
+        seen[k] = 1;
+        if (foundMeshes[k]) continue;
+        var p = s.players[s.fo[i]], col = D.PLAYER_COLORS[p ? p.ci : 0];
+        var m = foundationMesh(s.fm[i], col, cpw);
+        var x = i % W, y = (i - x) / W;
+        G.at(m, wx(x) + 0.5, 1.2, wz(y) + 0.5);
+        m.userData.drop = 1.2;
+        foundGroup.add(m);
+        foundMeshes[k] = m;
+      }
+      Object.keys(foundMeshes).forEach(function (k) { if (!seen[k]) { foundGroup.remove(foundMeshes[k]); delete foundMeshes[k]; } });
+    }
+
 
     // ---------------- 狀態同步 ----------------
     var towerObjs = {}, enemyObjs = {}, beamObjs = {}, auraObjs = {};
@@ -1277,7 +1313,7 @@
       updateCombos(s);
       pinRings.forEach(function (r, i) { r.material.opacity = 0.5 + Math.abs(Math.sin(clock * 3 + i)) * 0.5; });
       badMeshes.forEach(function (b, i) { b.material.emissiveIntensity = 0.5 + Math.abs(Math.sin(clock * 7 + i * 1.3)) * 0.8; });
-      if (beltTex) beltTex.offset.x -= dt * 1.2;
+      K.tick(dt);
       if (coreObj) {
         coreObj.holo.rotation.y += dt * 0.8; coreObj.hr2.rotation.z += dt * 1.3; coreObj.gem.rotation.y -= dt * 2;
         coreObj.holo.position.y = 1.0 + Math.sin(clock * 2) * 0.08;
@@ -1401,5 +1437,193 @@
     };
   }
 
-  window.PriTestDenshi3D = { available: available, load: load, create: create };
+  // ---------------- 3D 模型圖鑑的檢視器 ----------------
+  // 使用者指定 2026-11-09：遊戲中出現的模型都要能在遊戲內隨時看到實際的 3D 模型與說明。
+  // 自己一個小 renderer／場景，用 kit() 建出跟戰場上完全相同的模型；自動慢慢轉、拖曳旋轉、滾輪／雙指縮放。
+  // item：{ k: "chip"|"cap"|"ter"|"core"|"found"|"tower"|"enemy", id（地形字元／砲塔／敵人種類）, lv, mod, pw }
+  function createViewer(box, o) {
+    var T = window.THREE;
+    o = o || {};
+    var theme = D.MAPS[o.map] || D.MAPS[0];
+    var K = kit(T, false, theme);
+    var W0 = box.clientWidth || 320, H0 = box.clientHeight || 260;
+    var renderer = new T.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(W0, H0);
+    renderer.outputEncoding = T.sRGBEncoding;
+    renderer.toneMapping = T.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.domElement.className = "ds-mv-canvas";
+    box.appendChild(renderer.domElement);
+
+    var scene = new T.Scene();
+    scene.background = new T.Color(theme.board).multiplyScalar(0.35);
+    scene.add(new T.HemisphereLight(0xbfd8ff, 0x10140c, 0.6));
+    var sun = new T.DirectionalLight(0xffffff, 1.1);
+    sun.position.set(-3, 6, 4); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -2.5; sun.shadow.camera.right = sun.shadow.camera.top = 2.5;
+    sun.shadow.bias = -0.0008;
+    scene.add(sun);
+    var rim = new T.DirectionalLight(theme.glow, 0.45); rim.position.set(4, 3, -5); scene.add(rim);
+
+    // 底座：一小塊電路板，中間框出 1 格大小，方便看出模型在戰場上的尺寸
+    var base = new T.Mesh(new T.BoxGeometry(3, 0.12, 3), new T.MeshStandardMaterial({ color: new T.Color(theme.board).convertSRGBToLinear(), metalness: 0.25, roughness: 0.7 }));
+    base.position.y = -0.06; base.receiveShadow = true; scene.add(base);
+    var cell = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(1, 1)), new T.LineBasicMaterial({ color: theme.trace, transparent: true, opacity: 0.6 }));
+    cell.rotation.x = -Math.PI / 2; cell.position.y = 0.002; scene.add(cell);
+    var grid = new T.GridHelper(3, 3, theme.trace, theme.trace);
+    grid.material.transparent = true; grid.material.opacity = 0.18; grid.position.y = 0.001; scene.add(grid);
+
+    var cam = new T.PerspectiveCamera(35, W0 / H0, 0.05, 100);
+    var view = { yaw: 0.7, pitch: 0.5, dist: 3, ty: 0.3, min: 1, max: 8 };
+    function placeCam() {
+      var cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+      cam.position.set(Math.sin(view.yaw) * cp * view.dist, view.ty + sp * view.dist, Math.cos(view.yaw) * cp * view.dist);
+      cam.lookAt(0, view.ty, 0);
+    }
+
+    var holder = new T.Group(); scene.add(holder);
+    var anim = null;
+    function clear() {
+      while (holder.children.length) {
+        var c = holder.children[0];
+        holder.remove(c);
+        c.traverse(function (m) { if (m.geometry) m.geometry.dispose(); });
+      }
+      anim = null;
+    }
+    function show(item) {
+      clear();
+      var g, a = { k: item.k };
+      if (item.k === "chip") g = K.chipMesh(0, 0, false);
+      else if (item.k === "cap") g = K.capMesh(0.1);
+      else if (item.k === "ter") {
+        g = K.terrainMesh(item.id, 3, 4) || new T.Group();
+        a.u = g.userData;
+      } else if (item.k === "core") {
+        var c = K.coreMesh(); g = c.g; a.core = c;
+      } else if (item.k === "found") {
+        g = K.foundationMesh(item.mod || "", D.PLAYER_COLORS[0], !!item.pw);
+      } else if (item.k === "tower") {
+        // 砲塔一律蓋在地基上，跟戰場上看到的一樣
+        g = new T.Group();
+        g.add(K.foundationMesh("", D.PLAYER_COLORS[0], false));
+        var tw = K.buildTower(item.id, item.lv || 0, D.PLAYER_COLORS[0]);
+        g.add(tw.g); a.tw = tw; a.ty = item.id;
+      } else if (item.k === "enemy") {
+        var e = K.buildEnemy(item.id);
+        e.bars.concat([e.ice, e.slowGl]).forEach(function (m) { e.g.remove(m); });
+        g = e.g; a.en = e;
+      } else g = new T.Group();
+      holder.add(g);
+      holder.rotation.y = 0;
+      anim = a;
+      // 依模型大小調整鏡頭距離
+      var bb = new T.Box3().setFromObject(holder), size = new T.Vector3(), ctr = new T.Vector3();
+      bb.getSize(size); bb.getCenter(ctr);
+      var r = Math.max(0.5, size.length() / 2);
+      view.ty = Math.max(0.15, ctr.y);
+      view.dist = Math.max(1.6, r * 3);
+      view.min = view.dist * 0.4; view.max = view.dist * 2.5;
+      view.pitch = 0.5;
+    }
+
+    var clock = 0, last = performance.now(), raf = 0, alive = true, idleT = 0;
+    function frame(now) {
+      if (!alive) return;
+      raf = requestAnimationFrame(frame);
+      var dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
+      idleT += dt;
+      if (idleT > 2.5) holder.rotation.y += dt * 0.45;
+      K.tick(dt);
+      var a = anim;
+      if (a) {
+        if (a.u) {
+          if (a.u.pin) a.u.pin.material.opacity = 0.5 + Math.abs(Math.sin(clock * 3)) * 0.5;
+          if (a.u.bad) a.u.bad.material.emissiveIntensity = 0.5 + Math.abs(Math.sin(clock * 7)) * 0.8;
+          if (a.u.portal) { a.u.portal.r.rotation.x += dt * 1.5; a.u.portal.r2.rotation.x -= dt * 2.3; }
+        }
+        if (a.core) { a.core.holo.rotation.y += dt * 0.8; a.core.hr2.rotation.z += dt * 1.3; a.core.gem.rotation.y -= dt * 2; a.core.holo.position.y = 1.0 + Math.sin(clock * 2) * 0.08; }
+        if (a.tw && a.tw.spin) {
+          if (a.ty === "gun" || a.ty === "transistor") a.tw.spin.rotation.x += 0.08;
+          else if (a.ty !== "accel") a.tw.spin.rotation.y += 0.03;
+        }
+        if (a.en) {
+          var P = a.en.parts;
+          if (P.spin) P.spin.forEach(function (m) { m.rotation.y += 0.04; m.rotation.x += 0.02; });
+          if (P.rotors) P.rotors.forEach(function (m) { m.rotation.y += 0.6; });
+          if (P.rings) { P.rings[0].rotation.y += 0.03; P.rings[1].rotation.z += 0.02; }
+          if (P.disk) P.disk.forEach(function (m) { m.rotation.z += 0.02; });
+          if (P.legs) P.legs.forEach(function (m, i) { m.rotation.z = Math.sin(clock * 18 + i * 1.7) * 0.5; });
+          if (P.wings) P.wings.forEach(function (m, i) { m.rotation.x = (i ? 1 : -1) * (0.25 + Math.sin(clock * 6) * 0.2); });
+          if (P.segs) P.segs.forEach(function (m, i) { m.position.z = Math.sin(clock * 8 - i * 0.9) * 0.06; });
+          if (a.en.def.fly) a.en.body.position.y = 1.0 + Math.sin(clock * 3) * 0.06;
+        }
+      }
+      placeCam();
+      renderer.render(scene, cam);
+    }
+    raf = requestAnimationFrame(frame);
+
+    // 拖曳旋轉、滾輪／雙指縮放
+    var el = renderer.domElement, drag = null, pinch = null, touches = {};
+    el.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    el.addEventListener("pointerdown", function (e) {
+      touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+      idleT = 0;
+      var ids = Object.keys(touches);
+      if (ids.length === 2) {
+        var p = touches[ids[0]], q = touches[ids[1]];
+        pinch = { d: Math.hypot(p.x - q.x, p.y - q.y), dist: view.dist }; drag = null; return;
+      }
+      drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch };
+      try { el.setPointerCapture(e.pointerId); } catch (er) { /* 舊瀏覽器 */ }
+    });
+    el.addEventListener("pointermove", function (e) {
+      if (touches[e.pointerId]) touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (pinch) {
+        var ids = Object.keys(touches);
+        if (ids.length === 2) {
+          var p = touches[ids[0]], q = touches[ids[1]];
+          view.dist = Math.max(view.min, Math.min(view.max, pinch.dist * pinch.d / Math.max(1, Math.hypot(p.x - q.x, p.y - q.y))));
+        }
+        idleT = 0; return;
+      }
+      if (!drag) return;
+      view.yaw = drag.yaw - (e.clientX - drag.x) * 0.01;
+      view.pitch = Math.max(-0.1, Math.min(1.45, drag.pitch + (e.clientY - drag.y) * 0.008));
+      idleT = 0;
+    });
+    function up(e) { delete touches[e.pointerId]; if (!Object.keys(touches).length) pinch = null; drag = null; }
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("wheel", function (e) { e.preventDefault(); idleT = 0; view.dist = Math.max(view.min, Math.min(view.max, view.dist * (e.deltaY > 0 ? 1.1 : 0.91))); }, { passive: false });
+
+    function resize() {
+      var w = box.clientWidth || 320, h = box.clientHeight || 260;
+      renderer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix();
+    }
+    var ro = window.ResizeObserver ? new window.ResizeObserver(resize) : null;
+    if (ro) ro.observe(box); else window.addEventListener("resize", resize);
+
+    return {
+      show: show,
+      resize: resize,
+      dispose: function () {
+        alive = false;
+        cancelAnimationFrame(raf);
+        if (ro) ro.disconnect(); else window.removeEventListener("resize", resize);
+        clear();
+        scene.traverse(function (m) { if (m.geometry) m.geometry.dispose(); });
+        renderer.dispose();
+        // 瀏覽器同時能開的 WebGL context 有上限，關掉圖鑑就把 context 還回去
+        if (renderer.forceContextLoss) renderer.forceContextLoss();
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }
+    };
+  }
+
+  window.PriTestDenshi3D = { available: available, load: load, create: create, createViewer: createViewer };
 })();

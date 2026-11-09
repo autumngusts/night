@@ -103,6 +103,7 @@
 
   // ---------------- 畫面切換 ----------------
   function go(screen) {
+    if (mv) closeModels();
     if (view3) { view3.dispose(); view3 = null; }
     if (screen !== "daily" && ui.boardStop) { ui.boardStop(); ui.boardStop = null; ui.boardKey = ""; }
     refs = {};
@@ -145,7 +146,8 @@
         btn("👥 " + t("ds_menu_coop"), function () { enterRoom(null); }, "ds-big"),
         btn("📅 " + t("ds_menu_daily"), function () { go("daily"); }, "ds-big"),
         btn("🏅 " + t("ds_menu_ach"), function () { go("ach"); }, "ds-big"),
-        btn("📖 " + t("ds_menu_codex"), function () { go("codex"); }, "ds-big")
+        btn("📖 " + t("ds_menu_codex"), function () { go("codex"); }, "ds-big"),
+        btn("🧊 " + t("ds_mv_title"), function () { openModels("p"); }, "ds-big")
       ]),
       el("p", { class: "ds-muted ds-small" }, [t("ds_home_meta", { g: pg.games || 0, w: pg.wins || 0, c: Object.keys(pg.cleared || {}).length }) + "・⭐" + totalStars(pg) + "・🏅" + Object.keys(pg.ach).length + "/" + D.ACHIEVEMENTS.length])
     ]));
@@ -320,11 +322,12 @@
   }
   function renderCodex() {
     var cats = [["base", t("ds_cat_base")], ["evo", t("ds_cat_evo")], ["elec", t("ds_cat_elec")]];
+    app.appendChild(panel(null, [el("div", { class: "ds-actions" }, [btn("🧊 " + t("ds_mv_title"), function () { openModels("p"); }, "ds-btn ds-primary"), el("span", { class: "ds-small ds-muted" }, [t("ds_mv_codex_note")])])]));
     app.appendChild(panel(t("ds_codex_towers"), cats.map(function (c) {
       return el("div", null, [el("h3", null, [c[1]]), el("div", { class: "ds-cards" }, Object.keys(D.TOWERS).filter(function (k) { return D.TOWERS[k].cat === c[0]; }).map(function (k) {
         var d = D.TOWERS[k];
         return el("div", { class: "ds-card" }, [
-          el("b", null, [d.icon + " " + L(d.name)]), el("span", { class: "ds-cost" }, ["💠" + d.cost]),
+          el("b", null, [d.icon + " " + L(d.name), modelsBtn("tw_" + k)]), el("span", { class: "ds-cost" }, ["💠" + d.cost]),
           d.from ? el("div", { class: "ds-small ds-muted" }, [t("ds_from", { n: L(D.TOWERS[d.from].name) })]) : null,
           el("p", { class: "ds-small" }, [L(d.desc)]),
           el("p", { class: "ds-small ds-muted" }, [(d.dtype === "kin" ? t("ds_kin") : t("ds_en")) + (d.air ? "・" + t("ds_air_ok") : d.kind === "shell" ? "・" + t("ds_air_no") : "")]),
@@ -346,7 +349,7 @@
     app.appendChild(panel(t("ds_codex_enemies"), [el("div", { class: "ds-cards" }, Object.keys(D.ENEMIES).map(function (k) {
       var e = D.ENEMIES[k];
       return el("div", { class: "ds-card", style: "border-left:4px solid " + hex(e.color) }, [
-        el("b", null, [L(e.name), e.boss ? " 👑" : ""]),
+        el("b", null, [L(e.name), e.boss ? " 👑" : "", modelsBtn("en_" + k)]),
         el("p", { class: "ds-small" }, [L(e.desc)]),
         el("p", { class: "ds-small ds-muted ds-mono" }, ["HP " + e.hp + (e.shield ? "・🛡" + e.shield : "") + (e.armor ? "・" + t("ds_armor") + e.armor : "") + "・" + t("ds_speed") + e.spd + (e.from ? "・" + t("ds_from_wave", { n: e.from }) : "")])
       ]);
@@ -356,9 +359,131 @@
     }))]));
     app.appendChild(panel(t("ds_codex_mods"), [el("div", { class: "ds-cards" }, Object.keys(D.MODS).map(function (k) {
       var m = D.MODS[k];
-      return el("div", { class: "ds-card", style: "border-left:4px solid " + hex(m.color) }, [el("b", null, [m.icon + " " + L(m.name) + (m.lock ? " 🔒" : "")]), el("p", { class: "ds-small" }, [L(m.desc)])]);
+      return el("div", { class: "ds-card", style: "border-left:4px solid " + hex(m.color) }, [el("b", null, [m.icon + " " + L(m.name) + (m.lock ? " 🔒" : ""), modelsBtn("mod_" + k)]), el("p", { class: "ds-small" }, [L(m.desc)])]);
     })), el("p", { class: "ds-small ds-muted" }, [t("ds_mods_note")])]));
   }
+
+  // ---------------- 3D 模型圖鑑 ----------------
+  // 使用者指定 2026-11-09：遊戲中出現的所有模型都要有說明，並能在遊戲內隨時查看實際的 3D 模型。
+  // 模型由 denshi_3d.js 的 createViewer() 用跟戰場同一套建構函式畫出來；首頁、圖鑑、遊戲中（鏡頭工具列、格子說明、砲塔面板）都能開。
+  // 單機遊戲中打開會自動暫停，關掉後恢復；連線時無法暫停。
+  var mv = null;
+  function mvCatalog() {
+    var ter = [
+      { key: "chip", k: "chip", icon: "🔲", name: t("ds_mv_chip"), desc: t("ds_mv_chip_d") },
+      { key: "cap", k: "cap", icon: "🔋", name: t("ds_mv_cap"), desc: t("ds_mv_cap_d") },
+      { key: "p", k: "ter", id: "p", icon: "⚡", name: t("ds_mv_p"), desc: t("ds_mv_p_d") },
+      { key: "S", k: "ter", id: "S", icon: "🌀", name: t("ds_mv_S"), desc: t("ds_mv_S_d") },
+      { key: "core", k: "core", icon: "🖥️", name: t("ds_mv_core"), desc: t("ds_mv_core_d") },
+      { key: "b", k: "ter", id: "b", icon: "🟨", name: t("ds_mv_b"), desc: t("ds_mv_b_d"), map: "mobo" },
+      { key: "c", k: "ter", id: "c", icon: "🧊", name: t("ds_mv_c"), desc: t("ds_mv_c_d"), map: "heat" },
+      { key: "x", k: "ter", id: "x", icon: "🟥", name: t("ds_mv_x"), desc: t("ds_mv_x_d"), map: "ram" },
+      { key: "f", k: "ter", id: "f", icon: "➕", name: t("ds_mv_f"), desc: t("ds_mv_f_d"), map: "fiber" },
+      { key: "v", k: "ter", id: "v", icon: "⏩", name: t("ds_mv_v"), desc: t("ds_mv_v_d"), map: "fab" }
+    ];
+    var found = [
+      { key: "found", k: "found", icon: "⬛", name: t("ds_mv_found"), desc: t("ds_mv_found_d") },
+      { key: "foundpw", k: "found", pw: 1, icon: "🔆", name: t("ds_mv_foundpw"), desc: t("ds_mv_foundpw_d") }
+    ].concat(Object.keys(D.MODS).map(function (k) {
+      var m = D.MODS[k];
+      return { key: "mod_" + k, k: "found", mod: k, icon: m.icon, name: L(m.name) + (m.lock ? " 🔒" : ""), desc: L(m.desc) + "。" + t("ds_mv_mod_d") };
+    }));
+    var towers = ["base", "evo", "elec"].reduce(function (a, cat) {
+      return a.concat(Object.keys(D.TOWERS).filter(function (k) { return D.TOWERS[k].cat === cat; }).map(function (k) {
+        var d = D.TOWERS[k];
+        return { key: "tw_" + k, k: "tower", id: k, icon: d.icon, name: L(d.name), desc: L(d.desc) };
+      }));
+    }, []);
+    var enemies = Object.keys(D.ENEMIES).map(function (k) {
+      var e = D.ENEMIES[k];
+      return { key: "en_" + k, k: "enemy", id: k, icon: e.boss ? "👑" : e.fly ? "🛸" : "🐞", name: L(e.name), desc: L(e.desc) };
+    });
+    return [["ter", "🗺️ " + t("ds_mv_cat_ter"), ter], ["found", "🧱 " + t("ds_mv_cat_found"), found], ["tower", "🔫 " + t("ds_codex_towers"), towers], ["enemy", "👾 " + t("ds_codex_enemies"), enemies]];
+  }
+  function mvFind(key) {
+    var cats = mvCatalog();
+    for (var i = 0; i < cats.length; i++) for (var j = 0; j < cats[i][2].length; j++) if (cats[i][2][j].key === key) return { cat: cats[i][0], item: cats[i][2][j] };
+    return { cat: cats[0][0], item: cats[0][2][0] };
+  }
+  // focus：要先顯示的項目 key（例：「p」「tw_gun」「en_bit」「mod_sc」）；lv：砲塔等級（0 起算）
+  function openModels(focus, lv) {
+    if (!V3.available()) { window.alert(t("ds_no_webgl")); return; }
+    if (mv) closeModels();
+    var f = mvFind(focus || "p");
+    var inGame = ui.screen === "game" && sess && sess.s;
+    mv = { cat: f.cat, key: f.item.key, lv: lv || 0, viewer: null, paused: null };
+    if (inGame && sess.solo && !ui.paused) { mv.paused = true; ui.paused = true; panelSig = ""; }
+    mv.view = el("div", { class: "ds-mv-view" }, [el("p", { class: "ds-mv-loading" }, [t("ds_loading3d")])]);
+    mv.tabs = el("div", { class: "ds-seg ds-mv-tabs" });
+    mv.list = el("div", { class: "ds-mv-list" });
+    mv.info = el("div", { class: "ds-mv-info" });
+    mv.root = el("div", { class: "ds-mv", role: "dialog", "aria-modal": "true", "aria-label": t("ds_mv_title"), onclick: function (e) { if (mv && e.target === mv.root) closeModels(); } }, [
+      el("div", { class: "ds-mv-box" }, [
+        el("div", { class: "ds-mv-head" }, [el("b", null, ["🧊 " + t("ds_mv_title")]), btn("✕", closeModels, "ds-btn", { id: "ds-mv-close", title: t("ds_mv_close") })]),
+        mv.tabs,
+        el("div", { class: "ds-mv-body" }, [mv.list, el("div", { class: "ds-mv-main" }, [mv.view, el("p", { class: "ds-small ds-muted ds-mv-hint" }, [t("ds_mv_hint") + (inGame && !sess.solo ? "　" + t("ds_mv_net_note") : "")]), mv.info])])
+      ])
+    ]);
+    (app.parentNode || document.body).appendChild(mv.root);
+    mvRender();
+    var token = mv;
+    V3.load().then(function () {
+      if (mv !== token) return;
+      mv.view.innerHTML = "";
+      mv.viewer = V3.createViewer(mv.view, { map: inGame ? sess.s.map : 0 });
+      mvShow();
+    }, function () { if (mv === token) mv.view.textContent = t("ds_no_webgl"); });
+  }
+  function closeModels() {
+    if (!mv) return;
+    if (mv.viewer) mv.viewer.dispose();
+    if (mv.root.parentNode) mv.root.parentNode.removeChild(mv.root);
+    if (mv.paused && sess && sess.solo) { ui.paused = false; panelSig = ""; }
+    mv = null;
+  }
+  function mvItem() { return mvFind(mv.key).item; }
+  function mvShow() {
+    if (!mv || !mv.viewer) return;
+    var it = mvItem();
+    mv.viewer.show({ k: it.k, id: it.id, mod: it.mod, pw: it.pw, lv: it.k === "tower" ? Math.min(mv.lv, D.TOWERS[it.id].lv.length - 1) : 0 });
+  }
+  function mvRender() {
+    var cats = mvCatalog(), cur = cats.filter(function (c) { return c[0] === mv.cat; })[0];
+    mv.tabs.innerHTML = "";
+    cats.forEach(function (c) { mv.tabs.appendChild(btn(c[1], function () { mv.cat = c[0]; mv.key = c[2][0].key; mv.lv = 0; mvRender(); mvShow(); }, "ds-btn" + (c[0] === mv.cat ? " ds-on" : ""), { "data-mv-cat": c[0] })); });
+    mv.list.innerHTML = "";
+    cur[2].forEach(function (it) {
+      mv.list.appendChild(btn(it.icon + " " + it.name, function () { mv.key = it.key; mv.lv = 0; mvRender(); mvShow(); }, "ds-mv-item" + (it.key === mv.key ? " ds-on" : ""), { "data-mv": it.key }));
+    });
+    var on = mv.list.querySelector(".ds-on");
+    if (on && on.scrollIntoView) try { on.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) { /* 舊瀏覽器 */ }
+    var it = mvItem(), kids = [el("h3", null, [it.icon + " " + it.name])];
+    if (it.map) {
+      var m = D.MAPS.filter(function (x) { return x.id === it.map; })[0];
+      kids.push(el("p", { class: "ds-small ds-muted" }, ["🗺️ " + t("ds_mv_on_map", { n: L(m.name) + "・" + L(m.mech) })]));
+    }
+    kids.push(el("p", { class: "ds-small" }, [it.desc]));
+    if (it.k === "tower") {
+      var d = D.TOWERS[it.id], lv = Math.min(mv.lv, d.lv.length - 1);
+      kids.push(el("div", { class: "ds-seg" }, d.lv.map(function (x, i) {
+        return btn((d.cat === "evo" ? "E" : "Lv") + (i + 1), function () { mv.lv = i; mvRender(); mvShow(); }, "ds-btn" + (i === lv ? " ds-on" : ""), { "data-mv-lv": i });
+      })));
+      kids.push(el("p", { class: "ds-small ds-mono" }, ["💠" + (lv ? d.lv[lv].c : d.cost) + "　" + statLine(d, lv)]));
+      kids.push(el("p", { class: "ds-small ds-muted" }, [(d.dtype === "kin" ? t("ds_kin") : t("ds_en")) + (d.air ? "・" + t("ds_air_ok") : d.kind === "shell" ? "・" + t("ds_air_no") : "") + (d.from ? "・" + t("ds_from", { n: L(D.TOWERS[d.from].name) }) : "")]));
+      kids.push(el("p", { class: "ds-small ds-muted" }, [t("ds_mv_tower_note")]));
+    } else if (it.k === "enemy") {
+      var e = D.ENEMIES[it.id];
+      kids.push(el("p", { class: "ds-small ds-mono" }, ["HP " + e.hp + (e.shield ? "・🛡" + e.shield : "") + (e.armor ? "・" + t("ds_armor") + e.armor : "") + "・" + t("ds_speed") + e.spd + (e.fly ? "・" + t("ds_mv_fly") : "") + (e.from ? "・" + t("ds_from_wave", { n: e.from }) : "")]));
+    }
+    mv.info.innerHTML = "";
+    kids.forEach(function (k) { mv.info.appendChild(k); });
+  }
+  function modelsBtn(focus, lv, cls) {
+    return btn("🧊", function (e) { if (e && e.stopPropagation) e.stopPropagation(); openModels(focus, lv); }, cls || "ds-link ds-mv-open", { title: t("ds_mv_title") });
+  }
+  document.addEventListener("keydown", function (e) {
+    if (mv && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeModels(); }
+  }, true);
 
   // ---------------- 遊戲畫面 ----------------
   function startSolo(s) {
@@ -398,7 +523,8 @@
           if (!lg) return;
           lg.open = true; setPref({ legend: 1 });
           try { lg.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { lg.scrollIntoView(); }
-        }, "ds-iconbtn", { title: t("ds_legend"), id: "ds-legend-btn" })
+        }, "ds-iconbtn", { title: t("ds_legend"), id: "ds-legend-btn" }),
+        btn("🧊", function () { openModels("p"); }, "ds-iconbtn", { title: t("ds_mv_title"), id: "ds-models-btn" })
       ]),
       refs.mech = el("div", { class: "ds-mechtag", style: "--ds-mc:" + hex(m.glow) }, [mechText(s)]),
       refs.skills = el("div", { class: "ds-skills" }, Object.keys(D.SKILLS).map(function (k) {
@@ -831,7 +957,7 @@
   function towerPanel(s, p, tw) {
     var d = D.TOWERS[tw.ty], st = Core.stats(s, tw), mine = tw.o === sess.pid, kids = [];
     var mod = s.fm[Core.idx(tw.x, tw.y)];
-    kids.push(el("div", { class: "ds-tw-head" }, [el("b", null, [d.icon + " " + L(d.name)]), el("span", { class: "ds-chip" }, [(d.cat === "evo" ? "E" : "Lv") + (tw.lv + 1)]), btn("✕", function () { ui.sel = 0; panelSig = ""; }, "ds-link")]));
+    kids.push(el("div", { class: "ds-tw-head" }, [el("b", null, [d.icon + " " + L(d.name)]), el("span", { class: "ds-chip" }, [(d.cat === "evo" ? "E" : "Lv") + (tw.lv + 1)]), modelsBtn("tw_" + tw.ty, tw.lv), btn("✕", function () { ui.sel = 0; panelSig = ""; }, "ds-link")]));
     kids.push(el("p", { class: "ds-small" }, [L(d.desc)]));
     var lines = [];
     if (st.dmg) lines.push((d.kind === "beam" ? t("ds_st_dps") : t("ds_st_dmg")) + " " + fmt(st.dmg) + (st.dm > 1.001 ? " (+" + Math.round((st.dm - 1) * 100) + "%)" : st.dm < 0.999 ? " (" + Math.round((st.dm - 1) * 100) + "%)" : ""));
@@ -888,6 +1014,7 @@
     ].map(function (r) { return el("li", null, [sw(r[0]), r[1]]); });
     var d = el("details", { class: "ds-panel ds-legend", open: pref().legend ? true : null, ontoggle: function (e) { setPref({ legend: e.target.open ? 1 : 0 }); } }, [
       el("summary", null, ["📘 " + t("ds_legend")]),
+      el("div", { class: "ds-actions" }, [btn("🧊 " + t("ds_mv_title"), function () { openModels("p"); }, "ds-btn", { id: "ds-legend-models" }), el("span", { class: "ds-small ds-muted" }, [t("ds_mv_legend_note")])]),
       el("p", { class: "ds-small ds-muted" }, [t("ds_lg_mods_note")]),
       el("ul", { class: "ds-lg" }, rows),
       el("ul", { class: "ds-lg" }, more)
@@ -966,7 +1093,7 @@
 
   // ---------------- 鍵盤 ----------------
   document.addEventListener("keydown", function (e) {
-    if (ui.screen !== "game" || !sess || !sess.s) return;
+    if (ui.screen !== "game" || !sess || !sess.s || mv) return;
     if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     var p = me();
     if (!p) return;

@@ -171,3 +171,33 @@
 .ds-lg { margin: 0.35rem 0; padding: 0; list-style: none; font-size: 0.84em; line-height: 1.45; }
 .ds-lg li { margin: 0.25rem 0; }
 .ds-sw { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.35rem; vertical-align: -0.1rem; border: 1px solid rgba(127, 127, 127, 0.5); }
+
+/* ---------- 3D 模型圖鑑（使用者指定 2026-11-09） ---------- */
+.ds-mv { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(4, 8, 7, 0.72); }
+.ds-mv-box { display: flex; flex-direction: column; gap: 0.55rem; width: min(64rem, 100%); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: hidden;
+  padding: 0.8rem 0.9rem; border: 1px solid rgba(60, 255, 176, 0.35); border-radius: 12px; background: #0f1614; color: #e8f4ef; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+.ds-mv-box .ds-btn, .ds-mv-item { color: inherit; border-color: rgba(200, 230, 220, 0.28); }
+.ds-mv-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 1.1em; }
+.ds-mv-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ds-mv-body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 0.7rem; min-height: 0; overflow: hidden; }
+.ds-mv-list { display: flex; flex-direction: column; gap: 0.25rem; overflow-y: auto; min-height: 0; padding-right: 0.2rem; }
+.ds-mv-item { text-align: left; padding: 0.35rem 0.55rem; border: 1px solid rgba(200, 230, 220, 0.18); border-radius: 6px; background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-mv-item:hover { border-color: #3cffb0; }
+.ds-mv-main { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.ds-mv-view { position: relative; height: min(52vh, 26rem); min-height: 14rem; border-radius: 10px; overflow: hidden; background: #08100d; touch-action: none; }
+.ds-mv-canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.ds-mv-canvas:active { cursor: grabbing; }
+.ds-mv-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; opacity: 0.7; }
+.ds-mv-hint { margin: 0.3rem 0 0.2rem; color: rgba(232, 244, 239, 0.62); }
+.ds-mv-info h3 { margin: 0.3rem 0; }
+.ds-mv-info p { margin: 0.3rem 0; }
+.ds-mv-info .ds-muted { color: rgba(232, 244, 239, 0.62); }
+.ds-mv-open { padding: 0 0.3rem; font-size: 0.95em; text-decoration: none; }
+@media (max-width: 720px) {
+  .ds-mv { padding: 6px; align-items: stretch; }
+  .ds-mv-box { max-height: none; height: 100%; padding: 0.6rem; }
+  .ds-mv-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .ds-mv-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; padding-bottom: 0.25rem; }
+  .ds-mv-item { flex: 0 0 auto; }
+  .ds-mv-view { height: 42vh; min-height: 12rem; }
+}
