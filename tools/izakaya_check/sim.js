@@ -5,7 +5,7 @@ var fs = require("fs"), path = require("path"), assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
+["gousei_data_food.js", "izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
  "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js", "izakaya_story_e.js", "izakaya_story_heart2.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
 var D = window.PriTestIzakayaData, Core = window.PriTestIzakayaCore, Rush = window.PriTestIzakayaRush;
 

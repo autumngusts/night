@@ -46,7 +46,7 @@
       v: 1, seed: seed, rs: seed, day: 1, phase: "market",
       cash: D.START_CASH, rep: 0, star: 1, maxStar: 1,
       fridge: {}, mk: {}, board: [], prepped: {}, known: {}, sig: null,
-      photos: {}, pool: [], notes: {}, night: null, today: null, log: [], refer: [],
+      photos: {}, pool: [], notes: {}, night: null, today: null, log: [], refer: [], creations: {}, atelier: {},
       players: {}, order: [], roles: {}, ready: {},
       story: { seen: {}, flags: {}, arcs: {}, links: {}, cur: null, queue: [] },
       rel: {}, date: {}, staff: { crew: [], met: {} }, rush: null, end: null,
@@ -140,6 +140,58 @@
     if (!d || d.cat !== "drink" || s.known[id] || !useIngs(s, d.ing)) return false;
     s.known[id] = 1;
     return true;
+  }
+  // ---------------- 創作料理（規格第 2 期：用武俠合成「世界美食」的配方合成稀有菜）----------------
+  // 素材＝基本素材（水火鹽米油，無限）＋冰箱裡有對應的食材＋工坊的半成品。兩種素材查 recipes：
+  // 結果是料理／甜點／飲品／夢幻逸品 → 創作料理（解鎖、附 CREATE_PORTIONS 份可直接出菜，再做一次就再多幾份）；
+  // 其他 → 半成品收進工坊（之後可以繼續合成）；沒有配方 → 失敗（食材照樣用掉）。
+  var CREATE_PORTIONS = 4, gIndex = null;
+  function GD() { return window.PriTestGouseiData && window.PriTestGouseiData.food; }
+  function gItem(id) {
+    if (!GD()) return null;
+    if (!gIndex) { gIndex = {}; GD().items.forEach(function (x) { gIndex[x[0]] = x; }); }
+    return gIndex[id] || null;
+  }
+  function gName(id) { var it = gItem(id); return it ? D.C(it[1], it[2]) : D.C(id); }
+  function materials(s) {
+    var out = [];
+    if (!GD()) return out;
+    GD().basics.forEach(function (b) { out.push({ id: b, src: "basic", n: 99 }); });
+    Object.keys(D.GOUSEI_MAP).forEach(function (k) { var n = stock(s, k); if (n > 0) out.push({ id: D.GOUSEI_MAP[k], src: "ing", ing: k, n: n }); });
+    Object.keys(s.atelier || {}).forEach(function (g) { if (s.atelier[g] > 0) out.push({ id: g, src: "atelier", n: s.atelier[g] }); });
+    return out;
+  }
+  function hashStr(str, k) { var h = 2166136261 ^ k; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0); }
+  function creationDish(gid) {
+    var it = gItem(gid), tier = it[4] || 3, drink = it[3] === "drink";
+    return { name: D.C(it[1], it[2]), cat: drink ? "drink" : "creative", m: "create", st: drink ? "bar" : it[3] === "dessert" ? "cold" : "pot",
+      ing: { __create: 1 }, f: D.DIMS.map(function (d, i) { return hashStr(gid, i) % 3; }), tags: [], creative: true,
+      price: drink ? 300 + tier * 90 : 380 + tier * 140, cook: drink ? 2 : 6, season: -1, unlock: "create", prep: false, gid: gid };
+  }
+  function registerCreations(s) { Object.keys(s.creations || {}).forEach(function (id) { if (!D.DISHES[id]) D.DISHES[id] = s.creations[id]; }); }
+  function create(s, a, b) {
+    if (!GD()) return { ok: false };
+    var mats = {}, list = materials(s);
+    list.forEach(function (m) { mats[m.id] = m; });
+    if (!mats[a] || !mats[b] || (a === b && mats[a].src !== "basic" && mats[a].n < 2)) return { ok: false, short: true };
+    [a, b].forEach(function (g) {
+      var m = mats[g];
+      if (m.src === "ing") { var need = {}; need[m.ing] = 1; useIngs(s, need); }
+      else if (m.src === "atelier") s.atelier[g]--;
+    });
+    var res = GD().recipes[[a, b].sort().join("|")], it = res && gItem(res);
+    if (!it) return { ok: false, fail: true };
+    if (D.CREATE_CATS.indexOf(it[3]) >= 0) {
+      var id = "cr_" + res;
+      if (!s.creations[id]) s.creations[id] = creationDish(res);
+      D.DISHES[id] = s.creations[id];
+      var first = !s.known[id];
+      s.known[id] = 1;
+      s.prepped[id] = (s.prepped[id] || 0) + CREATE_PORTIONS;
+      return { ok: true, kind: "dish", id: id, first: first };
+    }
+    s.atelier[res] = (s.atelier[res] || 0) + 1;
+    return { ok: true, kind: "prep", gid: res };
   }
   function photoOf(s, id) {
     if (s.photos[id]) return s.photos[id];
@@ -480,7 +532,7 @@
       afterHoliday(s);
     }
   }
-  var MOD = { buy: "buyer", board: "hall", sig: "hall", prep: "chef", dev: "chef", devDrink: "bar", talk: "hall", rush: "hall", hire: "hall", fire: "hall" };
+  var MOD = { buy: "buyer", board: "hall", sig: "hall", prep: "chef", dev: "chef", create: "chef", devDrink: "bar", talk: "hall", rush: "hall", hire: "hall", fire: "hall" };
   function applyIntent(s, pid, it) {
     if (!it || !s.players[pid] || s.phase === "end") return false;
     var a = it.a;
@@ -501,6 +553,10 @@
         var r = dev(s, it.ings, it.m); s.lastDev = { pid: pid, ok: r.ok, id: r.id || null, n: ((s.lastDev && s.lastDev.n) || 0) + 1 }; return true;
       }
       case "devDrink": return (s.phase === "prep" || s.phase === "holiday") && devDrink(s, it.id);
+      case "create": {
+        if (s.phase !== "prep" && s.phase !== "holiday") return false;
+        var rc = create(s, it.g1, it.g2); rc.pid = pid; rc.n = ((s.lastCreate && s.lastCreate.n) || 0) + 1; s.lastCreate = rc; return true;
+      }
       case "talk": return s.phase === "service" && !s.rush && !!talk(s, it.c);
       case "hint": if (s.phase !== "service" || hasRole(s, pid, "hall")) return false; s.night.hints[pid] = it.c; return true;
       case "serve": {
@@ -553,6 +609,9 @@
     // 舊存檔相容：店員從單一 hired 改成名單 crew；沒有跨局記憶就補空的
     if (!s.staff.crew) { s.staff.crew = s.staff.hired ? [s.staff.hired] : []; delete s.staff.hired; }
     if (!s.legacy) s.legacy = emptyLegacy();
+    if (!s.creations) s.creations = {};
+    if (!s.atelier) s.atelier = {};
+    registerCreations(s);
     return s;
   }
 
@@ -568,7 +627,8 @@
     affOf: affOf, canDate: canDate, startDate: startDate, dateChoice: dateChoice, confess: confess, propose: propose,
     wedding: wedding, partnerOf: partnerOf,
     staffNow: staffNow, crewOf: crewOf, hasAbility: hasAbility, maxCrew: maxCrew, canHire: canHire, hire: hire, fire: fire,
-    emptyLegacy: emptyLegacy, mergeLegacy: mergeLegacy, endingOf: endingOf, condMatch: condMatch, setSig: setSig, staffSatBonus: staffSatBonus,
+    emptyLegacy: emptyLegacy, mergeLegacy: mergeLegacy, endingOf: endingOf, condMatch: condMatch,
+    materials: materials, create: create, gName: gName, registerCreations: registerCreations, setSig: setSig, staffSatBonus: staffSatBonus,
     drinkMult: drinkMult, wageOf: wageOf,
     allReady: allReady, applyIntent: applyIntent, tick: tick, serialize: serialize, restore: restore
   };

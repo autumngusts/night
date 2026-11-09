@@ -214,6 +214,25 @@ async function patchSave(page, fn) {
   await page.reload(); await act(page, '[data-act="continue"]');
   await noMissingKeys(page, "ja holiday");
   await page.evaluate(function () { localStorage.setItem("pritest-lang", "zh"); });
+  // 創作料理（規格第 2 期）：在公休日的研發分頁，用畫面合成一道創作料理
+  await patchSave(page, "s.phase = 'holiday'; s.date = {}; Object.keys(D.GOUSEI_MAP).forEach(function (k) { s.fridge[k] = [99, 99, 99, 99, 99]; });");
+  await act(page, '[data-tab="dev"]');
+  var pair = await page.evaluate(function () {
+    var G = window.PriTestGouseiData.food, D = window.PriTestIzakayaData, ids = window.PriTestIzakayaCore.materials(window.PriTestIzakaya.state()).map(function (m) { return m.id; });
+    var keys = Object.keys(G.recipes);
+    for (var i = 0; i < keys.length; i++) {
+      var p = keys[i].split("|"); if (p[0] === p[1] || ids.indexOf(p[0]) < 0 || ids.indexOf(p[1]) < 0) continue;
+      var it = G.items.filter(function (x) { return x[0] === G.recipes[keys[i]]; })[0];
+      if (it && D.CREATE_CATS.indexOf(it[3]) >= 0) return p;
+    }
+    return null;
+  });
+  assert.ok(pair, "找得到一組成菜的配方");
+  await act(page, '[data-cr="' + pair[0] + '"]'); await act(page, '[data-cr="' + pair[1] + '"]'); await act(page, '[data-act="create"]');
+  s = await state(page);
+  assert.ok(Object.keys(s.known).some(function (k) { return k.indexOf("cr_") === 0; }), "做出創作料理");
+  assert.ok((await page.textContent("#iz-side")).indexOf("創作料理") >= 0, "畫面顯示創作料理");
+  await page.screenshot({ path: path.join(SHOTS, "create.png") });
   // 批次 A：★5 可同時雇用 3 名店員
   await patchSave(page, "s.phase = 'holiday'; s.date = {}; s.maxStar = 5; ['reina', 'yuzu', 'akari', 'kotone'].forEach(function (k) { s.staff.met[k] = 1; });");
   await act(page, '[data-tab="staff"]');

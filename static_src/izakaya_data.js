@@ -217,6 +217,16 @@
       desc: C("一年後，月見橫丁還是被拆了。你收起暖簾，帶著常客們的回憶，在別的街角重新開店……", "一年後、月見横丁は取り壊された。暖簾をしまい、常連たちの思い出を胸に、別の街角で店を開く……") }
   ];
 
+  // 創作料理（規格第 2 期）：居酒屋食材 → 武俠合成「世界美食」（gousei_data_food.js）的同名食材 id
+  var GOUSEI_MAP = {
+    negi: "x_cong", daikon: "x_luobo", cabbage: "x_gaolicai", shiitake: "x_xianggu", takenoko: "x_zhusun", nasu: "x_qiezi",
+    kabocha: "x_nangua", potato: "x_malingshu", cucumber: "x_xiaohuanggua", chicken: "x_jirou", pork: "x_zhurou", beef: "x_niurou",
+    maguro: "x_weiyu", salmon: "x_guiyu", saba: "x_zhengyu_99a102", ika: "x_huazhi", ebi: "x_xia", tako: "x_zhangyu", tofu: "x_doufu",
+    egg: "x_jidan", chili: "x_lajiao", wasabi: "x_shankui", sake: "x_qingjiu", lemon: "x_ningmeng", umeshu: "x_meijiu", tea: "x_chaye",
+    ginger: "x_shengjiang"
+  };
+  var CREATE_CATS = ["dish", "dessert", "drink", "treasure"];   // 合成結果是這幾類就成為創作料理；其他是半成品
+
   var ROLES = {
     hall: { icon: "🏮", name: C("外場店長", "ホール店長") },
     chef: { icon: "🔪", name: C("板前", "板前") },
@@ -235,7 +245,7 @@
   // 批次 E 常客增加到 18 人，每晚常客上限 6→7（否則 1a 常客的後段輪不到）：會推理 ★3.40、亂選 ★2.05。
   window.PriTestIzakayaData = {
     C: C, L: L, DIMS: DIMS, DIM_NAMES: DIM_NAMES, TAGS: TAGS, TAG_NAMES: TAG_NAMES, INGS: INGS, DISHES: DISHES,
-    SEASONS: SEASONS, STARS: STARS, ENDINGS: ENDINGS, TOPICS: TOPICS, SPOTS: SPOTS, LIKE_TAGS: LIKE_TAGS, ROLES: ROLES, ROLE_ORDER: ROLE_ORDER,
+    SEASONS: SEASONS, STARS: STARS, ENDINGS: ENDINGS, GOUSEI_MAP: GOUSEI_MAP, CREATE_CATS: CREATE_CATS, TOPICS: TOPICS, SPOTS: SPOTS, LIKE_TAGS: LIKE_TAGS, ROLES: ROLES, ROLE_ORDER: ROLE_ORDER,
     DAYS: 30, WEEK: 6, START_CASH: 30000, RENT: 9000, FRIDGE_CAP: 40, FRIDGE_CAP_STAR2: 60, BOARD_MAX: 8, PREP_PORTIONS: 3,
     BASE_GROUPS: 4, REP_BASE: 60, REP_DIV: 15, REG_PER_NIGHT: 7, DAILY_CHANCE: 0.3, STAR_REP: [0, 80, 215, 430, 720], DATE_AFF: 30, HEART_AFF: 50, CONFESS_AFF: 80, PROPOSE_AFF: 95, SIG_MULT: 1.2
   };

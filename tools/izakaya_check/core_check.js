@@ -8,7 +8,7 @@ var fs = require("fs"), path = require("path"), assert = require("assert");
 global.window = global;
 global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
 var SRC = path.join(__dirname, "..", "..", "static_src");
-["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
+["gousei_data_food.js", "izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
  "izakaya_story_staff.js", "izakaya_story_main2.js", "izakaya_story_arcs2.js", "izakaya_story_staff2.js", "izakaya_story_heart.js", "izakaya_story_truth.js", "izakaya_story_deep.js", "izakaya_story_deep_staff.js", "izakaya_story_daily.js", "izakaya_story_e.js", "izakaya_story_heart2.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) {
   eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8"));
 });
@@ -405,6 +405,38 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
     });
   });
   console.log("11. 跨局記憶與多重結局 OK");
+})();
+
+// ---------------- 12. 創作料理（規格第 2 期：用世界美食的配方合成稀有菜）----------------
+(function () {
+  var G = window.PriTestGouseiData.food, s = game(1, 71);
+  Object.keys(D.GOUSEI_MAP).forEach(function (k) { s.fridge[k] = [99, 99, 99, 99, 99, 99, 99, 99, 99, 99]; });
+  var mats = Core.materials(s).map(function (m) { return m.id; });
+  assert.ok(mats.indexOf("fire") >= 0 && mats.indexOf(D.GOUSEI_MAP.chicken) >= 0, "素材：基本素材＋冰箱食材");
+  // 找一組直接做出料理、和一組做出半成品的配方
+  var dishKey = null, prepKey = null;
+  Object.keys(G.recipes).forEach(function (k) {
+    var p = k.split("|"); if (mats.indexOf(p[0]) < 0 || mats.indexOf(p[1]) < 0 || p[0] === p[1]) return;
+    var it = G.items.filter(function (x) { return x[0] === G.recipes[k]; })[0];
+    if (!it) return;
+    if (D.CREATE_CATS.indexOf(it[3]) >= 0) { if (!dishKey) dishKey = p; } else if (!prepKey) prepKey = p;
+  });
+  assert.ok(dishKey && prepKey, "有直接成菜與半成品的配方");
+  var before = Core.stock(s, "chicken");
+  var r = Core.create(s, dishKey[0], dishKey[1]);
+  assert.ok(r.ok && r.kind === "dish" && s.known[r.id] && D.DISHES[r.id], "做出創作料理並解鎖：" + JSON.stringify(r));
+  assert.ok(s.prepped[r.id] > 0, "創作料理附帶幾份可以直接出菜");
+  assert.ok(D.DISHES[r.id].price > 0 && D.DISHES[r.id].f.length === 5);
+  var r2 = Core.create(s, prepKey[0], prepKey[1]);
+  assert.ok(r2.ok && r2.kind === "prep" && s.atelier[r2.gid] === 1, "半成品收進工坊");
+  assert.ok(Core.materials(s).some(function (m) { return m.id === r2.gid && m.src === "atelier"; }), "工坊的半成品可以當素材");
+  var r3 = Core.create(s, "water", "water");
+  assert.ok(!r3.ok || r3.kind, "不存在的配方：失敗");
+  // 存檔來回：創作料理重新登記
+  var id = r.id; delete D.DISHES[id];
+  var back = Core.restore(Core.serialize(s));
+  assert.ok(D.DISHES[id] && back.creations[id], "讀檔後重新登記創作料理");
+  console.log("12. 創作料理 OK");
 })();
 
 console.log("ALL OK");

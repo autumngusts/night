@@ -49,7 +49,7 @@
   function nameOf(s, id) { var c = Cast.byId(id); if (c) return L(c.name); var g = s.pool.filter(function (x) { return x.id === id; })[0]; return g ? L(g.name) : id; }
   function hearts(n) { return "♥".repeat(Math.round((n || 0) / 20)) + "♡".repeat(5 - Math.round((n || 0) / 20)); }
 
-  var ui = { screen: "home", tab: "date", datePick: null, devSel: [], devM: "yaki", line: 0, lineId: "", notes: false, noteSel: null, toast: [], quality: pref().quality || "high", want: pref().role || "hall" };
+  var ui = { screen: "home", tab: "date", datePick: null, devSel: [], devM: "yaki", crSel: [], line: 0, lineId: "", notes: false, noteSel: null, toast: [], quality: pref().quality || "high", want: pref().role || "hall" };
   var sess = null, view3 = null, lastPush = 0, refs = {}, sig = {}, raf = 0, lastT = 0;
 
   // ---------------- 場次 ----------------
@@ -209,7 +209,7 @@
       Rush.STATIONS.map(function (k) { return R.st[k].map(function (sl) { return sl ? sl.d + (R.t - sl.t0 >= sl.cook ? "!" : "") : "-"; }).join(""); }).join(",") : "";
     return JSON.stringify([s.phase, s.day, s.board, s.prepped, s.known && Object.keys(s.known).length, s.fridge && Core.fridgeCount(s), s.cash, s.ready, s.sig,
       s.night && s.night.i, g && g.step, g && g.last, s.night && s.night.hints, s.lastDev, s.lastLove, s.date, s.staff, s.rel, s.today, rs,
-      ui.tab, ui.datePick, ui.devSel, ui.devM, ui.room ? ui.room.list().length : 0, !!s.story.cur]);
+      ui.tab, ui.datePick, ui.devSel, ui.devM, ui.crSel, s.lastCreate, s.atelier, ui.room ? ui.room.list().length : 0, !!s.story.cur]);
   }
   function drawHud(s) {
     var next = D.STAR_REP[s.star] , prev = D.STAR_REP[s.star - 1] || 0;
@@ -281,7 +281,7 @@
       D.DIMS.map(function (k, i) { return el("i", { class: "iz-f-" + k, style: "height:" + (2 + d.f[i] * 5) + "px" }); }));
   }
   // 準備
-  var DISH_CATS = ["yakitori", "sashimi", "nimono", "agemono", "kobachi", "meshi", "drink"];
+  var DISH_CATS = ["yakitori", "sashimi", "nimono", "agemono", "kobachi", "meshi", "creative", "drink"];
   function sidePrep(s) {
     var hall = has("hall"), chef = has("chef");
     var board = el("div", { class: "iz-board" }, [el("b", null, ["📋 " + t("iz_board", { n: s.board.length, m: D.BOARD_MAX })]), el("div", { class: "iz-chips" }, s.board.map(function (id) {
@@ -322,6 +322,7 @@
       el("div", { class: "iz-seg" }, METHODS.map(function (m) { return btn(t("iz_m_" + m), function () { ui.devM = m; sig.side = null; update(); }, "iz-btn iz-small" + (ui.devM === m ? " iz-on" : ""), { "data-dev-m": m, disabled: !chef ? true : null }); })),
       btn(t("iz_dev_try"), function () { send({ a: "dev", ings: ui.devSel.slice(), m: ui.devM }); ui.devSel = []; }, "iz-btn iz-primary", { "data-act": "dev", disabled: !chef || !ui.devSel.length ? true : null }),
       ld,
+      createBox(s, chef),
       el("h3", null, ["🍶 " + t("iz_dev_drink")]),
       bar ? null : roleNeed("bar"),
       el("div", { class: "iz-chips" }, locked.map(function (k) {
@@ -329,6 +330,34 @@
         return btn(L(d.name) + "（" + Object.keys(d.ing).map(function (i) { return L(D.INGS[i].name); }).join("＋") + "）", function () { send({ a: "devDrink", id: k }); }, "iz-btn iz-small", { "data-dev-drink": k, disabled: !bar || !Core.hasIngs(s, d.ing) ? true : null });
       }))
     ], "iz-dev");
+  }
+
+  // 創作料理（規格第 2 期）：兩種素材查「世界美食」的配方；做出料理就上得了黑板，半成品收進工坊
+  function createBox(s, chef) {
+    var mats = Core.materials(s);
+    if (!mats.length) return null;
+    ui.crSel = ui.crSel.filter(function (g) { return mats.some(function (m) { return m.id === g; }); });
+    var lc = s.lastCreate && s.lastCreate.pid === me() ? s.lastCreate : null;
+    var res = !lc ? null : lc.kind === "dish" ? el("p", { class: "iz-good" }, ["✨ " + t(lc.first ? "iz_create_ok" : "iz_create_more", { n: L(D.DISHES[lc.id].name) })])
+      : lc.kind === "prep" ? el("p", null, ["🧪 " + t("iz_create_prep", { n: L(Core.gName(lc.gid)) })]) : el("p", { class: "iz-muted" }, [t("iz_create_fail")]);
+    function chip(m) {
+      var on = ui.crSel.indexOf(m.id) >= 0;
+      return btn((on ? "✓" : "") + L(Core.gName(m.id)) + (m.src === "atelier" ? "×" + m.n : ""), function () {
+        var i = ui.crSel.indexOf(m.id);
+        if (i >= 0) ui.crSel.splice(i, 1); else if (ui.crSel.length < 2) ui.crSel.push(m.id);
+        sig.side = null; update();
+      }, "iz-btn iz-small" + (on ? " iz-on" : ""), { "data-cr": m.id, disabled: !chef ? true : null });
+    }
+    return el("div", { class: "iz-create" }, [
+      el("h3", null, ["✨ " + t("iz_create")]),
+      el("p", { class: "iz-small iz-muted" }, [t("iz_create_hint")]),
+      el("div", { class: "iz-small" }, [t("iz_basic")]), el("div", { class: "iz-chips" }, mats.filter(function (m) { return m.src === "basic"; }).map(chip)),
+      el("div", { class: "iz-small" }, [t("iz_fridge_mats")]), el("div", { class: "iz-chips" }, mats.filter(function (m) { return m.src === "ing"; }).map(chip)),
+      mats.some(function (m) { return m.src === "atelier"; }) ? el("div", { class: "iz-small" }, [t("iz_atelier")]) : null,
+      el("div", { class: "iz-chips" }, mats.filter(function (m) { return m.src === "atelier"; }).map(chip)),
+      btn(t("iz_create_try"), function () { send({ a: "create", g1: ui.crSel[0], g2: ui.crSel[1] || ui.crSel[0] }); ui.crSel = []; }, "iz-btn iz-primary", { "data-act": "create", disabled: !chef || !ui.crSel.length ? true : null }),
+      res
+    ]);
   }
 
   // 營業（回合制）

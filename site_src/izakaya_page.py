@@ -10,6 +10,7 @@ from __future__ import annotations
 from site_src.layout import asset_url, page_shell
 
 IZAKAYA_SCRIPTS: tuple[str, ...] = (
+    "gousei_data_food.js",   # 創作料理用的「世界美食」配方（武俠合成的資料，唯讀共用）
     "izakaya_data.js",
     "izakaya_cast.js",
     "izakaya_story.js",
