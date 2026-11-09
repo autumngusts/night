@@ -163,8 +163,10 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   Core.note(s, "x", { k: "pref", d: "sweet", v: -1, lv: "s" });
   assert.deepStrictEqual(s.notes.x.pref.sweet, { v: 1, lv: "c" }, "確定不被推測覆蓋");
   // 星級：只升不降、記錄解鎖
-  assert.strictEqual(Core.starOf(0), 1); assert.strictEqual(Core.starOf(25), 2); assert.strictEqual(Core.starOf(239), 4); assert.strictEqual(Core.starOf(240), 5);
-  s.rep = 80; s.night.i = s.night.groups.length; Core.closeService(s);
+  // 門檻從資料讀（數值由 sim.js 調整過，不硬編）
+  var R = D.STAR_REP;
+  assert.strictEqual(Core.starOf(0), 1); assert.strictEqual(Core.starOf(R[1]), 2); assert.strictEqual(Core.starOf(R[4] - 1), 4); assert.strictEqual(Core.starOf(R[4]), 5);
+  s.rep = R[2]; s.night.i = s.night.groups.length; Core.closeService(s);
   assert.strictEqual(s.phase, "close"); assert.strictEqual(s.maxStar, 3); assert.strictEqual(s.today.unlock, 3);
   s.rep = 0; s.night = { groups: [], i: 0 }; Core.closeService(s);
   assert.strictEqual(s.star, 1); assert.strictEqual(s.maxStar, 3, "最高星級不回收");
@@ -309,6 +311,21 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   assert.deepStrictEqual(a.night, b.night); assert.strictEqual(a.cash, b.cash);
   assert.strictEqual(a.rush, null, "90 秒後結束"); assert.strictEqual(a.night.i, 1, "結束後換下一組");
   console.log("8. 即時尖峰 OK");
+})();
+
+// ---------------- 9. 意圖與階段 ----------------
+(function () {
+  var s = game(2, 77);
+  var buyer = s.order.filter(function (p) { return Core.hasRole(s, p, "buyer"); })[0], other = s.order.filter(function (p) { return p !== buyer; })[0];
+  if (!Core.hasRole(s, other, "buyer")) assert.ok(!Core.applyIntent(s, other, { a: "buy", id: "chicken", n: 1 }), "不是採買不能買");
+  assert.ok(Core.applyIntent(s, buyer, { a: "buy", id: "chicken", n: 2 }));
+  Core.applyIntent(s, "p0", { a: "ready", v: true }); assert.strictEqual(s.phase, "market", "還有人沒準備好");
+  Core.applyIntent(s, "p1", { a: "ready", v: true }); assert.strictEqual(s.phase, "prep");
+  var hall = s.order.filter(function (p) { return Core.hasRole(s, p, "hall"); })[0];
+  assert.ok(Core.applyIntent(s, hall, { a: "board", ids: ["negima", "nama"] }));
+  s.order.forEach(function (p) { Core.applyIntent(s, p, { a: "ready", v: true }); });
+  assert.strictEqual(s.phase, "service");
+  console.log("9. 意圖與階段 OK");
 })();
 
 console.log("ALL OK");

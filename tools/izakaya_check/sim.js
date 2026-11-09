@@ -1,0 +1,65 @@
+// 深夜居酒屋（izakaya）30 天平衡模擬：兩種機器人（會推理的／亂選的）各跑 20 局，檢查星級與資金落在合理範圍。
+// 執行：node tools/izakaya_check/sim.js
+"use strict";
+var fs = require("fs"), path = require("path"), assert = require("assert");
+global.window = global;
+global.I18N = { getLang: function () { return "zh"; }, t: function (k) { return k; } };
+var SRC = path.join(__dirname, "..", "..", "static_src");
+["izakaya_data.js", "izakaya_cast.js", "izakaya_story.js", "izakaya_story_main.js", "izakaya_story_arcs.js",
+ "izakaya_story_staff.js", "izakaya_rush.js", "izakaya_core.js"].forEach(function (f) { eval.call(global, fs.readFileSync(path.join(SRC, f), "utf8")); });
+var D = window.PriTestIzakayaData, Core = window.PriTestIzakayaCore, Rush = window.PriTestIzakayaRush;
+
+function guessScore(s, gid, id) {
+  var n = s.notes[gid] || { pref: {} }, d = D.DISHES[id], sc = 0;
+  if (n.taboo && d.tags.indexOf(n.taboo) >= 0) return -99;
+  D.DIMS.forEach(function (k, i) { var p = n.pref[k]; if (p) sc += p.v * d.f[i]; });
+  return sc;
+}
+function play(seed, smart) {
+  var s = Core.newGame({ seed: seed, players: [{ pid: "p0", name: "bot" }] }), guard = 0;
+  while (s.phase !== "end" && guard++ < 20000) {
+    if (s.story.cur) { Core.applyIntent(s, "p0", { a: "vote", c: 0 }); continue; }
+    if (s.phase === "market") {
+      var board = Object.keys(s.known).sort(function (a, b) { return D.DISHES[b].price - D.DISHES[a].price; });
+      var food = board.filter(function (k) { return D.DISHES[k].cat !== "drink"; }).slice(0, 6), drink = board.filter(function (k) { return D.DISHES[k].cat === "drink"; }).slice(0, 2);
+      s._want = food.concat(drink);
+      s._want.forEach(function (k) { Object.keys(D.DISHES[k].ing).forEach(function (i) { while (Core.stock(s, i) < 3 && Core.applyIntent(s, "p0", { a: "buy", id: i, n: 1 })); }); });
+      Core.applyIntent(s, "p0", { a: "ready", v: true });
+    } else if (s.phase === "prep") {
+      Core.applyIntent(s, "p0", { a: "board", ids: s._want || [] });
+      Core.applyIntent(s, "p0", { a: "ready", v: true });
+    } else if (s.phase === "service") {
+      if (s.rush) {
+        s.rush.seats.forEach(function (se) { se.items.forEach(function (it, k) { if (it.s === "wait") Core.applyIntent(s, "p0", { a: "rc", seat: se.id, k: k }); if (it.s === "ready") Core.applyIntent(s, "p0", { a: "rs", seat: se.id, k: k }); }); });
+        Rush.STATIONS.forEach(function (k) { s.rush.st[k].forEach(function (sl, i) { if (sl) Core.applyIntent(s, "p0", { a: "rt", st: k, slot: i }); }); });
+        Core.tick(s, 1);
+        continue;
+      }
+      var g = Core.curGroup(s);
+      if (!g) { Core.closeService(s); continue; }
+      if (g.kind === "rush") { Core.applyIntent(s, "p0", { a: "rush" }); continue; }
+      if (g.step === "talk") {
+        var n = s.notes[g.gid], ci = smart && n && n.topic ? g.topics.indexOf(Core.guestOf(s, g).topic) : 0;
+        Core.applyIntent(s, "p0", { a: "talk", c: ci < 0 ? 0 : ci });
+      } else {
+        var drinkStep = g.step === "drink";
+        var opts = s.board.filter(function (k) { return (D.DISHES[k].cat === "drink") === drinkStep && Core.canMake(s, k); });
+        if (!opts.length) { g.step = drinkStep ? "done" : "drink"; if (drinkStep) Core.pay(s, g); continue; }
+        var pickD = smart ? opts.sort(function (a, b) { return guessScore(s, g.gid, b) - guessScore(s, g.gid, a); })[0] : opts[Core.rint(s, opts.length)];
+        Core.applyIntent(s, "p0", { a: "serve", id: pickD });
+      }
+    } else Core.applyIntent(s, "p0", { a: "ready", v: true });
+  }
+  assert.strictEqual(s.phase, "end", "30 天要能玩完（seed " + seed + "）");
+  return s;
+}
+var smart = [], dumb = [];
+for (var i = 1; i <= 20; i++) { smart.push(play(1000 + i, true)); dumb.push(play(2000 + i, false)); }
+function avg(a, f) { return a.reduce(function (t, x) { return t + f(x); }, 0) / a.length; }
+var sm = avg(smart, function (s) { return s.maxStar; }), dm = avg(dumb, function (s) { return s.maxStar; });
+console.log("會推理：平均最高星 " + sm.toFixed(2) + "、資金 " + Math.round(avg(smart, function (s) { return s.cash; })));
+console.log("亂選：平均最高星 " + dm.toFixed(2) + "、資金 " + Math.round(avg(dumb, function (s) { return s.cash; })));
+assert.ok(sm >= 3 && sm <= 4.8, "會推理的機器人應能到 ★3〜★4.8（★5 留給認真玩的玩家）");
+assert.ok(dm < sm, "亂選要比推理差");
+assert.ok(smart.every(function (s) { return s.cash > 0; }), "會推理的不會破產");
+console.log("sim OK");

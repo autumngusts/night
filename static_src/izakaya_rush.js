@@ -117,7 +117,7 @@
     var R = s.rush, n = s.night;
     R.seats.forEach(function (seat) { if (seat.gid) leave(s, seat, 40); });
     s.cash += R.stats.rev;
-    R.stats.sats.forEach(function (sat) { s.rep = Math.max(0, s.rep + Math.round((sat - 55) / 9)); n.satSum += sat; n.satN++; });
+    R.stats.sats.forEach(function (sat) { s.rep = Math.max(0, s.rep + Core().repDelta(sat)); n.satSum += sat; n.satN++; });
     n.rev += R.stats.rev;
     n.rushStats = R.stats;
     s.rush = null;

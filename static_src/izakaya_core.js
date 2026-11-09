@@ -275,6 +275,8 @@
     if (isDrink) { g.drink = id; pay(s, g); } else { g.food = id; g.step = "drink"; }
     return { ok: true, delta: r.delta, clue: r.clue, taboo: r.taboo };
   }
+  // 口碑：每組依滿意度加減（不乘人數；人數只影響營收）。數值依 sim.js 調整（2026-11-09）
+  function repDelta(sat) { return Math.round((sat - D.REP_BASE) / D.REP_DIV); }
   function starOf(rep) { var st = 1; for (var i = 0; i < D.STAR_REP.length; i++) if (rep >= D.STAR_REP[i]) st = i + 1; return st; }
   function pay(s, g) {
     var f = D.DISHES[g.food], dr = D.DISHES[g.drink];
@@ -283,7 +285,7 @@
     if (g.sat >= 80) bill = Math.round(bill * 1.1);
     g.bill = bill; s.cash += bill;
     if (g.critic) s.rep = Math.max(0, s.rep + (g.sat >= 80 ? 30 : -15));
-    else s.rep = Math.max(0, s.rep + Math.round((g.sat - 55) / 9) * g.n);
+    else s.rep = Math.max(0, s.rep + repDelta(g.sat));
     s.night.rev += bill; s.night.satSum += g.sat; s.night.satN++;
     var nt = s.notes[g.gid] || (s.notes[g.gid] = { pref: {}, visits: 0 });
     nt.visits = (nt.visits || 0) + 1;
@@ -501,7 +503,7 @@
     hasIngs: hasIngs, useIngs: useIngs, canMake: canMake, makeOne: makeOne,
     setBoard: setBoard, prep: prep, dev: dev, devDrink: devDrink, photoOf: photoOf,
     openService: openService, enterGroup: enterGroup, curGroup: curGroup, guestOf: guestOf, note: note, talk: talk,
-    scoreDish: scoreDish, serve: serve, starOf: starOf, pay: pay, addAff: addAff, closeService: closeService,
+    scoreDish: scoreDish, serve: serve, repDelta: repDelta, starOf: starOf, pay: pay, addAff: addAff, closeService: closeService,
     nextDay: nextDay, afterHoliday: afterHoliday,
     affOf: affOf, canDate: canDate, startDate: startDate, dateChoice: dateChoice, confess: confess, propose: propose,
     wedding: wedding, partnerOf: partnerOf,
