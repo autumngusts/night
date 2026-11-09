@@ -175,4 +175,43 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   console.log("4. 營業／推理／口碑／日推進 OK");
 })();
 
+// ---------------- 5. 劇情引擎 ----------------
+(function () {
+  var St = window.PriTestIzakayaStory;
+  var base = St.all().length;
+  window.PriTestIzakayaScenes.push(
+    { id: "t_a", who: ["mio"], at: "visit", cond: { day: [1, 5] }, lines: [["mio", "測試"]], ch: [{ t: "甲", fx: { aff: { mio: 5 }, flag: ["fa"] } }, { t: "乙", fx: { flag: ["fb"] } }] },
+    { id: "t_b", who: ["mio"], at: "visit", pri: 5, cond: { seen: ["t_a"], present: ["mio", "chinatsu"] }, lines: [["", "旁白"]], next: "t_c", ch: [{ t: "好", fx: { link: [["mio", "chinatsu", "ex_band"]], arc: { band: 1 } } }] },
+    { id: "t_c", who: ["mio"], at: "visit", cond: { flag: ["never"] }, lines: [["mio", "接續"]] },
+    { id: "t_d", who: ["mio"], at: "date", priv: true, cond: { spot: "yakei" }, lines: [["mio", "約會"]], ch: [{ t: "心動", fx: { aff: { mio: 8 } } }] }
+  );
+  var s = game(2, 99);
+  assert.strictEqual(St.eligible(s, { at: "visit", who: "mio", present: ["mio"] }).id, "t_a");
+  assert.strictEqual(St.eligible(s, { at: "close", who: "mio" }), null, "at 不符");
+  s.day = 9; assert.strictEqual(St.eligible(s, { at: "visit", who: "mio", present: ["mio"] }), null, "日期範圍外");
+  s.day = 2;
+  St.begin(s, "t_a", null);
+  assert.ok(St.choose(s, "p0", 0)); assert.ok(s.story.cur, "兩人只投一票還沒決定");
+  assert.ok(!St.force(s, "p1"), "不是房主不能強制決定");
+  St.choose(s, "p1", 1);   // 平手 → 取房主（p0）的票
+  assert.ok(s.story.seen.t_a && s.story.flags.fa && !s.story.flags.fb, "平手取房主");
+  assert.strictEqual(s.players.p0.aff.mio, 5); assert.strictEqual(s.players.p1.aff.mio, 5, "非私密場景好感加給所有人");
+  assert.strictEqual(St.eligible(s, { at: "visit", who: "mio", present: ["mio"] }), null, "缺 present");
+  var sc = St.eligible(s, { at: "visit", who: "mio", present: ["mio", "chinatsu"] });
+  assert.strictEqual(sc.id, "t_b");
+  St.begin(s, "t_b", null); St.choose(s, "p0", 0); St.force(s, "p0");
+  assert.strictEqual(s.story.links["chinatsu|mio"], "ex_band", "關係線（id 依字母排序）");
+  assert.strictEqual(s.story.arcs.band, 1);
+  assert.strictEqual(s.story.cur.id, "t_c", "next 直接接續（不檢查條件）");
+  St.choose(s, "p0", 0); St.force(s, "p0");
+  assert.strictEqual(s.story.cur, null);
+  // 私密：只有本人能投、好感只加本人
+  St.begin(s, "t_d", "p1");
+  assert.ok(!St.choose(s, "p0", 0), "別人不能投私密場景");
+  St.choose(s, "p1", 0);
+  assert.strictEqual(s.players.p1.aff.mio, 13); assert.strictEqual(s.players.p0.aff.mio, 5);
+  window.PriTestIzakayaScenes.splice(base, 4);
+  console.log("5. 劇情引擎 OK");
+})();
+
 console.log("ALL OK");
