@@ -6,11 +6,175 @@
   --iz-wood: #6b4226;
   --iz-paper: #fbf6ec;
   --iz-ink: #2b2118;
+  --iz-good: #2e8b57;
+  --iz-bad: #c0392b;
+  --iz-love: #d6336c;
   width: min(80rem, calc(100vw - 24px));
   margin-left: calc((100% - min(80rem, calc(100vw - 24px))) / 2);
 }
 @media (prefers-color-scheme: dark) {
-  .iz-wrap { --iz-accent: #ff7a5c; --iz-accent-soft: rgba(255, 122, 92, 0.14); --iz-paper: #221a14; --iz-ink: #f3e9dc; }
+  .iz-wrap { --iz-accent: #ff7a5c; --iz-accent-soft: rgba(255, 122, 92, 0.14); --iz-paper: #221a14; --iz-ink: #f3e9dc; --iz-good: #6fcf97; --iz-bad: #ff7b6b; --iz-love: #ff8fb8; }
 }
 .iz-wrap button { cursor: pointer; font: inherit; }
 .iz-wrap button:disabled { cursor: default; opacity: 0.42; }
+
+/* ---------- 共通 ---------- */
+.iz-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.7rem; }
+.iz-title { margin: 0; font-size: 1.5em; flex: 1 1 auto; letter-spacing: 0.08em; }
+.iz-roomtag { padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--iz-accent-soft); font-size: 0.85em; }
+.iz-panel { border: 1px solid var(--iz-line); border-radius: 10px; padding: 0.75rem 0.9rem; margin-bottom: 0.8rem; background: var(--iz-paper); color: var(--iz-ink); }
+.iz-panel h2 { margin: 0 0 0.5rem; font-size: 1.15em; }
+.iz-panel h3 { margin: 0.6rem 0 0.3rem; font-size: 0.98em; }
+.iz-btn { padding: 0.36rem 0.8rem; border: 1px solid var(--iz-line); border-radius: 6px; background: transparent; color: inherit; }
+.iz-btn:hover:not(:disabled) { border-color: var(--iz-accent); }
+.iz-small, .iz-btn.iz-small { font-size: 0.85em; }
+.iz-btn.iz-small { padding: 0.2rem 0.5rem; }
+.iz-on { border-color: var(--iz-accent) !important; background: var(--iz-accent-soft) !important; }
+.iz-primary { background: var(--iz-accent) !important; border-color: var(--iz-accent) !important; color: #fff !important; }
+.iz-big { padding: 0.65rem 1.1rem; font-size: 1.05em; border: 1px solid var(--iz-line); border-radius: 8px; background: transparent; color: inherit; text-align: left; }
+.iz-link { border: none; background: none; color: var(--iz-accent); padding: 0.2rem 0.4rem; }
+.iz-muted { opacity: 0.7; }
+.iz-good { color: var(--iz-good); }
+.iz-bad { color: var(--iz-bad); }
+.iz-love { color: var(--iz-love); }
+.iz-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.iz-between { justify-content: space-between; }
+.iz-seg, .iz-chips, .iz-choices, .iz-actions, .iz-spots { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.35rem 0; }
+.iz-choices .iz-btn { flex: 1 1 12rem; text-align: left; }
+.iz-input { padding: 0.35rem 0.5rem; border: 1px solid var(--iz-line); border-radius: 6px; background: transparent; color: inherit; font: inherit; max-width: 100%; width: 100%; box-sizing: border-box; }
+.iz-field { display: block; margin: 0.4rem 0; }
+.iz-ph { object-fit: cover; border-radius: 8px; background: #3a2a20; flex: 0 0 auto; }
+.iz-ph-s { width: 40px; height: 48px; }
+.iz-ph-l { width: 72px; height: 86px; }
+
+/* ---------- 首頁 ---------- */
+.iz-hero { display: grid; grid-template-columns: 12rem 1fr; gap: 1rem; align-items: center; margin-bottom: 0.8rem; }
+.iz-hero-art { position: relative; height: 9rem; border-radius: 12px; background: linear-gradient(180deg, #1a1018, #3b1f12); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.iz-lantern { font-size: 3.6em; filter: drop-shadow(0 0 18px #ff6a3a); animation: iz-sway 3s ease-in-out infinite; }
+.iz-noren { position: absolute; bottom: 0.6rem; left: 0; right: 0; text-align: center; color: #f3e9dc; letter-spacing: 0.3em; font-weight: bold; }
+.iz-intro { line-height: 1.7; margin: 0; }
+.iz-menu { display: grid; gap: 0.5rem; }
+.iz-rules { margin: 0; padding-left: 1.2rem; line-height: 1.7; }
+.iz-stars { margin: 0; padding-left: 0.2rem; list-style: none; line-height: 1.9; }
+.iz-stars .iz-love { margin-left: 0.6rem; font-size: 0.9em; }
+@keyframes iz-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@media (max-width: 640px) { .iz-hero { grid-template-columns: 1fr; } }
+
+/* ---------- 遊戲畫面 ---------- */
+.iz-hud { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.1rem; padding: 0.5rem 0.8rem; margin-bottom: 0.6rem; border-radius: 10px; background: #1d1410; color: #f3e9dc; }
+.iz-starbar b { color: #ffd04a; letter-spacing: 0.05em; }
+.iz-repbar { display: inline-block; vertical-align: middle; width: 5rem; height: 6px; margin-left: 0.4rem; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
+.iz-repbar > i { display: block; height: 100%; background: #ffd04a; }
+.iz-game { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 1fr); gap: 0.8rem; align-items: start; }
+.iz-stage { position: relative; height: min(64vh, 34rem); border-radius: 12px; overflow: hidden; background: #1a1210; }
+.iz-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.iz-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; color: #f3e9dc; }
+.iz-side { min-width: 0; max-height: calc(64vh + 8rem); overflow-y: auto; }
+.iz-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
+
+/* 市場 */
+.iz-ings { display: grid; gap: 0.2rem; }
+.iz-ing { display: grid; grid-template-columns: 1fr 4.5rem 3rem auto; align-items: center; gap: 0.3rem; padding: 0.15rem 0.3rem; border-radius: 6px; }
+.iz-need { background: rgba(255, 208, 74, 0.18); }
+.iz-shun { margin-left: 0.3rem; padding: 0 0.3rem; border-radius: 4px; background: var(--iz-good); color: #fff; font-size: 0.75em; font-style: normal; }
+
+/* 準備 */
+.iz-board { padding: 0.4rem 0.5rem; border-radius: 8px; background: #2b2b2b; color: #f3f3f3; }
+.iz-chip { display: inline-block; padding: 0.1rem 0.5rem; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 999px; font-size: 0.85em; }
+.iz-chip.iz-sig, .iz-btn.iz-sig { border-color: #ffd04a; }
+.iz-dishes { display: grid; gap: 0.2rem; }
+.iz-dish { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.iz-dish-b { flex: 1 1 8rem; text-align: left; padding: 0.25rem 0.5rem; border: 1px solid var(--iz-line); border-radius: 6px; background: transparent; color: inherit; }
+.iz-dish.iz-on .iz-dish-b { border-color: var(--iz-accent); background: var(--iz-accent-soft); }
+.iz-dish.iz-cant .iz-dish-b { opacity: 0.6; }
+.iz-flavor { display: inline-flex; align-items: flex-end; gap: 1px; height: 13px; }
+.iz-flavor i { display: inline-block; width: 4px; border-radius: 1px; }
+.iz-f-salty { background: #8fa3b8; } .iz-f-sweet { background: #f2a5c0; } .iz-f-rich { background: #e0a33a; } .iz-f-light { background: #6fcf97; } .iz-f-spicy { background: #eb5757; }
+
+/* 營業 */
+.iz-guest { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.4rem; }
+.iz-satbar, .iz-pat, .iz-prog { display: block; height: 6px; border-radius: 3px; background: rgba(127, 127, 127, 0.25); overflow: hidden; margin-top: 0.25rem; min-width: 5rem; }
+.iz-satbar > i, .iz-pat > i, .iz-prog > i { display: block; height: 100%; width: 0; background: var(--iz-good); transition: width 0.2s; }
+.iz-pat > i.iz-warn, .iz-prog > i { background: #f2c94c; }
+.iz-pat > i.iz-danger { background: var(--iz-bad); }
+.iz-prog > i.iz-done { background: var(--iz-good); }
+.iz-prog > i.iz-burn { background: var(--iz-bad); animation: iz-burn 0.3s steps(2) infinite; }
+@keyframes iz-burn { 50% { opacity: 0.3; } }
+.iz-say { padding: 0.45rem 0.6rem; border-left: 3px solid var(--iz-accent); background: var(--iz-accent-soft); border-radius: 0 6px 6px 0; margin: 0.4rem 0; }
+.iz-serve { display: grid; gap: 0.25rem; }
+.iz-serve-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.iz-serve-row > .iz-btn:first-child { min-width: 7rem; text-align: left; }
+.iz-hinted { font-size: 0.8em; color: var(--iz-accent); }
+.iz-notes-mini { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin-top: 0.4rem; font-size: 0.85em; }
+.iz-clue { padding: 0 0.35rem; border-radius: 4px; border: 1px solid var(--iz-line); }
+.iz-clue-c { background: var(--iz-accent-soft); border-style: solid; }
+.iz-clue-s { border-style: dashed; }
+
+/* 尖峰 */
+.iz-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.4rem; margin: 0.4rem 0; }
+.iz-ticket { display: grid; grid-template-columns: 40px 1fr; gap: 0.2rem 0.4rem; padding: 0.3rem; border: 1px solid var(--iz-line); border-radius: 8px; }
+.iz-ticket .iz-pat { grid-column: 2; align-self: center; }
+.iz-ticket > div:last-child { grid-column: 1 / -1; display: grid; gap: 0.2rem; }
+.iz-stations { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.4rem; }
+.iz-station { padding: 0.3rem; border-radius: 8px; background: rgba(127, 127, 127, 0.12); }
+.iz-slot { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.3rem; align-items: center; margin-top: 0.2rem; }
+.iz-slot .iz-prog { grid-column: 1; }
+.iz-slot .iz-btn { grid-column: 2; grid-row: 1 / span 2; }
+.iz-empty { opacity: 0.4; font-size: 0.8em; }
+.iz-rush-time { font-weight: bold; color: var(--iz-accent); }
+
+/* 打烊 */
+.iz-close-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; }
+.iz-close-grid > div { padding: 0.4rem 0.6rem; border-radius: 8px; background: rgba(127, 127, 127, 0.1); }
+.iz-close-grid small { display: block; opacity: 0.7; }
+.iz-close-grid b { font-size: 1.2em; }
+.iz-starup { margin: 0.6rem 0; padding: 0.6rem; border-radius: 10px; text-align: center; background: linear-gradient(135deg, rgba(255, 208, 74, 0.25), rgba(214, 51, 108, 0.15)); animation: iz-pop 0.6s ease-out; }
+.iz-starup b { font-size: 1.3em; color: #c48a00; }
+@keyframes iz-pop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* 公休日、約會 */
+.iz-cands { display: grid; gap: 0.3rem; }
+.iz-cand { display: grid; grid-template-columns: 40px 1fr auto; gap: 0.5rem; align-items: center; padding: 0.25rem; border-radius: 8px; border: 1px solid transparent; }
+.iz-heart { margin: 0.5rem 0; padding: 0.6rem; border-radius: 10px; background: rgba(214, 51, 108, 0.12); color: var(--iz-love); text-align: center; animation: iz-pop 0.6s ease-out; }
+.iz-lovebox { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--iz-line); display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.iz-lovebox small { flex: 1 1 100%; opacity: 0.7; }
+.iz-big-star { font-size: 2em; color: #ffd04a; margin: 0.2rem 0; }
+
+/* 劇情、筆記本視窗 */
+.iz-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: flex-end; justify-content: center; padding: 12px; background: rgba(10, 6, 4, 0.55); }
+.iz-story-box, .iz-notes-box { width: min(46rem, 100%); max-height: calc(100vh - 24px); overflow-y: auto; padding: 0.9rem 1rem; border-radius: 12px; background: #1d1410; color: #f3e9dc; border: 1px solid rgba(255, 180, 120, 0.35); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); box-sizing: border-box; }
+.iz-notes-box { align-self: center; width: min(60rem, 100%); }
+.iz-story-who { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.iz-story-lines p { margin: 0.25rem 0; opacity: 0.6; line-height: 1.6; }
+.iz-story-lines p.iz-cur { opacity: 1; font-size: 1.05em; }
+.iz-narr { font-style: italic; }
+.iz-story-box .iz-btn, .iz-notes-box .iz-btn { border-color: rgba(255, 255, 255, 0.3); }
+.iz-notes-cols { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 1.4fr); gap: 0.8rem; }
+.iz-note-list { display: grid; gap: 0.25rem; max-height: 60vh; overflow-y: auto; }
+.iz-note-row { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.25rem; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; background: transparent; color: inherit; }
+.iz-note-detail { padding: 0.5rem; border-radius: 8px; background: rgba(255, 255, 255, 0.06); margin-bottom: 0.6rem; }
+.iz-rel { position: relative; width: 100%; max-width: 22rem; aspect-ratio: 1; margin: 0 auto; }
+.iz-rel-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.iz-rel-line { stroke: rgba(255, 200, 150, 0.7); stroke-width: 2; }
+.iz-rel-sister, .iz-rel-friend { stroke: #6fcf97; }
+.iz-rel-rival, .iz-rel-debt { stroke: #eb5757; }
+.iz-rel-secret, .iz-rel-ex_lover { stroke: #bb86fc; stroke-dasharray: 4 3; }
+.iz-rel-text { fill: #f3e9dc; font-size: 9px; text-anchor: middle; paint-order: stroke; stroke: #1d1410; stroke-width: 3px; }
+.iz-rel-ph { position: absolute; width: 13%; aspect-ratio: 5 / 6; height: auto; transform: translate(-50%, -50%); object-fit: cover; border-radius: 8px; border: 2px solid #ffb070; background: #3a2a20; }
+.iz-rel-empty { position: absolute; inset: 40% 10% auto; text-align: center; }
+
+/* 大廳 */
+.iz-lobby { display: grid; grid-template-columns: auto 1fr; gap: 0.8rem; align-items: center; }
+.iz-qr { width: 8.5rem; height: 8.5rem; image-rendering: pixelated; background: #fff; border-radius: 6px; }
+.iz-plist { margin: 0; padding-left: 1.1rem; line-height: 1.8; }
+
+/* 手機 */
+@media (max-width: 720px) {
+  .iz-game { grid-template-columns: 1fr; }
+  .iz-stage { height: 42vh; }
+  .iz-side { max-height: none; }
+  .iz-notes-cols { grid-template-columns: 1fr; }
+  .iz-lobby { grid-template-columns: 1fr; }
+  .iz-ing { grid-template-columns: 1fr 4rem 2.5rem auto; }
+  .iz-overlay { padding: 6px; }
+}

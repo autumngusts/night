@@ -73,7 +73,8 @@
     function M(c, o) {
       o = o || {};
       var k = c + JSON.stringify(o);
-      if (!mats[k]) mats[k] = new T.MeshStandardMaterial({ color: c, roughness: o.r !== undefined ? o.r : 0.7, metalness: o.m || 0, emissive: o.e || 0, emissiveIntensity: o.ei || 1, transparent: !!o.t, opacity: o.t || 1 });
+      // 顏色以 sRGB 寫，轉成線性空間（outputEncoding＝sRGB），不然整體會偏白
+      if (!mats[k]) mats[k] = new T.MeshStandardMaterial({ color: new T.Color(c).convertSRGBToLinear(), roughness: o.r !== undefined ? o.r : 0.7, metalness: o.m || 0, emissive: new T.Color(o.e || 0).convertSRGBToLinear(), emissiveIntensity: o.ei || 1, transparent: !!o.t, opacity: o.t || 1 });
       return mats[k];
     }
     function box3(w, h, d, m, x, y, z) { var g = new T.Mesh(new T.BoxGeometry(w, h, d), m); g.position.set(x, y, z); g.castShadow = g.receiveShadow = !low; scene.add(g); return g; }
@@ -152,7 +153,7 @@
     var lanterns = [];
     [-2.5, -0.8, 0.8, 2.5].forEach(function (x, i) {
       var g = new T.Group(); g.position.set(x, 2.75, 0.7);
-      var body = new T.Mesh(new T.SphereGeometry(0.28, 16, 12), M(0xb3201a, { e: 0xff5a2a, ei: 0.9 }));
+      var body = new T.Mesh(new T.SphereGeometry(0.28, 16, 12), M(0xc0281e, { e: 0xff3a1a, ei: 0.55 }));
       body.scale.set(1, 1.35, 1); g.add(body);
       var cap = new T.Mesh(new T.CylinderGeometry(0.16, 0.16, 0.06, 12), M(0x111111)); cap.position.y = 0.4; g.add(cap);
       var cap2 = cap.clone(); cap2.position.y = -0.4; g.add(cap2);
