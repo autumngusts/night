@@ -92,7 +92,7 @@ async function clearStory(page) {
 async function patchSave(page, fn) {
   await page.evaluate(function (src) {
     var s = window.PriTestIzakaya.state();
-    (new Function("s", "D", src))(s, window.PriTestIzakayaData);
+    (new Function("s", "D", "Core", src))(s, window.PriTestIzakayaData, window.PriTestIzakayaCore);
     localStorage.setItem("pritest-izakaya-save", JSON.stringify(s));
   }, fn);
   await page.reload();
@@ -117,6 +117,10 @@ async function patchSave(page, fn) {
   await act(page, '[data-act="new"]');
   // 市場
   for (var k of ["chicken", "chicken", "chicken", "negi", "tofu", "tofu", "beer", "beer", "oolong", "oolong"]) await act(page, '[data-buy="' + k + '"]');
+  // 玩法補完：殺價（一天一次）
+  await act(page, '[data-haggle="negi"]');
+  assert.ok((await state(page)).haggled.negi, "殺價");
+  assert.ok(await page.$('[data-haggle="negi"][disabled]'), "同一種一天只能殺一次");
   var s = await state(page);
   assert.strictEqual(s.fridge.chicken.length, 3, "買到雞肉");
   await noMissingKeys(page, "market");
@@ -134,6 +138,7 @@ async function patchSave(page, fn) {
     if (!s.night || s.night.i >= 1) break;
     await clearStory(page);
     if (await page.$('[data-talk="0"]:not([disabled])')) { await act(page, '[data-talk="0"]'); continue; }
+    if (await page.$('[data-bartalk="1"]:not([disabled])')) await act(page, '[data-bartalk="1"]');
     var srv = await page.$$eval("[data-serve]:not([disabled])", function (b) { return b.map(function (x) { return x.getAttribute("data-serve"); }); });
     if (srv.length) { await act(page, '[data-serve="' + srv[0] + '"]'); continue; }
     if (await page.$('[data-act="skip"]')) await act(page, '[data-act="skip"]');
@@ -141,6 +146,19 @@ async function patchSave(page, fn) {
   s = await state(page);
   assert.ok(s.night.i >= 1 || s.phase === "close", "第一組結帳");
   assert.ok(Object.keys(s.notes).length >= 1, "筆記本有線索");
+  // 玩法補完：酒保話題、洗碗
+  assert.ok(s.night.groups.some(function (x) { return x.bartalked; }), "酒保聊過天");
+  if (s.night && s.night.dirty) { await act(page, '[data-act="wash"]'); assert.strictEqual((await state(page)).night.dirty, 0, "洗碗"); }
+  // 玩法補完：★5 的明日預約與季節宴席
+  await patchSave(page, "s.maxStar = 5; s.day = 7; s.night = null; s.story.cur = null; s.story.queue = []; Core.startMarket(s);");
+  s = await state(page);
+  assert.ok(s.offers.length >= 1, "市場有預約");
+  await act(page, '[data-resv="' + s.offers[0].id + '"]');
+  assert.strictEqual((await state(page)).resvNext.length, 1, "接下預約");
+  await act(page, '[data-act="ready"]');
+  var bq = await page.$$eval("[data-banquet]", function (b) { return b.slice(0, 3).map(function (x) { return x.getAttribute("data-banquet"); }); });
+  for (var bi = 0; bi < 3; bi++) await act(page, '[data-banquet="' + bq[bi] + '"]');
+  assert.strictEqual((await state(page)).banquet.length, 3, "宴席選了 3 道");
   await noMissingKeys(page, "service");
   await page.screenshot({ path: path.join(SHOTS, "service.png") });
 
@@ -295,6 +313,47 @@ async function patchSave(page, fn) {
   await clearStory(A); await clearStory(B);
   await A.waitForFunction(function () { var s = window.PriTestIzakaya.state(); return !s.story.cur && s.story.seen.rin_01; }, null, { timeout: 10000 });
   await noMissingKeys(B, "coop");
+
+  // ---- 中途加入：第三個人在遊戲進行中（準備階段）加入 ----
+  var ctxC = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  await fb.attach(ctxC);
+  var Cp = await ctxC.newPage(); watch(Cp, "late");
+  await Cp.goto(BASE); await fb.sync(Cp);
+  await Cp.evaluate(function () { localStorage.setItem("pritest-lang", "zh"); localStorage.setItem("pritest-izakaya-name", "晚到"); });
+  await Cp.goto(url); await fb.sync(Cp);
+  await A.waitForFunction(function () { return window.PriTestIzakaya.state().order.length === 3; }, null, { timeout: 15000 });
+  var lateRoles = await A.evaluate(function () { var s = window.PriTestIzakaya.state(); return s.order.map(function (p) { return s.roles[p]; }); });
+  assert.ok(lateRoles[2] && lateRoles[2].length >= 1, "中途加入的人也分到職位：" + JSON.stringify(lateRoles));
+  // ---- 斷線代班：第三個人離線 → 房主標記暫離 ----
+  var latePid = await Cp.evaluate(function () { return window.PriTestIzakaya.ui.room.pid; });
+  await Cp.evaluate(function () { window.PriTestIzakaya.ui.room.close(); });
+  await ctxC.close();
+  await A.waitForFunction(function (pid) { var s = window.PriTestIzakaya.state(); return s.away && s.away[pid]; }, latePid, { timeout: 15000 });
+
+  // ---- 連線尖峰：房主開尖峰，客人（採買：冷檯／煮物）開做與起鍋，房主上菜 ----
+  await A.evaluate(function () {
+    var s = window.PriTestIzakaya.state(), D = window.PriTestIzakayaData;
+    Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = []; for (var n = 0; n < 30; n++) s.fridge[k].push(99); });
+    s.known.hiyayakko = s.known.oden = s.known.nama = 1; s.board = ["hiyayakko", "oden", "nama"]; s.prepped.oden = 20;
+    s.phase = "service"; s.story.cur = null;
+    s.night = { groups: [{ kind: "rush", step: "rush", gid: "", n: 0, sat: 0 }], i: 0, rev: 0, satSum: 0, satN: 0, high: [], hints: {}, dirty: 0, incident: null };
+    window.PriTestIzakayaRush.start(s);
+    window.PriTestIzakaya.send({ a: "hint", c: "x" });   // 觸發一次廣播（房主之後每 0.1 秒自動廣播）
+  });
+  await B.waitForSelector("#iz-rush", { timeout: 15000 });
+  var guestDid = 0, hostServed = 0;
+  for (var rt2 = 0; rt2 < 150 && hostServed < 2; rt2++) {
+    if (await B.$("[data-rc]:not([disabled])")) { await B.dispatchEvent("[data-rc]:not([disabled])", "click"); guestDid++; }
+    if (await B.$("[data-rt]:not([disabled])")) { await B.dispatchEvent("[data-rt]:not([disabled])", "click"); guestDid++; }
+    if (await A.$("[data-rc]:not([disabled])")) await A.dispatchEvent("[data-rc]:not([disabled])", "click");
+    if (await A.$("[data-rt]:not([disabled])")) await A.dispatchEvent("[data-rt]:not([disabled])", "click");
+    if (await A.$("[data-rs]:not([disabled])")) { await A.dispatchEvent("[data-rs]:not([disabled])", "click"); hostServed++; }
+    await A.waitForTimeout(200);
+  }
+  var served2 = await A.evaluate(function () { var s = window.PriTestIzakaya.state(); return s.rush ? s.rush.stats.served + s.rush.seats.reduce(function (t, x) { return t + x.items.filter(function (i) { return i.s === "done"; }).length; }, 0) : 99; });
+  assert.ok(guestDid >= 1, "客人（採買）在自己的工作站開做或起鍋了");
+  assert.ok(hostServed >= 1 && served2 >= 1, "房主上了客人做好的菜（尖峰同步）");
+  await B.screenshot({ path: path.join(SHOTS, "coop_rush.png") });
   await B.screenshot({ path: path.join(SHOTS, "coop.png") });
 
   console.log("errors:", errors.length ? errors : "none");

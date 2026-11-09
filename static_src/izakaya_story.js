@@ -48,7 +48,8 @@
     return best;
   }
   function begin(s, id, pid) { s.story.cur = { id: id, pid: pid || null, votes: {} }; }
-  function voters(s) { var cur = s.story.cur; return cur.pid ? [cur.pid] : s.order.slice(); }
+  function voters(s) { var cur = s.story.cur; return cur.pid ? [cur.pid] : s.order.filter(function (p) { return !(s.away && s.away[p]); }); }
+  function allVoted(s) { var cur = s.story.cur; return !!cur && Object.keys(cur.votes).length > 0 && voters(s).every(function (p) { return cur.votes[p] !== undefined; }); }
   function choose(s, pid, c) {
     var cur = s.story.cur;
     if (!cur || voters(s).indexOf(pid) < 0) return false;
@@ -95,5 +96,5 @@
     if (fx.met) s.staff.met[fx.met] = 1;
   }
 
-  window.PriTestIzakayaStory = { RELS: RELS, all: all, byId: byId, condOk: condOk, eligible: eligible, begin: begin, choose: choose, force: force, resolve: resolve, apply: apply };
+  window.PriTestIzakayaStory = { RELS: RELS, allVoted: allVoted, all: all, byId: byId, condOk: condOk, eligible: eligible, begin: begin, choose: choose, force: force, resolve: resolve, apply: apply };
 })();

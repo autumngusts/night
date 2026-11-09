@@ -227,6 +227,20 @@
   };
   var CREATE_CATS = ["dish", "dessert", "drink", "treasure"];   // 合成結果是這幾類就成為創作料理；其他是半成品
 
+  // ---------------- 玩法補完（2026-11-09）：酒保話題、突發狀況 ----------------
+  // 酒保話題：每組一次；likes＝聽了會特別開心的個性
+  var BAR_TALKS = [
+    { id: "rec", name: C("推薦今晚的酒", "今夜のお酒を勧める"), likes: [] },
+    { id: "listen", name: C("聽她抱怨", "愚痴を聞く"), likes: ["shy", "romantic", "cool", "otona", "majime"] },
+    { id: "story", name: C("說個小故事", "小話をする"), likes: ["genki", "gossip", "tennen", "tsundere", "cynical"] }
+  ];
+  var INCIDENTS = [
+    { id: "power", name: C("停電了！", "停電した！"), fix: C("去檢查電箱", "ブレーカーを見に行く") },
+    { id: "drunk", name: C("醉客在門口吵鬧", "酔客が店先で騒いでいる"), fix: C("扶他上計程車", "タクシーに乗せる") },
+    { id: "leak", name: C("廚房漏水", "厨房で水漏れ"), fix: C("去關水閥", "元栓を閉める") },
+    { id: "out", name: C("瓦斯快用完了", "ガスが切れそう"), fix: C("去換瓦斯桶", "ボンベを替える") }
+  ];
+
   var ROLES = {
     hall: { icon: "🏮", name: C("外場店長", "ホール店長") },
     chef: { icon: "🔪", name: C("板前", "板前") },
@@ -243,10 +257,11 @@
   // 會推理的機器人回到 ★3.25、亂選 ★1.95，六條事件線的高潮仍都觸發得到。
   // 批次 D 加入日常小劇場（帶口碑與好感）後升到 ★3.65，門檻再調為 [0,80,215,430,720]：會推理 ★3.30、亂選 ★1.85。
   // 批次 E 常客增加到 18 人，每晚常客上限 6→7（否則 1a 常客的後段輪不到）：會推理 ★3.40、亂選 ★2.05。
+  // 玩法補完（殺價、接預約、酒保話題、洗碗、突發狀況）後，會做這些的推理機器人升到 ★4.00，門檻調為 [0,112,308,615,1020]：★3.25、亂選 ★1.60。
   window.PriTestIzakayaData = {
     C: C, L: L, DIMS: DIMS, DIM_NAMES: DIM_NAMES, TAGS: TAGS, TAG_NAMES: TAG_NAMES, INGS: INGS, DISHES: DISHES,
-    SEASONS: SEASONS, STARS: STARS, ENDINGS: ENDINGS, GOUSEI_MAP: GOUSEI_MAP, CREATE_CATS: CREATE_CATS, TOPICS: TOPICS, SPOTS: SPOTS, LIKE_TAGS: LIKE_TAGS, ROLES: ROLES, ROLE_ORDER: ROLE_ORDER,
+    SEASONS: SEASONS, STARS: STARS, ENDINGS: ENDINGS, BAR_TALKS: BAR_TALKS, INCIDENTS: INCIDENTS, GOUSEI_MAP: GOUSEI_MAP, CREATE_CATS: CREATE_CATS, TOPICS: TOPICS, SPOTS: SPOTS, LIKE_TAGS: LIKE_TAGS, ROLES: ROLES, ROLE_ORDER: ROLE_ORDER,
     DAYS: 30, WEEK: 6, START_CASH: 30000, RENT: 9000, FRIDGE_CAP: 40, FRIDGE_CAP_STAR2: 60, BOARD_MAX: 8, PREP_PORTIONS: 3,
-    BASE_GROUPS: 4, REP_BASE: 60, REP_DIV: 15, REG_PER_NIGHT: 7, DAILY_CHANCE: 0.3, STAR_REP: [0, 80, 215, 430, 720], DATE_AFF: 30, HEART_AFF: 50, CONFESS_AFF: 80, PROPOSE_AFF: 95, SIG_MULT: 1.2
+    BASE_GROUPS: 4, REP_BASE: 60, REP_DIV: 15, REG_PER_NIGHT: 7, DIRTY_MAX: 8, DAILY_CHANCE: 0.3, STAR_REP: [0, 112, 308, 615, 1020], DATE_AFF: 30, HEART_AFF: 50, CONFESS_AFF: 80, PROPOSE_AFF: 95, SIG_MULT: 1.2
   };
 })();

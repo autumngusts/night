@@ -143,6 +143,10 @@
 .iz-ending b { font-size: 1.15em; }
 .iz-endings { margin: 0; padding-left: 1.1rem; line-height: 1.8; }
 .iz-create { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--iz-line); }
+.iz-resv, .iz-banquet { margin: 0.5rem 0; padding: 0.5rem 0.6rem; border-radius: 8px; background: var(--iz-accent-soft); }
+.iz-bartalk { margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.iz-incident { padding: 0.3rem 0.5rem; border-radius: 6px; background: rgba(235, 87, 87, 0.12); animation: iz-pop 0.4s ease-out; }
+.iz-ing { grid-template-columns: 1fr 4.5rem 3rem auto auto; }
 
 /* 劇情、筆記本視窗 */
 .iz-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: flex-end; justify-content: center; padding: 12px; background: rgba(10, 6, 4, 0.55); }

@@ -439,4 +439,61 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   console.log("12. 創作料理 OK");
 })();
 
+// ---------------- 13. 玩法補完（使用者指定 2026-11-09）----------------
+(function () {
+  // 殺價：一天一次，成功 8 折、失敗漲一成
+  var s = game(1, 81), p0 = s.mk.chicken, h = Core.haggle(s, "chicken");
+  assert.ok(h.ok);
+  assert.strictEqual(s.mk.chicken, h.cut ? Math.max(10, Math.round(p0 * 0.8 / 10) * 10) : Math.round(p0 * 1.1 / 10) * 10, "殺價結果");
+  assert.ok(!Core.haggle(s, "chicken").ok, "同一種食材一天只能殺一次");
+  // 接明日預約（★2）：今天接、明天來；做好了拿獎金
+  s = game(1, 82); s.maxStar = 2; Core.startMarket(s);
+  assert.ok(s.offers.length >= 1, "★2 市場有預約");
+  var of = s.offers[0];
+  assert.ok(Core.acceptResv(s, of.id) && !Core.acceptResv(s, of.id), "接預約（不能重複接）");
+  s.day = 2; Core.startMarket(s); stockUp(s);
+  Core.setBoard(s, ["karaage", "nama"]); s.phase = "prep"; Core.openService(s);
+  var rg = s.night.groups.filter(function (g) { return g.resv; })[0];
+  assert.ok(rg && rg.n === of.n && rg.bonus === of.bonus, "預約的客人今晚來了");
+  rg.sat = 90; rg.food = "karaage"; rg.drink = "nama"; s.night.i = s.night.groups.indexOf(rg);
+  var c0 = s.cash; Core.pay(s, rg);
+  assert.ok(s.cash - c0 >= of.bonus, "做好預約拿到獎金");
+  // 季節宴席（★5）：外場選 3 道，當晚多一組 6 人宴席，板前一次出完
+  s = game(1, 83); s.maxStar = 5; stockUp(s); s.phase = "prep";
+  assert.ok(!Core.setBanquet(s, ["karaage", "negima"]), "宴席要 3 道");
+  assert.ok(Core.setBanquet(s, ["karaage", "negima", "oden"]));
+  Core.setBoard(s, ["karaage", "negima", "oden", "nama"]); Core.openService(s);
+  var bi = s.night.groups.findIndex(function (g) { return g.kind === "banquet"; });
+  assert.ok(bi >= 0 && s.night.groups[bi].n === 6, "宴席客 6 人");
+  s.night.i = bi; s.story.cur = null; c0 = s.cash;
+  var br = Core.serveBanquet(s);
+  assert.ok(br.ok && s.cash > c0 && s.night.groups[bi].step === "done", "宴席上菜結帳");
+  // 酒保話題：每組一次
+  s = game(1, 84); stockUp(s); Core.setBoard(s, ["karaage", "nama"]); s.phase = "prep"; Core.openService(s);
+  var g = Core.curGroup(s); g.step = "order"; s.story.cur = null;
+  assert.ok(Core.barTalk(s, 1).ok && g.bartalked, "酒保聊天");
+  assert.ok(!Core.barTalk(s, 0).ok, "一組只能聊一次");
+  // 採買夜間工作：洗碗、緊急補貨（1.3 倍）、突發狀況
+  s.night.dirty = 12; assert.ok(Core.wash(s) && s.night.dirty === 0, "洗碗");
+  s.fridge = { tofu: [99] };   // stockUp 會把冰箱塞爆，補貨要有空位
+  c0 = s.cash; var st0 = Core.stock(s, "tofu");
+  assert.ok(Core.restock(s, "tofu"), "營業中補貨");
+  assert.strictEqual(Core.stock(s, "tofu"), st0 + 1); assert.strictEqual(c0 - s.cash, Math.round(s.mk.tofu * 1.3));
+  s.night.incident = { type: "power", at: s.night.i, done: false };
+  assert.ok(Core.handleIncident(s) && s.night.incident.done, "處理突發狀況");
+  // 中途加入：營業以外的階段可以加入，職位重新分配
+  s = game(2, 85);
+  assert.ok(Core.applyIntent(s, "p9", { a: "join", name: "新人", want: "bar" }));
+  assert.ok(s.players.p9 && s.order.indexOf("p9") >= 0, "加入成功");
+  var all = []; s.order.forEach(function (p) { all = all.concat(s.roles[p]); });
+  assert.deepStrictEqual(all.sort(), ["bar", "buyer", "chef", "hall"], "職位重新分配後四職都有人");
+  // 斷線代班：暫離的人不用準備；他的職位由第一位在線的玩家代理
+  var awayRole = s.roles.p1[0];
+  assert.ok(Core.applyIntent(s, "p0", { a: "away", pid: "p1", v: true }));
+  assert.ok(Core.hasRole(s, "p0", awayRole), "第一位在線玩家代理暫離者的職位");
+  Core.applyIntent(s, "p0", { a: "ready", v: true }); Core.applyIntent(s, "p9", { a: "ready", v: true });
+  assert.strictEqual(s.phase, "prep", "暫離的人不用等");
+  console.log("13. 玩法補完 OK");
+})();
+
 console.log("ALL OK");

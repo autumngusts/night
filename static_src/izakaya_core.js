@@ -37,7 +37,14 @@
     });
     return out;
   }
-  function hasRole(s, pid, role) { return !!s.roles[pid] && s.roles[pid].indexOf(role) >= 0; }
+  function isAway(s, pid) { return !!(s.away && s.away[pid]); }
+  function activeLead(s) { var l = s.order.filter(function (p) { return !isAway(s, p); })[0]; return l || s.order[0]; }
+  // 斷線代班（2026-11-09）：負責這個職位的人全部暫離時，由第一位在線的玩家代理
+  function hasRole(s, pid, role) {
+    if (s.roles[pid] && s.roles[pid].indexOf(role) >= 0) return true;
+    if (pid !== activeLead(s)) return false;
+    return s.order.every(function (p) { return !(s.roles[p] && s.roles[p].indexOf(role) >= 0) || isAway(s, p); });
+  }
 
   // ---------------- 新局 ----------------
   function newGame(o) {
@@ -47,6 +54,7 @@
       cash: D.START_CASH, rep: 0, star: 1, maxStar: 1,
       fridge: {}, mk: {}, board: [], prepped: {}, known: {}, sig: null,
       photos: {}, pool: [], notes: {}, night: null, today: null, log: [], refer: [], creations: {}, atelier: {},
+      offers: [], resvNext: [], resvToday: [], haggled: {}, banquet: null, away: {},
       players: {}, order: [], roles: {}, ready: {},
       story: { seen: {}, flags: {}, arcs: {}, links: {}, cur: null, queue: [] },
       rel: {}, date: {}, staff: { crew: [], met: {} }, rush: null, end: null,
@@ -78,6 +86,38 @@
       if (!s.fridge[k].length) delete s.fridge[k];
     });
     s.ready = {};
+    // 殺價（一天每種一次）、明日預約（★2）：昨天接的預約變成今晚的客人
+    s.haggled = {};
+    s.resvToday = s.resvNext || [];
+    s.resvNext = [];
+    s.offers = [];
+    if (s.maxStar >= 2 && s.pool && s.pool.length) {
+      var no = 1 + rint(s, 2);
+      for (var o = 0; o < no; o++) {
+        var gp = s.pool[rint(s, s.pool.length)];
+        s.offers.push({ id: "o" + s.day + "_" + o, gid: gp.id, n: 3 + rint(s, 4), want: D.DIMS[rint(s, 5)], bonus: 2000 + rint(s, 5) * 500 });
+      }
+    }
+  }
+  function haggle(s, id) {
+    if (!D.INGS[id] || s.haggled[id]) return { ok: false };
+    s.haggled[id] = 1;
+    var cut = rnd(s) < 0.6;
+    s.mk[id] = cut ? Math.max(10, Math.round(s.mk[id] * 0.8 / 10) * 10) : Math.round(s.mk[id] * 1.1 / 10) * 10;
+    return { ok: true, cut: cut };
+  }
+  function acceptResv(s, oid) {
+    var o = (s.offers || []).filter(function (x) { return x.id === oid; })[0];
+    if (!o || s.resvNext.some(function (x) { return x.id === oid; }) || s.resvNext.length >= 2) return false;
+    s.resvNext.push(o);
+    return true;
+  }
+  // 季節宴席（★5）：外場在準備階段選 3 道
+  function setBanquet(s, ids) {
+    if (s.maxStar < 5 || !Array.isArray(ids) || ids.length !== 3) return false;
+    if (!ids.every(function (k) { return s.known[k] && D.DISHES[k] && D.DISHES[k].cat !== "drink"; })) return false;
+    s.banquet = ids.slice();
+    return true;
   }
   function fridgeCap(s) { return s.maxStar >= 2 ? D.FRIDGE_CAP_STAR2 : D.FRIDGE_CAP; }
   function fridgeCount(s) { var n = 0; Object.keys(s.fridge).forEach(function (k) { n += s.fridge[k].length; }); return n; }
@@ -257,12 +297,17 @@
       groups.push(newGroup(s, "walk", cand.id, 1 + rint(s, 3)));
     }
     for (var i = groups.length - 1; i > 0; i--) { var j = rint(s, i + 1), t = groups[i]; groups[i] = groups[j]; groups[j] = t; }
-    if (s.maxStar >= 2) {   // ★2：最後一組一般客是團體預約（4 人）
-      for (var k = groups.length - 1; k >= 0; k--) if (groups[k].kind === "walk") { groups[k].n = 4; groups[k].resv = true; break; }
-    }
+    // ★2：昨天接的預約（玩家自己決定接不接，2026-11-09 取代原本自動的 4 人團體）
+    (s.resvToday || []).forEach(function (o) {
+      var gr = newGroup(s, "walk", o.gid, o.n); gr.resv = true; gr.bonus = o.bonus; gr.resvWant = o.want; groups.push(gr);
+    });
+    // ★5：季節宴席（6 人，最後一組）
+    if (s.maxStar >= 5 && s.banquet && s.banquet.length === 3) groups.push({ kind: "banquet", gid: s.pool[rint(s, s.pool.length)].id, n: 6, sat: 60, step: "banquet" });
     var rush = isRushDay(s.day), rushAt = -1;
     if (rush) { rushAt = Math.floor(groups.length / 2); groups.splice(rushAt, 0, { kind: "rush", step: "rush", gid: "", n: 0, sat: 0 }); }
-    s.night = { groups: groups, i: 0, rush: rush, rushAt: rushAt, rev: 0, satSum: 0, satN: 0, high: [], hints: {} };
+    s.night = { groups: groups, i: 0, rush: rush, rushAt: rushAt, rev: 0, satSum: 0, satN: 0, high: [], hints: {}, dirty: 0, incident: null };
+    // 突發狀況（採買處理）：約三成的晚上發生一次，落在某一組
+    if (rnd(s) < 0.35) s.night.incident = { type: D.INCIDENTS[rint(s, D.INCIDENTS.length)].id, at: rint(s, groups.length), done: false };
     if (s.maxStar >= 5) s.night.groups.forEach(function (g) { if (g.kind === "walk" && rnd(s) < 0.1) g.critic = true; });
     s.refer = [];
     enterGroup(s);
@@ -270,7 +315,7 @@
   // 進入目前這一組：常客先看有沒有劇情，有就停在 story 步驟
   function enterGroup(s) {
     var g = curGroup(s);
-    if (!g || g.kind === "rush") return;
+    if (!g || g.kind === "rush" || g.kind === "banquet") return;
     if (g.kind === "reg" && Story() && Story().eligible) {
       var present = s.night.groups.filter(function (x) { return x.kind === "reg"; }).map(function (x) { return x.gid; });
       var sc = Story().eligible(s, { at: "visit", who: g.gid, present: present });
@@ -301,6 +346,7 @@
     if (liked) { g.sat += 10; note(s, g.gid, { k: "topic" }); }
     g.step = "order";
     g.req = makeReq(guest);
+    if (g.resvWant) g.req = { want: [g.resvWant], avoid: [] };
     if (guest.taboo && rnd(s) < 0.25) { note(s, g.gid, { k: "taboo", tag: guest.taboo }); g.saidTaboo = guest.taboo; }
     crewOf(s).forEach(function (stf) {   // 記單準的店員：每位多看出一個口味線索
       if (stf.ability !== "memo") return;
@@ -333,7 +379,7 @@
     if ((g.step === "order" && isDrink) || (g.step === "drink" && !isDrink) || (g.step !== "order" && g.step !== "drink")) return { ok: false };
     if (!makeOne(s, id)) return { ok: false, short: true };
     var guest = guestOf(s, g), r = scoreDish(s, guest, id, isDrink ? null : g.req);
-    g.sat = clamp(g.sat + r.delta + (isDrink ? 0 : staffSatBonus(s)), 0, 100);
+    g.sat = clamp(g.sat + r.delta + (isDrink ? 0 : staffSatBonus(s)) - (s.night.dirty > D.DIRTY_MAX ? 5 : 0), 0, 100);
     g.last = { id: id, delta: r.delta, taboo: r.taboo, clue: r.clue };
     if (r.clue) note(s, g.gid, r.clue);
     if (isDrink) { g.drink = id; pay(s, g); } else { g.food = id; g.step = "drink"; }
@@ -342,7 +388,12 @@
   // 口碑：每組依滿意度加減（不乘人數；人數只影響營收）。數值依 sim.js 調整（2026-11-09）
   function repDelta(sat) { return Math.round((sat - D.REP_BASE) / D.REP_DIV); }
   function starOf(rep) { var st = 1; for (var i = 0; i < D.STAR_REP.length; i++) if (rep >= D.STAR_REP[i]) st = i + 1; return st; }
+  // 目前這一組遇到還沒處理的突發狀況
+  function incidentNow(s) { var ic = s.night && s.night.incident; return ic && !ic.done && ic.at === s.night.i ? ic : null; }
   function pay(s, g) {
+    if (incidentNow(s)) { g.sat = clamp(g.sat - 10, 0, 100); s.rep = Math.max(0, s.rep - 2); s.night.incident.done = true; s.night.incident.missed = true; }
+    s.night.dirty = (s.night.dirty || 0) + g.n;
+    if (g.resv) { if (g.sat >= 70) s.cash += g.bonus; else s.rep = Math.max(0, s.rep - 3); }
     var f = D.DISHES[g.food], dr = D.DISHES[g.drink];
     var fp = f ? f.price * (s.sig === g.food && s.maxStar >= 3 ? D.SIG_MULT : 1) : 0;
     var bill = Math.round((fp + (dr ? dr.price * drinkMult(s) : 0)) * g.n);
@@ -359,6 +410,46 @@
     s.night.i++;
     enterGroup(s);
   }
+  // 季節宴席：板前一次出完 3 道；當令菜、創作料理越多越好
+  function serveBanquet(s) {
+    var g = curGroup(s);
+    if (!g || g.kind !== "banquet" || g.step !== "banquet" || !s.banquet) return { ok: false };
+    if (!s.banquet.every(function (k) { return canMake(s, k); })) return { ok: false, short: true };
+    var se = seasonOf(s.day), good = 0, sum = 0;
+    s.banquet.forEach(function (k) { makeOne(s, k); var d = D.DISHES[k]; sum += d.price; if (d.season === se || d.creative) good++; });
+    g.sat = clamp(60 + good * 10 + staffSatBonus(s), 0, 100);
+    var bill = Math.round(sum * g.n * 1.3);
+    g.bill = bill; s.cash += bill;
+    s.rep = Math.max(0, s.rep + 2 + good * 2);
+    s.night.rev += bill; s.night.satSum += g.sat; s.night.satN++; s.night.dirty = (s.night.dirty || 0) + g.n;
+    g.step = "done"; g.good = good;
+    s.night.i++;
+    enterGroup(s);
+    return { ok: true, good: good, bill: bill };
+  }
+  // 酒保話題：點單或上飲料時，每組一次
+  function barTalk(s, ci) {
+    var g = curGroup(s), tk = D.BAR_TALKS[ci];
+    if (!g || !tk || g.bartalked || (g.step !== "order" && g.step !== "drink")) return { ok: false };
+    var guest = guestOf(s, g), d = 3;
+    if (tk.id === "rec") { d = guest.drink === 0 ? -5 : 6; note(s, g.gid, { k: "drink", v: guest.drink }); }
+    else if (tk.likes.indexOf(guest.persona) >= 0) d = 8;
+    g.sat = clamp(g.sat + d, 0, 100);
+    g.bartalked = tk.id; g.barDelta = d;
+    return { ok: true, delta: d };
+  }
+  // 採買的夜間工作：洗碗、緊急補貨、處理突發狀況
+  function wash(s) { if (!s.night || !s.night.dirty) return false; s.night.dirty = 0; return true; }
+  function restock(s, id) {
+    if (!D.INGS[id] || !s.mk[id]) return false;
+    var cost = Math.round(s.mk[id] * 1.3);
+    if (cost > s.cash || fridgeCount(s) + 1 > fridgeCap(s)) return false;
+    s.cash -= cost;
+    var list = s.fridge[id] || (s.fridge[id] = []);
+    list.push(s.day + D.INGS[id].fresh); list.sort(function (a, b) { return a - b; });
+    return true;
+  }
+  function handleIncident(s) { var ic = s.night && s.night.incident; if (!ic || ic.done) return false; ic.done = true; s.rep += 1; return true; }
   function addAff(s, pid, cid, n) { var a = s.players[pid].aff; a[cid] = clamp((a[cid] || 0) + n, 0, 100); }
   function closeService(s) {
     s.phase = "close";
@@ -500,7 +591,7 @@
   function wageOf(s) { return crewOf(s).reduce(function (t, c) { return t + c.wage; }, 0); }
 
   // ---------------- 意圖 ----------------
-  function allReady(s) { return s.order.every(function (p) { return s.ready[p]; }); }
+  function allReady(s) { return s.order.every(function (p) { return s.ready[p] || isAway(s, p); }); }
   function runQueue(s) { var id = s.story.queue.shift(); if (id) Story().begin(s, id, null); }
   // 店員面試（店員的第 1 段）一個公休日最多 2 段：1b 店員增加到 30 人，★3 之後的第一個公休日會一口氣塞滿面試
   var MAX_INTERVIEWS = 2;
@@ -532,9 +623,27 @@
       afterHoliday(s);
     }
   }
-  var MOD = { buy: "buyer", board: "hall", sig: "hall", prep: "chef", dev: "chef", create: "chef", devDrink: "bar", talk: "hall", rush: "hall", hire: "hall", fire: "hall" };
+  var MOD = { buy: "buyer", haggle: "buyer", resv: "buyer", wash: "buyer", restock: "buyer", incident: "buyer", banquet: "hall", serveBanquet: "chef", bartalk: "bar",
+    board: "hall", sig: "hall", prep: "chef", dev: "chef", create: "chef", devDrink: "bar", talk: "hall", rush: "hall", hire: "hall", fire: "hall" };
   function applyIntent(s, pid, it) {
+    // 中途加入（2026-11-09）：營業以外的階段、最多 4 人；職位依每個人想要的重新分配
+    if (it && it.a === "join" && !s.players[pid]) {
+      if (s.phase === "service" || s.phase === "end" || s.order.length >= 4) return false;
+      s.players[pid] = { name: String(it.name || "").slice(0, 16), want: D.ROLES[it.want] ? it.want : "", aff: {}, dates: 0 };
+      s.order.push(pid);
+      s.roles = assignRoles(s.order.map(function (p) { return { pid: p, want: s.players[p].want }; }));
+      return true;
+    }
     if (!it || !s.players[pid] || s.phase === "end") return false;
+    // 暫離（房主偵測到離線時送出）：準備與投票不用等他，他的職位由第一位在線的玩家代理
+    if (it.a === "away") {
+      if (!s.players[it.pid] || isAway(s, pid)) return false;
+      s.away = s.away || {};
+      if (it.v) s.away[it.pid] = 1; else delete s.away[it.pid];
+      if (s.phase !== "service" && s.phase !== "end" && s.order.length) onReady(s);
+      if (s.story.cur && Story().allVoted && Story().allVoted(s)) { Story().resolve(s); afterStory(s); }
+      return true;
+    }
     var a = it.a;
     if (s.story.cur) {
       if (a === "vote") { var ok = Story().choose(s, pid, it.c); if (ok) afterStory(s); return ok; }
@@ -553,6 +662,14 @@
         var r = dev(s, it.ings, it.m); s.lastDev = { pid: pid, ok: r.ok, id: r.id || null, n: ((s.lastDev && s.lastDev.n) || 0) + 1 }; return true;
       }
       case "devDrink": return (s.phase === "prep" || s.phase === "holiday") && devDrink(s, it.id);
+      case "haggle": { if (s.phase !== "market") return false; var hg = haggle(s, it.id); s.lastHaggle = { id: it.id, ok: hg.ok, cut: hg.cut, n: ((s.lastHaggle && s.lastHaggle.n) || 0) + 1 }; return hg.ok; }
+      case "resv": return s.phase === "market" && acceptResv(s, it.id);
+      case "banquet": return s.phase === "prep" && setBanquet(s, it.ids);
+      case "serveBanquet": { if (s.phase !== "service" || s.rush) return false; var sb = serveBanquet(s); if (sb.ok && !curGroup(s) && !s.story.cur) closeService(s); return sb.ok; }
+      case "bartalk": return s.phase === "service" && !s.rush && barTalk(s, it.c).ok;
+      case "wash": return s.phase === "service" && wash(s);
+      case "restock": return s.phase === "service" && restock(s, it.id);
+      case "incident": return s.phase === "service" && handleIncident(s);
       case "create": {
         if (s.phase !== "prep" && s.phase !== "holiday") return false;
         var rc = create(s, it.g1, it.g2); rc.pid = pid; rc.n = ((s.lastCreate && s.lastCreate.n) || 0) + 1; s.lastCreate = rc; return true;
@@ -609,6 +726,10 @@
     // 舊存檔相容：店員從單一 hired 改成名單 crew；沒有跨局記憶就補空的
     if (!s.staff.crew) { s.staff.crew = s.staff.hired ? [s.staff.hired] : []; delete s.staff.hired; }
     if (!s.legacy) s.legacy = emptyLegacy();
+    ["offers", "resvNext", "resvToday"].forEach(function (k) { if (!s[k]) s[k] = []; });
+    if (!s.haggled) s.haggled = {};
+    if (!s.away) s.away = {};
+    if (s.banquet === undefined) s.banquet = null;
     if (!s.creations) s.creations = {};
     if (!s.atelier) s.atelier = {};
     registerCreations(s);
@@ -628,7 +749,9 @@
     wedding: wedding, partnerOf: partnerOf,
     staffNow: staffNow, crewOf: crewOf, hasAbility: hasAbility, maxCrew: maxCrew, canHire: canHire, hire: hire, fire: fire,
     emptyLegacy: emptyLegacy, mergeLegacy: mergeLegacy, endingOf: endingOf, condMatch: condMatch,
-    materials: materials, create: create, gName: gName, registerCreations: registerCreations, setSig: setSig, staffSatBonus: staffSatBonus,
+    materials: materials, create: create, gName: gName, registerCreations: registerCreations,
+    haggle: haggle, acceptResv: acceptResv, setBanquet: setBanquet, serveBanquet: serveBanquet, barTalk: barTalk, wash: wash,
+    restock: restock, handleIncident: handleIncident, incidentNow: incidentNow, isAway: isAway, activeLead: activeLead, setSig: setSig, staffSatBonus: staffSatBonus,
     drinkMult: drinkMult, wageOf: wageOf,
     allReady: allReady, applyIntent: applyIntent, tick: tick, serialize: serialize, restore: restore
   };
