@@ -1,0 +1,16 @@
+/* ===================== 深夜居酒屋（izakaya） ===================== */
+.iz-wrap {
+  --iz-line: rgba(127, 127, 127, 0.32);
+  --iz-accent: #c0392b;
+  --iz-accent-soft: rgba(192, 57, 43, 0.12);
+  --iz-wood: #6b4226;
+  --iz-paper: #fbf6ec;
+  --iz-ink: #2b2118;
+  width: min(80rem, calc(100vw - 24px));
+  margin-left: calc((100% - min(80rem, calc(100vw - 24px))) / 2);
+}
+@media (prefers-color-scheme: dark) {
+  .iz-wrap { --iz-accent: #ff7a5c; --iz-accent-soft: rgba(255, 122, 92, 0.14); --iz-paper: #221a14; --iz-ink: #f3e9dc; }
+}
+.iz-wrap button { cursor: pointer; font: inherit; }
+.iz-wrap button:disabled { cursor: default; opacity: 0.42; }

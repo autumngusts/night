@@ -122,4 +122,10 @@ PROJECTS = [
         "name_key": "project_mahou_name",
         "desc_key": "project_mahou_desc",
     },
+    {
+        "id": "izakaya",
+        "href": "izakaya/index.html",
+        "name_key": "project_izakaya_name",
+        "desc_key": "project_izakaya_desc",
+    },
 ]

@@ -41,6 +41,7 @@ GAMES: dict[str, tuple[str, ...]] = {
     "denshi": ("ds-",),
     "yukimura": ("yk-",),
     "mahou": ("mh-",),
+    "izakaya": ("iz-",),
 }
 
 TOKEN_RE = re.compile(r"[.#]([a-zA-Z][\w-]*)")
