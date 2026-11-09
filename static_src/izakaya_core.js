@@ -180,8 +180,10 @@
   function openService(s) {
     s.phase = "service";
     var total = D.BASE_GROUPS + s.maxStar * 2, groups = [], used = {};
+    // 1b 常客增加到 12 人：同一晚的常客最多佔六成，留位子給一般客（推理與口碑擴散的主要對象）
+    var regCap = Math.ceil(total * 0.6);
     Cast().REGULARS.forEach(function (c) {
-      if (c.from > s.day || groups.length >= total) return;
+      if (c.from > s.day || groups.length >= regCap) return;
       if (rnd(s) < c.freq + avgAff(s, c.id) / 200) { groups.push(newGroup(s, "reg", c.id, 1)); used[c.id] = 1; }
     });
     var refer = s.refer || [], guard = 0;

@@ -37,7 +37,8 @@ var D = window.PriTestIzakayaData;
   });
   assert.ok(food.filter(function (k) { return D.DISHES[k].unlock === "start"; }).length >= 15, "開局料理至少 15 道");
   assert.ok(drinks.filter(function (k) { return D.DISHES[k].unlock === "start"; }).length >= 8, "開局酒飲至少 8 種");
-  assert.strictEqual(D.SPOTS.length, 6, "1a 約會地點 6 個");
+  assert.strictEqual(D.SPOTS.length, 12, "1b 約會地點 12 個");
+  D.SPOTS.forEach(function (sp) { assert.strictEqual(sp.rounds.length, 3, sp.id + " 3 輪"); assert.ok(sp.heart, sp.id + " 要有通用心動描寫"); });
   assert.strictEqual(D.STAR_REP.length, 5);
   console.log("1. 資料完整性 OK（料理 " + food.length + "、酒飲 " + drinks.length + "）");
 })();
@@ -45,8 +46,8 @@ var D = window.PriTestIzakayaData;
 // ---------------- 2. 角色名單 ----------------
 (function () {
   var Cast = window.PriTestIzakayaCast;
-  assert.strictEqual(Cast.REGULARS.length, 6, "1a 常客 6 人");
-  assert.strictEqual(Cast.STAFF.length, 10, "1a 店員 10 人");
+  assert.strictEqual(Cast.REGULARS.length, 12, "1b 常客 12 人");
+  assert.strictEqual(Cast.STAFF.length, 30, "1b 店員 30 人");
   assert.strictEqual(Cast.ALL_PHOTOS.length, 191, "照片 191 張");
   Cast.ALL_PHOTOS.forEach(function (p) { assert.ok(fs.existsSync(path.join(SRC, "images", "jikan", p + ".webp")), "照片不存在：" + p); });
   var ids = {};
@@ -65,7 +66,7 @@ var D = window.PriTestIzakayaData;
   function rng(seed) { return function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
   var a = Cast.assignPhotos(rng(7)), b = Cast.assignPhotos(rng(8)), a2 = Cast.assignPhotos(rng(7));
   var used = Object.keys(a.photos).map(function (k) { return a.photos[k]; });
-  assert.strictEqual(used.length, 16); assert.strictEqual(new Set(used.concat(a.rest)).size, 191, "同一局內不重複");
+  assert.strictEqual(used.length, 42); assert.strictEqual(new Set(used.concat(a.rest)).size, 191, "同一局內不重複");
   assert.notDeepStrictEqual(a.photos, b.photos, "不同局要輪換");
   assert.deepStrictEqual(a.photos, a2.photos, "同一種子同一結果");
   var pool = Cast.genPool(rng(9), 60, a.rest);
