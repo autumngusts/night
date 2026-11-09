@@ -145,7 +145,8 @@ async function patchSave(page, fn) {
   await page.screenshot({ path: path.join(SHOTS, "service.png") });
 
   // 推進到第 5 天（尖峰日）的準備階段：從完整存檔改 day／phase
-  await patchSave(page, "s.day = 5; s.phase = 'prep'; s.night = null; s.story.cur = null; s.story.queue = []; Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [99, 99, 99, 99, 99, 99]; }); s.board = ['karaage', 'negima', 'hiyayakko', 'nama', 'oolong'];");
+  // 食材每種 30 份：批次 E 常客增加後，尖峰前要服務的組數變多，6 份會在尖峰前用完（2026-11-09 偶發失敗的原因）
+  await patchSave(page, "s.day = 5; s.phase = 'prep'; s.night = null; s.story.cur = null; s.story.queue = []; Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = []; for (var n = 0; n < 30; n++) s.fridge[k].push(99); }); s.board = ['karaage', 'negima', 'hiyayakko', 'nama', 'oolong'];");
   await act(page, '[data-act="ready"]');
   for (g = 0; g < 80; g++) {
     s = await state(page);
@@ -165,6 +166,7 @@ async function patchSave(page, fn) {
     if (await page.$("[data-rs]:not([disabled])")) { await page.dispatchEvent("[data-rs]:not([disabled])", "click"); served++; }
     await page.waitForTimeout(200);
   }
+  if (!served) console.log("rush debug:", JSON.stringify(await page.evaluate(function () { var s = window.PriTestIzakaya.state(); return { phase: s.phase, rush: s.rush && { t: s.rush.t, seats: s.rush.seats.map(function (x) { return x.gid + ":" + x.items.map(function (i) { return i.d + "/" + i.s; }).join(","); }) }, story: s.story.cur, i: s.night && s.night.i }; })));
   assert.ok(served >= 1, "尖峰至少上了一道菜");
   await noMissingKeys(page, "rush");
   await page.screenshot({ path: path.join(SHOTS, "rush.png") });
