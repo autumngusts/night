@@ -137,7 +137,9 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   Core.setBoard(s, ["negima", "karaage", "hiyayakko", "maguro_sashi", "oden", "nama", "oolong", "umeshu_rock"]);
   Core.openService(s);
   assert.strictEqual(s.phase, "service");
-  assert.strictEqual(s.night.groups.filter(function (g) { return g.kind !== "rush"; }).length, D.BASE_GROUPS + 2, "★1：4+2 組");
+  // 一般客 4+2 組；常客另外加入（不佔名額，最多 REG_PER_NIGHT 組）——2026-11-09 改規格：原本常客佔總組數
+  assert.strictEqual(s.night.groups.filter(function (g) { return g.kind === "walk"; }).length, D.BASE_GROUPS + 2, "★1：一般客 4+2 組");
+  assert.ok(s.night.groups.filter(function (g) { return g.kind === "reg"; }).length <= D.REG_PER_NIGHT, "常客上限");
   var g = Core.curGroup(s), guest = Core.guestOf(s, g);
   if (g.step === "story") { g.step = "talk"; }
   // 話題：選到喜歡的 +10、筆記記成確定
@@ -199,7 +201,8 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   assert.ok(!St.force(s, "p1"), "不是房主不能強制決定");
   St.choose(s, "p1", 1);   // 平手 → 取房主（p0）的票
   assert.ok(s.story.seen.t_a && s.story.flags.fa && !s.story.flags.fb, "平手取房主");
-  assert.strictEqual(s.players.p0.aff.mio, 5); assert.strictEqual(s.players.p1.aff.mio, 5, "非私密場景好感加給所有人");
+  // 選項 +5，加上「看完一段劇情主角好感 +2」（2026-11-09 新規則）＝ 7
+  assert.strictEqual(s.players.p0.aff.mio, 7); assert.strictEqual(s.players.p1.aff.mio, 7, "非私密場景好感加給所有人");
   assert.strictEqual(St.eligible(s, { at: "visit", who: "mio", present: ["mio"] }), null, "缺 present");
   var sc = St.eligible(s, { at: "visit", who: "mio", present: ["mio", "chinatsu"] });
   assert.strictEqual(sc.id, "t_b");
@@ -213,7 +216,8 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   St.begin(s, "t_d", "p1");
   assert.ok(!St.choose(s, "p0", 0), "別人不能投私密場景");
   St.choose(s, "p1", 0);
-  assert.strictEqual(s.players.p1.aff.mio, 13); assert.strictEqual(s.players.p0.aff.mio, 5);
+  // t_b、t_c 各 +2（兩人）→ 11；私密場景 t_d：+8 與 +2 只給 p1 → 21
+  assert.strictEqual(s.players.p1.aff.mio, 21); assert.strictEqual(s.players.p0.aff.mio, 11);
   window.PriTestIzakayaScenes.splice(0);
   Array.prototype.push.apply(window.PriTestIzakayaScenes, saved);
   console.log("5. 劇情引擎 OK");
@@ -255,7 +259,7 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   var s = game(1, 11); stockUp(s);
   assert.ok(!Core.hire(s, "akari"), "★4 前不能雇");
   s.maxStar = 4; assert.ok(!Core.hire(s, "akari"), "沒面試過不能雇");
-  s.staff.met.reina = 1; assert.ok(Core.hire(s, "reina")); assert.strictEqual(s.staff.hired, "reina");
+  s.staff.met.reina = 1; assert.ok(Core.hire(s, "reina")); assert.deepStrictEqual(s.staff.crew, ["reina"]);
   // 調酒店員：飲料 ×1.1；薪水在打烊扣
   Core.setBoard(s, ["karaage", "nama"]);
   var g = { kind: "walk", gid: s.pool[0].id, n: 1, sat: 60, food: "karaage", drink: "nama", step: "drink" };
@@ -272,7 +276,7 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   assert.strictEqual(s.cash - cash, Math.round((D.DISHES.karaage.price * 1.2 + D.DISHES.nama.price * 1.1) * 2));
   // 伴侶 +5 滿意度
   s.rel.mio = { pid: "p0", stage: 3, dates: 3 };
-  s.staff.hired = "yuzu"; s.staff.met.yuzu = 1;
+  s.staff.crew = ["yuzu"]; s.staff.met.yuzu = 1;
   assert.strictEqual(Core.staffSatBonus(s), 10, "招呼店員 5＋伴侶 5");
   console.log("7. 店員／招牌／伴侶 OK");
 })();
@@ -329,6 +333,57 @@ function stockUp(s) { Object.keys(D.INGS).forEach(function (k) { s.fridge[k] = [
   s.order.forEach(function (p) { Core.applyIntent(s, p, { a: "ready", v: true }); });
   assert.strictEqual(s.phase, "service");
   console.log("9. 意圖與階段 OK");
+})();
+
+// ---------------- 10. 多名店員（使用者指定 2026-11-09：★4 兩人、★5 三人）----------------
+(function () {
+  var s = game(1, 61), St = window.PriTestIzakayaStory;
+  ["reina", "kotone", "yuzu", "miu", "akari"].forEach(function (k) { s.staff.met[k] = 1; });
+  s.maxStar = 4;
+  assert.ok(Core.hire(s, "reina") && Core.hire(s, "kotone"));
+  assert.ok(!Core.hire(s, "yuzu"), "★4 最多 2 人");
+  assert.ok(!Core.hire(s, "reina"), "不能重複雇用");
+  s.maxStar = 5; assert.ok(Core.hire(s, "yuzu"), "★5 可以 3 人");
+  assert.strictEqual(Core.drinkMult(s), 1.2, "兩位調酒店員疊加 +20%");
+  var C = window.PriTestIzakayaCast;
+  assert.strictEqual(Core.wageOf(s), C.byId("reina").wage + C.byId("kotone").wage + C.byId("yuzu").wage, "薪水加總");
+  assert.ok(Core.fire(s, "kotone")); Core.hire(s, "miu");
+  assert.strictEqual(Core.staffSatBonus(s), 10, "兩位招呼店員 +10（上限）");
+  // 劇情條件 staff：只要在雇用名單裡
+  assert.ok(St.condOk(s, { id: "x", who: ["yuzu"], at: "close", cond: { staff: "yuzu" } }, { at: "close", who: "yuzu" }));
+  assert.ok(!St.condOk(s, { id: "x", who: ["kotone"], at: "close", cond: { staff: "kotone" } }, { at: "close", who: "kotone" }));
+  // 舊存檔（staff.hired 字串）讀進來轉成名單
+  var old = JSON.parse(Core.serialize(game(1, 62))); delete old.staff.crew; old.staff.hired = "reina";
+  assert.deepStrictEqual(Core.restore(JSON.stringify(old)).staff.crew, ["reina"], "舊存檔相容");
+  console.log("10. 多名店員 OK");
+})();
+
+// ---------------- 11. 跨局記憶與多重結局（使用者指定 2026-11-09：最深處的祕密要玩三輪以上）----------------
+(function () {
+  var St = window.PriTestIzakayaStory;
+  var leg = Core.emptyLegacy();
+  assert.deepStrictEqual(leg, { runs: 0, seen: {}, endings: {}, secrets: {} });
+  var s = Core.newGame({ seed: 5, players: [{ pid: "p0", name: "P0" }], legacy: leg });
+  assert.strictEqual(s.legacy.runs, 0);
+  // 劇情條件：run（已完成幾輪）、ever（以前的輪看過）、secret（以前的輪解開的祕密）
+  var sc = { id: "t_run", who: ["mio"], at: "visit", cond: { run: 2, ever: ["mio_10"], secret: ["secret_a"] } };
+  assert.ok(!St.condOk(s, sc, { at: "visit", who: "mio" }));
+  // 一年結束 → 合併進記憶
+  s.story.seen.mio_10 = 1; s.story.flags.secret_a = 1; s.story.seen.master_06 = 1;
+  s.day = 30; s.phase = "close"; Core.nextDay(s);
+  assert.ok(s.end && s.end.ending, "結局有 id");
+  assert.strictEqual(s.end.ending, "master", "看過師父回歸 → 師父結局");
+  leg = Core.mergeLegacy(leg, s);
+  assert.strictEqual(leg.runs, 1); assert.ok(leg.seen.mio_10 && leg.endings.master && leg.secrets.secret_a);
+  assert.strictEqual(Core.mergeLegacy(leg, s).runs, 1, "同一局只記一次");
+  leg.runs = 2;
+  var s2 = Core.newGame({ seed: 6, players: [{ pid: "p0", name: "P0" }], legacy: leg });
+  assert.ok(St.condOk(s2, sc, { at: "visit", who: "mio" }), "第 3 輪：條件成立");
+  // 結局判定：沒守住橫丁、也沒找回師父 → 再開發結局
+  var s3 = game(1, 7); s3.day = 30; s3.phase = "close"; Core.nextDay(s3);
+  assert.strictEqual(s3.end.ending, "redevelop");
+  assert.ok(D.ENDINGS.every(function (e) { return e.id && e.name && e.desc; }), "結局資料完整");
+  console.log("11. 跨局記憶與多重結局 OK");
 })();
 
 console.log("ALL OK");

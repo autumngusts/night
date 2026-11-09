@@ -32,7 +32,12 @@
     if (c.present && !c.present.every(function (k) { return has(ctx.present, k); })) return false;
     if (c.arc && !Object.keys(c.arc).every(function (k) { return (st.arcs[k] || 0) >= c.arc[k]; })) return false;
     if (c.spot && c.spot !== ctx.spot) return false;
-    if (c.staff && s.staff.hired !== c.staff) return false;
+    if (c.staff && (s.staff.crew || []).indexOf(c.staff) < 0) return false;
+    // 跨局記憶：run＝已完成幾輪、ever＝以前的輪看過、secret＝以前的輪解開的祕密（或這一輪剛解開）
+    var lg = s.legacy || { runs: 0, seen: {}, secrets: {} };
+    if (c.run && (lg.runs || 0) < c.run) return false;
+    if (c.ever && !c.ever.every(function (k) { return lg.seen[k]; })) return false;
+    if (c.secret && !c.secret.every(function (k) { return lg.secrets[k] || st.flags[k]; })) return false;
     return true;
   }
   function eligible(s, ctx) {
@@ -67,6 +72,9 @@
     top = tied.length === 1 ? tied[0] : (tied.indexOf(hv) >= 0 ? hv : Math.min.apply(null, tied));
     var fx = sc.ch && sc.ch[top] ? sc.ch[top].fx || {} : {};
     apply(s, fx, cur.pid);
+    // 一起經歷過一段劇情，主角的好感 +2（2026-11-09：後期到店的常客好感累積太慢，劇情會卡在好感門檻）
+    var lead = Core().addAff && sc.who && sc.who[0];
+    if (lead) (cur.pid ? [cur.pid] : s.order).forEach(function (p) { Core().addAff(s, p, lead, 2); });
     s.story.seen[sc.id] = 1;
     s.story.last = { id: sc.id, c: top };
     s.story.cur = null;

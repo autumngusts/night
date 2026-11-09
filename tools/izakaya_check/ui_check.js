@@ -210,6 +210,29 @@ async function patchSave(page, fn) {
   await page.evaluate(function () { localStorage.setItem("pritest-lang", "ja"); });
   await page.reload(); await act(page, '[data-act="continue"]');
   await noMissingKeys(page, "ja holiday");
+  await page.evaluate(function () { localStorage.setItem("pritest-lang", "zh"); });
+  // 批次 A：★5 可同時雇用 3 名店員
+  await patchSave(page, "s.phase = 'holiday'; s.date = {}; s.maxStar = 5; ['reina', 'yuzu', 'akari', 'kotone'].forEach(function (k) { s.staff.met[k] = 1; });");
+  await act(page, '[data-tab="staff"]');
+  for (var h of ["reina", "yuzu", "akari"]) await act(page, '[data-hire="' + h + '"]');
+  s = await state(page);
+  assert.deepStrictEqual(s.staff.crew, ["reina", "yuzu", "akari"], "★5 雇用 3 人");
+  assert.ok(await page.$('[data-hire="kotone"][disabled]'), "第 4 人不能雇");
+  await act(page, '[data-fire="yuzu"]');
+  s = await state(page);
+  assert.deepStrictEqual(s.staff.crew, ["reina", "akari"], "解雇指定的人");
+  // 批次 A：一年結束 → 結局畫面、跨局記憶（輪數＋結局收集）
+  await page.evaluate(function () { localStorage.removeItem("pritest-izakaya-legacy"); });
+  await patchSave(page, "s.day = 30; s.phase = 'close'; s.ready = {}; s.story.flags.will_stop = 1;");
+  await act(page, '[data-act="ready"]');
+  await page.waitForSelector("#iz-end .iz-ending");
+  var endTxt = await page.textContent("#iz-end");
+  assert.ok(endTxt.indexOf("守住月見橫丁") >= 0, "結局：守住月見橫丁");
+  var lg = await page.evaluate(function () { return JSON.parse(localStorage.getItem("pritest-izakaya-legacy")); });
+  assert.ok(lg.runs === 1 && lg.endings.street, "跨局記憶記下第 1 輪與結局");
+  await page.reload();
+  var homeTxt = await page.textContent("#iz-app");
+  assert.ok(homeTxt.indexOf("已經營 1 年") >= 0 && homeTxt.indexOf("守住月見橫丁") >= 0, "首頁顯示輪數與結局收集");
 
   // ======================= 合作連線 =======================
   var fb = fakeFirebase();

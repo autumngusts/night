@@ -199,6 +199,17 @@
   ];
   var LIKE_TAGS = ["play", "sweet", "calm", "care", "shy", "tease", "honest", "bold", "smart"];
 
+  // 多重結局：依順序判定，第一個條件成立的就是這一年的結局（批次 B 會在最前面加上更深的結局）
+  // cond 欄位：seen／flag／notFlag／run（已完成幾輪）／secret／star（izakaya_core.js condMatch）
+  var ENDINGS = [
+    { id: "master", cond: { seen: ["master_06"] }, name: C("師父回歸", "師匠の帰還"),
+      desc: C("料理帳找齊了。在月見燉菜的香氣裡，師父想起了一切。這家店，終於等到了它真正的主人。", "料理帳がそろった。月見煮込みの香りの中で、師匠はすべてを思い出した。") },
+    { id: "street", cond: { flag: ["will_stop"] }, name: C("守住月見橫丁", "月見横丁を守った"),
+      desc: C("再開發停止了。老舊的商店街，依然在深夜亮著一盞一盞的燈。", "再開発は止まった。古い商店街には、今夜も灯りがともる。") },
+    { id: "redevelop", cond: {}, name: C("最後的暖簾", "最後の暖簾"),
+      desc: C("一年後，月見橫丁還是被拆了。你收起暖簾，帶著常客們的回憶，在別的街角重新開店……", "一年後、月見横丁は取り壊された。暖簾をしまい、常連たちの思い出を胸に、別の街角で店を開く……") }
+  ];
+
   var ROLES = {
     hall: { icon: "🏮", name: C("外場店長", "ホール店長") },
     chef: { icon: "🔪", name: C("板前", "板前") },
@@ -210,10 +221,13 @@
   // 口碑與星級數值依 tools/izakaya_check/sim.js 調整（2026-11-09）：原本每組口碑乘人數、門檻 [0,25,70,140,240]，
   // 會推理的機器人 3 天內就滿星。改成每組 round((滿意度-60)/15)、門檻 [0,35,95,190,340]、房租 6000 後，
   // 會推理的機器人平均最高 ★3.25、亂選 ★1.35（★5 留給認真推理＋經營的玩家）。
+  // 1b 後常客 12 人、可雇多名店員，機器人升到 ★4.10。批次 A（2026-11-09 使用者要求調回難度）：常客改成另外加入
+  // （不佔一般客名額，每晚最多 REG_PER_NIGHT 組，劇情進度不受星級影響），門檻改 [0,70,190,380,640]、房租 9000，
+  // 會推理的機器人回到 ★3.25、亂選 ★1.95，六條事件線的高潮仍都觸發得到。
   window.PriTestIzakayaData = {
     C: C, L: L, DIMS: DIMS, DIM_NAMES: DIM_NAMES, TAGS: TAGS, TAG_NAMES: TAG_NAMES, INGS: INGS, DISHES: DISHES,
-    SEASONS: SEASONS, STARS: STARS, TOPICS: TOPICS, SPOTS: SPOTS, LIKE_TAGS: LIKE_TAGS, ROLES: ROLES, ROLE_ORDER: ROLE_ORDER,
-    DAYS: 30, WEEK: 6, START_CASH: 30000, RENT: 6000, FRIDGE_CAP: 40, FRIDGE_CAP_STAR2: 60, BOARD_MAX: 8, PREP_PORTIONS: 3,
-    BASE_GROUPS: 4, REP_BASE: 60, REP_DIV: 15, STAR_REP: [0, 35, 95, 190, 340], DATE_AFF: 30, HEART_AFF: 50, CONFESS_AFF: 80, PROPOSE_AFF: 95, SIG_MULT: 1.2
+    SEASONS: SEASONS, STARS: STARS, ENDINGS: ENDINGS, TOPICS: TOPICS, SPOTS: SPOTS, LIKE_TAGS: LIKE_TAGS, ROLES: ROLES, ROLE_ORDER: ROLE_ORDER,
+    DAYS: 30, WEEK: 6, START_CASH: 30000, RENT: 9000, FRIDGE_CAP: 40, FRIDGE_CAP_STAR2: 60, BOARD_MAX: 8, PREP_PORTIONS: 3,
+    BASE_GROUPS: 4, REP_BASE: 60, REP_DIV: 15, REG_PER_NIGHT: 6, STAR_REP: [0, 70, 190, 380, 640], DATE_AFF: 30, HEART_AFF: 50, CONFESS_AFF: 80, PROPOSE_AFF: 95, SIG_MULT: 1.2
   };
 })();

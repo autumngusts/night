@@ -49,7 +49,8 @@
       photos: {}, pool: [], notes: {}, night: null, today: null, log: [], refer: [],
       players: {}, order: [], roles: {}, ready: {},
       story: { seen: {}, flags: {}, arcs: {}, links: {}, cur: null, queue: [] },
-      rel: {}, date: {}, staff: { hired: null, met: {} }, rush: null, end: null
+      rel: {}, date: {}, staff: { crew: [], met: {} }, rush: null, end: null,
+      legacy: JSON.parse(JSON.stringify(o.legacy || emptyLegacy()))
     };
     (o.players || []).forEach(function (p) {
       s.players[p.pid] = { name: String(p.name || "").slice(0, 16), want: p.want || "", aff: {}, dates: 0 };
@@ -180,14 +181,17 @@
   function openService(s) {
     s.phase = "service";
     var total = D.BASE_GROUPS + s.maxStar * 2, groups = [], used = {};
-    // 1b 常客增加到 12 人：同一晚的常客最多佔六成，留位子給一般客（推理與口碑擴散的主要對象）
-    var regCap = Math.ceil(total * 0.6);
-    Cast().REGULARS.forEach(function (c) {
-      if (c.from > s.day || groups.length >= regCap) return;
+    // 常客另外加入、不佔一般客的名額（每晚最多 D.REG_PER_NIGHT 組）：劇情進度不受星級影響，難度才能單獨調整
+    // （2026-11-09：原本常客佔總組數，提高星級門檻會讓常客來得太少、事件線走不完）
+    // 每晚隨機順序判斷常客到店（依名單順序的話，排在後面的常客幾乎搶不到名額）
+    var regs = Cast().REGULARS.slice();
+    for (var r = regs.length - 1; r > 0; r--) { var q = rint(s, r + 1), x = regs[r]; regs[r] = regs[q]; regs[q] = x; }
+    regs.forEach(function (c) {
+      if (c.from > s.day || groups.length >= D.REG_PER_NIGHT) return;
       if (rnd(s) < c.freq + avgAff(s, c.id) / 200) { groups.push(newGroup(s, "reg", c.id, 1)); used[c.id] = 1; }
     });
-    var refer = s.refer || [], guard = 0;
-    while (groups.length < total && guard++ < 500) {
+    var refer = s.refer || [], guard = 0, walkTotal = groups.length + total;
+    while (groups.length < walkTotal && guard++ < 500) {
       var cand = s.pool[rint(s, s.pool.length)];
       // 口碑擴散：昨天很滿意的客人帶同職業的朋友來
       if (refer.length && rnd(s) < 0.5) {
@@ -240,11 +244,11 @@
     g.step = "order";
     g.req = makeReq(guest);
     if (guest.taboo && rnd(s) < 0.25) { note(s, g.gid, { k: "taboo", tag: guest.taboo }); g.saidTaboo = guest.taboo; }
-    var stf = staffNow(s);
-    if (stf && stf.ability === "memo") {   // 記單準的店員：多看出一個口味線索
+    crewOf(s).forEach(function (stf) {   // 記單準的店員：每位多看出一個口味線索
+      if (stf.ability !== "memo") return;
       var i = rint(s, 5);
       if (guest.pref[i]) note(s, g.gid, { k: "pref", d: D.DIMS[i], v: guest.pref[i] > 0 ? 1 : -1, lv: "s" });
-    }
+    });
     return { liked: liked };
   }
   function scoreDish(s, guest, id, req) {
@@ -320,7 +324,37 @@
     if (s.day >= D.DAYS) { s.phase = "end"; s.end = endingOf(s); return; }
     s.day++; startMarket(s);
   }
-  function endingOf(s) { return { star: s.maxStar, cash: s.cash, rep: s.rep, arcs: JSON.parse(JSON.stringify(s.story.arcs)), rel: JSON.parse(JSON.stringify(s.rel)) }; }
+  // 多重結局（使用者指定 2026-11-09）：D.ENDINGS 依順序判定，第一個條件成立的就是這一年的結局
+  function condMatch(s, c) {
+    c = c || {};
+    var st = s.story, lg = s.legacy || emptyLegacy();
+    if (c.seen && !c.seen.every(function (k) { return st.seen[k]; })) return false;
+    if (c.flag && !c.flag.every(function (k) { return st.flags[k]; })) return false;
+    if (c.notFlag && c.notFlag.some(function (k) { return st.flags[k]; })) return false;
+    if (c.run && (lg.runs || 0) < c.run) return false;
+    if (c.secret && !c.secret.every(function (k) { return lg.secrets[k] || st.flags[k]; })) return false;
+    if (c.star && s.maxStar < c.star) return false;
+    return true;
+  }
+  function endingOf(s) {
+    var hit = D.ENDINGS.filter(function (e) { return condMatch(s, e.cond); })[0];
+    return { ending: hit ? hit.id : D.ENDINGS[D.ENDINGS.length - 1].id, star: s.maxStar, cash: s.cash, rep: s.rep,
+      arcs: JSON.parse(JSON.stringify(s.story.arcs)), rel: JSON.parse(JSON.stringify(s.rel)) };
+  }
+  // ---------------- 跨局記憶（一年結束時合併；最深處的祕密要好幾輪才串得起來）----------------
+  function emptyLegacy() { return { runs: 0, seen: {}, endings: {}, secrets: {} }; }
+  function mergeLegacy(leg, s) {
+    leg = JSON.parse(JSON.stringify(leg || emptyLegacy()));
+    if (!s.end) return leg;
+    var key = s.seed + ":" + s.day;
+    if (leg.last === key) return leg;   // 同一局只記一次
+    leg.last = key;
+    leg.runs = (leg.runs || 0) + 1;
+    Object.keys(s.story.seen).forEach(function (k) { leg.seen[k] = 1; });
+    leg.endings[s.end.ending] = 1;
+    Object.keys(s.story.flags).forEach(function (k) { if (k.indexOf("secret_") === 0) leg.secrets[k] = 1; });
+    return leg;
+  }
 
   // ---------------- 戀愛（使用者指定 2026-11-09：★3 約會、★4 心動、★5 告白～結婚；每位玩家各自計算）----------------
   function affOf(s, pid, cid) { return s.players[pid].aff[cid] || 0; }
@@ -386,19 +420,25 @@
   }
 
   // ---------------- 店員、招牌 ----------------
-  function staffNow(s) { return s.staff.hired ? Cast().byId(s.staff.hired) : null; }
-  function canHire(s, id) { var c = Cast().byId(id); return s.maxStar >= 4 && !!c && !!c.ability && !!s.staff.met[id]; }
-  function hire(s, id) { if (!canHire(s, id)) return false; s.staff.hired = id; return true; }
-  function fire(s) { if (!s.staff.hired) return false; s.staff.hired = null; return true; }
+  // 店員（使用者指定 2026-11-09：可同時雇用多人，★4 兩人、★5 三人；能力可疊加但有上限）
+  function crewOf(s) { return (s.staff.crew || []).map(function (id) { return Cast().byId(id); }).filter(Boolean); }
+  function staffNow(s) { return crewOf(s)[0] || null; }
+  function hasAbility(s, ab) { return crewOf(s).some(function (c) { return c.ability === ab; }); }
+  function maxCrew(s) { return s.maxStar >= 5 ? 3 : s.maxStar >= 4 ? 2 : 0; }
+  function canHire(s, id) {
+    var c = Cast().byId(id);
+    return !!c && !!c.ability && !!s.staff.met[id] && s.staff.crew.indexOf(id) < 0 && s.staff.crew.length < maxCrew(s);
+  }
+  function hire(s, id) { if (!canHire(s, id)) return false; s.staff.crew.push(id); return true; }
+  function fire(s, id) { var i = s.staff.crew.indexOf(id); if (i < 0) return false; s.staff.crew.splice(i, 1); return true; }
   function setSig(s, id) { var d = D.DISHES[id]; if (s.maxStar < 3 || !d || d.cat === "drink" || !s.known[id]) return false; s.sig = id; return true; }
   function staffSatBonus(s) {
-    var b = 0, st = staffNow(s);
-    if (st && st.ability === "host") b += 5;
+    var b = Math.min(10, crewOf(s).filter(function (c) { return c.ability === "host"; }).length * 5);
     if (s.order.some(function (pid) { return partnerOf(s, pid); })) b += 5;
     return b;
   }
-  function drinkMult(s) { var st = staffNow(s); return st && st.ability === "bar" ? 1.1 : 1; }
-  function wageOf(s) { var st = staffNow(s); return st ? st.wage : 0; }
+  function drinkMult(s) { return 1 + Math.min(2, crewOf(s).filter(function (c) { return c.ability === "bar"; }).length) / 10; }
+  function wageOf(s) { return crewOf(s).reduce(function (t, c) { return t + c.wage; }, 0); }
 
   // ---------------- 意圖 ----------------
   function allReady(s) { return s.order.every(function (p) { return s.ready[p]; }); }
@@ -479,7 +519,7 @@
       case "propose": { var c2 = propose(s, pid, it.cid); s.lastLove = { pid: pid, kind: "propose", ok: c2, cid: it.cid }; return c2; }
       case "wedding": { var c3 = wedding(s, pid, it.cid); s.lastLove = { pid: pid, kind: "wedding", ok: c3, cid: it.cid }; return c3; }
       case "hire": return s.phase === "holiday" && hire(s, it.id);
-      case "fire": return s.phase === "holiday" && fire(s);
+      case "fire": return s.phase === "holiday" && fire(s, it.id);
     }
     return false;
   }
@@ -500,7 +540,13 @@
   // ---------------- 存檔 ----------------
   function serialize(s) { return JSON.stringify(s); }
   function restore(str) {
-    try { var s = typeof str === "string" ? JSON.parse(str) : null; return s && s.v === 1 && s.players ? s : null; } catch (e) { return null; }
+    var s;
+    try { s = typeof str === "string" ? JSON.parse(str) : null; } catch (e) { return null; }
+    if (!s || s.v !== 1 || !s.players) return null;
+    // 舊存檔相容：店員從單一 hired 改成名單 crew；沒有跨局記憶就補空的
+    if (!s.staff.crew) { s.staff.crew = s.staff.hired ? [s.staff.hired] : []; delete s.staff.hired; }
+    if (!s.legacy) s.legacy = emptyLegacy();
+    return s;
   }
 
   window.PriTestIzakayaCore = {
@@ -514,7 +560,8 @@
     nextDay: nextDay, afterHoliday: afterHoliday,
     affOf: affOf, canDate: canDate, startDate: startDate, dateChoice: dateChoice, confess: confess, propose: propose,
     wedding: wedding, partnerOf: partnerOf,
-    staffNow: staffNow, canHire: canHire, hire: hire, fire: fire, setSig: setSig, staffSatBonus: staffSatBonus,
+    staffNow: staffNow, crewOf: crewOf, hasAbility: hasAbility, maxCrew: maxCrew, canHire: canHire, hire: hire, fire: fire,
+    emptyLegacy: emptyLegacy, mergeLegacy: mergeLegacy, endingOf: endingOf, condMatch: condMatch, setSig: setSig, staffSatBonus: staffSatBonus,
     drinkMult: drinkMult, wageOf: wageOf,
     allReady: allReady, applyIntent: applyIntent, tick: tick, serialize: serialize, restore: restore
   };

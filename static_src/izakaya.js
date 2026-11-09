@@ -14,6 +14,10 @@
   if (!app) return;
   var IMG = app.getAttribute("data-img") || "../static/images/jikan/";
   var SAVE_KEY = "pritest-izakaya-save", NAME_KEY = "pritest-izakaya-name", PREF_KEY = "pritest-izakaya-pref";
+  // 跨局記憶（完成幾輪、看過的劇情、達成的結局、解開的祕密）：新局帶進 s.legacy，一年結束時合併回來
+  var LEGACY_KEY = "pritest-izakaya-legacy";
+  function legacy() { try { return JSON.parse(lsGet(LEGACY_KEY) || "null") || Core.emptyLegacy(); } catch (e) { return Core.emptyLegacy(); } }
+  function recordLegacy(s) { if (s && s.end) lsSet(LEGACY_KEY, JSON.stringify(Core.mergeLegacy(legacy(), s))); }
   var L = D.L;
 
   function t(k, p) { return window.I18N.t(k, p || {}); }
@@ -110,10 +114,16 @@
     ]));
     app.appendChild(panel(null, [el("div", { class: "iz-menu" }, [
       saved ? btn(t("iz_continue", { d: saved.day, s: saved.maxStar }), function () { startSolo(saved); }, "iz-big iz-primary", { "data-act": "continue" }) : null,
-      btn("🍶 " + t("iz_new"), function () { startSolo(Core.newGame({ seed: (Math.random() * 4294967295) >>> 0, players: [{ pid: "me", name: lsGet(NAME_KEY) || t("iz_you"), want: "hall" }] })); }, "iz-big" + (saved ? "" : " iz-primary"), { "data-act": "new" }),
+      btn("🍶 " + t("iz_new"), function () { startSolo(Core.newGame({ seed: (Math.random() * 4294967295) >>> 0, players: [{ pid: "me", name: lsGet(NAME_KEY) || t("iz_you"), want: "hall" }], legacy: legacy() })); }, "iz-big" + (saved ? "" : " iz-primary"), { "data-act": "new" }),
       btn("👥 " + t("iz_coop"), function () { enterRoom(null); }, "iz-big", { "data-act": "coop" })
     ])]));
     app.appendChild(panel(t("iz_how_title"), [el("ol", { class: "iz-rules" }, [1, 2, 3, 4, 5, 6].map(function (i) { return el("li", null, [t("iz_how_" + i)]); }))]));
+    // 結局收集與輪數（多重結局、要好幾輪才串得到最深處的祕密）
+    var lg = legacy();
+    app.appendChild(panel(t("iz_endings_title"), [
+      el("p", { class: "iz-small" }, [t("iz_runs", { n: lg.runs || 0 }) + "・" + t("iz_endings_n", { n: Object.keys(lg.endings).length, m: D.ENDINGS.length })]),
+      el("ul", { class: "iz-endings" }, D.ENDINGS.map(function (e) { return el("li", { class: lg.endings[e.id] ? "" : "iz-muted" }, [lg.endings[e.id] ? "🏆 " + L(e.name) : "？？？"]); }))
+    ], "iz-endings-panel"));
     app.appendChild(panel(t("iz_stars_title"), [el("ul", { class: "iz-stars" }, D.STARS.map(function (st, i) {
       return el("li", null, [el("b", null, ["★".repeat(i + 1)]), " " + L(st.unlock), st.love ? el("span", { class: "iz-love" }, ["💗 " + L(st.love)]) : null]);
     }))]));
@@ -543,12 +553,12 @@
   function staffPanel(s) {
     var met = Cast.STAFF.filter(function (c) { return s.staff.met[c.id]; }), hall = has("hall");
     if (!met.length) return panel(null, [el("p", { class: "iz-muted" }, [t("iz_staff_none")])]);
-    return panel(null, [s.maxStar < 4 ? el("p", { class: "iz-small iz-muted" }, [t("iz_staff_need")]) : null, el("div", { class: "iz-cands" }, met.map(function (c) {
-      var hired = s.staff.hired === c.id;
+    return panel(null, [el("p", { class: "iz-small iz-muted" }, [s.maxStar < 4 ? t("iz_staff_need") : t("iz_crew_n", { n: s.staff.crew.length, m: Core.maxCrew(s) })]), el("div", { class: "iz-cands" }, met.map(function (c) {
+      var hired = s.staff.crew.indexOf(c.id) >= 0;
       return el("div", { class: "iz-cand" + (hired ? " iz-on" : "") }, [
         photo(s, c.id, "iz-ph-s"),
         el("div", null, [el("b", null, [L(c.name)]), el("div", { class: "iz-small" }, [t("iz_ab_" + c.ability) + "・" + t("iz_wage") + yen(c.wage)]), el("div", { class: "iz-small iz-muted" }, [L(c.bio)])]),
-        hired ? btn(t("iz_fire"), function () { send({ a: "fire" }); }, "iz-btn iz-small", { disabled: !hall ? true : null })
+        hired ? btn(t("iz_fire"), function () { send({ a: "fire", id: c.id }); }, "iz-btn iz-small", { "data-fire": c.id, disabled: !hall ? true : null })
           : btn(t("iz_hire"), function () { send({ a: "hire", id: c.id }); }, "iz-btn iz-small", { "data-hire": c.id, disabled: !hall || !Core.canHire(s, c.id) ? true : null })
       ]);
     }))]);
@@ -561,8 +571,11 @@
     var arcs = [["band_06", "iz_end_band"], ["contest_06", "iz_end_contest"], ["dance_06", "iz_end_dance"], ["invest_06", "iz_end_invest"],
       ["will_06", "iz_end_will"], ["master_06", "iz_end_master"]].filter(function (x) { return s.story.seen[x[0]]; }).map(function (x) { return t(x[1]); });
     lsSet(SAVE_KEY, null);
+    if (ui.recorded !== s.seed) { ui.recorded = s.seed; recordLegacy(s); }
+    var ed = D.ENDINGS.filter(function (x) { return x.id === e.ending; })[0];
     return [el("section", { class: "iz-panel", id: "iz-end" }, [
       el("h2", null, ["🎆 " + t("iz_end_title")]),
+      ed ? el("div", { class: "iz-ending" }, [el("b", null, ["〈" + L(ed.name) + "〉"]), el("p", null, [L(ed.desc)])]) : null,
       el("p", { class: "iz-big-star" }, ["★".repeat(e.star || 1) + "☆".repeat(5 - (e.star || 1))]),
       el("p", null, [t("iz_end_" + (e.star || 1))]),
       el("p", null, [t("iz_end_cash", { n: yen(e.cash || 0) })]),
@@ -726,7 +739,7 @@
       s && s.phase !== "end" ? btn(t("iz_resume_coop"), function () { room.startGame(Core.serialize(s)); go("game"); }, "iz-big") : null,
       btn(t("iz_start_coop"), function () {
         var ps = list.slice(0, 4).map(function (p) { return { pid: p.pid, name: p.name, want: p.role }; });
-        var ns = Core.newGame({ seed: (Math.random() * 4294967295) >>> 0, players: ps });
+        var ns = Core.newGame({ seed: (Math.random() * 4294967295) >>> 0, players: ps, legacy: legacy() });
         sess.s = ns; room.startGame(Core.serialize(ns)); go("game");
       }, "iz-big iz-primary", { "data-act": "start" })
     ]) : el("p", { class: "iz-muted" }, [room.status() === "game" ? t("iz_game_running") : t("iz_wait_host")])]));

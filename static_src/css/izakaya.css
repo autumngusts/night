@@ -139,6 +139,9 @@
 .iz-lovebox { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--iz-line); display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .iz-lovebox small { flex: 1 1 100%; opacity: 0.7; }
 .iz-big-star { font-size: 2em; color: #ffd04a; margin: 0.2rem 0; }
+.iz-ending { margin: 0.5rem 0; padding: 0.6rem 0.8rem; border-radius: 10px; background: rgba(255, 208, 74, 0.15); }
+.iz-ending b { font-size: 1.15em; }
+.iz-endings { margin: 0; padding-left: 1.1rem; line-height: 1.8; }
 
 /* 劇情、筆記本視窗 */
 .iz-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: flex-end; justify-content: center; padding: 12px; background: rgba(10, 6, 4, 0.55); }

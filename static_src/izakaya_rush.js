@@ -20,8 +20,8 @@
   }
   function interval(s) { return Math.max(5, 9 - (s.order.length - 1)); }
   function cookTime(s, d) {
-    var t = D.DISHES[d].cook * (s.order.length === 1 ? 0.8 : 1), stf = Core().staffNow(s);
-    if (stf && stf.ability === "fast" && D.DISHES[d].st === "grill") t *= 0.8;
+    var t = D.DISHES[d].cook * (s.order.length === 1 ? 0.8 : 1);
+    if (Core().hasAbility(s, "fast") && D.DISHES[d].st === "grill") t *= 0.8;
     return t;
   }
   function spawn(s) {
@@ -53,12 +53,14 @@
         leave(s, seat, 20);
       }
     });
-    var stf = Core().staffNow(s), auto = stf ? STAFF_STATION[stf.ability] : null;
+    // 每位店員依能力自動處理一個工作站（多名店員可同時負責不同的站）
+    var autos = {};
+    Core().crewOf(s).forEach(function (c) { if (STAFF_STATION[c.ability]) autos[STAFF_STATION[c.ability]] = 1; });
     STATIONS.forEach(function (k) {
       R.st[k].forEach(function (sl, i) {
         if (!sl) return;
         var el = R.t - sl.t0;
-        if (auto === k && el >= sl.cook) { takeOut(s, k, i); return; }
+        if (autos[k] && el >= sl.cook) { takeOut(s, k, i); return; }
         if (BURN[k] && el >= sl.cook * BURN[k]) {
           R.stats.burnt++;
           var seat = R.seats[sl.seat];
@@ -67,7 +69,7 @@
         }
       });
     });
-    if (stf && stf.ability === "host") R.seats.forEach(function (seat) { seat.items.forEach(function (it, k) { if (it.s === "ready") serveItem(s, seat, k); }); });
+    if (Core().hasAbility(s, "host")) R.seats.forEach(function (seat) { seat.items.forEach(function (it, k) { if (it.s === "ready") serveItem(s, seat, k); }); });
     if (R.t >= R.dur) finish(s);
   }
   function takeOut(s, k, i) {
