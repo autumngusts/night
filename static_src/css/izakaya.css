@@ -114,7 +114,14 @@
 @keyframes iz-burn { 50% { opacity: 0.3; } }
 .iz-say { padding: 0.45rem 0.6rem; border-left: 3px solid var(--iz-accent); background: var(--iz-accent-soft); border-radius: 0 6px 6px 0; margin: 0.4rem 0; }
 .iz-serve { display: grid; gap: 0.25rem; }
-.iz-serve-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+/* 客人台詞的對話框：固定高度、框內捲動，下面的按鍵位置不會被台詞推動（2026-11-10） */
+.iz-talkbox { height: 7.4rem; overflow-y: auto; overscroll-behavior: contain; margin: 0.3rem 0 0.4rem; padding-right: 2px; }
+.iz-talkbox > p { margin: 0.25rem 0; }
+.iz-talkbox > .iz-say { margin: 0.3rem 0; }
+/* 料理按鍵一列不換行：缺料時多出的加碼鍵不會把這一列撐成兩行 */
+.iz-serve-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.4rem; min-width: 0; }
+.iz-serve-row > * { flex: 0 0 auto; }
+.iz-serve-row > .iz-small { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iz-serve-row > .iz-btn:first-child { min-width: 7rem; text-align: left; }
 .iz-hinted { font-size: 0.8em; color: var(--iz-accent); }
 .iz-notes-mini { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin-top: 0.4rem; font-size: 0.85em; }

@@ -240,6 +240,8 @@
     else if (s.phase === "holiday") kids = sideHoliday(s);
     else if (s.phase === "end") kids = sideEnd(s);
     (kids || []).forEach(function (k) { if (k) box.appendChild(k); });
+    // 對話框固定高度，內容多時捲到最新一句
+    Array.prototype.forEach.call(box.querySelectorAll("[data-talkbox]"), function (x) { x.scrollTop = x.scrollHeight; });
   }
   function readyBar(s, label) {
     var mine = !!s.ready[me()];
@@ -459,21 +461,22 @@
       ]), nightWork(s)];
     }
     if (g.step === "story") return [panel(null, [guestCard(s, g), el("p", { class: "iz-muted" }, [t("iz_story_now")])])];
-    var guest = Core.guestOf(s, g), kids = [guestCard(s, g)];
-    if (g.resv) kids.push(el("p", { class: "iz-small iz-good" }, ["📞 " + t("iz_resv_guest", { b: yen(g.bonus) })]));
+    // 客人的台詞收進固定高度的對話框（2026-11-10：手機版台詞一條條疊上去會把下面的按鍵往下推）
+    var guest = Core.guestOf(s, g), talk = [], talkBox = el("div", { class: "iz-talkbox", "data-talkbox": "1" }), kids = [guestCard(s, g), talkBox];
+    if (g.resv) talk.push(el("p", { class: "iz-small iz-good" }, ["📞 " + t("iz_resv_guest", { b: yen(g.bonus) })]));
     var hall = has("hall");
     if (g.step === "talk") {
-      kids.push(el("p", { class: "iz-say" }, [t(OPEN_LINES[guest.persona] || "iz_open_cool")]));
+      talk.push(el("p", { class: "iz-say" }, [t(OPEN_LINES[guest.persona] || "iz_open_cool")]));
       kids.push(el("div", { class: "iz-choices" }, g.topics.map(function (tp, i) {
         return btn("💬 " + L(D.TOPICS[tp]), function () { send({ a: "talk", c: i }); }, "iz-btn", { "data-talk": String(i), disabled: !hall ? true : null });
       })));
       if (!hall) kids.push(roleNeed("hall"));
     } else {
-      if (g.picked) kids.push(el("p", { class: "iz-small" }, [g.liked ? t("iz_talk_liked") : t("iz_talk_meh")]));
-      if (g.saidTaboo) kids.push(el("p", { class: "iz-say" }, [t("iz_say_taboo_" + g.saidTaboo)]));
-      if (g.step === "drink") kids.push(reaction(g));
+      if (g.picked) talk.push(el("p", { class: "iz-small" }, [g.liked ? t("iz_talk_liked") : t("iz_talk_meh")]));
+      if (g.saidTaboo) talk.push(el("p", { class: "iz-say" }, [t("iz_say_taboo_" + g.saidTaboo)]));
+      if (g.step === "drink") talk.push(reaction(g));
       var drinkStep = g.step === "drink";
-      kids.push(el("p", { class: "iz-say" }, [drinkStep ? (guest.drink === 0 ? t("iz_req_nodrink") : t("iz_req_drink")) : reqText(g)]));
+      talk.push(el("p", { class: "iz-say" }, [drinkStep ? (guest.drink === 0 ? t("iz_req_nodrink") : t("iz_req_drink")) : reqText(g)]));
       var role = drinkStep ? "bar" : "chef", mine = has(role);
       var opts = s.board.filter(function (k) { return (D.DISHES[k].cat === "drink") === drinkStep; });
       var hints = s.night.hints || {};
@@ -491,14 +494,15 @@
         ]);
       })));
       if (!mine) kids.push(roleNeed(role));
-      // 黑板上沒有一道做得出來：送招待小菜／奉茶（取代原本只能請客人結帳）
+      kids.push(notesMini(s, g.gid));
+      kids.push(barBox(s, g));
+      // 黑板上沒有一道做得出來：送招待小菜／奉茶（取代原本只能請客人結帳）。放在最後，出現時不推動上面的按鍵
       if (!opts.some(function (k) { return Core.canMake(s, k); }) && hall) {
         kids.push(el("div", { class: "iz-row" }, [btn((drinkStep ? "🍵 " + t("iz_tea") : "🥢 " + t("iz_otoshi")), function () { send({ a: "fallback" }); }, "iz-btn", { "data-act": "fallback" }),
           el("span", { class: "iz-small iz-muted" }, [t(drinkStep ? "iz_tea_hint" : "iz_otoshi_hint")])]));
       }
-      kids.push(notesMini(s, g.gid));
-      kids.push(barBox(s, g));
     }
+    talk.forEach(function (x) { if (x) talkBox.appendChild(x); });
     kids.push(lastResult(s));
     kids.push(el("p", { class: "iz-small iz-muted" }, [t("iz_group_n", { i: s.night.i + 1, n: s.night.groups.length })]));
     return [panel(null, kids), nightWork(s)];
