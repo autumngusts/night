@@ -37,6 +37,7 @@ from site_src.yukimura_page import YUKIMURA_SCRIPTS, build_yukimura_html
 from site_src.mahou_page import MAHOU_SCRIPTS, build_mahou_html
 from site_src.izakaya_page import IZAKAYA_SCRIPTS, build_izakaya_html
 from site_src.yoi_page import YOI_SCRIPTS, build_yoi_html
+from site_src.sennyu_page import SENNYU_SCRIPTS, build_sennyu_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -52,6 +53,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "saigo": ("sg_",),
     "wanren": ("wr_",),
     "yoi": ("yo_",),
+    "sennyu": ("sn_",),
     "fist": ("fe_", "fr_"),
     "toushou": ("ts_",),
     "utau": ("ut_",),
@@ -165,6 +167,7 @@ def build_static_assets() -> None:
         *MAHOU_SCRIPTS,
         *IZAKAYA_SCRIPTS,
         *YOI_SCRIPTS,
+        *SENNYU_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -302,9 +305,13 @@ def build_pages() -> None:
     yoi_dir.mkdir(parents=True, exist_ok=True)
     (yoi_dir / "index.html").write_text(build_yoi_html(), encoding="utf-8")
 
+    sennyu_dir = DIST_DIR / "sennyu"
+    sennyu_dir.mkdir(parents=True, exist_ok=True)
+    (sennyu_dir / "index.html").write_text(build_sennyu_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "sennyu", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)

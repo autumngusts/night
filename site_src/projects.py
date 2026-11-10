@@ -134,4 +134,10 @@ PROJECTS = [
         "name_key": "project_yoi_name",
         "desc_key": "project_yoi_desc",
     },
+    {
+        "id": "sennyu",
+        "href": "sennyu/index.html",
+        "name_key": "project_sennyu_name",
+        "desc_key": "project_sennyu_desc",
+    },
 ]
