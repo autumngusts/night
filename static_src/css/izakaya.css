@@ -69,6 +69,10 @@
 /* 3D 舞台固定長寬比（2026-11-10 使用者要求：不要隨內容伸縮，手機版不能突然跑版）：
    不用 vh（手機網址列收合會改變 vh），contain 讓 canvas 與閒聊泡泡都不影響外框尺寸 */
 .iz-stage { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 34rem; border-radius: 12px; overflow: hidden; background: #1a1210; contain: strict; }
+/* 捲動錨定（2026-11-10）：手機版捲到上菜鍵時，舞台裡的閒聊泡泡會被瀏覽器選為捲動錨點，
+   泡泡出現／消失讓泡泡欄伸縮 → 瀏覽器整頁捲動約 58px 去「固定」它，看起來就是下面的上菜區在跳。
+   舞台內的東西一律不當錨點。 */
+.iz-stage, .iz-stage * { overflow-anchor: none; }
 .iz-canvas { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; touch-action: none; }
 .iz-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; color: #f3e9dc; }
 .iz-side { min-width: 0; max-height: calc(64vh + 8rem); overflow-y: auto; }

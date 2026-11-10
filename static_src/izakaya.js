@@ -231,6 +231,11 @@
   // ---------------- 側邊面板（依階段）----------------
   function drawSide(s) {
     var box = refs.side;
+    // 營業中側欄只長不縮（2026-11-10）：上菜後內容變短時，手機版捲在底部的頁面會被瀏覽器往上夾，按鍵跟著跳
+    var keep = s.phase === "service" && window.matchMedia && window.matchMedia("(max-width: 720px)").matches ? s.day + "|service" : "";
+    if (keep && ui.sideKeep === keep) box.style.minHeight = Math.max(box.offsetHeight, parseFloat(box.style.minHeight) || 0) + "px";
+    else box.style.minHeight = "";
+    ui.sideKeep = keep;
     box.innerHTML = "";
     var kids;
     if (s.phase === "market") kids = sideMarket(s);
