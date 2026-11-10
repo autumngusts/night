@@ -42,7 +42,8 @@
     var W0 = box.clientWidth || 800, H0 = box.clientHeight || 420;
     var renderer = new T.WebGLRenderer({ antialias: !low });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, low ? 1 : 2));
-    renderer.setSize(W0, H0);
+    // 第三個參數 false：不在 canvas 寫 inline px 寬高，尺寸只由 CSS（.iz-canvas 100%）決定，canvas 不會反過來撐開版面
+    renderer.setSize(W0, H0, false);
     renderer.outputEncoding = T.sRGBEncoding;
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -289,9 +290,13 @@
     });
     el.addEventListener("pointercancel", function () { drag = null; });
 
+    // 只有舞台真的換尺寸（轉向、視窗縮放）才重算；舞台本身是固定比例（izakaya.css），泡泡、側欄重繪不會觸發
+    var lastW = W0, lastH = H0;
     function resize() {
       var w = box.clientWidth || 800, h = box.clientHeight || 420;
-      renderer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix();
+      if (w === lastW && h === lastH) return;
+      lastW = w; lastH = h;
+      renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
     }
     var ro = window.ResizeObserver ? new window.ResizeObserver(resize) : null;
     if (ro) ro.observe(box); else window.addEventListener("resize", resize);

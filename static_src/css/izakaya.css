@@ -66,8 +66,10 @@
 .iz-repbar { display: inline-block; vertical-align: middle; width: 5rem; height: 6px; margin-left: 0.4rem; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
 .iz-repbar > i { display: block; height: 100%; background: #ffd04a; }
 .iz-game { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 1fr); gap: 0.8rem; align-items: start; }
-.iz-stage { position: relative; height: min(64vh, 34rem); border-radius: 12px; overflow: hidden; background: #1a1210; }
-.iz-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+/* 3D 舞台固定長寬比（2026-11-10 使用者要求：不要隨內容伸縮，手機版不能突然跑版）：
+   不用 vh（手機網址列收合會改變 vh），contain 讓 canvas 與閒聊泡泡都不影響外框尺寸 */
+.iz-stage { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 34rem; border-radius: 12px; overflow: hidden; background: #1a1210; contain: strict; }
+.iz-canvas { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; touch-action: none; }
 .iz-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; color: #f3e9dc; }
 .iz-side { min-width: 0; max-height: calc(64vh + 8rem); overflow-y: auto; }
 /* 入座閒聊（2026-11-10）：舞台左下角輪流冒出客人的頭像＋一句話 */
@@ -188,8 +190,8 @@
 
 /* 手機 */
 @media (max-width: 720px) {
-  .iz-game { grid-template-columns: 1fr; }
-  .iz-stage { height: 42vh; }
+  .iz-game { grid-template-columns: minmax(0, 1fr); }
+  .iz-stage { aspect-ratio: 4 / 3; max-height: none; }
   .iz-side { max-height: none; }
   .iz-notes-cols { grid-template-columns: 1fr; }
   .iz-lobby { grid-template-columns: 1fr; }
