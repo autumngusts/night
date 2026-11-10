@@ -153,9 +153,20 @@
     calm: { name: C("保守", "慎重", "Steady"), f: 0.92, sigma: 0.01, pass: 0.25, block: 1 },
     balanced: { name: C("均衡", "バランス", "Balanced"), f: 0.955, sigma: 0.018, pass: 0.5, block: 1 },
     attack: { name: C("全力", "全開", "All-out"), f: 0.98, sigma: 0.03, pass: 0.85, block: 1 },
-    defend: { name: C("防守", "ブロック", "Defend"), f: 0.945, sigma: 0.016, pass: 0.2, block: 0.3 }
+    defend: { name: C("防守", "ブロック", "Defend"), f: 0.945, sigma: 0.016, pass: 0.2, block: 0.3 },
+    // ---- 攻略法（2026-10-31）：賽前排好順序、比賽中依路段自動切換。以下欄位省略＝1（跟基本四種一樣）：
+    //   brk＝煞車點估計敢用幾成煞車力的倍率、passS／passB＝直線超車／晚煞車切內線的機率倍率、
+    //   draft＝離前車幾公尺內就算吃到尾流（預設 25）、wear＝輪胎磨耗倍率、cool＝煞車散熱倍率
+    late: { name: C("晚煞突擊", "レイトブレーキ", "Late Braking"), f: 0.955, sigma: 0.022, pass: 0.55, block: 1, brk: 1.07, passS: 0.7, passB: 2.4 },
+    slip: { name: C("尾流狩獵", "スリップストリーム", "Slipstream Hunt"), f: 0.95, sigma: 0.016, pass: 0.6, block: 1, passS: 1.9, passB: 0.5, draft: 40 },
+    save: { name: C("保胎", "タイヤ温存", "Tire Saving"), f: 0.935, sigma: 0.012, pass: 0.3, block: 1, brk: 0.96, wear: 0.55 },
+    push: { name: C("最後衝刺", "ラストスパート", "Final Push"), f: 0.99, sigma: 0.04, pass: 1.0, block: 1, brk: 1.04, wear: 1.6 },
+    cool: { name: C("煞車冷卻", "ブレーキ冷却", "Brake Cooling"), f: 0.94, sigma: 0.012, pass: 0.3, block: 1, brk: 0.85, cool: 1.9 }
   };
   var STYLE_IDS = ["calm", "balanced", "attack", "defend"];
+  // 攻略法：可選的全部種類（基本四種＋五種特殊）、一台車最多排幾個、比賽中「提前換下一個」的次數
+  var PLAN_IDS = ["balanced", "attack", "calm", "defend", "late", "slip", "save", "push", "cool"];
+  var PLAN_MAX = 5, PLAN_SKIPS = 2;
 
   // 改裝點數（市售車）／每項上限；設定畫面可選點數上限（6＝原本的標準）
   var UPGRADE_POINTS = 6;
@@ -165,7 +176,10 @@
   // 細部調校（[最小, 最大, 間隔]；全部 0＝原廠，跟第五批以前的結果完全一樣）
   //   lsd＝限滑差速器（出彎牽引↑、極限比較暴躁）、susp＝懸吊（−軟／＋硬）、camber＝外傾角（過彎↑、煞車↓）、
   //   rst＝限流閥（出力 −%，用來壓 PI）、blst＝配重（kg）
-  var TUNES = { lsd: [0, 3, 1], susp: [-2, 2, 1], camber: [0, 3, 1], rst: [0, 40, 5], blst: [0, 200, 10] };
+  var TUNES = { lsd: [0, 3, 1], susp: [-2, 2, 1], camber: [0, 3, 1], rst: [0, 40, 5], blst: [0, 200, 10],
+    // 2026-10-31 追加（全部 0＝原廠）：press＝胎壓（−低／＋高）、bias＝煞車配比（−偏後／＋偏前）、ride＝車高（−低／＋高）、
+    //   arb＝防傾桿平衡（−穩定／＋靈活）、duct＝煞車導風（級數）。物理效果見 dejavu_core.js 的 carStats
+    press: [-2, 2, 1], bias: [-3, 3, 1], ride: [-2, 2, 1], arb: [-2, 2, 1], duct: [0, 3, 1] };
 
   // 特殊路面（路段的 sf）：mu＝抓地倍率、winter＝冬天再乘、dry＝不受雨雪影響（隧道；值＝冬天的倍率，抵銷積雪）
   //   code 從 1 開始，對應 SURFACE_IDS 的順序（buildTrack 的 tr.sp 存 code）
@@ -345,6 +359,7 @@
   root.PriTestDejavuData = {
     C: C, BRANDS: BRANDS, CARS: CARS, CUSTOM: CUSTOM, DRIVES: DRIVES, DRIVE_INFO: DRIVE_INFO, RIDER_KG: RIDER_KG,
     TIRES: TIRES, TIRE_IDS: TIRE_IDS, SEASONS: SEASONS, SEASON_IDS: SEASON_IDS, STYLES: STYLES, STYLE_IDS: STYLE_IDS,
+    PLAN_IDS: PLAN_IDS, PLAN_MAX: PLAN_MAX, PLAN_SKIPS: PLAN_SKIPS,
     UPGRADE_POINTS: UPGRADE_POINTS, UPGRADE_PTS_OPTIONS: UPGRADE_PTS_OPTIONS, UPGRADE_MAX: UPGRADE_MAX, UPGRADES: UPGRADES, TUNES: TUNES, CHARGE_SEC: CHARGE_SEC,
 
     PIECES: PIECES, GRADES: GRADES, SURFACES: SURFACES, SURFACE_IDS: SURFACE_IDS, COMBOS: COMBOS,

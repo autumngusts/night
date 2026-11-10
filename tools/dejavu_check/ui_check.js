@@ -137,6 +137,44 @@ function screen(page) { return page.evaluate(function () { return window.PriTest
   assert.strictEqual(s.cars[0].tire, "snow");
   assert.strictEqual(s.cars[1].car, "custom");
   assert.strictEqual(s.cars[2].up.wt, 3);
+  // ---- 2026-10-31：攻略法、拖分界點、試跑數據 ----
+  await page.evaluate(function () { document.querySelectorAll(".dv-tab")[0].click(); });
+  var styleName = function (id) { return page.evaluate(function (x) { return "＋" + window.PriTestDejavuData.STYLES[x].name[window.I18N.getLang()]; }, id); };
+  var t0 = await page.evaluate(function () { return window.PriTestDejavu.ui().tests[0].res.time; });
+  await clickText(page, await styleName("late"));
+  await clickText(page, await styleName("push"));
+  s = await page.evaluate(function () { return window.PriTestDejavu.setup(); });
+  assert.deepStrictEqual(s.cars[0].plan, ["balanced", "late", "push"], "攻略法沒有加進去");
+  assert.strictEqual(await page.locator(".dv-plan-list li").count(), 3);
+  var tst = await page.evaluate(function () { var h = window.PriTestDejavu.ui().tests[0]; return { n: h.res.sectors.length, prev: !!h.prev, t: h.res.time, dnf: h.res.dnf }; });
+  // 冬天的重車加「最後衝刺」可能試跑就撞車退賽，這時分段只會記到退賽前
+  assert.ok(tst.n === 3 || tst.dnf, "試跑的分段數要等於攻略法數：" + JSON.stringify(tst));
+  console.log("試跑：" + JSON.stringify(tst));
+  assert.ok(tst.prev, "改了攻略法之後要能跟上一次比");
+  assert.ok(await page.locator(".dv-test-table tr").count() > 15, "試跑數據表太少");
+  // 拖第一個分界點往右 80 px
+  await page.locator(".dv-plan .dv-strip").scrollIntoViewIfNeeded();
+  var box = await page.locator(".dv-plan .dv-strip").boundingBox();
+  var cut0 = await page.evaluate(function () {
+    var c = window.PriTestDejavuCore, tr = c.buildTrack(c.cleanCourse(window.PriTestDejavu.setup().course), { season: "winter", seed: 1 });
+    return c.planCuts(tr, c.cleanSpec(window.PriTestDejavu.setup().cars[0]))[0];
+  });
+  var hx = box.x + 8 + cut0 * (box.width - 16), hy = box.y + (box.height - 26) / 2;
+  await page.mouse.move(hx, hy); await page.mouse.down(); await page.mouse.move(hx + 80, hy, { steps: 6 }); await page.mouse.up();
+  s = await page.evaluate(function () { return window.PriTestDejavu.setup(); });
+  assert.ok(s.cars[0].cuts && s.cars[0].cuts.length === 2 && s.cars[0].cuts[0] > cut0 + 0.02, "拖曳分界點沒有生效：" + JSON.stringify(s.cars[0].cuts));
+  // 新調校（胎壓）也會讓試跑重算
+  await page.evaluate(function () { document.querySelector(".dv-tune").open = true; });
+  var before = await page.evaluate(function () { return window.PriTestDejavu.ui().tests[0].key; });
+  await page.evaluate(function () {
+    var r = Array.prototype.filter.call(document.querySelectorAll(".dv-tune .dv-range"), function (l) { return l.textContent.indexOf(window.I18N.t("dv_tune_press")) === 0; })[0].querySelector("input");
+    r.value = "-2"; r.dispatchEvent(new Event("change"));
+  });
+  s = await page.evaluate(function () { return window.PriTestDejavu.setup(); });
+  assert.strictEqual(s.cars[0].press, -2, "胎壓沒有生效");
+  assert.notStrictEqual(await page.evaluate(function () { return window.PriTestDejavu.ui().tests[0].key; }), before, "調校後試跑沒有重算");
+  assert.ok(t0 > 0);
+  await noRawKeys(page, "車庫（攻略法）");
   await page.screenshot({ path: path.join(SHOT_DIR, "garage.png"), fullPage: true });
   await clickKey(page, "dv_go");
 
@@ -145,14 +183,13 @@ function screen(page) { return page.evaluate(function () { return window.PriTest
   await page.evaluate(function () { Array.prototype.filter.call(document.querySelectorAll(".dv-ctrl button"), function (b) { return b.textContent === "8×"; })[0].click(); });
   await page.waitForFunction(function () { return window.PriTestDejavu.race().t > 12; }, null, { timeout: 20000 });
   await page.screenshot({ path: path.join(SHOT_DIR, "race.png") });
-  // 戰略：第一位玩家切成「全力」
-  var allOut = await page.evaluate(function () { return window.PriTestDejavuData.STYLES.attack.name[window.I18N.getLang()]; });
-  await page.evaluate(function (l) {
-    var b = Array.prototype.filter.call(document.querySelectorAll(".dv-tac-row")[0].querySelectorAll("button"), function (x) { return x.textContent === l; })[0];
-    b.click();
-  }, allOut);
-  var r0 = await page.evaluate(function () { var r = window.PriTestDejavu.race(); return { style: r.cars[0].styleId, log: r.log.length }; });
-  assert.strictEqual(r0.style, "attack", "戰略按鈕沒有生效");
+  // 攻略法：第一位玩家「提前換下一個」（2026-10-31 起比賽中不能任選戰略；舊版這裡點「全力」）
+  var r0a = await page.evaluate(function () { var c = window.PriTestDejavu.race().cars[0]; return { idx: c.planIdx, plan: c.plan }; });
+  await page.evaluate(function () { document.querySelectorAll(".dv-tac-row")[0].querySelector(".dv-plan-skip").click(); });
+  var r0 = await page.evaluate(function () { var r = window.PriTestDejavu.race(), c = r.cars[0]; return { style: c.styleId, idx: c.planIdx, skips: c.skips, log: r.log.length }; });
+  assert.strictEqual(r0.idx, r0a.idx + 1, "提前換下一個沒有生效");
+  assert.strictEqual(r0.style, r0a.plan[r0.idx]);
+  assert.strictEqual(r0.skips, 1);
   assert.strictEqual(r0.log, 1);
   // 鏡頭：車內、空拍
   await clickKey(page, "dv_cam_cockpit");
@@ -171,6 +208,10 @@ function screen(page) { return page.evaluate(function () { return window.PriTest
   await clickKey(page, "dv_skip");
   assert.strictEqual(await screen(page), "result");
   await noRawKeys(page, "結果");
+  // 連戰積分（2026-10-31）：每場依名次自動累積
+  var ser = await page.evaluate(function () { var p = window.PriTestDejavu.ui().post; return p && p.series; });
+  assert.ok(ser && ser.races >= 1 && Object.keys(ser.pts).length > 0, "連戰積分沒有累積");
+  assert.ok(await page.locator(".dv-series .dv-champ-table li").count() > 0, "結果畫面沒有連戰積分表");
   var res1 = await page.evaluate(function () { return JSON.stringify(window.PriTestDejavu.result().map(function (r) { return [r.id, r.state, r.time]; })); });
   await page.screenshot({ path: path.join(SHOT_DIR, "result.png"), fullPage: true });
 

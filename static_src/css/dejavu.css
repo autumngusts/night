@@ -238,3 +238,41 @@
 .dv-net-ready-row { align-items: center; margin-top: 0.6rem; }
 .dv-net-cfg ul { margin: 0.3rem 0; padding-left: 1.2rem; }
 .dv-net-cfg li { margin: 0.2rem 0; }
+
+/* ---- 2026-10-31：賽道資料、攻略法、試跑、連戰積分 ---- */
+.dv-strip { width: 100%; height: 11rem; display: block; margin-top: 0.4rem; }
+.dv-strip-drag { cursor: ew-resize; touch-action: none; }
+.dv-strip-speed { height: 12rem; color: var(--dv-accent); }
+.dv-strip-tip { min-height: 1.4em; margin: 0.25rem 0; font-variant-numeric: tabular-nums; }
+.dv-dist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem 1.4rem; margin-top: 0.6rem; }
+.dv-dist h4 { margin: 0.3rem 0 0.4rem; font-size: 0.95em; }
+.dv-dist-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 7.5rem; gap: 0.4rem; align-items: center; font-size: 0.85em; margin: 0.2rem 0; }
+.dv-dist-row b { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dv-corner-table { font-size: 0.85em; }
+.dv-plan-list { list-style: none; padding: 0; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.dv-plan-list li { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) auto auto auto; gap: 0.4rem; align-items: center; border-left: 4px solid; padding: 0.3rem 0.5rem; background: var(--dv-chip); border-radius: 6px; }
+.dv-plan-name { display: flex; flex-direction: column; gap: 0.1rem; }
+.dv-plan-name small { font-size: 0.78em; }
+.dv-plan-add { padding: 0.3rem 0.6rem; border: 1px dashed var(--dv-line); border-radius: 6px; background: none; color: inherit; font-size: 0.85em; }
+.dv-plan-add:disabled { opacity: 0.4; }
+.dv-plan-view { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(10rem, 1fr); gap: 0.8rem; margin-top: 0.6rem; align-items: start; }
+.dv-plan-map { width: 100%; height: 14rem; border-radius: 8px; display: block; }
+.dv-plan-secs { margin: 0.3rem 0 0; padding-left: 1.4rem; }
+.dv-plan-secs li { font-weight: 600; }
+.dv-plan-prog { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.dv-plan-chip { padding: 0.15rem 0.5rem; border: 2px solid; border-radius: 999px; font-size: 0.8em; opacity: 0.7; }
+.dv-plan-chip.dv-on { opacity: 1; font-weight: bold; background: var(--dv-accent-soft); }
+.dv-plan-chip.dv-done { opacity: 0.4; text-decoration: line-through; }
+.dv-plan-skip { padding: 0.3rem 0.7rem; border: 1px solid var(--dv-accent); border-radius: 6px; background: none; color: var(--dv-accent); font-weight: 600; }
+.dv-plan-skip:disabled { opacity: 0.4; }
+.dv-test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; margin-top: 0.6rem; }
+.dv-test-table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+.dv-test-table caption { text-align: left; font-weight: bold; padding: 0.2rem 0; }
+.dv-test-table th { text-align: left; font-weight: normal; padding: 0.2rem 0.3rem; border-bottom: 1px dashed var(--dv-line); }
+.dv-test-table td { text-align: right; padding: 0.2rem 0.3rem; border-bottom: 1px dashed var(--dv-line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dv-test-mini { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px solid var(--dv-line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem; }
+.dv-series { margin-top: 0.6rem; }
+@media (max-width: 720px) {
+  .dv-plan-view { grid-template-columns: 1fr; }
+  .dv-dist-row { grid-template-columns: 6.5rem minmax(0, 1fr) 6.5rem; }
+}

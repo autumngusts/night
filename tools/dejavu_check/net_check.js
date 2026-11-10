@@ -83,7 +83,8 @@ async function toResult(page) { await waitFor(page, function () { return window.
     // ---- 玩家：先存一台車，再用連結加入 ----
     await guest.goto(BASE);
     await dv(guest, function () {
-      localStorage.setItem("pritest-dejavu-netcar", JSON.stringify({ car: "fd3s", tire: "sport", aero: 0, gear: 0, style: "balanced", up: { eng: 0, wt: 0, brk: 0, hdl: 0 } }));
+      // 2026-10-31：攻略法排三個（比賽中只能「提前換下一個」，下面測這個指令會不會同步到房主）
+      localStorage.setItem("pritest-dejavu-netcar", JSON.stringify({ car: "fd3s", tire: "sport", aero: 0, gear: 0, style: "balanced", up: { eng: 0, wt: 0, brk: 0, hdl: 0 }, plan: ["balanced", "attack", "late"] }));
     });
     await guest.goto(BASE + "?room=" + info.id);
     await waitFor(guest, function () { var r = window.PriTestDejavu.room(); return r && r.loaded && r.list().length === 2; });
@@ -135,14 +136,12 @@ async function toResult(page) { await waitFor(page, function () { return window.
     assert.ok(cars.some(function (c) { return c.name === "小客" && c.car === "fd3s" && c.tire === "hard"; }), "玩家改的車有上場");
     assert.strictEqual(await dv(guest, function () { return document.querySelectorAll(".dv-tac-row").length; }), 1, "戰略面板只有自己的車");
     assert.strictEqual(await dv(guest, function () { return !!document.querySelector(".dv-pause"); }), false, "連線比賽不能暫停");
-    // 開賽倒數後，玩家換戰略 → 房主那邊的同一台車也換了
+    // 開賽倒數後，玩家「提前換下一個」攻略法 → 房主那邊的同一台車也換了
+    //   （2026-10-31 起比賽中不能任選戰略；舊版這裡點的是「全力／均衡…」按鈕）
     await waitFor(guest, function () { return window.PriTestDejavu.race().t > 1.5; }, null, 30000);
-    var pick = await dv(guest, function (id) {
-      var c = window.PriTestDejavu.race().cars[id];
-      return window.PriTestDejavuData.STYLE_IDS.filter(function (s) { return s !== c.styleId; })[0];
-    }, gn.mine[0]);
-    await guest.dispatchEvent(".dv-tac-row .dv-tac-" + pick, "click");
-    await waitFor(host, function (a) { return window.PriTestDejavu.race().cars[a[0]].styleId === a[1]; }, [gn.mine[0], pick], 8000);
+    var pick = "attack";
+    await guest.dispatchEvent(".dv-tac-row .dv-plan-skip", "click");
+    await waitFor(host, function (a) { var c = window.PriTestDejavu.race().cars[a[0]]; return c.styleId === a[1] && c.skips === 1; }, [gn.mine[0], pick], 8000);
     // 玩家自己這邊換上房主快照之後，戰略也不能被蓋回去
     await guest.waitForTimeout(2500);
     var gStyle = await dv(guest, function (id) { return window.PriTestDejavu.race().cars[id].styleId; }, gn.mine[0]);

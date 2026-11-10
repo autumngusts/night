@@ -17,7 +17,7 @@
   function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
 
   // ---------------- 存檔（localStorage；不能存也照樣能玩） ----------------
-  var KEYS = { records: "pritest-dejavu-records", legends: "pritest-dejavu-legends", wallet: "pritest-dejavu-wallet", daily: "pritest-dejavu-daily" };
+  var KEYS = { records: "pritest-dejavu-records", legends: "pritest-dejavu-legends", wallet: "pritest-dejavu-wallet", daily: "pritest-dejavu-daily", series: "pritest-dejavu-series" };
   function load(k, def) {
     try { var v = JSON.parse(root.localStorage.getItem(KEYS[k]) || "null"); return v && typeof v === "object" ? v : def; } catch (e) { return def; }
   }
@@ -55,6 +55,30 @@
     });
     return rows;
   }
+
+  // ---------------- 連戰積分（2026-10-31）：每一場比賽都依名次（同錦標賽的 POINTS）自動累積 ----------------
+  //   sig＝參賽陣容（玩家數｜CPU 數）；陣容一變就是新的連戰，自動從 0 開始。log 只留最近 SERIES_LOG 場（同分時比名次用）
+  var SERIES_LOG = 50;
+  function series(sig) {
+    var s = load("series", null);
+    if (!s || !s.table || typeof s.races !== "number" || (sig !== undefined && s.sig !== sig)) s = { sig: sig || "", races: 0, table: {}, log: [] };
+    return s;
+  }
+  // entries：[{ key, pos, state }]；回傳 { s: 更新後的連戰, pts: { key: 這場拿的分 } }
+  function addSeries(sig, entries) {
+    var s = series(sig), got = {};
+    entries.forEach(function (e) {
+      var p = champPoints(e.pos, e.state);
+      got[e.key] = p;
+      s.table[e.key] = (s.table[e.key] || 0) + p;
+    });
+    s.log.push(entries.map(function (e) { return { key: e.key, pos: e.state === "fin" ? e.pos : 0, pts: got[e.key] }; }));
+    while (s.log.length > SERIES_LOG) s.log.shift();
+    s.races++;
+    store("series", s);
+    return { s: s, pts: got };
+  }
+  function resetSeries() { store("series", { sig: "", races: 0, table: {}, log: [] }); }
 
   // ---------------- 山道傳說 ----------------
   // 每條固定山路一位原創的「在地傳說」：外號、愛車、調校都由路線 id 決定（每台裝置都一樣）。
@@ -226,6 +250,7 @@
 
   root.PriTestDejavuModes = {
     POINTS: POINTS, CHAMP_ROUNDS: CHAMP_ROUNDS, BET_AMOUNTS: BET_AMOUNTS, BET_START: BET_START, BET_RESCUE: BET_RESCUE,
+    series: series, addSeries: addSeries, resetSeries: resetSeries,
     champPlan: champPlan, champPoints: champPoints, champStandings: champStandings,
     legend: legend, legendBeaten: legendBeaten, markLegend: markLegend,
     wallet: wallet, odds: odds, placeBet: placeBet, settleBet: settleBet,

@@ -271,5 +271,50 @@ ok(risky.spins > careful.spins + 0.5, "冬天軟胎全力進攻應該比雪胎�
   ok(ev.smoke + ev.magnet + ev.shield > 0, "新手牌沒有被使用");
 })();
 
+// ---- 2026-10-31：攻略法、追加調校、賽道分析、試跑 ----
+(function () {
+  var course = Core.fixedCourse("akina");
+  function opts(spec, cmds) {
+    return { course: course, season: "summer", mode: "battle", seed: 77, cmds: cmds || [],
+      cars: [{ spec: spec }, { spec: { car: "fd3s" }, cpu: true }, { spec: { car: "gc8", plan: ["calm", "attack"] }, cpu: true }] };
+  }
+  var spec = { car: "ae86", plan: ["save", "late", "push"] };
+  var race = Core.createRace(opts(spec)), c = race.cars[0], tr = race.track;
+  ok(c.planAt.length === 3 && c.planAt[0] === tr.start, "攻略法分段起點不對");
+  var seen = [];
+  while (!race.done) { Core.step(race); if (seen[seen.length - 1] !== c.styleId) seen.push(c.styleId); }
+  ok(seen.join() === "save,late,push", "攻略法沒有依序執行：" + seen.join());
+  // 手動分界點
+  var cuts = Core.planCuts(tr, Core.cleanSpec({ car: "ae86", plan: ["save", "late", "push"], cuts: [0.1, 0.2] }));
+  ok(cuts.join() === "0.1,0.2", "手動分界點沒有生效 " + cuts);
+  ok(Core.cleanSpec({ car: "ae86", plan: ["late", "push"], cuts: [0.995] }).cuts[0] <= 0.98, "分界點沒有夾在範圍內");
+  ok(Core.cleanSpec({ car: "ae86", plan: ["a", "b", "late", "push", "save", "cool", "slip", "attack"] }).plan.length === D.PLAN_MAX, "攻略法超過上限");
+  // 提前換下一個：最多 PLAN_SKIPS 次，重播一致
+  var r2 = Core.createRace(opts({ car: "ae86", plan: ["calm", "balanced", "attack", "push"] }));
+  for (var n = 0; n < 60; n++) Core.step(r2);
+  ok(Core.command(r2, 0, "next") && Core.command(r2, 0, "next"), "提前換下一個失敗");
+  ok(!Core.command(r2, 0, "next"), "提前換下一個超過次數");
+  ok(r2.cars[0].styleId === "attack", "提前換下一個後的攻略法不對");
+  Core.runToEnd(r2);
+  var rp = Core.runToEnd(Core.createRace(Object.assign(opts({ car: "ae86", plan: ["calm", "balanced", "attack", "push"] }), { cmds: r2.log })));
+  ok(summary(rp) === summary(r2), "提前換下一個的重播結果不同");
+  // 追加調校：全 0 跟原廠一樣；有效果
+  var base = Core.carStats({ car: "s15" });
+  ok(JSON.stringify(base) === JSON.stringify(Core.carStats({ car: "s15", press: 0, bias: 0, ride: 0, arb: 0, duct: 0 })), "追加調校全 0 時數值應該一樣");
+  ok(Core.carStats({ car: "s15", ride: -2 }).cla > base.cla, "車高調低沒有增加下壓力");
+  ok(Core.carStats({ car: "s15", bias: 2 }).brk < base.brk, "煞車配比偏離沒有降低煞車效率");
+  var tr2 = Core.buildTrack(course, { season: "summer", seed: 3 });
+  var an = Core.trackAnalysis(tr2);
+  ok(an.kinds.hp >= 5, "秋名山應該有 5 個以上髮夾彎：" + JSON.stringify(an.kinds));
+  ok(Math.abs(an.len - (tr2.finish - tr2.start)) < 1 && an.corners.length > 10, "賽道分析長度／彎數不對");
+  var sum = 0; Object.keys(an.surf).forEach(function (k) { sum += an.surf[k]; });
+  ok(Math.abs(sum - an.len) <= 4, "路面分布加起來不等於全長");
+  var t1 = Core.testRun({ course: course, season: "summer", seed: 3, spec: { car: "ae86", plan: ["balanced", "attack"] } });
+  ok(t1.time > 60 && t1.sectors.length === 2 && Math.abs(t1.sectors[0] + t1.sectors[1] - t1.time) < 0.1, "試跑時間／分段不對 " + JSON.stringify([t1.time, t1.sectors]));
+  var met = Core.carMetrics({ car: "r35" }, 6, "summer", false), met2 = Core.carMetrics({ car: "ae86" }, 6, "summer", false);
+  ok(met.t100 < met2.t100 && met.top > met2.top, "R35 應該比 AE86 加速快、極速高");
+  ok(Core.carMetrics({ car: "ae86" }, 6, "summer", true).brake100 > met2.brake100, "雨天煞車距離應該比較長");
+})();
+
 console.log(fails ? "✗ 失敗 " + fails + " 項" : "✓ 全部通過");
 process.exit(fails ? 1 : 0);

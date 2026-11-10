@@ -146,6 +146,12 @@
         spec = sp;
         if (!setup.piCap || Core.carStats(sp, setup.upPts).pi <= setup.piCap) break;
       }
+      // 攻略法（2026-10-31）：CPU 也排 1–3 個，照路段執行（跟玩家一樣，不再依局勢隨時切換）
+      spec.plan = [spec.style];
+      for (var np = Math.floor(r() * 3); np > 0; np--) {
+        var nx = D.PLAN_IDS[Math.floor(r() * D.PLAN_IDS.length)];
+        if (nx !== spec.plan[spec.plan.length - 1]) spec.plan.push(nx);
+      }
       setup.cpuCars.push({ spec: spec, color: free[i % Math.max(1, free.length)] || D.COLORS[(i + 3) % D.COLORS.length] });
     }
     save();
@@ -508,10 +514,17 @@
     var ox = (f.w - (bb.maxX - bb.minX) * sc) / 2, oy = (f.h - (bb.maxY - bb.minY) * sc) / 2;
     function X(i) { return ox + (tr.x[i] - bb.minX) * sc; }
     function Y(i) { return f.h - oy - (tr.y[i] - bb.minY) * sc; }
+    cv._mapXY = function (i) { return [X(i), Y(i)]; };   // 賽道剖面圖滑鼠移上去時在地圖上標位置用
     ctx.lineJoin = "round"; ctx.lineCap = "round";
     function path(a, b) { ctx.beginPath(); ctx.moveTo(X(a), Y(a)); for (var i = a + 1; i <= b; i++) ctx.lineTo(X(i), Y(i)); }
     ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 6; path(0, tr.N - 1); ctx.stroke();
     ctx.strokeStyle = pal.road; ctx.lineWidth = 3.5; path(0, tr.N - 1); ctx.stroke();
+    // 攻略法分段：opts.sections＝每段起點（路線位置）
+    if (opts.sections) opts.sections.forEach(function (s0, j) {
+      var s1 = j + 1 < opts.sections.length ? opts.sections[j + 1] : tr.finish;
+      ctx.strokeStyle = PLAN_COLOR[j % PLAN_COLOR.length]; ctx.lineWidth = 4.5;
+      path(Math.round(s0 / tr.ds), Math.round(s1 / tr.ds)); ctx.stroke();
+    });
     if (opts.owners) {
       var segs = setup.course.segs, a = 0;
       for (var i = 1; i <= tr.N; i++) {
@@ -564,6 +577,365 @@
       ctx.fillStyle = c.color; ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(X(c.s), Y(z), c.id === ui.follow ? 4.5 : 3.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     });
+  }
+
+  // ---------------- 賽前資料（2026-10-31）：賽道剖面圖、分布統計、攻略法分段、試跑 ----------------
+  var KIND_COLOR = { hp: "#c0392b", slow: "#e67e22", mid: "#e6c229", fast: "#2e9e5b" };
+  var PLAN_COLOR = ["#2f6fd6", "#d4380d", "#2e9e5b", "#8e44ad", "#e0a100"];
+  var SURF_COLOR = { normal: "#9aa0a6", leaf: "#d6782a", ice: "#8fd0f0", puddle: "#41658f", gravel: "#a3865c", gutter: "#2e7d4f", tunnel: "#3a3a3c", bridge: "#7fa7c4" };
+  var SURF_IDS = ["normal", "leaf", "ice", "puddle", "gravel", "gutter", "tunnel", "bridge"];
+  var GRADE_IDS = ["up", "flat", "down", "steep", "xsteep"];
+  var GRADE_COLOR = { up: "#2f6fd6", flat: "#9aa0a6", down: "#e6c229", steep: "#e67e22", xsteep: "#c0392b" };
+  var KIND_IDS = ["hp", "slow", "mid", "fast"];
+  function analysisOf(tr) { if (!tr._an) tr._an = Core.trackAnalysis(tr); return tr._an; }
+  function km(m) { return (m / 1000).toFixed(2) + " km"; }
+
+  // 賽道剖面圖：橫軸＝起點到終點的距離。上半部是標高（或試跑車速），下面兩條色帶是彎道種類與路面。
+  //   opts：{ sections: 每段起點, labels: 每段名稱, hover: 路線位置, trace／tracePrev: 試跑車速（每 traceDs 公尺）, traceDs, zones: true 標超車點 }
+  var STRIP_PAD = 8;
+  function stripX(f, tr, s) { return STRIP_PAD + (s - tr.start) / (tr.finish - tr.start) * (f.w - STRIP_PAD * 2); }
+  function stripS(cv, tr, px) {
+    var w = cv.clientWidth;
+    return tr.start + clamp((px - STRIP_PAD) / Math.max(1, w - STRIP_PAD * 2), 0, 1) * (tr.finish - tr.start);
+  }
+  function drawStrip(cv, tr, opts) {
+    opts = opts || {};
+    var f = fitCanvas(cv), ctx = f.ctx, an = analysisOf(tr);
+    ctx.clearRect(0, 0, f.w, f.h);
+    var a0 = Math.round(tr.start / tr.ds), a1 = Math.round(tr.finish / tr.ds), i;
+    var bandH = 9, top = 16, bot = f.h - bandH * 2 - 8;
+    function X(s) { return stripX(f, tr, s); }
+    // 攻略法分段的底色與名稱
+    if (opts.sections) opts.sections.forEach(function (s0, j) {
+      var s1 = j + 1 < opts.sections.length ? opts.sections[j + 1] : tr.finish, col = PLAN_COLOR[j % PLAN_COLOR.length];
+      ctx.fillStyle = col; ctx.globalAlpha = 0.13; ctx.fillRect(X(s0), 0, X(s1) - X(s0), bot); ctx.globalAlpha = 1;
+      ctx.fillStyle = col; ctx.font = "bold 11px sans-serif"; ctx.textBaseline = "top";
+      ctx.fillText((j + 1) + " " + (opts.labels ? opts.labels[j] : ""), X(s0) + 4, 2, Math.max(10, X(s1) - X(s0) - 8));
+    });
+    // 標高
+    var zMin = Infinity, zMax = -Infinity;
+    for (i = a0; i <= a1; i++) { if (tr.z[i] < zMin) zMin = tr.z[i]; if (tr.z[i] > zMax) zMax = tr.z[i]; }
+    var span = Math.max(15, zMax - zMin);
+    function YZ(z) { return bot - (z - zMin) / span * (bot - top); }
+    ctx.beginPath(); ctx.moveTo(X(tr.start), bot);
+    for (i = a0; i <= a1; i += 2) ctx.lineTo(X(i * tr.ds), YZ(tr.z[i]));
+    ctx.lineTo(X(tr.finish), bot); ctx.closePath();
+    ctx.fillStyle = opts.trace ? "rgba(120,140,120,0.18)" : "rgba(120,140,120,0.38)"; ctx.fill();
+    ctx.strokeStyle = opts.trace ? "rgba(90,110,90,0.4)" : "rgba(90,110,90,0.9)"; ctx.lineWidth = 1.2; ctx.stroke();
+    // 試跑車速（前一次是灰色虛線）
+    if (opts.trace) {
+      var vMax = 60;
+      opts.trace.concat(opts.tracePrev || []).forEach(function (v) { if (v > vMax) vMax = v; });
+      vMax = Math.ceil(vMax / 50) * 50;
+      var YV = function (v) { return bot - v / vMax * (bot - top); };
+      ctx.fillStyle = "rgba(127,127,127,0.8)"; ctx.font = "10px sans-serif"; ctx.textBaseline = "middle";
+      [vMax / 2, vMax].forEach(function (v) {
+        ctx.strokeStyle = "rgba(127,127,127,0.25)"; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(STRIP_PAD, YV(v)); ctx.lineTo(f.w - STRIP_PAD, YV(v)); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillText(v + " km/h", STRIP_PAD + 2, YV(v) + 7);
+      });
+      var line = function (arr, col, w, dash) {
+        ctx.strokeStyle = col; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.beginPath();
+        arr.forEach(function (v, k) { var x = X(tr.start + k * opts.traceDs); if (k) ctx.lineTo(x, YV(v)); else ctx.moveTo(x, YV(v)); });
+        ctx.stroke(); ctx.setLineDash([]);
+      };
+      if (opts.tracePrev) line(opts.tracePrev, "rgba(127,127,127,0.75)", 1.2, [4, 3]);
+      line(opts.trace, getComputedStyle(cv).color || "#d4380d", 1.8);
+    }
+    // 超車點（直線超車的條件）
+    if (opts.zones) an.passZones.forEach(function (z) {
+      ctx.fillStyle = "rgba(46,158,91,0.85)"; ctx.fillRect(X(tr.start + z.s), bot - 3, Math.max(2, X(tr.start + z.s + z.len) - X(tr.start + z.s)), 3);
+    });
+    // 色帶：彎道種類、路面
+    var yb1 = bot + 3, yb2 = bot + 5 + bandH;
+    ctx.fillStyle = "rgba(127,127,127,0.18)"; ctx.fillRect(STRIP_PAD, yb1, f.w - STRIP_PAD * 2, bandH);
+    an.corners.forEach(function (c) {
+      ctx.fillStyle = KIND_COLOR[c.kind];
+      ctx.fillRect(X(tr.start + c.s), yb1, Math.max(1.5, X(tr.start + c.s + c.len) - X(tr.start + c.s)), bandH);
+    });
+    var run = a0, cur = Core.surfAt(tr, a0);
+    for (i = a0 + 1; i <= a1 + 1; i++) {
+      var sf = i <= a1 ? Core.surfAt(tr, i) : null;
+      if (sf !== cur) {
+        ctx.fillStyle = SURF_COLOR[cur] || SURF_COLOR.normal; ctx.globalAlpha = cur === "normal" ? 0.35 : 1;
+        ctx.fillRect(X(run * tr.ds), yb2, Math.max(1, X(i * tr.ds) - X(run * tr.ds)), bandH); ctx.globalAlpha = 1;
+        run = i; cur = sf;
+      }
+    }
+    // 分界點（可以拖曳）
+    if (opts.sections) opts.sections.forEach(function (s0, j) {
+      if (!j) return;
+      var x = X(s0);
+      ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, bot); ctx.stroke();
+      ctx.fillStyle = "#fff"; ctx.strokeStyle = PLAN_COLOR[j % PLAN_COLOR.length]; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, bot / 2, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+    if (opts.hover !== undefined && opts.hover !== null) {
+      var hx = X(opts.hover);
+      ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, f.h); ctx.stroke();
+    }
+  }
+  // 某一點的說明文字（剖面圖的提示框）
+  function pointText(tr, s, extra) {
+    var p = Core.pointInfo(tr, s);
+    var parts = [km(p.s), t("dv_td_alt", { n: Math.round(p.z - tr.z[Math.round(tr.start / tr.ds)]) }), t("dv_td_grade", { n: p.g > 0 ? "↘" + p.g : p.g < 0 ? "↗" + (-p.g) : "0" })];
+    if (p.r && p.r < 400) parts.push(t(p.dir > 0 ? "dv_td_left" : "dv_td_right") + " R" + p.r + " m（" + t("dv_kind_" + Core.cornerKind(p.r, 0)) + "，" + t("dv_td_vlim", { n: p.vlim }) + "）");
+    else parts.push(t("dv_td_straight"));
+    parts.push(t("dv_surf_" + p.surf));
+    if (extra) parts.push(extra);
+    return parts.join("　");
+  }
+  // 剖面圖的滑鼠提示＋在地圖上標出位置
+  function stripHover(cv, tr, tip, redraw, map, mapOpts) {
+    var pend = false, last = null;
+    function show() {
+      pend = false;
+      redraw(last);
+      if (map) {
+        drawMap(map, tr, mapOpts);
+        if (last !== null && map._mapXY) {
+          var pt = map._mapXY(Math.round(last / tr.ds)), ctx = map.getContext("2d");
+          ctx.fillStyle = "#ff0"; ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(pt[0], pt[1], 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        }
+      }
+    }
+    function move(e) {
+      var r = cv.getBoundingClientRect();
+      last = stripS(cv, tr, e.clientX - r.left);
+      if (tip) tip.textContent = pointText(tr, last, cv._extra ? cv._extra(last) : "");
+      if (!pend) { pend = true; requestAnimationFrame(show); }
+    }
+    cv.addEventListener("pointermove", move);
+    cv.addEventListener("pointerleave", function () { last = null; if (!pend) { pend = true; requestAnimationFrame(show); } });
+  }
+  // 分布長條：rows＝[[名稱, 數值, 顏色]]；total＝比例的分母；fmt＝數值的顯示方式
+  function distBlock(title, rows, total, fmt) {
+    return el("div", { class: "dv-dist" }, [el("h4", {}, [title])].concat(rows.filter(function (r) { return r[1] > 0; }).map(function (r) {
+      return el("div", { class: "dv-dist-row" }, [
+        el("span", {}, [el("i", { class: "dv-dot", style: "background:" + r[2] }, []), r[0]]),
+        el("div", { class: "dv-bar" }, [el("i", { style: "width:" + Math.round(clamp(r[1] / Math.max(1e-9, total), 0.02, 1) * 100) + "%;background:" + r[2] }, [])]),
+        el("b", {}, [fmt(r[1])])
+      ]);
+    })));
+  }
+  function renderTrackData(tr, map) {
+    var an = analysisOf(tr), L = an.len;
+    var strip = el("canvas", { class: "dv-strip" }, []), tip = el("div", { class: "dv-strip-tip dv-small" }, [t("dv_td_hover")]);
+    var pct = function (m) { return Math.round(m / L * 100) + "%（" + km(m) + "）"; };
+    var cnt = function (n) { return t("dv_td_n", { n: n }); };
+    var nc = an.corners.length;
+    var grid = el("div", { class: "dv-dist-grid" }, [
+      distBlock(t("dv_td_corners", { n: nc }), KIND_IDS.map(function (k) { return [t("dv_kind_" + k), an.kinds[k], KIND_COLOR[k]]; }), Math.max(1, nc), cnt),
+      distBlock(t("dv_td_grades"), GRADE_IDS.map(function (k) { return [t("dv_grade_" + k), an.grade[k], GRADE_COLOR[k]]; }), L, pct),
+      distBlock(t("dv_td_surfs"), SURF_IDS.map(function (k) { return [t("dv_surf_" + k), an.surf[k] || 0, SURF_COLOR[k]]; }), L, pct),
+      el("div", { class: "dv-dist" }, [el("h4", {}, [t("dv_td_facts")]), el("ul", { class: "dv-facts" }, [
+        [t("dv_td_straight_share"), Math.round(an.straights.share * 100) + "%"],
+        [t("dv_td_longest"), Math.round(an.straights.longest) + " m"],
+        [t("dv_td_long_n"), t("dv_td_long_v", { a: an.straights.n100, b: an.straights.n200 })],
+        [t("dv_td_density"), an.density.toFixed(1) + " / km"],
+        [t("dv_td_turn"), an.turn + "°"],
+        [t("dv_td_elev"), Math.round(an.elev.max - an.elev.min) + " m"],
+        [t("dv_td_maxg"), an.elev.maxG + " %"],
+        [t("dv_td_avgg"), an.elev.avgG + " %"],
+        [t("dv_td_pass"), an.passZones.length ? cnt(an.passZones.length) : t("dv_td_pass_none", { n: an.passZonesBike })],
+        [t("dv_td_brake"), cnt(an.brakeZones)]
+      ].map(function (r) { return el("li", {}, [r[0], el("b", {}, [r[1]])]); }))])
+    ]);
+    var list = el("details", { class: "dv-tune" }, [el("summary", {}, [t("dv_td_list", { n: nc })]),
+      el("div", { class: "dv-scroll" }, [el("table", { class: "dv-results dv-corner-table" }, [
+        el("thead", {}, [el("tr", {}, ["#", t("dv_td_c_at"), t("dv_td_c_dir"), t("dv_td_c_ang"), t("dv_td_c_r"), t("dv_td_c_kind"), t("dv_td_c_g"), t("dv_td_c_pre")].map(function (h) { return el("th", {}, [h]); }))]),
+        el("tbody", {}, an.corners.map(function (c, k) {
+          return el("tr", {}, [String(k + 1), km(c.s), t(c.dir > 0 ? "dv_td_left" : "dv_td_right"), c.ang + "°", c.r + " m",
+            el("span", {}, [el("i", { class: "dv-dot", style: "background:" + KIND_COLOR[c.kind] }, []), t("dv_kind_" + c.kind)]),
+            (c.g > 0 ? "↘" : c.g < 0 ? "↗" : "") + Math.abs(c.g) + "%", Math.round(c.pre) + " m"].map(function (v) { return el("td", {}, [v]); }));
+        }))
+      ])])]);
+    var legend = el("div", { class: "dv-legend dv-small" }, KIND_IDS.map(function (k) { return el("span", {}, [el("i", { style: "background:" + KIND_COLOR[k] }, []), t("dv_kind_" + k)]); })
+      .concat([el("span", {}, [el("i", { style: "background:rgba(46,158,91,0.85)" }, []), t("dv_td_pass")])]));
+    var box = el("div", { class: "dv-panel" }, [el("h2", {}, [t("dv_td_title")]), el("p", { class: "dv-muted dv-small" }, [t("dv_td_desc")]),
+      strip, tip, legend, grid, list]);
+    requestAnimationFrame(function () {
+      var redraw = function (h) { drawStrip(strip, tr, { zones: true, hover: h }); };
+      redraw(null);
+      stripHover(strip, tr, tip, redraw, map, { owners: !!setup.build });
+    });
+    return box;
+  }
+
+  // ---- 攻略法 ----
+  function planOf(spec) { return spec.plan && spec.plan.length ? spec.plan : [spec.style]; }
+  function planNames(plan) { return plan.map(function (id) { return L(D.STYLES[id].name); }); }
+  // 車庫的攻略法面板：排順序（最多 D.PLAN_MAX 個）＋在剖面圖上拖分界點
+  function renderPlanPanel(spec, commit) {
+    var tr = previewTrack(), plan = planOf(spec).slice();
+    function setPlan(p, keepCuts) {
+      spec.plan = p; spec.style = p[0];
+      if (!keepCuts) delete spec.cuts;
+      commit();
+    }
+    var box = el("div", { class: "dv-panel dv-plan" }, [el("h3", {}, [t("dv_plan_title", { n: plan.length, max: D.PLAN_MAX })]),
+      el("p", { class: "dv-muted dv-small" }, [t("dv_plan_desc", { n: D.PLAN_SKIPS })])]);
+    box.appendChild(el("ol", { class: "dv-plan-list" }, plan.map(function (id, j) {
+      return el("li", { style: "border-color:" + PLAN_COLOR[j % PLAN_COLOR.length] }, [
+        el("b", { style: "color:" + PLAN_COLOR[j % PLAN_COLOR.length] }, [String(j + 1)]),
+        el("span", { class: "dv-plan-name" }, [L(D.STYLES[id].name), el("small", { class: "dv-muted" }, [t("dv_style_" + id)])]),
+        btn("◀", function () { var p = plan.slice(); p.splice(j - 1, 0, p.splice(j, 1)[0]); setPlan(p, true); }, "dv-step", j === 0),
+        btn("▶", function () { var p = plan.slice(); p.splice(j + 1, 0, p.splice(j, 1)[0]); setPlan(p, true); }, "dv-step", j === plan.length - 1),
+        btn("✕", function () { var p = plan.slice(); p.splice(j, 1); setPlan(p); }, "dv-x", plan.length <= 1)
+      ]);
+    })));
+    box.appendChild(el("div", { class: "dv-actions" }, [el("span", { class: "dv-small" }, [t("dv_plan_add")])].concat(D.PLAN_IDS.map(function (id) {
+      return el("button", { type: "button", class: "dv-plan-add", title: t("dv_style_" + id), disabled: plan.length >= D.PLAN_MAX,
+        onclick: function () { setPlan(plan.concat([id])); } }, ["＋" + L(D.STYLES[id].name)]);
+    }))));
+    // 分段：剖面圖上拖白色圓點
+    var cs = Core.cleanSpec(spec, setup.upPts), cuts = Core.planCuts(tr, cs);
+    var L0 = tr.finish - tr.start;
+    function starts() { return [tr.start].concat(cuts.map(function (f) { return tr.start + f * L0; })); }
+    var strip = el("canvas", { class: "dv-strip dv-strip-drag" }, []), map = el("canvas", { class: "dv-plan-map" }, []);
+    var info = el("ol", { class: "dv-plan-secs dv-small" }, []);
+    var tip = el("div", { class: "dv-strip-tip dv-small" }, [t(plan.length > 1 ? "dv_plan_drag" : "dv_td_hover")]);
+    var names = planNames(plan);
+    function fillInfo() {
+      info.innerHTML = "";
+      var st = starts();
+      st.forEach(function (s0, j) {
+        var s1 = j + 1 < st.length ? st[j + 1] : tr.finish;
+        info.appendChild(el("li", { style: "color:" + PLAN_COLOR[j % PLAN_COLOR.length] }, [names[j] + "　" + km(s0 - tr.start) + " – " + km(s1 - tr.start) + "（" + km(s1 - s0) + "）"]));
+      });
+    }
+    var drag = -1, hover = null;
+    function redraw(h) { if (h !== undefined) hover = h; drawStrip(strip, tr, { sections: starts(), labels: names, hover: hover }); }
+    strip.addEventListener("pointerdown", function (e) {
+      if (plan.length < 2) return;
+      var r = strip.getBoundingClientRect(), f = { w: strip.clientWidth }, x = e.clientX - r.left, best = -1, bd = 14;
+      cuts.forEach(function (c, j) { var d = Math.abs(stripX(f, tr, tr.start + c * L0) - x); if (d < bd) { bd = d; best = j; } });
+      if (best < 0) return;
+      drag = best;
+      try { strip.setPointerCapture(e.pointerId); } catch (er) { /* 舊瀏覽器 */ }
+      e.preventDefault();
+    });
+    strip.addEventListener("pointermove", function (e) {
+      if (drag < 0) return;
+      var r = strip.getBoundingClientRect();
+      var fr = (stripS(strip, tr, e.clientX - r.left) - tr.start) / L0;
+      var lo = drag > 0 ? cuts[drag - 1] + 0.02 : 0.02, hi = drag + 1 < cuts.length ? cuts[drag + 1] - 0.02 : 0.98;
+      cuts[drag] = Math.round(clamp(fr, lo, hi) * 10000) / 10000;
+      redraw(); fillInfo();
+      drawMap(map, tr, { sections: starts() });
+    });
+    function drop() {
+      if (drag < 0) return;
+      drag = -1;
+      spec.cuts = cuts.slice();
+      commit();
+    }
+    strip.addEventListener("pointerup", drop);
+    strip.addEventListener("pointercancel", drop);
+    fillInfo();
+    box.appendChild(el("div", { class: "dv-plan-view" }, [el("div", {}, [strip, tip, info]), map]));
+    box.appendChild(el("div", { class: "dv-actions" }, [
+      btn(t("dv_plan_auto"), function () { delete spec.cuts; commit(); }, "dv-link", !spec.cuts),
+      spec.cuts ? el("span", { class: "dv-small dv-muted" }, [t("dv_plan_manual")]) : el("span", { class: "dv-small dv-muted" }, [t("dv_plan_auto_on")])
+    ]));
+    requestAnimationFrame(function () {
+      redraw(null);
+      drawMap(map, tr, { sections: starts() });
+      stripHover(strip, tr, tip, function (h) { if (drag < 0) redraw(h); }, null);
+      strip._extra = function (s) { var st = starts(), j = 0; while (j + 1 < st.length && s >= st[j + 1]) j++; return "▶ " + (j + 1) + " " + names[j]; };
+    });
+    return box;
+  }
+
+  // ---- 試跑（調校的實際影響）：同一條路、同一個天氣，單獨跑一趟；改了設定就和上一次比 ----
+  function testFor(i, spec) {
+    ui.tests = ui.tests || {};
+    var key = JSON.stringify([spec, setup.course, setup.season, setup.dir, setup.seed, setup.upPts, !!setup.night, !!setup.wx, !!setup.wear]);
+    var h = ui.tests[i] || {};
+    if (h.key !== key) {
+      var tr = previewTrack();
+      var res = Core.testRun({ course: setup.course, season: setup.season, dir: setup.dir, seed: setup.seed, spec: spec, upPts: setup.upPts,
+        night: setup.night, wx: setup.wx, wear: setup.wear });
+      var met = Core.carMetrics(spec, setup.upPts, setup.season, tr.rain);
+      h = { key: key, res: res, met: met, prev: h.res ? { res: h.res, met: h.met } : null, plan: planNames(planOf(spec)) };
+      ui.tests[i] = h;
+    }
+    return h;
+  }
+  // 差值：lower＝越小越好；digits＝小數位數
+  function delta(cur, prev, lower, digits, unit) {
+    if (cur === null || cur === undefined || prev === null || prev === undefined) return null;
+    var d = cur - prev, eps = Math.pow(10, -(digits || 0)) / 2;
+    if (Math.abs(d) < eps) return el("small", { class: "dv-muted" }, ["±0"]);
+    var good = lower ? d < 0 : d > 0;
+    return el("small", { class: good ? "dv-good" : "dv-bad" }, [(d > 0 ? "+" : "−") + Math.abs(d).toFixed(digits || 0) + (unit || "")]);
+  }
+  function testRow(label, cur, prev, fmt, lower, digits, unit) {
+    return el("tr", {}, [el("th", {}, [label]), el("td", {}, [cur === null || cur === undefined ? "—" : fmt(cur)]), el("td", {}, [delta(cur, prev, lower, digits, unit)])]);
+  }
+  function testSummary(h) {
+    var r = h.res, p = h.prev ? h.prev.res : null;
+    return el("div", { class: "dv-test-mini" }, [
+      el("span", {}, [t("dv_test_time"), " "]), el("b", {}, [r.time !== null ? fmtTime(r.time) : t("dv_dnf")]), " ",
+      delta(r.time, p ? p.time : null, true, 2, "s"),
+      // 到不了 100 km/h 的車（小速克達）0–100 是 null
+      el("span", { class: "dv-small dv-muted" }, ["　0–100 " + (h.met.t100 !== null ? h.met.t100.toFixed(1) + "s" : "—") + " · 100–0 " + h.met.brake100 + " m · R50 " + h.met.v50 + " km/h"])
+    ]);
+  }
+  function renderTestPanel(h) {
+    var r = h.res, met = h.met, p = h.prev ? h.prev.res : {}, pm = h.prev ? h.prev.met : {};
+    var tr = previewTrack();
+    var s1 = function (x) { return x.toFixed(1) + " s"; }, s2 = function (x) { return x.toFixed(2) + " s"; }, kmh = function (x) { return x + " km/h"; };
+    var rows = [
+      testRow(t("dv_test_time"), r.time, p.time, fmtTime, true, 2, "s"),
+      testRow(t("dv_test_avg"), r.avg, p.avg, kmh, false, 0),
+      testRow(t("dv_test_max"), r.maxKmh, p.maxKmh, kmh, false, 0)
+    ];
+    r.sectors.forEach(function (x, j) {
+      rows.push(testRow(el("span", { style: "color:" + PLAN_COLOR[j % PLAN_COLOR.length] }, [t("dv_test_sector", { n: j + 1, name: h.plan[j] || "" })]), x,
+        p.sectors && p.sectors.length === r.sectors.length ? p.sectors[j] : null, s2, true, 2, "s"));
+    });
+    KIND_IDS.forEach(function (k) {
+      if (r.corners[k] !== undefined) rows.push(testRow(t("dv_test_corner", { kind: t("dv_kind_" + k) }), r.corners[k], p.corners ? p.corners[k] : null, kmh, false, 0));
+    });
+    rows.push(testRow(t("dv_test_spins"), r.spins, p.spins, String, true, 0));
+    if (r.wear !== null) {
+      rows.push(testRow(t("dv_test_wear"), r.wear, p.wear, function (x) { return x + "%"; }, true, 0));
+      rows.push(testRow(t("dv_test_brake"), r.brake, p.brake, function (x) { return x + "%"; }, true, 0));
+    }
+    var mrows = [
+      testRow("0–100 km/h", met.t100, pm.t100, s1, true, 1, "s"),
+      testRow("0–400 m", met.t400, pm.t400, s1, true, 1, "s"),
+      testRow(t("dv_test_brake100"), met.brake100, pm.brake100, function (x) { return x + " m"; }, true, 1, " m"),
+      testRow(t("dv_test_vr", { r: 15 }), met.v15, pm.v15, kmh, false, 0),
+      testRow(t("dv_test_vr", { r: 50 }), met.v50, pm.v50, kmh, false, 0),
+      testRow(t("dv_test_vr", { r: 150 }), met.v150, pm.v150, kmh, false, 0),
+      testRow(t("dv_test_latg"), met.latG, pm.latG, function (x) { return x.toFixed(2) + " G"; }, false, 2),
+      testRow(t("dv_test_tol"), met.tol, pm.tol, function (x) { return "×" + x.toFixed(3); }, false, 3),
+      testRow(t("dv_test_top"), met.top, pm.top, kmh, false, 0)
+    ];
+    var cv = el("canvas", { class: "dv-strip dv-strip-speed" }, []), tip = el("div", { class: "dv-strip-tip dv-small" }, [t("dv_test_hover")]);
+    var st = Core.planStarts(tr, Core.cleanSpec(setup.cars[ui.tab], setup.upPts));
+    var box = el("div", { class: "dv-panel dv-test" }, [
+      el("h3", {}, [t("dv_test_title")]),
+      el("p", { class: "dv-muted dv-small" }, [t("dv_test_desc") + (r.rain ? "　🌧 " + t("dv_rain_forecast") : "") + (r.dnf ? "　" + t("dv_test_dnf") : "")]),
+      cv, tip,
+      el("div", { class: "dv-test-grid" }, [
+        el("table", { class: "dv-test-table" }, [el("caption", {}, [t("dv_test_on_course")]), el("tbody", {}, rows)]),
+        el("table", { class: "dv-test-table" }, [el("caption", {}, [t("dv_test_flat")]), el("tbody", {}, mrows)])
+      ])
+    ]);
+    requestAnimationFrame(function () {
+      var opts = { sections: st, labels: h.plan, trace: r.trace, tracePrev: h.prev ? h.prev.res.trace : null, traceDs: r.traceDs };
+      var redraw = function (hv) { opts.hover = hv; drawStrip(cv, tr, opts); };
+      redraw(null);
+      cv._extra = function (s) {
+        var k = Math.floor((s - tr.start) / r.traceDs), v = r.trace[k], pv = h.prev ? h.prev.res.trace[k] : undefined;
+        return v ? "🚗 " + v + " km/h" + (pv ? "（" + t("dv_test_prev") + " " + pv + "）" : "") : "";
+      };
+      stripHover(cv, tr, tip, redraw, null);
+    });
+    return box;
   }
 
   // ---------------- 外框 ----------------
@@ -718,7 +1090,6 @@
     // 預覽＋資訊
     var tr = previewTrack(), info = trackCache.info;
     var map = el("canvas", { class: "dv-map" }, []);
-    var elev = el("canvas", { class: "dv-elev" }, []);
     var warn = [];
     if (info.cross) warn.push(el("p", { class: "dv-muted" }, [t("dv_cross", { n: info.cross })]));
     if (tr.rain) warn.push(el("p", { class: "dv-muted" }, ["🌧 " + t("dv_rain_forecast")]));
@@ -764,17 +1135,18 @@
           setup.season === "winter" ? el("span", {}, [el("i", { style: "background:" + PATCH_COLOR.ice }, []), t("dv_patch_ice")]) : null,
           tr.rain ? el("span", {}, [el("i", { style: "background:" + PATCH_COLOR.puddle }, []), t("dv_patch_puddle")]) : null
         ])
-      ].concat(warn))]),
-      elev
+      ].concat(warn))])
     ]);
     app.appendChild(prev);
+    // 賽道資料（2026-10-31）：剖面圖（滑鼠移上去看每一點）、彎道／坡度／路面分布、彎道清單；高低差剖面併進這裡
+    if (info.len >= 300) app.appendChild(renderTrackData(tr, map));
     app.appendChild(renderSegEditor());
     app.appendChild(el("div", { class: "dv-actions dv-next" }, [
       btn(t("dv_back"), function () { go("setup"); }),
       btn(t("dv_next_garage"), function () { go("garage"); }, "dv-primary", info.len < 300 || buildPending())
     ]));
     if (info.len < 300) app.appendChild(el("p", { class: "dv-muted dv-right" }, [t("dv_too_short")]));
-    requestAnimationFrame(function () { drawMap(map, tr, { owners: !!setup.build }); drawElev(elev, tr); });
+    requestAnimationFrame(function () { drawMap(map, tr, { owners: !!setup.build }); });
   }
 
   // ---- 固定山路選單（第六批：分類、路線性格、搜尋） ----
@@ -1348,9 +1720,7 @@
     left.appendChild(el("label", { class: "dv-range" }, [t("dv_gear"), el("input", {
       type: "range", min: "-2", max: "2", step: "1", value: String(spec.gear), onchange: upd(function (v) { spec.gear = Number(v); })
     }, []), el("b", {}, [t(spec.gear < 0 ? "dv_gear_short" : spec.gear > 0 ? "dv_gear_long" : "dv_gear_std")])]));
-    left.appendChild(el("h3", {}, [t("dv_style")]));
-    left.appendChild(choice(D.STYLE_IDS, spec.style, function (id) { return L(D.STYLES[id].name); }, upd(function (v) { spec.style = v; })));
-    left.appendChild(el("p", { class: "dv-muted dv-small" }, [t("dv_style_" + spec.style)]));
+    left.appendChild(el("p", { class: "dv-muted dv-small" }, [t("dv_plan_where")]));
     if (spec.car !== "custom") {
       var used = D.UPGRADES.reduce(function (a, u) { return a + (spec.up[u] || 0); }, 0);
       left.appendChild(el("h3", {}, [t("dv_upgrades", { n: pts - used })]));
@@ -1448,7 +1818,12 @@
       over ? el("p", { class: "dv-bad" }, [t("dv_pi_over", { cap: setup.piCap })]) : null,
       over ? el("p", { class: "dv-muted dv-small" }, [t("dv_pi_over_hint")]) : null
     ]);
+    // 試跑（2026-10-31）：調校改了什麼，直接看在這條路上快了／慢了多少
+    var test = testFor(i, setup.cars[i]);
+    right.appendChild(testSummary(test));
     app.appendChild(el("div", { class: "dv-garage" }, [left, right]));
+    app.appendChild(renderPlanPanel(spec, commit));
+    app.appendChild(renderTestPanel(test));
 
     if (setup.cpuCars.length && !legendNow()) {
       app.appendChild(el("div", { class: "dv-panel" }, [
@@ -1478,6 +1853,9 @@
     if (k === "susp") return v === 0 ? t("dv_tune_std") : (v < 0 ? t("dv_tune_soft") : t("dv_tune_hard")) + " " + Math.abs(v);
     if (k === "rst") return v ? "−" + v + "%" : t("dv_tune_off");
     if (k === "blst") return v ? "+" + v + " kg" : t("dv_tune_off");
+    // 2026-10-31 追加：雙向的調校顯示「哪一邊 幾級」
+    var two = { press: ["dv_tune_low", "dv_tune_high"], bias: ["dv_tune_rear", "dv_tune_front"], ride: ["dv_tune_low", "dv_tune_high"], arb: ["dv_tune_stable", "dv_tune_agile"] }[k];
+    if (two) return v === 0 ? t("dv_tune_std") : t(two[v < 0 ? 0 : 1]) + " " + Math.abs(v);
     return v ? String(v) : t("dv_tune_off");
   }
   function brandName(id) { for (var i = 0; i < D.BRANDS.length; i++) if (D.BRANDS[i].id === id) return D.BRANDS[i].id === "custom" ? "" : D.BRANDS[i].name; return ""; }
@@ -1701,7 +2079,24 @@
       out.champ = entries;
     }
     if (cx.bet) out.bet = Object.assign({}, cx.bet, M.settleBet(cx.bet, res));
+    // 連戰積分（2026-10-31）：重播、連線、山道傳說以外的每一場都依名次累積
+    if (!cx.replay && !cx.net && !cx.legend) {
+      var add = M.addSeries(seriesSig(), res.map(function (r) { return { key: r.id < np ? "p" + r.id : "c" + (r.id - np), pos: r.pos, state: r.state }; }));
+      out.series = { pts: add.pts, races: add.s.races };
+    }
     return out;
+  }
+  function seriesSig() { return setup.players.length + "|" + setup.cpu; }
+  function seriesPanel(p) {
+    var s = M.series(seriesSig());
+    if (!s.races) return null;
+    var last = p ? Object.keys(p.pts).map(function (k) { return { key: k, pts: p.pts[k] }; }) : null;
+    return el("div", { class: "dv-series" }, [
+      el("h3", {}, ["🏁 " + t("dv_series") + "　" + t("dv_series_n", { n: s.races })]),
+      el("p", { class: "dv-small dv-muted" }, [t("dv_series_desc")]),
+      champTable(s, 0, last),
+      el("div", { class: "dv-actions" }, [btn(t("dv_series_reset"), function () { M.resetSeries(); if (ui.post) ui.post.series = null; render(); }, "dv-link")])
+    ]);
   }
   function renderPost() {
     var p = ui.post || {}, lines = [];
@@ -1714,6 +2109,7 @@
     if (p.bet) lines.push(el("p", { class: p.bet.ok ? "dv-good" : "dv-bad" }, ["🎰 " + t("dv_bet_on", { name: p.bet.name, kind: t("dv_bet_" + p.bet.kind), n: p.bet.amount }) +
       " ×" + p.bet.odds.toFixed(1) + "　" + (p.bet.ok ? t("dv_bet_hit", { n: p.bet.pay }) : t("dv_bet_miss")) + "　" + t("dv_chips", { n: p.bet.chips }) +
       (p.bet.rescued ? "　" + t("dv_bet_rescue", { n: M.BET_RESCUE }) : "")]));
+    if (p.series) { var sp = seriesPanel(p.series); if (sp) lines.push(sp); }
     var ch = setup.champ;
     if (p.champ && ch) {
       var done = ch.round >= ch.plan.length, top = M.champStandings(ch)[0];
@@ -2117,7 +2513,7 @@
   function humanCars() { return ui.race.cars.filter(function (c) { return !c.cpu && (!ui.net || ui.net.ctl.mine(c.id)); }); }
   function renderTactics() {
     var cars = humanCars();
-    var sig = cars.map(function (c) { return c.styleId + c.state + (c.hand ? c.hand.join(",") : ""); }).join("|") + lang();
+    var sig = cars.map(function (c) { return c.styleId + c.state + c.planIdx + "/" + c.skips + (c.hand ? c.hand.join(",") : ""); }).join("|") + lang() + ui.race.done;
     if (sig === R.tacSig) return;
     R.tacSig = sig;
     R.tac.innerHTML = "";
@@ -2125,12 +2521,16 @@
     R.tac.appendChild(el("div", { class: "dv-small dv-muted" }, [t("dv_tactic_title") +
       (cars.length === 1 ? "　" + t("dv_tactic_keys") + (wild ? "　" + t("dv_hand_keys") : "") : "")]));
     cars.forEach(function (c) {
+      // 攻略法（2026-10-31）：照賽前排的順序自動執行；比賽中只能「提前換下一個」，每場 D.PLAN_SKIPS 次
+      var left = D.PLAN_SKIPS - c.skips;
       R.tac.appendChild(el("div", { class: "dv-tac-row" }, [
         el("span", { class: "dv-tac-name" }, [el("i", { class: "dv-dot", style: "background:" + c.color }, []), c.name]),
-        el("div", { class: "dv-choice" }, D.STYLE_IDS.map(function (id) {
-          return btn(L(D.STYLES[id].name), function () { if (doCmd({ car: c.id, style: id })) renderTactics(); },
-            (c.styleId === id ? "dv-on " : "") + "dv-tac-" + id, c.state !== "run" || ui.race.done);
+        el("div", { class: "dv-plan-prog" }, c.plan.map(function (id, j) {
+          return el("span", { class: "dv-plan-chip" + (j === c.planIdx ? " dv-on" : j < c.planIdx ? " dv-done" : ""), style: "border-color:" + PLAN_COLOR[j % PLAN_COLOR.length] },
+            [(j + 1) + " " + L(D.STYLES[id].name)]);
         })),
+        btn("⏭ " + t("dv_plan_skip", { n: left }), function () { if (doCmd({ car: c.id, style: "next" })) renderTactics(); }, "dv-plan-skip",
+          c.state !== "run" || ui.race.done || left <= 0 || c.planIdx + 1 >= c.plan.length),
         wild ? el("div", { class: "dv-hand" }, c.hand.length ? c.hand.map(function (id, idx) {
           return el("button", {
             type: "button", class: "dv-hcard dv-hcard-" + id, title: t("dv_cardd_" + id), disabled: c.state !== "run" || ui.race.done,
@@ -2143,9 +2543,8 @@
   document.addEventListener("keydown", function (e) {
     if (ui.screen !== "race" || !ui.race || e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     var cars = humanCars();
-    var k = "1234".indexOf(e.key);
     var ci = "qwe".indexOf(String(e.key).toLowerCase());
-    if (k >= 0 && cars.length === 1) { doCmd({ car: cars[0].id, style: D.STYLE_IDS[k] }); renderTactics(); }
+    if ((e.key === "n" || e.key === "N") && cars.length === 1) { doCmd({ car: cars[0].id, style: "next" }); renderTactics(); }
     else if (ci >= 0 && cars.length === 1 && ui.race.wild) { doCmd({ car: cars[0].id, card: cars[0].hand[ci] }); renderTactics(); }
     else if (e.key === "c" || e.key === "C") { ui.camMode = CAMS[(CAMS.indexOf(ui.camMode) + 1) % CAMS.length]; ui.cam = null; ui.tvRp = null; renderCtrl(); }
     else if (e.key === " " && !ui.net) { ui.paused = !ui.paused; renderCtrl(); e.preventDefault(); }
@@ -2222,6 +2621,7 @@
     if (e.type === "charge") return e.card ? t("dv_ev_charge", { name: c.name, card: D.CARDS[e.card].icon + t("dv_card_" + e.card) }) : t("dv_ev_charge_boost", { name: c.name });
     if (e.type === "fin") return t("dv_ev_fin", { name: c.name, time: fmtTime(c.finT) });
     if (e.type === "tactic") return t("dv_ev_tactic", { name: c.name, style: L(D.STYLES[e.style].name) });
+    if (e.type === "plan") return t(e.skip ? "dv_ev_plan_skip" : "dv_ev_plan", { name: c.name, n: e.idx + 1, style: L(D.STYLES[e.style].name) });
     return "";
   }
 
@@ -3068,10 +3468,11 @@
       ]);
     }));
     var tbl = el("table", { class: "dv-results" }, [
-      el("thead", {}, [el("tr", {}, ["dv_r_pos", "dv_r_name", "dv_r_car", "dv_r_time", "dv_r_gap", "dv_r_max", "dv_r_drift", "dv_r_spin", "dv_r_pass"].concat(wearCols ? ["dv_r_wear"] : []).map(function (k) { return el("th", {}, [t(k)]); }))]),
+      el("thead", {}, [el("tr", {}, ["dv_r_pos", "dv_r_pts", "dv_r_name", "dv_r_car", "dv_r_time", "dv_r_gap", "dv_r_max", "dv_r_drift", "dv_r_spin", "dv_r_pass"].concat(wearCols ? ["dv_r_wear"] : []).map(function (k) { return el("th", {}, [t(k)]); }))]),
       el("tbody", {}, res.map(function (r) {
         return el("tr", { class: r.state === "dnf" ? "dv-dnf" : "" }, [
           el("td", {}, [r.state === "fin" ? String(r.pos) : "—"]),
+          el("td", {}, [el("b", {}, [String(M.champPoints(r.pos, r.state))])]),
           el("td", {}, [el("i", { class: "dv-dot", style: "background:" + r.color }, []), r.name]),
           el("td", {}, [r.car]),
           el("td", {}, [r.state === "fin" ? fmtTime(r.time) : t(r.dnf === "time" ? "dv_dnf_time" : "dv_dnf") + "（" + (r.dist / 1000).toFixed(2) + " km）"]),
@@ -3220,7 +3621,7 @@
     setup: function () { return JSON.parse(JSON.stringify(setup)); },
     ui: function () {
       return { screen: ui.screen, tab: ui.tab, courseTab: ui.courseTab, follow: ui.follow, replay: !!(ui.rp && ui.race && ui.race.t >= ui.rp.t1),
-        final: !!ui.final, finHold: ui.finHold ? ui.finHold.id : null, recFrames: ui.rec ? ui.rec.t.length : 0 };
+        final: !!ui.final, finHold: ui.finHold ? ui.finHold.id : null, recFrames: ui.rec ? ui.rec.t.length : 0, tests: ui.tests || {}, post: ui.post || null };
     },
     race: function () { return ui.race; },
     scene: function () {
