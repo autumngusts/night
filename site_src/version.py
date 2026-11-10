@@ -14,4 +14,4 @@ main 都要遞增，commit message 也要註明對應版本號。
 
 from __future__ import annotations
 
-VERSION = "2.44.1"
+VERSION = "2.45.0"
