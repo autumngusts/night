@@ -146,4 +146,16 @@ PROJECTS = [
         "name_key": "project_champ_name",
         "desc_key": "project_champ_desc",
     },
+    {
+        "id": "natsu",
+        "href": "natsu/index.html",
+        "name_key": "project_natsu_name",
+        "desc_key": "project_natsu_desc",
+    },
+    {
+        "id": "tour",
+        "href": "tour/index.html",
+        "name_key": "project_tour_name",
+        "desc_key": "project_tour_desc",
+    },
 ]

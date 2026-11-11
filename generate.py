@@ -39,6 +39,8 @@ from site_src.izakaya_page import IZAKAYA_SCRIPTS, build_izakaya_html
 from site_src.yoi_page import YOI_SCRIPTS, build_yoi_html
 from site_src.sennyu_page import SENNYU_SCRIPTS, build_sennyu_html
 from site_src.champ_page import CHAMP_SCRIPTS, build_champ_html
+from site_src.natsu_page import NATSU_SCRIPTS, build_natsu_html
+from site_src.tour_page import TOUR_SCRIPTS, build_tour_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -68,6 +70,8 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "mahou": ("mh_",),
     "izakaya": ("iz_",),
     "champ": ("cc_",),
+    "natsu": ("nt_",),
+    "tour": ("tr_",),
 }
 
 
@@ -171,6 +175,8 @@ def build_static_assets() -> None:
         *YOI_SCRIPTS,
         *SENNYU_SCRIPTS,
         *CHAMP_SCRIPTS,
+        *NATSU_SCRIPTS,
+        *TOUR_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -314,11 +320,17 @@ def build_pages() -> None:
     champ_dir = DIST_DIR / "champ"
     champ_dir.mkdir(parents=True, exist_ok=True)
     (champ_dir / "index.html").write_text(build_champ_html(), encoding="utf-8")
+    natsu_dir = DIST_DIR / "natsu"
+    natsu_dir.mkdir(parents=True, exist_ok=True)
+    (natsu_dir / "index.html").write_text(build_natsu_html(), encoding="utf-8")
+    tour_dir = DIST_DIR / "tour"
+    tour_dir.mkdir(parents=True, exist_ok=True)
+    (tour_dir / "index.html").write_text(build_tour_html(), encoding="utf-8")
 
 
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
