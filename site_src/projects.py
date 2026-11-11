@@ -170,4 +170,22 @@ PROJECTS = [
         "name_key": "project_nest_name",
         "desc_key": "project_nest_desc",
     },
+    {
+        "id": "maou",
+        "href": "maou/index.html",
+        "name_key": "project_maou_name",
+        "desc_key": "project_maou_desc",
+    },
+    {
+        "id": "isle",
+        "href": "isle/index.html",
+        "name_key": "project_isle_name",
+        "desc_key": "project_isle_desc",
+    },
+    {
+        "id": "phone",
+        "href": "phone/index.html",
+        "name_key": "project_phone_name",
+        "desc_key": "project_phone_desc",
+    },
 ]
