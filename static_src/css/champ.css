@@ -276,3 +276,54 @@
 .cc-opts { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
 .cc-storybox { width: min(32rem, 100%) !important; }
 .cc-storybox .cc-line { text-align: left; }
+
+/* 2026-11-11 第三版：局中指令、事件、默契、俱樂部、成就、相簿、頒獎 */
+.cc-order { display: none; position: absolute; inset: 0; background: rgba(8, 12, 24, 0.72); color: #fff; padding: 0.8rem; overflow: auto; }
+.cc-order.cc-order-on { display: flex; flex-direction: column; justify-content: center; align-items: center; animation: cc-pop 0.25s ease-out; }
+.cc-order h3 { margin: 0 0 0.2rem; }
+.cc-order .cc-small { opacity: 0.85; }
+.cc-orders { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.45rem; width: min(52rem, 100%); margin-top: 0.5rem; }
+.cc-orders .cc-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; text-align: left; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.3); color: #fff !important; }
+.cc-orders .cc-btn:hover { background: rgba(255, 111, 168, 0.25); }
+.cc-orders small { font-size: 0.78em; opacity: 0.85; line-height: 1.45; }
+.cc-evbox { width: min(34rem, 100%) !important; }
+.cc-evbox h3 { margin: 0.3rem 0; }
+.cc-two { display: flex; justify-content: center; gap: 0.6rem; }
+.cc-two img { width: 7rem !important; height: 7rem !important; }
+.cc-pickp { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.35rem; margin: 0.5rem 0; text-align: left; }
+.cc-pickp .cc-mini img { width: 2.6rem; height: 2.6rem; }
+.cc-rival { display: flex; gap: 0.8rem; align-items: center; border-color: #e0452f; background: linear-gradient(90deg, rgba(224, 69, 47, 0.12), transparent); }
+.cc-rival img { width: 4.2rem; height: 4.2rem; border-radius: 50%; object-fit: cover; border: 3px solid #e0452f; flex: none; }
+.cc-rival h2 { margin: 0 0 0.2rem; }
+.cc-rimg { width: 3rem; height: 3rem; border-radius: 8px; object-fit: cover; }
+.cc-chem td, .cc-chem th { text-align: center; }
+.cc-ch4 { background: rgba(224, 69, 123, 0.35); font-weight: bold; }
+.cc-ch3 { background: rgba(224, 69, 123, 0.18); }
+.cc-ch2 { background: rgba(127, 127, 127, 0.12); }
+.cc-ch1 { background: rgba(74, 143, 216, 0.15); }
+.cc-ch0 { background: rgba(74, 143, 216, 0.35); }
+.cc-chemlist { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.cc-chemchip { font-size: 0.82em; padding: 0.1rem 0.5rem; border-radius: 999px; }
+.cc-chals { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.4rem; }
+.cc-chals small, .cc-fac small { font-size: 0.78em; opacity: 0.8; line-height: 1.45; text-align: center; }
+.cc-facs { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.55rem; }
+.cc-fac { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.7rem; border: 1px solid var(--cc-line); border-radius: 10px; text-align: center; }
+.cc-lv { color: var(--cc-gold); letter-spacing: 0.1em; }
+.cc-legend { border-color: var(--cc-gold); box-shadow: 0 0 0 2px rgba(240, 192, 80, 0.3); }
+.cc-secret { font-style: normal; color: #7a4ad0; font-weight: bold; }
+.cc-achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.35rem; }
+.cc-ach { display: flex; flex-direction: column; padding: 0.35rem 0.55rem; border-radius: 8px; border: 1px dashed var(--cc-line); opacity: 0.55; font-size: 0.88em; }
+.cc-ach.cc-on { opacity: 1; border-style: solid; border-color: var(--cc-gold); background: rgba(240, 192, 80, 0.1); }
+.cc-ach small { font-size: 0.8em; opacity: 0.8; }
+.cc-album { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
+.cc-memo { display: flex; gap: 0.5rem; padding: 0.45rem; border-radius: 9px; border: 1px solid var(--cc-line); background: linear-gradient(135deg, rgba(255, 111, 168, 0.06), transparent); }
+.cc-memo img { width: 3.6rem; height: 3.6rem; object-fit: cover; border-radius: 8px; flex: none; }
+.cc-memo div { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.86em; line-height: 1.5; min-width: 0; }
+.cc-awards { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.4rem; margin-bottom: 0.4rem; text-align: left; }
+.cc-award { display: flex; gap: 0.5rem; align-items: center; padding: 0.4rem; border-radius: 9px; border: 1px solid var(--cc-line); }
+.cc-award.cc-me { border-color: var(--cc-gold); background: rgba(240, 192, 80, 0.12); }
+.cc-award img { width: 2.8rem !important; height: 2.8rem !important; border-radius: 50% !important; object-fit: cover; margin: 0 !important; border: none !important; }
+.cc-award div { display: flex; flex-direction: column; }
+.cc-adjust { display: flex; flex-direction: column; gap: 0.3rem; }
+.cc-adjrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.cc-adjrow > span { min-width: 12rem; }

@@ -45,7 +45,7 @@
       case "mid": return [0, 0];
       case "dragon": return [22, 22];
       case "baron": return [-22, -22];
-      case "base": var b = BASE[loseSide]; return [b[0] * 0.82, b[1] * 0.82];
+      case "base": var b = BASE[m.type === "defend" ? winSide : loseSide]; return [b[0] * 0.82, b[1] * 0.82];
     }
     return [0, 0];
   }

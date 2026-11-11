@@ -4,14 +4,14 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestChampData, Core = window.PriTestChampCore, V3 = window.PriTestChamp3D;
+  var D = window.PriTestChampData, Core = window.PriTestChampCore, V3 = window.PriTestChamp3D, EX = window.PriTestChampExtra, Life = window.PriTestChampLife;
   var L = D.L;
   var app = document.getElementById("cc-app");
   if (!app) return;
   var IMG_BASE = app.getAttribute("data-img") || "../static/images/jikan/";
 
   var ui = { screen: "title", tab: "home", modal: null, flash: null, scene: null, roleFilter: "all", selHero: null, tactic: null,
-    aiTimer: null, replay: null, lastGame: null, newRegion: "tw", leagueView: null, heroRole: "top", datePick: false, dateEv: null, story: null, quote: null, ff: null, preLines: null };
+    aiTimer: null, replay: null, lastGame: null, newRegion: "tw", leagueView: null, heroRole: "top", datePick: false, chal: {}, duoPick: false, dateEv: null, story: null, quote: null, ff: null, preLines: null };
 
   function t(k, p) { return window.I18N ? window.I18N.t("cc_" + k, p) : k; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -59,6 +59,11 @@
     else if (ui.story) h += renderStory();
     else if (ui.quote) h += renderQuote();
     if (ui.scene && !ui.dateEv && !ui.story && !ui.quote) h += renderScene();
+    else if (ui.screen === "hub" && !ui.modal && !ui.dateEv && !ui.story && !ui.quote && Core.get() && Life.current()) h += renderEvent();
+    if (Core.get() && ui.screen !== "title" && ui.screen !== "new") {
+      var na = Life.popNewAch();
+      if (na.length) { Core.save(); ui.flash = "🏅 " + t("ach_unlocked") + "：" + na.map(function (id) { return L(EX.ACH_BY_ID[id].name); }).join("、"); }
+    }
     if (ui.flash) h += '<div class="cc-toast">' + esc(ui.flash).replace(/\n/g, "<br>") + "</div>";
     app.innerHTML = h;
     if (ui.screen === "replay") startReplay();
@@ -79,9 +84,19 @@
     if (!has && Core.oldSave()) h += '<p class="cc-event">' + esc(t("old_save")) + "</p>";
     if (has) h += '<button class="cc-btn cc-primary" data-act="continue">▶ ' + esc(t("continue")) + " — " + esc(S().teams.me.name) + "（" + esc(weekLabel()) + "）</button>";
     h += '<button class="cc-btn' + (has ? "" : " cc-primary") + '" data-act="to-new">✚ ' + esc(t("new_game")) + "</button></div></div>";
+    var got = Life.achState(), gn = Object.keys(got).length;
+    h += '<div class="cc-panel"><h2>🏅 ' + esc(t("ach_title")) + " " + gn + "/" + EX.ACH.length + '</h2><div class="cc-achs">' + achGrid(got) + "</div></div>";
     h += '<div class="cc-panel"><h2>' + esc(t("how_title")) + '</h2><ol class="cc-rules">';
-    for (var i = 1; i <= 9; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
+    for (var i = 1; i <= 12; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
     h += "</ol></div>";
+    return h;
+  }
+  function achGrid(got) {
+    var h = "";
+    EX.ACH.forEach(function (a) {
+      var on = !!got[a.id];
+      h += '<span class="cc-ach' + (on ? " cc-on" : "") + '" title="' + esc(L(a.desc)) + '"><b>' + (on ? a.icon : "🔒") + " " + esc(L(a.name)) + '</b><small>' + esc(L(a.desc)) + "</small></span>";
+    });
     return h;
   }
   function renderNew() {
@@ -98,12 +113,15 @@
     var r0 = D.REGION[ui.newRegion];
     h += '<div class="cc-panel">' + (r0.lore ? '<p class="cc-lore">📜 ' + esc(L(r0.lore)) + "</p>" : "") + "<p>" + esc(t("diff_desc_" + r0.diff)) + '</p><label class="cc-field">' + esc(t("team_name")) +
       ' <input id="cc-teamname" maxlength="24" value="' + esc(t("default_team")) + '"></label>' +
+      '<h3>' + esc(t("chal_title")) + '</h3><div class="cc-chals">' + EX.CHALLENGES.map(function (c) {
+        return '<button class="cc-fbtn' + (ui.chal[c.id] ? " cc-on" : "") + '" data-act="chal" data-id="' + c.id + '"><span class="cc-ficon">' + c.icon + "</span><b>" + esc(L(c.name)) + '</b><small>' + esc(L(c.desc)) + "</small></button>";
+      }).join("") + "</div>" +
       '<div class="cc-actions"><button class="cc-btn cc-primary" data-act="start">' + esc(t("start_career", { region: L(r0.name) })) + "</button></div></div>";
     return h;
   }
 
   // ================= 總覽（分頁） =================
-  var TABS = ["home", "roster", "train", "scout", "league", "heroes", "records"];
+  var TABS = ["home", "roster", "train", "scout", "league", "heroes", "club", "records"];
   function renderHub() {
     var s = S();
     var h = '<div class="cc-top"><h1 class="cc-h1">' + esc(s.teams.me.name) + " " + flagOf(s.region) + '</h1><span class="cc-week">' + esc(weekLabel()) + "</span></div>";
@@ -117,6 +135,7 @@
     else if (ui.tab === "scout") h += renderScout();
     else if (ui.tab === "league") h += renderLeague();
     else if (ui.tab === "heroes") h += renderHeroes();
+    else if (ui.tab === "club") h += renderClub();
     else h += renderRecords();
     h += '<div class="cc-foot"><button class="cc-btn cc-small" data-act="to-title">' + esc(t("to_title")) + "</button></div>";
     return h;
@@ -142,6 +161,8 @@
         h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="resume">▶ ' + esc(t("resume_match", { a: s.series.wins.me, b: s.series.wins.opp })) + "</button></div>";
       } else if (!s.done) {
         h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="match">⚔ ' + esc(t("go_match")) + '</button><button class="cc-btn" data-act="auto">🤖 ' + esc(t("auto_match")) + "</button></div>";
+        if (Core.researched(m.opp)) h += '<p class="cc-small cc-center">🔍 ' + esc(t("research_info", { style: L(D.TACTIC[opp.style || "fight"].name) })) + "</p>";
+        else h += '<div class="cc-actions cc-center"><button class="cc-btn" data-act="research">🔍 ' + esc(t((s.fac && s.fac.analyst >= 2) ? "research_free" : "research_btn")) + "</button></div>";
         h += '<p class="cc-small cc-muted cc-center">' + esc(t("prep_hint")) + "</p>";
       } else if (s.series) {
         var win = s.series.wins.me > s.series.wins.opp;
@@ -151,13 +172,28 @@
       h += "<p>" + esc(t("no_match")) + "</p>";
     }
     h += '<div class="cc-actions cc-center"><button class="cc-btn cc-next" data-act="advance"' + (Core.canAdvance() ? "" : " disabled") + ">" + esc(t("next_week")) + " ▶</button></div>";
-    if (s.lastBudget) h += '<p class="cc-small cc-muted cc-center">' + esc(t("budget_line", { inc: money(s.lastBudget.income), wage: money(s.lastBudget.wage) })) + "</p>";
+    if (s.lastBudget) h += '<p class="cc-small cc-muted cc-center">' + esc(t("budget_line", { inc: money(s.lastBudget.income), wage: money(s.lastBudget.wage) })) + (s.lastBudget.upkeep ? "・" + esc(t("upkeep_line", { v: money(s.lastBudget.upkeep) })) : "") + "</p>";
     h += "</div>";
     // 互動
     h += '<div class="cc-panel"><h2>' + esc(t("ap_title")) + ' <span class="cc-ap">⚡' + s.ap + "</span></h2><p class=\"cc-small\">" + esc(t("ap_hint")) + "</p>";
     h += '<div class="cc-actions"><button class="cc-btn" data-act="dinner"' + (s.ap < 1 ? " disabled" : "") + ">🍲 " + esc(t("act_dinner", { cost: 8 + s.roster.length })) + "</button></div>";
     if (s.lastEvent) h += '<p class="cc-event">📣 ' + esc(s.lastEvent) + "</p>";
     h += "</div></div>";
+    // 合約到期（休賽季）
+    var exp = Life.expiring();
+    if (exp.length) {
+      h += '<div class="cc-panel cc-offer"><h2>📝 ' + esc(t("contract_title")) + '</h2><p class="cc-small">' + esc(t("contract_hint")) + "</p>";
+      exp.forEach(function (p) {
+        var c = Life.renewCost(p);
+        h += '<div class="cc-prow"><img class="cc-rimg" src="' + photo(p) + '" alt=""><div class="cc-pinfo"><b>' + esc(p.handle) + '</b><span class="cc-small">OVR ' + Core.ovrI(p) + "・" + esc(t("aff")) + " " + Math.round(p.aff) + "・" + esc(t("renew_terms", { sal: money(c.salary), bonus: money(c.bonus) })) + '</span></div><button class="cc-btn cc-primary" data-act="renew" data-id="' + p.id + '">' + esc(t("renew")) + "</button></div>";
+      });
+      h += "</div>";
+    }
+    // 宿敵
+    var rv = s.rival && Core.person(s.rival.pid);
+    if (rv) {
+      h += '<div class="cc-panel cc-rival"><img src="' + photo(rv) + '" alt=""><div><h2>🔥 ' + esc(t("rival_title")) + "：" + esc(rv.handle) + '</h2><p class="cc-small">' + esc(Core.teamName(s.rival.team)) + "・" + esc(roleName(rv.role)) + " OVR " + Core.ovrI(rv) + "・" + esc(t("rival_rec", { w: s.rivalRec.w, l: s.rivalRec.l })) + "</p></div></div>";
+    }
     // 一軍
     h += '<div class="cc-panel"><h2>' + esc(t("lineup")) + '</h2><div class="cc-minis">';
     D.ROLES.forEach(function (r) { var p = Core.person(s.lineup[r]); if (p) h += miniCard(p, hearts(p.aff)); });
@@ -173,7 +209,7 @@
     var s = S();
     return '<div class="cc-prow' + (starter ? " cc-starter" : "") + '"><button class="cc-pimg" data-act="open" data-id="' + p.id + '"><img src="' + photo(p) + '" alt="" loading="lazy"></button>' +
       '<div class="cc-pinfo"><div><b>' + esc(p.handle) + '</b> <span class="cc-muted cc-small">' + esc(p.name) + "・" + t("age_n", { n: p.age }) + "・" + esc(L(D.TRAIT[p.trait].name)) + "</span> " + (p.region !== s.region ? flagOf(p.region) : "") + "</div>" +
-      '<div class="cc-small">OVR <b>' + Core.ovrI(p) + "</b>・" + esc(t("pot")) + " " + grade(p.pot) + "・" + condBadge(p) + "・" + hearts(p.aff) + "</div>" +
+      '<div class="cc-small">OVR <b>' + Core.ovrI(p) + "</b>・" + esc(t("pot")) + " " + grade(p.pot) + "・" + condBadge(p) + "・" + hearts(p.aff) + "・📝" + esc(t("contract_y", { n: Math.max(0, p.contract || 0) })) + "</div>" +
       '<div class="cc-small cc-meters">' + esc(t("mood")) + bar(p.mood, "cc-b-mood") + esc(t("fatigue")) + bar(p.fatigue, "cc-b-fat") + "</div></div>" +
       '<div class="cc-pact">' + (starter ? '<span class="cc-tag1">' + esc(t("squad1")) + "</span>" : '<button class="cc-btn cc-small" data-act="promote" data-id="' + p.id + '">' + esc(t("make_starter")) + "</button>") +
       '<button class="cc-btn cc-small" data-act="open" data-id="' + p.id + '">' + esc(t("detail")) + "</button></div></div>";
@@ -186,9 +222,24 @@
       if (st) h += playerRow(st, true);
       s.roster.forEach(function (id) { var p = Core.person(id); if (p.role === r && id !== s.lineup[r]) h += playerRow(p, false); });
     });
-    return h + "</div>";
+    h += "</div>" + chemTable();
+    return h;
   }
 
+  // 一軍的默契表
+  function chemCls(v) { return v >= 70 ? "cc-ch4" : v >= 45 ? "cc-ch3" : v >= 20 ? "cc-ch2" : v >= 0 ? "cc-ch1" : "cc-ch0"; }
+  function chemTable() {
+    var s = S(), ids = D.ROLES.map(function (r) { return s.lineup[r]; });
+    var h = '<div class="cc-panel"><h2>🤝 ' + esc(t("chem_title")) + ' <span class="cc-small">' + esc(t("chem_bonus", { v: (Core.chemBonus() >= 0 ? "+" : "") + Core.chemBonus().toFixed(1) })) + '</span></h2><p class="cc-small cc-muted">' + esc(t("chem_hint")) + '</p><table class="cc-table cc-chem"><tr><th></th>';
+    ids.forEach(function (id) { h += "<th>" + esc(Core.person(id).handle) + "</th>"; });
+    h += "</tr>";
+    ids.forEach(function (a) {
+      h += "<tr><th>" + esc(Core.person(a).handle) + "</th>";
+      ids.forEach(function (b) { if (a === b) h += "<td>—</td>"; else { var v = Math.round(Core.chem(a, b)); h += '<td class="' + chemCls(v) + '">' + v + "</td>"; } });
+      h += "</tr>";
+    });
+    return h + "</table></div>";
+  }
   function renderTrain() {
     var s = S(), h = "";
     [1, 2].forEach(function (which) {
@@ -206,20 +257,36 @@
     return h;
   }
 
+  function renderMarket() {
+    var s = S();
+    if (s.chal && s.chal.nomarket) return '<div class="cc-panel"><h2>💱 ' + esc(t("market_title")) + '</h2><p class="cc-muted">' + esc(t("market_closed")) + "</p></div>";
+    var h = '<div class="cc-panel"><h2>💱 ' + esc(t("market_title")) + '</h2><p class="cc-small cc-muted">' + esc(t("market_hint")) + '</p><div class="cc-scouts">';
+    var list = Life.marketList();
+    if (!list.length) h += "<p>" + esc(t("scout_none")) + "</p>";
+    list.forEach(function (p) {
+      h += '<div class="cc-scard"><img src="' + photo(p) + '" alt="" loading="lazy"><div><b>' + esc(p.handle) + "</b> " + flagOf(p.region) +
+        '<div class="cc-small">' + esc(Core.teamName(p.team)) + "・" + esc(roleName(p.role)) + "・" + t("age_n", { n: p.age }) + "・" + esc(L(D.TRAIT[p.trait].name)) + "</div>" +
+        '<div class="cc-small">OVR <b>' + Core.ovrI(p) + "</b>・" + esc(t("pot")) + " " + grade(p.pot) + "</div>" +
+        '<div class="cc-small">' + esc(t("sig_heroes")) + "：" + Core.topHeroes(p, 2).map(heroName).map(esc).join("、") + "</div>" +
+        '<div class="cc-actions"><button class="cc-btn cc-small cc-primary" data-act="buy" data-id="' + p.id + '">💱 ' + esc(t("buy", { fee: money(Life.marketFee(p)) })) + "</button></div></div></div>";
+    });
+    return h + "</div></div>";
+  }
   function renderScout() {
     var s = S(), h = '<div class="cc-panel"><h2>' + esc(t("scout_title")) + '</h2><p class="cc-small cc-muted">' + esc(t("scout_hint", { n: s.roster.length })) + '</p><div class="cc-scouts">';
     if (!s.scouts.length) h += "<p>" + esc(t("scout_none")) + "</p>";
+    var mk = renderMarket();
     s.scouts.forEach(function (id) {
       var p = Core.person(id);
       if (!p) return;
-      h += '<div class="cc-scard"><img src="' + photo(p) + '" alt="" loading="lazy"><div><b>' + esc(p.handle) + "</b> " + flagOf(p.region) + (p.foreign ? ' <span class="cc-tag1">' + esc(t("foreign")) + "</span>" : "") +
+      h += '<div class="cc-scard' + (p.legend ? " cc-legend" : "") + '"><img src="' + photo(p) + '" alt="" loading="lazy"><div><b>' + esc(p.handle) + "</b> " + flagOf(p.region) + (p.foreign ? ' <span class="cc-tag1">' + esc(t("foreign")) + "</span>" : "") + (p.legend ? ' <span class="cc-tag1">✨' + esc(t("legend")) + "</span>" : "") +
         '<div class="cc-small">' + esc(p.name) + "・" + esc(roleName(p.role)) + "・" + t("age_n", { n: p.age }) + "・" + esc(L(D.TRAIT[p.trait].name)) + "</div>" +
         '<div class="cc-small">OVR <b>' + Core.ovrI(p) + "</b>・" + esc(t("pot")) + " " + (p.known ? "<b>" + grade(p.pot) + "</b>" : "?") + "・" + esc(t("salary")) + " " + money(p.salary) + "/" + esc(t("wk")) + "</div>" +
         '<div class="cc-small">' + esc(t("sig_heroes")) + "：" + Core.topHeroes(p, 2).map(heroName).map(esc).join("、") + "</div>" +
         '<div class="cc-actions">' + (p.known ? "" : '<button class="cc-btn cc-small" data-act="tryout" data-id="' + p.id + '">🔍 ' + esc(t("tryout")) + "</button>") +
         '<button class="cc-btn cc-small cc-primary" data-act="sign" data-id="' + p.id + '">✍ ' + esc(t("sign", { fee: money(Core.signFee(p)) })) + "</button></div></div></div>";
     });
-    return h + "</div></div>";
+    return h + "</div></div>" + mk;
   }
 
   function teamCell(id) { var tm = Core.team(id); return (id === "me" ? "<b>" : "") + esc(tm.name) + (id === "me" ? "</b>" : ""); }
@@ -311,6 +378,15 @@
     return h + "</div></div>";
   }
 
+  function renderClub() {
+    var s = S(), h = '<div class="cc-panel"><h2>🏢 ' + esc(t("club_title")) + '</h2><p class="cc-small cc-muted">' + esc(t("club_hint")) + '</p><div class="cc-facs">';
+    EX.FACILITIES.forEach(function (f) {
+      var lv = (s.fac && s.fac[f.id]) || 0, c = Life.facCost(f.id);
+      h += '<div class="cc-fac"><div class="cc-ficon">' + f.icon + "</div><b>" + esc(L(f.name)) + " Lv" + lv + '</b><span class="cc-lv">' + "★★★".slice(0, lv) + "☆☆☆".slice(0, 3 - lv) + '</span><small>' + esc(L(f.desc)) + "</small>" +
+        (c == null ? '<span class="cc-gold cc-small">MAX</span>' : '<button class="cc-btn cc-small cc-primary" data-act="upgrade" data-id="' + f.id + '"' + (s.funds < c ? " disabled" : "") + ">⬆ " + esc(t("upgrade", { cost: money(c) })) + "</button>") + "</div>";
+    });
+    return h + "</div></div>";
+  }
   function renderRecords() {
     var s = S(), h = '<div class="cc-panel"><h2>' + esc(t("trophies")) + "</h2>";
     if (!s.trophies.length) h += '<p class="cc-muted">' + esc(t("no_trophy")) + "</p>";
@@ -327,7 +403,68 @@
     s.roster.map(Core.person).forEach(function (p) {
       h += "<tr><td>" + esc(p.handle) + "</td><td>" + p.games + "</td><td>" + (p.games ? Math.round(p.wins / p.games * 100) : 0) + "%</td><td>" + ((p.k + p.a) / Math.max(1, p.d)).toFixed(2) + "</td><td>" + p.mvp + "</td></tr>";
     });
-    return h + "</table></div>";
+    h += "</table></div>";
+    // 年度頒獎
+    h += '<div class="cc-panel"><h2>🏅 ' + esc(t("awards_title")) + "</h2>";
+    if (!(s.awards || []).length) h += '<p class="cc-muted">' + esc(t("awards_none")) + "</p>";
+    (s.awards || []).slice().reverse().forEach(function (a) { h += awardBlock(a); });
+    h += "</div>";
+    // 回憶相簿
+    h += '<div class="cc-panel"><h2>📷 ' + esc(t("album_title")) + '</h2><div class="cc-album">';
+    if (!(s.album || []).length) h += '<p class="cc-muted">' + esc(t("album_none")) + "</p>";
+    (s.album || []).slice().reverse().slice(0, 40).forEach(function (x) {
+      h += '<div class="cc-memo">' + (x.img != null ? '<img src="' + IMG_BASE + Core.photoFile(x.img) + '.webp" alt="" loading="lazy">' : "") + '<div><small class="cc-muted">' + esc(t("year_n", { n: x.y })) + "・" + esc(t("album_" + (x.kind === "title" ? "title_kind" : x.kind.replace(/[0-9]+$/, "")))) + "</small><b>" + esc(x.handle) + "</b><span>" + esc(x.text) + "</span></div></div>";
+    });
+    h += "</div></div>";
+    // 成就
+    h += '<div class="cc-panel"><h2>🏆 ' + esc(t("ach_title")) + '</h2><div class="cc-achs">' + achGrid(Life.achState()) + "</div></div>";
+    return h;
+  }
+
+  function awardBlock(a) {
+    function row(icon, key, x, extra) {
+      if (!x) return "";
+      return '<div class="cc-award' + (x.me ? " cc-me" : "") + '">' + (x.img != null ? '<img src="' + IMG_BASE + Core.photoFile(x.img) + '.webp" alt="">' : '<span class="cc-ficon">' + icon + "</span>") + "<div><small>" + icon + " " + esc(t(key)) + "</small><b>" + esc(extra || x.handle) + '</b><span class="cc-small">' + esc(x.team) + "</span></div></div>";
+    }
+    return "<h3>" + esc(t("year_n", { n: a.y })) + '</h3><div class="cc-awards">' + row("🏅", "award_mvp", a.mvp) + row("🌱", "award_rookie", a.rookie) + row("🧢", "award_coach", a.coach, a.coach && (a.coach.me ? t("you") : a.coach.team)) + "</div>";
+  }
+
+  // ================= 事件視窗（生日、節日、修羅場、挖角、結局、頒獎） =================
+  function renderEvent() {
+    var ev = Life.current(), s = S(), h = '<div class="cc-modal cc-scene"><div class="cc-sbox cc-evbox">', p;
+    function face(pp) { return pp ? '<img src="' + photo(pp) + '" alt="">' : ""; }
+    if (ev.t === "bday") {
+      p = Core.person(ev.pid);
+      h += face(p) + '<p class="cc-gold">🎂 ' + esc(t("bday_title", { name: p.handle })) + '</p><p class="cc-small">' + esc(t("bday_hint")) + '</p><div class="cc-opts">';
+      EX.GIFTS.forEach(function (g) { h += '<button class="cc-btn" data-act="ev" data-c="' + g.id + '"' + (s.funds < g.cost ? " disabled" : "") + ">" + g.icon + " " + esc(L(g.name)) + " <small>" + money(g.cost) + "</small></button>"; });
+      h += '<button class="cc-btn" data-act="ev" data-c="words">💬 ' + esc(t("bday_words_btn")) + "</button></div>";
+    } else if (ev.t === "valentine") {
+      p = Core.person(ev.pid);
+      h += face(p) + '<p class="cc-gold">' + EX.HOLIDAY.valentine.icon + " " + esc(L(EX.HOLIDAY.valentine.name)) + '</p><p class="cc-line">' + esc(L(EX.HOLIDAY.valentine.text).replace("{name}", p.handle)) + '</p><div class="cc-opts">';
+      EX.HOLIDAY.valentine.opts.forEach(function (o, i) { h += '<button class="cc-btn" data-act="ev" data-c="' + i + '">' + esc(L(o.t)) + "</button>"; });
+      h += "</div>";
+    } else if (ev.t === "festival" || ev.t === "christmas") {
+      var H = EX.HOLIDAY[ev.t];
+      h += '<p class="cc-gold cc-big">' + H.icon + " " + esc(L(H.name)) + '</p><p class="cc-line">' + esc(L(H.text)) + '</p><div class="cc-pickp">';
+      s.roster.map(Core.person).forEach(function (pp) { h += '<button class="cc-mini" data-act="ev" data-c="' + pp.id + '"><img src="' + photo(pp) + '" alt=""><span class="cc-mini-b"><b>' + esc(pp.handle) + "</b>" + hearts(pp.aff) + "</span></button>"; });
+      h += '</div><div class="cc-opts">' + (ev.t === "christmas" ? '<button class="cc-btn" data-act="ev" data-c="party">🎉 ' + esc(t("party_btn")) + "</button>" : "") + '<button class="cc-btn" data-act="ev" data-c="">' + esc(t("ev_skip")) + "</button></div>";
+    } else if (ev.t === "newyear") {
+      h += '<p class="cc-gold cc-big">' + EX.HOLIDAY.newyear.icon + " " + esc(L(EX.HOLIDAY.newyear.name)) + '</p><p class="cc-line">' + esc(L(EX.HOLIDAY.newyear.text)) + '</p><p class="cc-gold">🎴 ' + esc(L(EX.FORTUNES[ev.fortune])) + '</p><button class="cc-btn cc-primary" data-act="ev" data-c="">OK</button>';
+    } else if (ev.t === "jealous") {
+      var a = Core.person(ev.a), b = Core.person(ev.b), J = EX.JEALOUS;
+      h += '<div class="cc-two">' + face(a) + face(b) + '</div><p class="cc-gold">💢 ' + esc(t("jealous_title")) + '</p><p class="cc-line">' + esc(L(J.text).replace("{a}", a.handle).replace("{b}", b.handle)) + '</p><div class="cc-opts">';
+      J.opts.forEach(function (o) { h += '<button class="cc-btn" data-act="ev" data-c="' + o.id + '">' + esc(L(o.t).replace("{a}", a.handle).replace("{b}", b.handle)) + "</button>"; });
+      h += "</div>";
+    } else if (ev.t === "poach") {
+      p = Core.person(ev.pid);
+      h += face(p) + '<p class="cc-gold">📨 ' + esc(t("poach_title")) + '</p><p class="cc-line">' + esc(t("poach_body", { team: Core.teamName(ev.team), name: p.handle, fee: ev.fee })) + '</p><div class="cc-opts"><button class="cc-btn" data-act="ev" data-c="accept">💰 ' + esc(t("poach_accept_btn", { fee: money(ev.fee) })) + '</button><button class="cc-btn cc-primary" data-act="ev" data-c="refuse">🛡 ' + esc(t("poach_refuse_btn")) + "</button></div>";
+    } else if (ev.t === "ending") {
+      h += '<img src="' + IMG_BASE + Core.photoFile(ev.img) + '.webp" alt=""><p class="cc-gold">' + esc(t("ending_" + ev.tier)) + "</p><h3>" + esc(ev.handle) + ' <small class="cc-muted">' + esc(ev.name) + '</small></h3><p class="cc-small">' + esc(t("leave_" + ev.reason)) + '</p><p class="cc-line">' + esc(ev.text) + '</p><p class="cc-small cc-muted">' + esc(t("ending_stats", { g: ev.games, w: ev.wins, mvp: ev.mvp, aff: ev.aff })) + '</p><button class="cc-btn cc-primary" data-act="ev" data-c="">' + esc(t("ending_ok")) + "</button>";
+    } else if (ev.t === "awards") {
+      var A = (s.awards || []).filter(function (x) { return x.y === ev.y; })[0];
+      h += '<p class="cc-gold cc-big">🏅 ' + esc(t("awards_ceremony", { y: ev.y })) + "</p>" + (A ? awardBlock(A) : "") + '<button class="cc-btn cc-primary" data-act="ev" data-c="">OK</button>';
+    }
+    return h + "</div></div>";
   }
 
   // ================= 選手詳細 =================
@@ -340,7 +477,7 @@
       "<p>" + flagOf(p.region) + " " + D.ROLE[p.role].icon + " " + esc(roleName(p.role)) + "・" + t("age_n", { n: p.age }) + "・" + esc(L(tr.name)) + "</p>" +
       "<p>OVR <b class=\"cc-big\">" + Core.ovrI(p) + "</b>　" + esc(t("pot")) + " " + grade(p.pot) + "　" + condBadge(p) + "</p>" +
       '<p class="cc-small">' + esc(t("mood")) + bar(p.mood, "cc-b-mood") + " " + esc(t("fatigue")) + bar(p.fatigue, "cc-b-fat") + " " + esc(t("aff")) + " " + hearts(p.aff) + " " + Math.round(p.aff) + "</p>" +
-      '<p class="cc-small">' + esc(t("salary")) + " " + money(p.salary) + "/" + esc(t("wk")) + "・" + esc(p.squad === 1 ? t("squad1") : t("squad2")) + "</p></div></div>";
+      '<p class="cc-small">' + esc(t("salary")) + " " + money(p.salary) + "/" + esc(t("wk")) + "・" + esc(p.squad === 1 ? t("squad1") : t("squad2")) + (mine ? "・📝" + esc(t("contract_y", { n: Math.max(0, p.contract || 0) })) : "") + "</p></div></div>";
     h += '<div class="cc-stats">';
     D.STATS.forEach(function (k) { h += '<div class="cc-stat"><span>' + esc(L(D.STAT[k])) + "</span>" + bar(p.stats[k], "cc-b-stat") + "<b>" + Math.round(p.stats[k]) + "</b></div>"; });
     h += "</div>";
@@ -360,6 +497,16 @@
         '<button class="cc-btn" data-act="datepick" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">💕 " + esc(t("act_date")) + "</button>" +
         '<button class="cc-btn cc-hotel" data-act="hotel" data-id="' + p.id + '"' + (s.ap < D.HOTEL.ap || p.aff < D.HOTEL.needAff ? " disabled" : "") + ">🏨 " + esc(t("act_hotel", { cost: money(D.HOTEL.cost) })) + "</button></div>";
       if (p.story) h += '<p class="cc-small">📖 ' + esc(t("story_progress", { title: L(Core.storyOf(p).title), n: Math.min(3, p.chap || 0) })) + "</p>";
+      // 默契與雙人特訓
+      var mates = s.roster.filter(function (id) { return id !== p.id; }).sort(function (a, b) { return Core.chem(p.id, b) - Core.chem(p.id, a); });
+      h += "<h3>🤝 " + esc(t("chem_title")) + '</h3><div class="cc-chemlist">';
+      mates.forEach(function (id) { var o = Core.person(id), v = Math.round(Core.chem(p.id, id)); h += '<span class="cc-chemchip ' + chemCls(v) + '">' + esc(o.handle) + " " + v + "</span>"; });
+      h += '</div><div class="cc-actions"><button class="cc-btn" data-act="duopick"' + (s.ap < 1 ? " disabled" : "") + ">🤝 " + esc(t("duo_btn")) + "</button></div>";
+      if (ui.duoPick) {
+        h += '<div class="cc-dates">';
+        mates.forEach(function (id) { var o = Core.person(id); h += '<button class="cc-btn" data-act="duo" data-id="' + p.id + '" data-b="' + id + '">' + esc(o.handle) + " <small>" + esc(roleName(o.role)) + "</small></button>"; });
+        h += "</div>";
+      }
       if (p.aff < D.HOTEL.needAff) h += '<p class="cc-small cc-muted">' + esc(t("hotel_locked", { n: D.HOTEL.needAff })) + "</p>";
       if (ui.datePick) {
         h += '<div class="cc-dates">';
@@ -410,10 +557,13 @@
       var lockMe = Core.fearlessLocked("me", hero.id);
       var myP = Core.playerFor("me", hero.role), opP = Core.playerFor(oppTid, hero.role);
       var mm = Math.round(myP.mastery[hero.id] || 0), om = Math.round(opP.mastery[hero.id] || 0);
+      // 對手招牌：研究過才全部看得到，否則只看得到情報範圍內的位置
+      var hintN = Core.researched(oppTid) ? 5 : 1 + ((s.fac && s.fac.analyst >= 1) ? 1 : 0), seen = se.hint ? se.hint.slice(0, hintN).indexOf(hero.role) >= 0 : true;
+      var secret = Core.isSecret(myP, hero.id);
       var cls = "cc-hbtn" + (taken ? " cc-taken" : "") + (!ok ? " cc-dis" : "") + (ui.selHero === hero.id ? " cc-sel" : "");
       h += '<button class="' + cls + '" data-act="hero" data-id="' + hero.id + '"' + (myTurn && ok ? "" : " disabled") + ' style="--hc:#' + ("00000" + hero.color.toString(16)).slice(-6) + '">' +
         '<span class="cc-hb-name">' + esc(L(hero.name)) + "</span>" + metaBadge(hero.id) +
-        '<span class="cc-hb-sub">' + D.ROLE[hero.role].icon + " " + esc(t("mine_short")) + " " + mm + (om >= 85 ? ' <i class="cc-sig">' + esc(t("opp_sig")) + "</i>" : "") + "</span>" +
+        '<span class="cc-hb-sub">' + D.ROLE[hero.role].icon + " " + esc(t("mine_short")) + " " + mm + (secret ? ' <i class="cc-secret">🤫' + esc(t("secret")) + "</i>" : "") + (om >= 85 && seen ? ' <i class="cc-sig">' + esc(t("opp_sig")) + "</i>" : "") + "</span>" +
         (taken === "ban" ? '<span class="cc-hb-st">🚫</span>' : taken === "pick" ? '<span class="cc-hb-st">✔</span>' : lockMe ? '<span class="cc-hb-st cc-fl">' + esc(t("fearless_lock")) + "</span>" : "") +
         "</button>";
     });
@@ -424,7 +574,7 @@
     }
     h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="confirm-hero"' + (myTurn && ui.selHero ? "" : " disabled") + ">" + esc(turn && turn[1] === "ban" ? t("confirm_ban") : t("confirm_pick")) + '</button>' +
       '<button class="cc-btn" data-act="suggest"' + (myTurn ? "" : " disabled") + ">💡 " + esc(t("suggest")) + '</button><button class="cc-btn" data-act="auto-rest">🤖 ' + esc(t("auto_rest")) + "</button></div>";
-    h += '<p class="cc-small cc-muted">' + esc(t("fearless_hint")) + "</p>";
+    h += '<p class="cc-small cc-muted">' + esc(t("fearless_hint")) + " " + esc(Core.researched(se.opp) ? t("intel_full") : t("intel_part")) + "</p>";
     if (se.used.length) h += '<p class="cc-small">' + esc(t("used_all")) + "：" + se.used.map(heroName).map(esc).join("、") + "</p>";
     h += murmurPanel(se.murmurs);
     h += "</div>" + draftSideBox("red") + "</div>";
@@ -505,6 +655,10 @@
     var s = S(), d = s.draft, me = Core.mySide(), opp = me === "blue" ? "red" : "blue";
     var pr = Core.predict(ui.tactic);
     var h = '<div class="cc-top"><h1 class="cc-h1">' + esc(t("pre_title")) + '</h1><span class="cc-week">' + esc(L(D.TACTIC[ui.tactic].name)) + "</span></div>";
+    var rv = Life.rivalOf(s.series.opp);
+    if (rv) h += '<div class="cc-panel cc-rival"><img src="' + photo(rv) + '" alt=""><div><h2>🔥 ' + esc(t("rival_match", { name: rv.handle })) + '</h2><p class="cc-line">' + esc(ui.rivalLine || (ui.rivalLine = Life.rivalLine(rv, "taunt"))) + "</p></div></div>";
+    var ex = pr.me.extra || 0;
+    h += '<p class="cc-small cc-center">' + esc(t("extra_line", { chem: (Core.chemBonus() >= 0 ? "+" : "") + Core.chemBonus().toFixed(1), res: Core.researched(s.series.opp) ? "+0.6" : "0", ana: "+" + ((s.fac && s.fac.analyst) || 0) * 0.25, tot: (ex >= 0 ? "+" : "") + ex.toFixed(1) })) + "</p>";
     h += '<div class="cc-panel"><table class="cc-table cc-pre"><tr><th>' + esc(s.teams.me.name) + "</th><th></th><th>" + esc(Core.teamName(s.series.opp)) + "</th></tr>";
     D.ROLES.forEach(function (r) {
       var a = Core.playerFor("me", r), b = Core.playerFor(s.series.opp, r), ha = d.picks[me][r], hb = d.picks[opp][r];
@@ -525,7 +679,7 @@
   }
   function preCell(p, hid) {
     return '<div class="cc-pcell"><img src="' + photo(p) + '" alt="" loading="lazy"><div><b>' + esc(p.handle) + '</b> <span class="cc-small">OVR ' + Core.ovrI(p) + "</span><br>" + condBadge(p) +
-      '<br><span class="cc-small">' + esc(heroName(hid)) + "（" + esc(t("mastery_s")) + " " + Math.round(p.mastery[hid] || 0) + "）・" + esc(t("rating")) + " " + Core.matchRating(p, hid).toFixed(1) + "</span></div></div>";
+      '<br><span class="cc-small">' + esc(heroName(hid)) + "（" + esc(t("mastery_s")) + " " + Math.round(p.mastery[hid] || 0) + "）・" + esc(t("rating")) + " " + (Core.matchRating(p, hid) + (Core.isSecret(p, hid) ? 3 : 0)).toFixed(1) + (Core.isSecret(p, hid) ? " 🤫" : "") + "</span></div></div>";
   }
 
   // ================= 重播 =================
@@ -534,27 +688,28 @@
     var wk = 0, lk = 0;
     m.kills.forEach(function (k) { if (k.side === m.winner) wk++; else lk++; });
     var who = winMe ? S().teams.me.name : Core.teamName(S().series.opp);
-    var key = m.type === "siege" ? "cap_siege" : m.obj ? "cap_obj" : "cap_fight";
-    return ("0" + m.min).slice(-2) + ":" + ("0" + m.sec).slice(-2) + "　" + (m.creative ? "💡" + t("creative") + " " : "") + L(D.MOMENTS[m.type].name) + " — " +
+    if (m.traded) who = m.traded === "A" ? S().teams.me.name : Core.teamName(S().series.opp);
+    var key = m.traded ? (m.traded === "A" ? "cap_trade_me" : "cap_trade_opp") : m.type === "siege" ? "cap_siege" : m.type === "defend" ? "cap_defend" : m.obj ? "cap_obj" : "cap_fight";
+    return ("0" + m.min).slice(-2) + ":" + ("0" + m.sec).slice(-2) + "　" + (m.orderA ? EX.ORDER[m.orderA].icon + " " : "") + (m.creative ? "💡" + t("creative") + " " : "") + L(D.MOMENTS[m.type].name) + " — " +
       t(key, { team: who, k: wk, l: lk, obj: m.obj ? t("obj_" + m.obj) : "" });
   }
   function renderReplayShell() {
-    var g = ui.lastGame;
-    var h = '<div class="cc-top"><h1 class="cc-h1">📺 ' + esc(t("replay_title", { n: g.n })) + "</h1></div>";
-    h += '<div class="cc-replay"><div id="cc-3d" class="cc-3d"></div><div class="cc-cap" id="cc-cap"></div><ul class="cc-kf" id="cc-kf"></ul><div class="cc-bubble" id="cc-bubble"></div><div class="cc-score" id="cc-score"></div></div>';
+    var n = S().series.games.length + 1;
+    var h = '<div class="cc-top"><h1 class="cc-h1">📺 ' + esc(t("replay_title", { n: n })) + "</h1></div>";
+    h += '<div class="cc-replay"><div id="cc-3d" class="cc-3d"></div><div class="cc-cap" id="cc-cap"></div><ul class="cc-kf" id="cc-kf"></ul><div class="cc-bubble" id="cc-bubble"></div><div class="cc-score" id="cc-score"></div><div class="cc-order" id="cc-order"></div></div>';
     h += '<ol class="cc-mlist" id="cc-mlist"></ol>';
     h += '<div class="cc-actions cc-center"><button class="cc-btn" data-act="rp-next">⏭ ' + esc(t("next_scene")) + '</button><button class="cc-btn cc-primary" data-act="rp-skip">' + esc(t("skip_replay")) + "</button></div>";
     return h;
   }
+  // 比賽一幕一幕推進：播完一幕 → 暫停讓教練下指令 → 推進下一幕 → … → 結算
   function startReplay() {
-    var g = ui.lastGame, res = g.res, me = g.mySide, opp = me === "blue" ? "red" : "blue";
-    var list = document.getElementById("cc-mlist"), cap = document.getElementById("cc-cap"), kf = document.getElementById("cc-kf"), sc = document.getElementById("cc-score");
-    var kA = 0, kB = 0;
-    function score() { sc.innerHTML = '<span class="cc-' + me + '">' + esc(S().teams.me.name) + " " + kA + '</span> ⚔ <span class="cc-' + opp + '">' + kB + " " + esc(Core.teamName(S().series.opp)) + "</span>"; }
-    score();
+    var s = S(), me = Core.mySide(), opp = me === "blue" ? "red" : "blue", picks = s.draft.picks;
+    var list = document.getElementById("cc-mlist"), cap = document.getElementById("cc-cap"), kf = document.getElementById("cc-kf"), sc = document.getElementById("cc-score"), od = document.getElementById("cc-order");
+    var kA = 0, kB = 0, ctl = null, finished = false, busy = false;
+    function score() { sc.innerHTML = '<span class="cc-' + me + '">' + esc(s.teams.me.name) + " " + kA + '</span> ⚔ <span class="cc-' + opp + '">' + kB + " " + esc(Core.teamName(s.series.opp)) + "</span>"; }
     var bub = document.getElementById("cc-bubble"), bubTm = null;
     function say(side, role, sit, text) {
-      var p = Core.playerFor(side === "A" ? "me" : S().series.opp, role);
+      var p = Core.playerFor(side === "A" ? "me" : s.series.opp, role);
       text = text || Core.murmur(p, sit);
       if (!p || !text || !bub) return;
       bub.className = "cc-bubble cc-bub-" + (side === "A" ? "me" : "opp") + " cc-bub-on";
@@ -562,11 +717,15 @@
       clearTimeout(bubTm);
       bubTm = setTimeout(function () { if (bub) bub.className = "cc-bubble"; }, 2300);
     }
+    function addLine(m) {
+      var li = document.createElement("li"); li.textContent = momentCaption(m); li.className = m.winner === "A" ? "cc-n-win" : "cc-n-loss";
+      list.appendChild(li);
+    }
     function showMoment(i, m) {
-      cap.textContent = momentCaption(m, g);
+      cap.textContent = momentCaption(m);
       if (m.creative) {
         var naRole = null;
-        D.ROLES.forEach(function (r) { var p = Core.playerFor(m.creative === "A" ? "me" : S().series.opp, r); if (!naRole && p && D.REGION[p.region].creative) naRole = r; });
+        D.ROLES.forEach(function (r) { var p = Core.playerFor(m.creative === "A" ? "me" : s.series.opp, r); if (!naRole && p && D.REGION[p.region].creative) naRole = r; });
         if (naRole) say(m.creative, naRole, null, Core.creativeLine());
       }
       setTimeout(function () {
@@ -574,36 +733,86 @@
         say("A", D.ROLES[Math.floor(Math.random() * 5)], m.winner === "A" ? "win_fight" : "lose_fight");
       }, m.creative ? 3600 : 4300);
       kf.innerHTML = "";
-      var li = document.createElement("li"); li.textContent = momentCaption(m, g); li.className = m.winner === "A" ? "cc-n-win" : "cc-n-loss";
-      list.appendChild(li);
+      addLine(m);
     }
     function onKill(k) {
-      var picks = k.side === "A" ? g.picks[me] : g.picks[opp], vp = k.side === "A" ? g.picks[opp] : g.picks[me];
+      var kp = k.side === "A" ? picks[me] : picks[opp], vp = k.side === "A" ? picks[opp] : picks[me];
       if (k.side === "A") kA++; else kB++;
       score();
       var li = document.createElement("li");
       li.className = k.side === "A" ? "cc-kf-me" : "cc-kf-opp";
-      li.textContent = heroName(picks[k.killer]) + "  ⚔  " + heroName(vp[k.victim]);
+      li.textContent = heroName(kp[k.killer]) + "  ⚔  " + heroName(vp[k.victim]);
       kf.appendChild(li);
       while (kf.children.length > 5) kf.removeChild(kf.firstChild);
       var r0 = Math.random();
       if (r0 < 0.35) say(k.side, k.killer, "kill");
       else if (r0 < 0.6) say(k.side === "A" ? "B" : "A", k.victim, "death");
     }
-    function done() { ui.screen = "result"; render(); }
+    function finish() {
+      if (finished || ui.screen !== "replay") return;
+      finished = true;
+      ui.lastGame = Core.endGame();
+      ui.screen = "result";
+      render();
+    }
+    function hideOrder() { od.className = "cc-order"; od.innerHTML = ""; }
+    function showOrder(info) {
+      var M = D.MOMENTS[info.type], ph = M.phase;
+      var a = info.pa[ph] + (ph === "late" ? info.lateA : 0), b = info.pb[ph] + (ph === "late" ? info.lateB : 0);
+      var h = '<h3>⏸ ' + esc(t("order_title", { name: L(M.name) })) + '</h3><p class="cc-small">' + esc(t("order_state", { lead: (info.lead >= 0 ? "+" : "") + info.lead, ph: t("ph_" + ph), a: a.toFixed(1), b: b.toFixed(1) })) + '</p><div class="cc-orders">';
+      EX.ORDERS.forEach(function (o) {
+        if (o.trade && !M.obj) return;
+        h += '<button class="cc-btn" data-act="order" data-id="' + o.id + '"><b>' + o.icon + " " + esc(L(o.name)) + "</b><small>" + esc(L(o.desc)) + "</small></button>";
+      });
+      h += '<button class="cc-btn" data-act="order" data-id=""><b>🤖 ' + esc(t("order_auto")) + "</b><small>" + esc(t("order_auto_d")) + "</small></button></div>";
+      od.innerHTML = h; od.className = "cc-order cc-order-on";
+    }
+    function after() {
+      busy = false;
+      if (finished) return;
+      var info = Core.liveInfo();
+      if (!info || info.done) { finish(); return; }
+      if (info.canOrder) showOrder(info); else step(null);
+    }
+    function play(m) {
+      busy = true;
+      if (ctl && ctl.is3d) ctl.c.play({ moments: [m], pickA: picks[me], pickB: picks[opp], aSide: me }, { onMoment: showMoment, onKill: onKill, onDone: after });
+      else { showMoment(0, m); m.kills.forEach(onKill); }
+    }
+    function step(order) {
+      hideOrder();
+      var m = Core.stepLive(order);
+      if (!m) { finish(); return; }
+      play(m);
+    }
+    ui.replay = {
+      next: function () { if (ctl && ctl.is3d && busy) ctl.c.next(); else if (busy) after(); },
+      skip: function () { hideOrder(); finish(); },
+      order: function (id) { if (!busy) step(id || null); },
+      dispose: function () { finished = true; if (ctl && ctl.is3d) ctl.c.dispose(); }
+    };
+    // 重新整理後接著打：已經打完的幕直接列出來
+    var G = Core.liveInfo();
+    (s.live ? s.live.moments : []).forEach(function (m) { addLine(m); m.kills.forEach(function (k) { if (k.side === "A") kA++; else kB++; }); });
+    score();
+    function begin() {
+      var info = Core.liveInfo();
+      if (info && info.n > 0 && info.canOrder) showOrder(info);
+      else if (info && info.n > 0) after();
+      else step(null);
+    }
     var box = document.getElementById("cc-3d");
     function fallback() {
-      // 沒有 WebGL：文字逐幕顯示
       box.innerHTML = '<p class="cc-muted cc-center">' + esc(t("no_webgl")) + "</p>";
-      var i = 0;
-      ui.replay = { next: function () { if (i >= res.moments.length) { done(); return; } var m = res.moments[i++]; showMoment(i, m); m.kills.forEach(onKill); }, skip: done, dispose: function () {} };
-      ui.replay.next();
+      ctl = { is3d: false };
+      begin();
     }
+    void G;
     if (!V3 || !V3.available()) { fallback(); return; }
     V3.load().then(function () {
-      if (ui.screen !== "replay" || !document.getElementById("cc-3d")) return;
-      ui.replay = V3.create(box, {});
-      ui.replay.play({ moments: res.moments, pickA: g.picks[me], pickB: g.picks[opp], aSide: me }, { onMoment: showMoment, onKill: onKill, onDone: done });
+      if (ui.screen !== "replay" || !document.getElementById("cc-3d") || finished) return;
+      ctl = { is3d: true, c: V3.create(box, {}) };
+      begin();
     }).catch(fallback);
   }
 
@@ -615,6 +824,8 @@
     h += '<div class="cc-panel"><h3>' + esc(t("key_moments")) + '</h3><ol class="cc-mlist">';
     res.moments.forEach(function (m) { h += '<li class="' + (m.winner === "A" ? "cc-n-win" : "cc-n-loss") + '">' + esc(momentCaption(m, g)) + "</li>"; });
     h += "</ol>";
+    if (g.secret) h += '<p class="cc-small">🤫 ' + esc(t("secret_used", { names: g.secret.map(function (r) { return Core.playerFor("me", r).handle + "（" + heroName(g.picks[me][r]) + "）"; }).join("、") })) + "</p>";
+    if (win && res.minLead <= -8) h += '<p class="cc-gold">🔄 ' + esc(t("comeback", { v: Math.abs(Math.round(res.minLead * 10) / 10) })) + "</p>";
     h += '<table class="cc-table"><tr><th></th><th>' + esc(s.teams.me.name) + "</th><th>K/D/A</th><th></th><th>" + esc(Core.teamName(se.opp)) + "</th><th>K/D/A</th></tr>";
     D.ROLES.forEach(function (r) {
       var a = res.box.A[r], b = res.box.B[r], pa = Core.playerFor("me", r), pb = Core.playerFor(se.opp, r);
@@ -635,9 +846,26 @@
       h += '<p class="cc-result ' + (sw ? "cc-win" : "cc-loss") + '">' + esc(t(sw ? "series_win" : "series_loss", { a: se.wins.me, b: se.wins.opp })) + "</p>";
       h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="to-hub">' + esc(t("back_hub")) + "</button></div>";
     } else {
+      h += lineupAdjust();
       h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="next-game">' + esc(t("next_game", { n: se.games.length + 1 })) + '</button><button class="cc-btn" data-act="auto-rest">🤖 ' + esc(t("auto_rest")) + "</button></div>";
     }
     return h;
+  }
+
+  // 局間調整：可以換二軍上場（對手也會針對上一局調整 BP 與戰術）
+  function lineupAdjust() {
+    var s = S(), h = '<div class="cc-panel"><h3>🔁 ' + esc(t("adjust_title")) + '</h3><p class="cc-small cc-muted">' + esc(t("adjust_hint")) + '</p><div class="cc-adjust">', any = false;
+    D.ROLES.forEach(function (r) {
+      var subs = s.roster.filter(function (id) { return id !== s.lineup[r] && Core.person(id).role === r; });
+      if (!subs.length) return;
+      any = true;
+      var st = Core.person(s.lineup[r]);
+      h += '<div class="cc-adjrow"><span>' + D.ROLE[r].icon + " " + esc(st.handle) + " <small>OVR " + Core.ovrI(st) + " " + condBadge(st) + "</small></span>";
+      subs.forEach(function (id) { var p = Core.person(id); h += '<button class="cc-btn cc-small" data-act="promote" data-id="' + id + '">⇄ ' + esc(p.handle) + " <small>OVR " + Core.ovrI(p) + "</small></button>"; });
+      h += "</div>";
+    });
+    if (!any) h += '<p class="cc-small cc-muted">' + esc(t("adjust_none")) + "</p>";
+    return h + "</div></div>";
   }
 
   // ================= 快轉（交給助理教練） =================
@@ -699,14 +927,27 @@
       case "to-new": ui.screen = "new"; break;
       case "continue": if (Core.load()) { ui.screen = "hub"; ui.tab = "home"; } break;
       case "region": ui.newRegion = id; break;
+      case "chal": ui.chal[id] = !ui.chal[id]; break;
+      case "research": r = Core.research(); if (r.msg) flash(r.msg); break;
+      case "renew": r = Life.renew(id); if (r.msg) flash(r.msg); break;
+      case "buy": if (!window.confirm(t("confirm_buy"))) return; r = Life.buy(id); if (r.msg) flash(r.msg); break;
+      case "upgrade": r = Life.upgrade(id); if (r.msg) flash(r.msg); break;
+      case "ev":
+        var c = el.getAttribute("data-c");
+        r = Life.resolve(c === "" ? null : (/^[0-9]$/.test(c) ? +c : c));
+        if (r && r.msg) flash(r.msg);
+        break;
+      case "duopick": ui.duoPick = !ui.duoPick; break;
+      case "duo": r = Core.duo(id, el.getAttribute("data-b")); ui.duoPick = false; if (r.msg) flash(r.msg); break;
+      case "order": if (ui.replay && ui.replay.order) ui.replay.order(id); return;
       case "start":
         if (Core.hasSave() && !window.confirm(t("confirm_overwrite"))) return;
         var nm = (document.getElementById("cc-teamname") || {}).value;
-        Core.newGame(ui.newRegion, (nm || "").trim() || t("default_team"));
+        Core.newGame(ui.newRegion, (nm || "").trim() || t("default_team"), ui.chal);
         ui.screen = "hub"; ui.tab = "home"; break;
       case "tab": ui.tab = id; break;
       case "herorole": ui.heroRole = id; break;
-      case "open": ui.modal = id; ui.datePick = false; break;
+      case "open": ui.modal = id; ui.datePick = false; ui.duoPick = false; break;
       case "close-modal": if (ev.target.closest("[data-stop]") && !el.classList.contains("cc-x")) return; ui.modal = null; break;
       case "close-scene": ui.scene = null; break;
       case "promote": r = Core.person(id); if (r) Core.setLineup(r.role, id); break;
@@ -743,7 +984,7 @@
         if (Core.advance()) { var w = Core.week(); flash(weekLabel()); if (w.k === "off") ui.tab = "records"; else ui.tab = "home"; }
         break;
       case "match": Core.startSeries(false); ui.screen = "draft"; ui.selHero = null; ui.roleFilter = "all"; break;
-      case "resume": ui.screen = Core.draftDone() ? "tactic" : "draft"; break;
+      case "resume": ui.screen = s.live ? "replay" : Core.draftDone() ? "tactic" : "draft"; break;
       case "auto": runAuto(); break;
       case "auto-rest": runAuto(); break;
       case "rolefilter": ui.roleFilter = id; break;
@@ -754,10 +995,10 @@
         break;
       case "confirm-hero": if (ui.selHero && doDraft(ui.selHero)) { ui.selHero = null; Core.save(); } break;
       case "tactic": ui.tactic = id; break;
-      case "to-pre": if (ui.tactic) { ui.screen = "pre"; ui.preLines = null; } break;
+      case "to-pre": if (ui.tactic) { ui.screen = "pre"; ui.preLines = null; ui.rivalLine = null; } break;
       case "back-tactic": ui.screen = "tactic"; break;
       case "play":
-        ui.lastGame = Core.playGame(ui.tactic);
+        Core.beginGame(ui.tactic); ui.rivalLine = null;
         ui.screen = "replay"; break;
       case "rp-next": if (ui.replay) ui.replay.next(); return;
       case "rp-skip": if (ui.replay) ui.replay.skip(); else { ui.screen = "result"; } return;

@@ -294,7 +294,9 @@
     midfight: { name: C("中路遭遇戰", "ミッド遭遇戦"), loc: "mid", phase: "mid", swing: 3.5, k: 4, min: [15, 22] },
     baron: { name: C("巴龍團戰", "バロン集団戦"), loc: "baron", phase: "late", swing: 5, k: 5, min: [22, 30], obj: "baron" },
     elder: { name: C("遠古巨龍決戰", "エルダードラゴン決戦"), loc: "dragon", phase: "late", swing: 6, k: 5, min: [30, 38], obj: "elder" },
-    siege: { name: C("高地推進", "ハイグラウンド攻め"), loc: "base", phase: "late", swing: 0, k: 5, min: [0, 0], obj: "nexus" }
+    siege: { name: C("高地推進", "ハイグラウンド攻め"), loc: "base", phase: "late", swing: 0, k: 5, min: [0, 0], obj: "nexus" },
+    // 提前推高地失敗：防守方守住，比賽繼續（勝方＝防守方，地點在勝方主堡）
+    defend: { name: C("守住高地", "ハイグラウンド防衛"), loc: "base", phase: "late", swing: 2.5, k: 3, min: [0, 0] }
   };
 
   // ---------------- 個性 ----------------
