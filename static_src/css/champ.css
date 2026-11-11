@@ -327,3 +327,25 @@
 .cc-adjust { display: flex; flex-direction: column; gap: 0.3rem; }
 .cc-adjrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
 .cc-adjrow > span { min-width: 12rem; }
+
+/* 2026-11-11 第四版：招牌技特寫、全明星、教練、NEW 標籤 */
+.cc-cutin { position: absolute; left: 0; right: 0; top: 34%; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.2rem; color: #fff; opacity: 0; transform: translateX(-100%) skewX(-8deg); pointer-events: none; transition: none; }
+.cc-cutin.cc-cut-me { background: linear-gradient(90deg, rgba(194, 24, 91, 0.92), rgba(194, 24, 91, 0.5) 70%, transparent); }
+.cc-cutin.cc-cut-opp { background: linear-gradient(90deg, rgba(40, 40, 70, 0.92), rgba(40, 40, 70, 0.5) 70%, transparent); }
+.cc-cutin.cc-cut-on { animation: cc-cut 2.2s ease-out forwards; }
+@keyframes cc-cut { 0% { opacity: 0; transform: translateX(-100%) skewX(-8deg); } 12% { opacity: 1; transform: translateX(0) skewX(-8deg); } 80% { opacity: 1; transform: translateX(2%) skewX(-8deg); } 100% { opacity: 0; transform: translateX(8%) skewX(-8deg); } }
+.cc-cutin img { width: 6.5rem; height: 6.5rem; object-fit: cover; border-radius: 10px; border: 3px solid #fff; }
+.cc-cutin div { display: flex; flex-direction: column; }
+.cc-cutin b { font-size: 1.7em; letter-spacing: 0.08em; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6); }
+.cc-cutin span { font-size: 1.05em; }
+.cc-sigline { color: #c2185b; font-weight: bold; }
+.cc-new { font-style: normal; font-size: 0.7em; padding: 0 0.3rem; border-radius: 4px; background: #2fa86a; color: #fff; font-weight: bold; }
+.cc-coach { border-color: #7a4ad0; background: linear-gradient(90deg, rgba(122, 74, 208, 0.1), transparent); }
+.cc-coach .cc-line { margin: 0.3rem 0; }
+.cc-asr { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; margin-bottom: 0.4rem; }
+.cc-asp { display: flex; flex-direction: column; align-items: center; font-size: 0.78em; padding: 0.25rem; border-radius: 8px; border: 1px solid var(--cc-line); }
+.cc-asp.cc-me { border-color: var(--cc-accent); background: var(--cc-accent-soft); }
+.cc-asp img { width: 3rem !important; height: 3rem !important; border-radius: 50% !important; margin: 0 0 0.2rem !important; border: none !important; }
+.cc-optrow { flex-direction: row !important; flex-wrap: wrap; justify-content: center; }
+.cc-left { text-align: left; }
+@media (max-width: 520px) { .cc-asr { grid-template-columns: repeat(3, 1fr); } .cc-cutin img { width: 4.5rem; height: 4.5rem; } .cc-cutin b { font-size: 1.2em; } }

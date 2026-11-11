@@ -66,6 +66,41 @@
     return S.photoBag.pop();
   }
 
+  // 電腦隊選手：175 張照片全部用過一輪才會重複
+  function nextAIPhoto() {
+    if (!S.photoBag2 || !S.photoBag2.length) { var bag = []; for (var i = 0; i < D.PHOTO_N; i++) bag.push(i); S.photoBag2 = shuffle(bag); }
+    return S.photoBag2.pop();
+  }
+  // 頭像的外觀參數：翻轉、色調、彩度、亮度、取景位置（同一張照片也會不一樣；畫面用 lookStyle 套用）
+  function randLook() { return { f: Math.random() < 0.5 ? 1 : 0, h: ri(-28, 28), s: Math.round(rnd(0.85, 1.25) * 100) / 100, b: Math.round(rnd(0.94, 1.08) * 100) / 100, x: ri(35, 65), y: ri(15, 40) }; }
+  function lookStyle(lk) {
+    if (!lk) return "";
+    return "object-position:" + lk.x + "% " + lk.y + "%;filter:hue-rotate(" + lk.h + "deg) saturate(" + lk.s + ") brightness(" + lk.b + ");" + (lk.f ? "transform:scaleX(-1);" : "");
+  }
+  // 名字：各國的姓 × 名；遊戲 ID：詞庫＋數字／前後綴，全世界不重複
+  function genName(region) {
+    var g = D.NAMEGEN[region];
+    if (!g) return pick(D.REGION[region].names);
+    var sn = pick(g.s), gn = pick(g.g);
+    return g.fmt === "sg" ? sn + gn : g.fmt === "s g" ? sn + " " + gn : gn + " " + sn;
+  }
+  function genHandle() {
+    if (!S.handles) S.handles = {};
+    var pool = D.HANDLES.concat(D.HANDLE_MORE || []);
+    for (var t = 0; t < 40; t++) {
+      var b = pick(pool), r = Math.random(), h;
+      if (r < 0.5) h = b;
+      else if (r < 0.65) h = b + ri(1, 99);
+      else if (r < 0.75) h = pick(D.HANDLE_PRE) + b;
+      else if (r < 0.87) h = b + pick(D.HANDLE_SUF);
+      else h = b + pick(pool);
+      if (!S.handles[h]) { S.handles[h] = 1; return h; }
+    }
+    return pick(pool) + ri(100, 999);
+  }
+  // 招牌技（champ_extra.js 的 EX.SIGS）：每位選手依位置有一招；自己的選手要「覺醒」才會用（champ_life.js）
+  function sigFor(role) { var list = EX.SIGS.filter(function (x) { return x.role === role && x.id.indexOf("star") !== 0; }); return list.length ? pick(list).id : null; }
+
   // ---------------- 選手 ----------------
   function ovr(p) {
     var w = D.ROLE[p.role].w, s = 0;
@@ -74,6 +109,13 @@
   }
   function ovrI(p) { return Math.round(ovr(p)); }
   function heroesOfRole(role) { return D.HEROES.filter(function (h) { return h.role === role; }); }
+  // 每年 MSI 後上市的新英雄（存在 S.newHeroes；載入／新遊戲時重新登記到 D.HEROES）
+  var BASE_HEROES = D.HEROES.length;
+  function registerHeroes() {
+    D.HEROES.slice(BASE_HEROES).forEach(function (h) { delete D.HERO[h.id]; });
+    D.HEROES.length = BASE_HEROES;
+    ((S && S.newHeroes) || []).forEach(function (h) { D.HEROES.push(h); D.HERO[h.id] = h; });
+  }
   function salaryOf(o) { return Math.max(2, Math.round(Math.pow(Math.max(0, o - 45), 1.5) / 7)); }
 
   function newPlayer(region, role, target, age, opts) {
@@ -82,8 +124,8 @@
     S.seq = (S.seq || 0) + 1;
     var p = {
       id: "p" + S.seq, region: region, role: role, age: age,
-      name: pick(reg.names), handle: pick(D.HANDLES),
-      img: opts.unique ? nextPhoto() : ri(0, D.PHOTO_N - 1),
+      name: genName(region), handle: genHandle(),
+      img: opts.unique ? nextPhoto() : nextAIPhoto(), look: randLook(), sig: sigFor(role), sigOn: false,
       trait: trait.id, stats: {}, mastery: {}, cond: 0, mood: ri(50, 70), aff: ri(5, 18), fatigue: ri(10, 30),
       squad: 2, practice: null, games: 0, wins: 0, k: 0, d: 0, a: 0, mvp: 0, ms: {}, team: opts.team || null
     };
@@ -96,6 +138,8 @@
     var hs = shuffle(heroesOfRole(role).slice()), base = (o - 65) * 0.35;
     hs.forEach(function (h, i) { p.mastery[h.id] = Math.round(clamp((i < 2 ? rnd(76, 94) : i < 4 ? rnd(55, 75) : rnd(18, 55)) + base, 5, 100)); });
     p.salary = salaryOf(o);
+    // 電腦隊的頂尖選手一開始就會招牌技
+    if (!opts.unique && o >= 82) p.sigOn = true;
     return p;
   }
   function person(id) { return S.people[id]; }
@@ -137,7 +181,7 @@
     t.players.forEach(function (pid, k) { if (person(pid).role === st.role) idx = k; });
     delete S.people[t.players[idx]];
     var p = newPlayer(DY.region, st.role, st.target, st.age, { team: id });
-    p.handle = st.handle; p.name = st.name; p.trait = st.trait; p.squad = 1; p.star = true; p.pot = 99;
+    p.handle = st.handle; p.name = st.name; p.trait = st.trait; p.squad = 1; p.star = true; p.pot = 99; p.sig = "star_solo"; p.sigOn = true;
     Object.keys(p.mastery).forEach(function (h) { p.mastery[h] = clamp(p.mastery[h] + 18, 0, 100); });
     S.people[p.id] = p; t.players[idx] = p.id;
     t.dyn = true; S.dynasty = id;
@@ -148,7 +192,8 @@
   function newGame(regionId, teamNameIn, chal) {
     var reg = D.REGION[regionId], lid = reg.league;
     chal = chal || {};
-    S = { v: 3, chal: { nomarket: !!chal.nomarket, budget: !!chal.budget, underdog: !!chal.underdog }, year: 1, wk: 0, region: regionId, people: {}, teams: {}, seq: 0, tseq: 0, photoBag: null,
+    S = null; registerHeroes();
+    S = { v: 3, v4: 1, chal: { nomarket: !!chal.nomarket, budget: !!chal.budget, underdog: !!chal.underdog }, year: 1, wk: 0, region: regionId, people: {}, teams: {}, seq: 0, tseq: 0, photoBag: null,
       funds: chal.budget ? Math.round(reg.fund / 2) : reg.fund, fans: Math.round(reg.sponsor * 90), ap: AP_MAX, focus1: "fight", focus2: "lane",
       lineup: {}, roster: [], scouts: [], news: [], trophies: [], history: [], meta: {}, patch: 1,
       leagues: {}, points: {}, worlds: null, msi: null, series: null, draft: null, done: true, hotelThisWeek: 0, lastEvent: null, lastBudget: null,
@@ -305,7 +350,7 @@
     var base = (p.mood - 55) / 22 - (p.fatigue - 40) / 35 + (t.mental || 0) * 0.08 + fac("mental") * 0.12;
     var v = Math.round(clamp(base + gauss() * 0.85 * (t.swing || 1) * (1 - fac("mental") * 0.1), -2, 2));
     // 羈絆（好感 90）：世界大賽期間不會不調
-    if (p.aff >= 90 && week().k === "worlds") v = Math.max(0, v);
+    if ((p.aff >= 90 && week().k === "worlds") || p.vow) v = Math.max(0, v);
     p.cond = v;
   }
   function rollConditions() {
@@ -770,6 +815,8 @@
       else if (p.age <= 25) d = rnd(-0.5, 1.5);
       else d = p.star ? rnd(-1, 0.4) : -rnd(0.5, 2.5);
       if (p.team !== "me") d += gauss() * 1.5;
+      var tc = p.team && p.team !== "me" && S.teams[p.team] && S.teams[p.team].coach;
+      if (tc && tc.style === "youth" && p.age <= 22) d += 1.5;
       D.STATS.forEach(function (k) { p.stats[k] = clamp(p.stats[k] + d * rnd(0.7, 1.3), 1, 99); });
       p.pot = Math.max(Math.round(ovr(p)), p.pot);
       p.salary = salaryOf(ovr(p));
@@ -837,6 +884,12 @@
       hint: shuffle(D.ROLES.slice()), focusRole: null, lastMyTactic: null };
     // 對手每場比賽的調子
     teamPlayers(m.opp).forEach(aiCond);
+    // 心理戰大師：心態不夠的選手被賽前放話影響
+    var oc = coachOf(m.opp);
+    if (oc && oc.style === "mind") {
+      S.series.mind = [];
+      D.ROLES.forEach(function (r) { var p = person(S.lineup[r]); if (p && p.stats.mental < 65) { p.mood = clamp(p.mood - 5, 0, 100); S.series.mind.push(p.handle); } });
+    }
     startGame();
     save();
     return S.series;
@@ -887,6 +940,7 @@
     return n;
   }
   function pickedList(side) { var o = S.draft.picks[side]; return Object.keys(o).map(function (r) { return o[r]; }); }
+  function coachOf(tid) { var t = team(tid); return t && t.coach ? t.coach : null; }
   // 電腦（或助理教練）的選擇
   function aiChoose(side) {
     var turn = draftTurn(), tid = teamOfSide(side), other = side === "blue" ? "red" : "blue", otid = teamOfSide(other);
@@ -901,6 +955,9 @@
         // 局間調整：針對上一局表現最好的我方選手；用過的秘密武器已經曝光
         if (otid === "me" && S.series.focusRole === h.role) s += 16;
         if (otid === "me" && p && p.played && p.played[h.id] && (p.mastery[h.id] || 0) >= 85) s += 8;
+        // BP 鬼才：看穿招牌英雄與秘密武器
+        var cc = coachOf(tid);
+        if (otid === "me" && cc && cc.style === "draft" && p) { if (isSecret(p, h.id)) s += 15; else if ((p.mastery[h.id] || 0) >= 85) s += 10; }
         if (s > bestS) { bestS = s; best = h.id; }
       });
     } else {
@@ -966,7 +1023,7 @@
   function matchRating(p, hid) {
     if (!p) return 40;
     var m = p.mastery[hid] || 15;
-    return ovr(p) * (0.9 + 0.2 * m / 100) + p.cond * 2.2 + (p.mood - 55) / 18 - Math.max(0, p.fatigue - 50) / 15 + metaTier(hid) * 0.9;
+    return ovr(p) * (0.9 + 0.2 * m / 100) + p.cond * 2.2 + (p.mood - 55) / 18 - Math.max(0, p.fatigue - 50) / 15 + metaTier(hid) * 0.9 + (p.vow ? 1.5 : 0);
   }
   // 秘密武器：熟練度 90 以上、還沒在正式比賽用過的英雄（只限自己的選手）
   function isSecret(p, hid) { return !!p && p.team === "me" && (p.mastery[hid] || 0) >= 90 && !(p.played && p.played[hid]); }
@@ -1038,7 +1095,9 @@
     var pa = power(A.tid, A.picks, A.tactic, B.tactic, A.blue), pb = power(B.tid, B.picks, B.tactic, A.tactic, B.blue);
     var box = { A: {}, B: {} };
     D.ROLES.forEach(function (r) { box.A[r] = { k: 0, d: 0, a: 0 }; box.B[r] = { k: 0, d: 0, a: 0 }; });
-    return { pa: pa, pb: pb, lead: 0, minLead: 0, maxLead: 0, moments: [], box: box, lastMin: 0, done: false, siege: null, lateA: 0, lateB: 0, i: 0,
+    var ca = coachOf(A.tid), cb = coachOf(B.tid);
+    // tidA／tidB：招牌技要知道雙方是哪一隊
+    return { tidA: A.tid, tidB: B.tid, styleA: ca ? ca.style : null, styleB: cb ? cb.style : null, pa: pa, pb: pb, lead: 0, minLead: 0, maxLead: 0, moments: [], box: box, lastMin: 0, done: false, siege: null, lateA: 0, lateB: 0, i: 0,
       seq: [Math.random() < 0.5 ? "invade" : "gank", "drake", Math.random() < 0.5 ? "herald" : "midfight", Math.random() < 0.6 ? "baron" : "elder"] };
   }
   function liveNext(G) {
@@ -1063,6 +1122,21 @@
       if (ob && ob.late) G.lateB += ob.late;
       if (pa.cre && Math.random() < 0.045 * pa.cre) { creative = "A"; diff += 4.5; }
       else if (pb.cre && Math.random() < 0.045 * pb.cre) { creative = "B"; diff -= 4.5; }
+    }
+    // 招牌技：該幕符合的選手有機率發動（每一幕每隊最多一次）
+    var sig = null;
+    if (!forced) {
+      (Math.random() < 0.5 ? ["A", "B"] : ["B", "A"]).forEach(function (sd) {
+        if (sig) return;
+        var tid = sd === "A" ? G.tidA : G.tidB;
+        D.ROLES.forEach(function (r) {
+          if (sig) return;
+          var p = playerFor(tid, r), sk = p && p.sigOn && EX.SIG[p.sig];
+          if (!sk || sk.when.indexOf(type) < 0) return;
+          var ch = 0.045 + (p.vow ? 0.03 : 0) + (p.aff >= 90 && p.team === "me" ? 0.02 : 0);
+          if (Math.random() < ch) { sig = { side: sd, role: r, id: sk.id, pid: p.id }; diff += sd === "A" ? sk.pow : -sk.pow; }
+        });
+      });
     }
     var min = (type === "siege" || type === "defend") ? G.lastMin + ri(2, 6) : Math.max(G.lastMin + 2, ri(M.min[0], M.min[1]));
     G.lastMin = min;
@@ -1095,6 +1169,8 @@
     }
     shuffle(kills);
     kills.sort(function (x, y) { return (x.side === w ? 1 : 0) - (y.side === w ? 1 : 0); });
+    // 招牌技發動且勝利：最後一殺算在她身上
+    if (sig && sig.side === w) { for (var q = kills.length - 1; q >= 0; q--) if (kills[q].side === w) { kills[q].killer = sig.role; break; } }
     kills.forEach(function (kl) {
       var vs = kl.side === "A" ? "B" : "A";
       G.box[kl.side][kl.killer].k++; G.box[vs][kl.victim].d++;
@@ -1104,7 +1180,7 @@
     var swing = (M.swing * rnd(0.7, 1.3) + (wk - lk) * 0.4) * swingMul;
     G.lead += aWin ? swing : -swing;
     G.minLead = Math.min(G.minLead, G.lead); G.maxLead = Math.max(G.maxLead, G.lead);
-    var m = { type: type, min: min, sec: ri(0, 59), winner: w, kills: kills, lead: Math.round(G.lead * 10) / 10, obj: M.obj || null, close: close, creative: creative };
+    var m = { type: type, min: min, sec: ri(0, 59), winner: w, kills: kills, lead: Math.round(G.lead * 10) / 10, obj: M.obj || null, close: close, creative: creative, sig: sig };
     G.moments.push(m);
     return m;
   }
@@ -1134,7 +1210,9 @@
   function aiOrder(G, side) {
     var type = liveNext(G);
     if (!type || type === "siege" || type === "defend") return null;
-    var l = side === "A" ? G.lead : -G.lead, r = Math.random(), M = D.MOMENTS[type];
+    var l = side === "A" ? G.lead : -G.lead, r = Math.random(), M = D.MOMENTS[type], st = side === "A" ? G.styleA : G.styleB;
+    if (st === "safe" && r < 0.45) return l < -6 ? "trade" : "safe";
+    if (st === "rush" && r < 0.45) return Math.random() < 0.6 ? "push" : "pick";
     if (l > 5) return r < 0.5 ? "safe" : null;
     if (l < -5) return r < 0.45 ? "push" : r < 0.7 ? "pick" : null;
     if (M.obj && l < -2 && r < 0.25) return "trade";
@@ -1205,6 +1283,27 @@
     else startGame();
     save();
     return g;
+  }
+  // 表演賽（全明星）：兩組臨時隊伍，雙方依熟練度自動選英雄，A 方戰術由玩家指定
+  function exhibition(idsA, idsB, tacticA) {
+    S.teams.asA = { id: "asA", name: "A", players: idsA, me: false };
+    S.teams.asB = { id: "asB", name: "B", players: idsB, me: false };
+    function picksOf(ids) {
+      var o = {}, used = {};
+      ids.forEach(function (pid) {
+        var p = person(pid), best = null, bs = -1;
+        heroesOfRole(p.role).forEach(function (h) { var v = (p.mastery[h.id] || 0) + metaTier(h.id) * 6; if (!used[h.id] && v > bs) { bs = v; best = h.id; } });
+        o[p.role] = best; used[best] = 1;
+      });
+      return o;
+    }
+    var pa = picksOf(idsA), pb = picksOf(idsB);
+    var tb = aiTactic(pb);
+    var G = liveStart({ tid: "asA", picks: pa, tactic: tacticA, blue: true }, { tid: "asB", picks: pb, tactic: tb, blue: false });
+    while (!G.done) liveStep(G, aiOrder(G, "A"), aiOrder(G, "B"));
+    var res = liveFinish(G);
+    delete S.teams.asA; delete S.teams.asB;
+    return { res: res, picksA: pa, picksB: pb, tacticB: tb };
   }
   // 一次跑完一局（助理教練）
   function playGame(myTactic) {
@@ -1407,6 +1506,7 @@
       var s = JSON.parse(raw);
       if (!s || (s.v !== 2 && s.v !== 3)) return null;
       S = s;
+      registerHeroes();
       if (S.v === 2) {
         // 第二版存檔升級：補上新欄位
         S.v = 3;
@@ -1415,6 +1515,8 @@
         S.roster.forEach(function (id) { if (!person(id).origin) person(id).origin = "start"; });
         hook("init", S);
       }
+      // 第四版欄位（教練、頭像外觀、招牌技、個人目標）
+      if (!S.v4) { S.v4 = 1; hook("init", S); }
       return S;
     } catch (e) { return null; }
   }
@@ -1440,6 +1542,7 @@
     beginGame: beginGame, stepLive: stepLive, endGame: endGame, liveInfo: liveInfo, isSecret: isSecret,
     chem: chem, addChem: addChem, chemBonus: chemBonus, duo: duo, research: research, researched: researched,
     removeFromTeam: removeFromTeam, newPlayer: newPlayer, salaryOf: salaryOf, lgStr: lgStr, refreshScouts: refreshScouts, growthMul: growthMul,
-    addNews: addNews, tr: tr, rnd: rnd, ri: ri, pick: pick, shuffle: shuffle, clamp: clamp
+    addNews: addNews, tr: tr, lookStyle: lookStyle, randLook: randLook, genName: genName, genHandle: genHandle, sigFor: sigFor,
+    registerHeroes: registerHeroes, exhibition: exhibition, coachOf: coachOf, nextAIPhoto: nextAIPhoto, rnd: rnd, ri: ri, pick: pick, shuffle: shuffle, clamp: clamp
   };
 })();

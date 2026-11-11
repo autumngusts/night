@@ -19,6 +19,139 @@
   // 節日所在的週（Core.CAL 的索引）：新年＝季前第 1 週、情人節＝春季第 3 週、夏日祭＝夏季第 4 週、聖誕節＝休賽季
   var HOLIDAY_WK = { 0: "newyear", 4: "valentine", 17: "festival", 29: "christmas" };
 
+  // ---------------- 第四版：教練、個人目標、新英雄、全明星 ----------------
+  var COACH_STYLES = ["safe", "draft", "youth", "rush", "mind"];
+  function assignCoaches() {
+    var s = S();
+    Object.keys(s.teams).forEach(function (id) {
+      var t = s.teams[id];
+      if (t.me || t.coach) return;
+      var st = pick(COACH_STYLES);
+      t.coach = { name: Core.genName(t.region || "tw"), style: st };
+      // 教練風格決定隊伍慣用戰術
+      if (st === "safe") t.style = pick(["protect", "split"]);
+      else if (st === "rush") t.style = pick(["early", "fight"]);
+    });
+  }
+  function ensureLooks() {
+    var s = S();
+    Object.keys(s.people).forEach(function (id) {
+      var p = s.people[id];
+      if (!p.look) p.look = Core.randLook();
+      if (p.sig === undefined) { p.sig = p.star ? "star_solo" : Core.sigFor(p.role); p.sigOn = !!p.star || (p.team !== "me" && Core.ovr(p) >= 82); }
+    });
+  }
+  // 個人目標
+  function goalHero(p) {
+    var hs = Core.heroesOfRole(p.role).filter(function (h) { return (p.mastery[h.id] || 0) < 70; });
+    hs.sort(function (a, b) { return Core.metaTier(b.id) - Core.metaTier(a.id) || (p.mastery[b.id] || 0) - (p.mastery[a.id] || 0); });
+    return hs.length ? hs[0].id : null;
+  }
+  function assignGoal(p) {
+    var s = S(), t;
+    if (p.squad === 2) t = "starter";
+    else {
+      var pool = ["mvp", "kda", "worlds", "title", "ovr", "hero", "worlds", "mvp"];
+      if (p.age <= 20) pool.push("ovr", "ovr");
+      t = pick(pool);
+    }
+    var hero = t === "hero" ? goalHero(p) : null;
+    if (t === "hero" && !hero) t = "mvp";
+    p.goal = { t: t, y: s.year, hero: hero, base: { mvp: p.mvp, k: p.k, d: p.d, a: p.a, games: p.games, ovr: Math.round(Core.ovr(p) * 10) / 10 } };
+  }
+  function goalProgress(p) {
+    var s = S(), g = p.goal;
+    if (!g) return null;
+    var b = g.base, cur = 0, need = 1, ok = false;
+    if (g.t === "mvp") { cur = p.mvp - b.mvp; need = 3; }
+    else if (g.t === "starter") { cur = p.squad === 1 ? p.games - b.games : 0; need = 6; }
+    else if (g.t === "hero") { cur = Math.round(p.mastery[g.hero] || 0); need = 85; }
+    else if (g.t === "worlds") { cur = s.worlds && s.worlds.teams.indexOf("me") >= 0 ? 1 : 0; }
+    else if (g.t === "title") { cur = s.trophies.filter(function (x) { return x.y === g.y && (x.kind === "spring" || x.kind === "summer"); }).length ? 1 : 0; }
+    else if (g.t === "kda") { var gm = p.games - b.games; cur = gm >= 6 ? Math.round((p.k - b.k + p.a - b.a) / Math.max(1, p.d - b.d) * 10) / 10 : 0; need = 3.5; }
+    else if (g.t === "ovr") { cur = Math.round((Core.ovr(p) - b.ovr) * 10) / 10; need = 3; }
+    ok = cur >= need;
+    return { cur: cur, need: need, ok: ok };
+  }
+  function goalText(p) {
+    var g = p.goal, G = EX.GOALS[g.t];
+    return G.icon + " " + L(G.name).replace("{hero}", g.hero && D.HERO[g.hero] ? L(D.HERO[g.hero].name) : "");
+  }
+  function evalGoals() {
+    var s = S();
+    roster().forEach(function (p) {
+      if (!p.goal || p.goal.y !== s.year || p.goal.done) return;
+      var pr = goalProgress(p);
+      p.goal.done = true; p.goal.ok = pr.ok;
+      if (pr.ok) {
+        p.aff = clamp(p.aff + 10, 0, 100); p.mood = clamp(p.mood + 15, 0, 100); p.stats.mental = clamp(p.stats.mental + 3, 1, 99); p.wantLeave = false;
+        album("goal", p, goalText(p));
+      } else {
+        p.mood = clamp(p.mood - 10, 0, 100);
+        if (p.aff < 50) p.wantLeave = true;
+      }
+      s.events.push({ t: "goal", pid: p.id, ok: pr.ok, text: goalText(p) });
+    });
+  }
+  // 新英雄上市（每年 MSI 後＝夏季聯賽第 1 週）
+  function releaseHeroes() {
+    var s = S(), NH = EX.NEWHERO, roles = Core.shuffle(D.ROLES.slice()).slice(0, 2), made = [];
+    s.newHeroes = s.newHeroes || [];
+    roles.forEach(function (role) {
+      var nm = null, tries = 0;
+      while (tries++ < 30) {
+        var pre = pick(NH.pre), noun = pick(NH.noun[role]);
+        nm = { zh: pre.zh + noun.zh, ja: pre.ja + noun.ja };
+        var dup = D.HEROES.some(function (h) { return h.name.zh === nm.zh; });
+        if (!dup) break;
+      }
+      var tags = Core.shuffle(NH.tags.slice()).slice(0, ri(2, 3));
+      var h = { id: "n" + s.year + "_" + role + "_" + ri(100, 999), role: role, name: nm, tags: tags, curve: [ri(1, 5), ri(2, 5), ri(1, 5)], color: ri(0x303030, 0xf0f0f0), isNew: s.year };
+      s.newHeroes.push(h);
+      made.push(h);
+    });
+    Core.registerHeroes();
+    made.forEach(function (h) {
+      s.meta[h.id] = 1;   // 上市當季強勢
+      Object.keys(s.people).forEach(function (id) { var p = s.people[id]; if (p.role === h.role) p.mastery[h.id] = ri(5, 25); });
+    });
+    s.events.push({ t: "newhero", ids: made.map(function (h) { return h.id; }) });
+    Core.addNews(tr("news_newhero", { a: L(made[0].name), b: L(made[1].name) }), "gold");
+  }
+  // 電腦隊每週練新英雄（新人培養派練得快）
+  function aiPracticeNew() {
+    var s = S();
+    (s.newHeroes || []).forEach(function (h) {
+      Object.keys(s.teams).forEach(function (tid) {
+        var t = s.teams[tid];
+        if (t.me) return;
+        var mul = t.coach && t.coach.style === "youth" ? 1.5 : 1;
+        t.players.forEach(function (pid) { var p = person(pid); if (p && p.role === h.role && (p.mastery[h.id] || 0) < 85) p.mastery[h.id] = Math.round(((p.mastery[h.id] || 0) + Core.rnd(0.3, 1.2) * mul) * 10) / 10; });
+      });
+    });
+  }
+  // 全明星：亞洲（中國、韓國、台日、亞洲區）vs 世界（北美、南美、歐洲）；你擔任自己聯賽所屬那一隊的教練
+  var ASIA = ["cn", "kr", "tj", "asia"];
+  function allstarTeams() {
+    var s = S(), mySide = ASIA.indexOf(Core.myLg()) >= 0 ? "asia" : "world", out = { asia: [], world: [] };
+    D.ROLES.forEach(function (r) {
+      ["asia", "world"].forEach(function (side) {
+        var best = null, bs = -1;
+        Object.keys(s.teams).forEach(function (tid) {
+          var t = s.teams[tid], inAsia = ASIA.indexOf(t.league) >= 0;
+          if (!t.league || (side === "asia") !== inAsia) return;
+          Core.teamPlayers(tid).forEach(function (p) {
+            if (!p || p.role !== r) return;
+            var sc = Core.ovr(p) + Math.random() * 3 + (tid === "me" ? 1.5 : 0);
+            if (sc > bs) { bs = sc; best = p; }
+          });
+        });
+        if (best) out[side].push(best.id);
+      });
+    });
+    return { mine: out[mySide], other: out[mySide === "asia" ? "world" : "asia"], mySide: mySide };
+  }
+
   // ---------------- 初始化／存檔升級 ----------------
   function ensurePlayer(p) {
     if (!p) return;
@@ -46,6 +179,9 @@
     s.rivalRec = s.rivalRec || { w: 0, l: 0 };
     s.roster.forEach(function (id) { ensurePlayer(person(id)); });
     initChem();
+    assignCoaches();
+    ensureLooks();
+    s.roster.forEach(function (id) { var p = person(id); if (!p.goal) assignGoal(p); });
     updateRival();
     refreshMarket();
   }
@@ -54,7 +190,7 @@
   function album(kind, p, text) {
     var s = S();
     if (!s.album) s.album = [];
-    s.album.push({ y: s.year, wk: s.wk, kind: kind, img: p ? p.img : null, handle: p ? p.handle : "", text: text || "" });
+    s.album.push({ y: s.year, wk: s.wk, kind: kind, img: p ? p.img : null, look: p ? p.look : null, handle: p ? p.handle : "", text: text || "" });
     if (s.album.length > 120) s.album.shift();
   }
   function onTitle(kind) {
@@ -62,6 +198,7 @@
     roster().forEach(function (p) { if (p.squad === 1 && (!mvp || p.mvp > mvp.mvp)) mvp = p; });
     album("title", mvp, tr("album_title", { kind: tr("trophy_" + kind) }));
     if (kind === "worlds") {
+      confessCheck();
       s.flags.worldsWin = (s.flags.worldsWin || 0) + 1;
       var home = D.ROLES.every(function (r) { var p = person(s.lineup[r]); return p && (p.origin === "start" || p.origin === "scout"); });
       if (home) s.flags.homegrownWorld = 1;
@@ -72,9 +209,10 @@
   // ---------------- 結局（選手離隊） ----------------
   function ending(p, reason) {
     var s = S(), story = p.chap >= 3;
-    var tier = p.aff >= 90 && story ? "bond" : p.aff >= 60 ? "close" : "normal";
-    var text = tier === "bond" ? L(EX.ENDING_BOND[p.trait] || EX.ENDING_BOND.calm) : L(pick(tier === "close" ? EX.ENDING_CLOSE : EX.ENDING_NORMAL));
-    var ev = { t: "ending", img: p.img, handle: p.handle, name: p.name, trait: p.trait, tier: tier, reason: reason, text: text,
+    var tier = p.vow ? "vow" : p.aff >= 90 && story ? "bond" : p.aff >= 60 ? "close" : "normal";
+    var text = tier === "vow" ? L(EX.VOW_ENDING[p.trait] || EX.VOW_ENDING.calm) : tier === "bond" ? L(EX.ENDING_BOND[p.trait] || EX.ENDING_BOND.calm) : L(pick(tier === "close" ? EX.ENDING_CLOSE : EX.ENDING_NORMAL));
+    if (p.vow) s.vowPid = null;
+    var ev = { t: "ending", img: p.img, look: p.look, handle: p.handle, name: p.name, trait: p.trait, tier: tier, reason: reason, text: text,
       games: p.games, wins: p.wins, mvp: p.mvp, aff: Math.round(p.aff) };
     s.events.push(ev);
     album("ending_" + tier, p, text);
@@ -110,6 +248,21 @@
   function onWeek() {
     var s = S(), w = Core.week();
     if (!s.events) s.events = [];
+    // 新加入的選手補上目標；季前第 1 週全員換新目標
+    roster().forEach(function (p) {
+      if (!p.look) p.look = Core.randLook();
+      if (!p.goal || (w.k === "pre" && w.i === 0 && p.goal.y !== s.year)) assignGoal(p);
+      // 招牌技覺醒：好感 60 或任一英雄熟練度 95
+      if (p.sig && !p.sigOn) {
+        var mx = 0; Object.keys(p.mastery).forEach(function (h) { mx = Math.max(mx, p.mastery[h]); });
+        if (p.aff >= 60 || mx >= 95) { p.sigOn = true; s.events.push({ t: "sig", pid: p.id }); album("sig", p, L(EX.SIG[p.sig].name)); }
+      }
+    });
+    if (w.k === "league" && w.split === "summer" && w.i === 0) releaseHeroes();
+    aiPracticeNew();
+    // 私人邀約：好感 50 以上的選手每週 25%
+    var cand = roster().filter(function (p) { return p.aff >= 50; });
+    if (cand.length && Math.random() < 0.25) s.events.push({ t: "invite", pid: pick(cand).id, spot: pick(D.DATE_SPOTS).id });
     // 生日
     roster().forEach(function (p) { if (p.bday === s.wk) s.events.push({ t: "bday", pid: p.id }); });
     // 節日
@@ -119,6 +272,7 @@
       var top = roster().sort(function (a, b) { return b.aff - a.aff; })[0];
       if (top && top.aff >= 25) s.events.push({ t: "valentine", pid: top.id });
     } else if (hol === "festival" || hol === "christmas") s.events.push({ t: hol });
+    if (hol === "christmas") confessCheck();
     // 修羅場：好感 60 以上的有兩人以上時，每週 18%
     var hi = roster().filter(function (p) { return p.aff >= 60; });
     if (hi.length >= 2 && Math.random() < 0.18) {
@@ -131,13 +285,22 @@
     if ((w.k === "pre" && w.i === 0) || (w.k === "msi" && w.i === 0) || w.k === "off") refreshMarket();
     // 休賽季：頒獎、引退、合約
     if (w.k === "off") {
+      evalGoals();
       awards();
+      s.events.push({ t: "allstar" });
       retirements();
       roster().forEach(function (p) { p.contract = (p.contract || 1) - 1; });
       var exp = roster().filter(function (p) { return p.contract <= 0; });
       if (exp.length) Core.addNews(tr("news_contracts", { n: exp.length }), "event");
     }
     checkAch();
+  }
+  // 告白：好感 95 以上且身世故事讀完、還沒有誓約對象時（聖誕節、世界冠軍後）
+  function confessCheck() {
+    var s = S();
+    if (s.vowPid && person(s.vowPid)) return;
+    var c = roster().filter(function (p) { return p.aff >= 95 && p.chap >= 3 && !p.vow; }).sort(function (a, b) { return b.aff - a.aff; })[0];
+    if (c && !s.events.some(function (e) { return e.t === "confess"; })) s.events.push({ t: "confess", pid: c.id });
   }
   function retirements() {
     roster().forEach(function (p) {
@@ -232,6 +395,52 @@
         Core.addChem(a.id, b.id, 3);
       }
       msg = tr("jealous_" + c, { a: a.handle, b: b.handle });
+    } else if (ev.t === "invite") {
+      p = person(ev.pid);
+      if (!p) return null;
+      var sp = D.DATE_SPOT[ev.spot];
+      if (choice === "yes") {
+        p.mood = clamp(p.mood + sp.mood * 1.6, 0, 100); p.aff = clamp(p.aff + sp.aff * 1.8, 0, 100); p.fatigue = clamp(p.fatigue - 8, 0, 100);
+        msg = L(sp.text) + "\n" + L(window.PriTestChampStory.DATE_LIKE[p.trait]);
+        album("invite", p, L(sp.text));
+      } else {
+        p.mood = clamp(p.mood - 5, 0, 100); p.aff = clamp(p.aff - 2, 0, 100);
+        msg = p.handle + "：" + L(EX.INVITE_NO[p.trait]);
+      }
+    } else if (ev.t === "confess") {
+      p = person(ev.pid);
+      if (!p) return null;
+      if (choice === "yes") {
+        p.vow = true; s.vowPid = p.id; s.flags.vow = 1;
+        p.stats.mental = clamp(p.stats.mental + 5, 1, 99); p.mood = 100; p.aff = 100;
+        msg = L(EX.CONFESS[p.trait]);
+        album("vow", p, msg);
+        var others = roster().filter(function (x) { return x.id !== p.id && x.aff >= 80; });
+        if (others.length) s.events.unshift({ t: "shura", pid: p.id, others: others.map(function (x) { return x.id; }) });
+        Core.addNews(tr("news_vow", { name: p.handle }), "gold");
+      } else msg = tr("confess_wait");
+    } else if (ev.t === "shura") {
+      var os = (ev.others || []).map(person).filter(Boolean);
+      if (choice === "treat" && s.funds >= 30) {
+        s.funds -= 30;
+        os.forEach(function (x) { x.aff = clamp(x.aff - 4, 0, 100); x.mood = clamp(x.mood - 3, 0, 100); });
+        msg = tr("shura_treat");
+      } else {
+        os.forEach(function (x) { x.aff = clamp(x.aff - 10, 0, 100); x.mood = clamp(x.mood - 8, 0, 100); });
+        for (var i = 0; i < os.length; i++) for (var j = i + 1; j < os.length; j++) Core.addChem(os[i].id, os[j].id, 5);
+        msg = tr("shura_honest");
+      }
+    } else if (ev.t === "allstar") {
+      var tm = allstarTeams(), tac = choice || "fight";
+      var ex = Core.exhibition(tm.mine, tm.other, tac), win = ex.res.winner === "A";
+      tm.mine.concat(tm.other).forEach(function (pid) {
+        var x = person(pid);
+        if (x && x.team === "me") { x.mood = clamp(x.mood + 10, 0, 100); x.salMul = (x.salMul || 1) * 1.05; s.fans += 2000; album("allstar", x, tr("allstar_pick")); }
+      });
+      tm[win ? "mine" : "other"].forEach(function (pid) { var x = person(pid); if (x && x.team === "me") x.mood = clamp(x.mood + 5, 0, 100); });
+      s.events.unshift({ t: "allstar_res", win: win, side: tm.mySide, mine: tm.mine, other: tm.other, moments: ex.res.moments, picksA: ex.picksA, picksB: ex.picksB, tacA: tac, tacB: ex.tacticB, mvp: ex.res.mvp });
+      if (win) s.flags.allstarWin = 1;
+      msg = tr(win ? "allstar_win" : "allstar_loss");
     } else if (ev.t === "poach") {
       p = person(ev.pid);
       if (!p) return null;
@@ -253,13 +462,14 @@
     roster().forEach(function (p) { if (p.squad === 1 && (!best || Core.ovr(p) > Core.ovr(best))) best = p; });
     if (!best) return;
     var teams = Object.keys(s.teams).filter(function (id) { return !s.teams[id].me && s.teams[id].league !== Core.myLg(); });
-    var tm = pick(teams);
+    var youth = teams.filter(function (id) { return s.teams[id].coach && s.teams[id].coach.style === "youth"; });
+    var tm = pick(youth.length && Math.random() < 0.6 ? youth : teams);
     s.events.push({ t: "poach", pid: best.id, team: tm, fee: Math.round(best.salary * 25 + 100) });
   }
 
   // ---------------- 合約 ----------------
   function renewCost(p) {
-    var mul = Math.max(0.85, (p.salMul || 1) * (1.12 - p.aff / 500));
+    var mul = Math.max(0.85, (p.salMul || 1) * (1.12 - p.aff / 500)) * (p.wantLeave ? 1.3 : 1);
     var sal = Math.round(Core.salaryOf(Core.ovr(p)) * mul);
     return { mul: mul, salary: sal, bonus: sal * 4 };
   }
@@ -336,12 +546,16 @@
         if (p.age <= 19 && sc > rs) { rs = sc; rook = { p: p, tid: tid }; }
       });
     });
-    var mine = s.trophies.filter(function (x) { return x.y === s.year; }).length > 0;
-    var coachTid = mine ? "me" : (lg && lg.champ) || null;
+    // 最佳教練：名次＋超出實力的程度（實力排名 − 最終名次），所有電腦教練一起競爭
+    var coachTid = null, cs = -1e9, strRank = order.slice().sort(function (a, b) { return Core.teamStr(b) - Core.teamStr(a); });
+    order.forEach(function (tid, rank) {
+      var sc = (8 - rank) + (strRank.indexOf(tid) - rank) * 0.8 + (tid === "me" && s.trophies.some(function (x) { return x.y === s.year && (x.kind === "worlds" || x.kind === "msi"); }) ? 4 : 0) + Math.random() * 0.5;
+      if (sc > cs) { cs = sc; coachTid = tid; }
+    });
     var A = { y: s.year,
-      mvp: best ? { handle: best.p.handle, team: Core.teamName(best.tid), me: best.tid === "me", img: best.p.img } : null,
-      rookie: rook ? { handle: rook.p.handle, team: Core.teamName(rook.tid), me: rook.tid === "me", img: rook.p.img } : null,
-      coach: coachTid ? { team: Core.teamName(coachTid), me: coachTid === "me" } : null };
+      mvp: best ? { handle: best.p.handle, team: Core.teamName(best.tid), me: best.tid === "me", img: best.p.img, look: best.p.look } : null,
+      rookie: rook ? { handle: rook.p.handle, team: Core.teamName(rook.tid), me: rook.tid === "me", img: rook.p.img, look: rook.p.look } : null,
+      coach: coachTid ? { team: Core.teamName(coachTid), me: coachTid === "me", name: coachTid === "me" ? null : (s.teams[coachTid].coach || {}).name } : null };
     [best, rook].forEach(function (x, k) {
       if (x && x.tid === "me") {
         x.p.mood = clamp(x.p.mood + 15, 0, 100); x.p.salMul = (x.p.salMul || 1) * 1.15; s.fans += 3000;
@@ -349,7 +563,7 @@
         if (k === 0) s.flags.awardMvp = 1;
       }
     });
-    if (A.coach && A.coach.me) s.fans += 2000;
+    if (A.coach && A.coach.me) { s.fans += 2000; s.flags.coachAward = 1; }
     s.awards.push(A);
     s.events.push({ t: "awards", y: s.year });
   }
@@ -392,7 +606,7 @@
       hard_world: f.worldsWin && D.REGION[s.region].diff === "high", challenge_world: f.worldsWin && anyChal,
       homegrown: f.homegrownWorld, transfer: f.transfer, beat_taker: f.beatTaker, rival: (s.rivalRec || {}).w >= 3,
       sweep: f.sweep, comeback: f.comeback, creative: f.creative, bond: f.bond, stories: (f.stories || 0) >= 3,
-      award: f.awardMvp, years5: s.year >= 6, facility: fac.train >= 3 && fac.dorm >= 3 && fac.mental >= 3 && fac.analyst >= 3
+      award: f.awardMvp, vow: f.vow, allstar: f.allstarWin, coach_award: f.coachAward, years5: s.year >= 6, facility: fac.train >= 3 && fac.dorm >= 3 && fac.mental >= 3 && fac.analyst >= 3
     };
     EX.ACH.forEach(function (a) { if (cond[a.id] && !got[a.id]) { got[a.id] = s.year; neu.push(a); } });
     if (neu.length) {
@@ -407,7 +621,7 @@
   window.PriTestChampLife = {
     init: init, ensurePlayer: ensurePlayer, initChem: initChem, updateRival: updateRival, onWeek: onWeek, beforeAdvance: beforeAdvance,
     onTitle: onTitle, onGame: onGame, onSeries: onSeries, ending: ending, album: album,
-    current: current, resolve: resolve, rivalOf: rivalOf, rivalLine: rivalLine,
+    current: current, resolve: resolve, rivalOf: rivalOf, rivalLine: rivalLine, goalProgress: goalProgress, goalText: goalText, allstarTeams: allstarTeams,
     renewCost: renewCost, renew: renew, expiring: expiring, marketFee: marketFee, marketList: marketList, buy: buy,
     facCost: facCost, upgrade: upgrade, unlocked: unlocked, achState: achState, popNewAch: popNewAch, checkAch: checkAch
   };

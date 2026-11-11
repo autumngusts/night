@@ -70,6 +70,43 @@
   var REGION = {};
   REGIONS.forEach(function (r) { REGION[r.id] = r; });
 
+  // ---------------- 選手名字（姓 × 名，2026-11-11 使用者指定「名字變化再大一些」） ----------------
+  // fmt：sg＝姓名相連（中、台、韓）／s g＝姓 名（日、越）／g s＝名 姓（西方、蒙古、俄羅斯）
+  var WEST_G = ["Emily", "Chloe", "Madison", "Ava", "Olivia", "Harper", "Sophia", "Riley", "Zoe", "Lily", "Nora", "Mia", "Abigail", "Emma", "Grace", "Hannah", "Natalie", "Samantha", "Brianna", "Kayla", "Megan", "Leah", "Claire", "Audrey", "Hailey", "Avery", "Scarlett", "Stella", "Violet", "Hazel"];
+  var WEST_S = ["Carter", "Nguyen", "Park", "Ramirez", "Chen", "Lee", "Kim", "Brooks", "Martinez", "Tanaka", "Hayes", "Delgado", "Walsh", "Rossi", "O'Brien", "Cohen", "Hill", "Scott", "Johnson", "Price", "Morgan", "Fox", "Rivera", "Patel", "Bennett", "Foster", "Reed", "Sullivan"];
+  var NAMEGEN = {
+    tw: { fmt: "sg", s: ["陳", "林", "黃", "張", "李", "王", "吳", "劉", "蔡", "楊", "許", "鄭", "謝", "郭", "洪", "曾", "邱", "廖", "賴", "周", "葉", "蘇", "莊", "呂"],
+      g: ["家瑜", "詩涵", "宜蓁", "品妍", "佳穎", "子晴", "芷瑄", "雅筑", "語彤", "若涵", "沛綺", "昕妤", "芯語", "宥蓁", "姵妤", "筱涵", "羽彤", "苡安", "以晴", "詠晴", "亭妤", "思妤", "紫涵", "芊芊"] },
+    jp: { fmt: "s g", s: ["佐藤", "鈴木", "高橋", "田中", "伊藤", "渡辺", "山本", "中村", "小林", "加藤", "吉田", "山田", "佐々木", "松本", "井上", "木村", "林", "清水", "山崎", "森", "池田", "橋本", "阿部", "石川"],
+      g: ["美咲", "陽菜", "結衣", "さくら", "葵", "凛", "芽依", "ひなた", "楓", "莉子", "澪", "杏", "心春", "結菜", "咲良", "紬", "花音", "琴音", "美羽", "彩花", "七海", "真央", "千尋", "遥"] },
+    kr: { fmt: "sg", s: ["金", "李", "朴", "崔", "鄭", "姜", "趙", "尹", "張", "林", "韓", "吳", "徐", "申", "權", "黃", "安", "宋", "洪", "全"],
+      g: ["智妍", "秀彬", "夏恩", "允瑞", "佳仁", "睿琳", "書雅", "智友", "多恩", "娜妍", "敏智", "采媛", "瑟琪", "惠利", "有娜", "素拉", "恩菲", "佳恩", "河娜", "瑞賢", "藝琳", "知秀", "彩英", "秀晶"] },
+    cn: { fmt: "sg", s: ["林", "蘇", "葉", "陳", "王", "趙", "周", "唐", "許", "何", "沈", "江", "楊", "黃", "吳", "孫", "馬", "胡", "郭", "羅", "梁", "宋", "謝", "韓"],
+      g: ["語晴", "沐瑤", "欣妍", "思彤", "雨萱", "夢琪", "婉清", "詩涵", "靈汐", "夢瑤", "清歡", "晚吟", "若曦", "紫萱", "一諾", "芷若", "星辰", "子衿", "初夏", "念安", "悅然", "書瑤", "知意", "南枝"] },
+    vn: { fmt: "s g", s: ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Vũ", "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", "Lý", "Phan", "Võ", "Huỳnh"],
+      g: ["Thu Hà", "Mai Anh", "Ngọc Lan", "Thảo Vy", "Minh Thư", "Bảo Ngọc", "Khánh Linh", "Gia Hân", "Phương Uyên", "Thanh Trúc", "Tuyết Mai", "Hải Yến", "Quỳnh Chi", "Kim Ngân", "Ánh Dương", "Diệu Linh", "Như Ý", "Bích Phương", "Hồng Nhung", "Thùy Dung"] },
+    ru: { fmt: "g s", g: ["Anastasia", "Daria", "Ekaterina", "Polina", "Sofia", "Alina", "Viktoria", "Ksenia", "Maria", "Yulia", "Vera", "Irina", "Arina", "Milana", "Varvara", "Valeria", "Kira", "Taisia", "Ulyana", "Zlata"],
+      s: ["Volkova", "Sokolova", "Morozova", "Lebedeva", "Kozlova", "Novikova", "Orlova", "Pavlova", "Fedorova", "Smirnova", "Belova", "Zaitseva", "Popova", "Egorova", "Vinogradova", "Kuznetsova", "Romanova", "Titova"] },
+    mn: { fmt: "g s", g: ["Anujin", "Saran", "Nomin", "Khulan", "Oyun", "Enkhjin", "Solongo", "Misheel", "Uyanga", "Tsolmon", "Narantsetseg", "Ariunaa", "Bolormaa", "Gerelmaa", "Maralmaa", "Odval", "Sarnai", "Tuya", "Zaya", "Nandin"],
+      s: ["Batbayar", "Gantulga", "Erdene", "Bold", "Tsetseg", "Bat", "Dorj", "Ganbold", "Purev", "Altan", "Bayar", "Sukh", "Munkh", "Tumur", "Ochir", "Chuluun"] },
+    naw: { fmt: "g s", g: WEST_G, s: WEST_S },
+    nae: { fmt: "g s", g: WEST_G, s: WEST_S },
+    sa: { fmt: "g s", g: ["Valentina", "Camila", "Isabela", "Luciana", "Martina", "Gabriela", "Sofía", "Mariana", "Julieta", "Renata", "Paula", "Bianca", "Antonella", "Catalina", "Florencia", "Agustina", "Larissa", "Beatriz", "Manuela", "Ximena"],
+      s: ["Silva", "Rocha", "Costa", "Pérez", "Gómez", "Souza", "Herrera", "Lopes", "Díaz", "Alves", "Ríos", "Torres", "Fernández", "Castro", "Ramos", "Oliveira", "Mendes", "Vargas"] },
+    weu: { fmt: "g s", g: ["Léa", "Clara", "Sofia", "Emma", "Lucía", "Hannah", "Chloé", "Giulia", "Nora", "Inès", "Freya", "Elodie", "Mila", "Lena", "Alice", "Charlotte", "Matilde", "Ingrid", "Sienna", "Amélie"],
+      s: ["Dubois", "Schmidt", "Romano", "de Vries", "García", "Müller", "Laurent", "Bianchi", "Jansen", "Martín", "Larsen", "Petit", "Rossi", "Fischer", "Bernard", "Moreau", "Weber", "Ricci", "Lindqvist", "Ferreira"] },
+    eeu: { fmt: "g s", g: ["Zofia", "Ewa", "Tereza", "Ana", "Mila", "Katarzyna", "Elena", "Petra", "Nina", "Iveta", "Maja", "Lenka", "Agnieszka", "Daria", "Ioana", "Kristina", "Marta", "Sára", "Hana", "Jelena"],
+      s: ["Kowalska", "Nowak", "Nováková", "Popescu", "Horvat", "Wójcik", "Ionescu", "Kovács", "Petrović", "Dvořáková", "Zielińska", "Svobodová", "Kamińska", "Szabó", "Novak", "Lewandowska", "Marković", "Tóth"] }
+  };
+  // 遊戲 ID 的追加詞庫與裝飾（基本詞庫是 HANDLES）
+  var HANDLE_MORE = ["Aurora", "Bunny", "Candy", "Dahlia", "Eclipse", "Fairy", "Ginger", "Hikari", "Iroha", "Jelly", "Kitsune", "Lilac", "Mirage", "Nectar", "Onyx", "Petal",
+    "Quartz", "Ribbon", "Sakura", "Tempest", "Utopia", "Vanilla", "Whisper", "Xenon", "Yuna", "Zelda", "Airi", "Berry", "Coral", "Dream", "Estelle", "Flare",
+    "Gummy", "Haru", "Icicle", "Jasmine", "Kiki", "Latte", "Marron", "Noel", "Orchid", "Prism", "Rei", "Selene", "Toffee", "Usagi", "Vivid", "Waffle",
+    "Yoyo", "Zara", "Ame", "Bell", "Chiffon", "Dawn", "Eira", "Fuyu", "Gale", "Hoshi", "Ilse", "Jinx", "Kumo", "Leaf", "Macaron", "Nebula", "Oto", "Pearl",
+    "Rabbit", "Sumire", "Tama", "Unagi", "Valkyr", "Wave", "Yuzuha", "Zest", "Arcana", "Bliss", "Comet", "Dusk", "Ember", "Fable", "Glimmer", "Hush"];
+  var HANDLE_PRE = ["Lil", "Miss", "Neo", "Mini", "Dark", "Holy", "Pure", "Star", "Moon", "Sun", "Ice", "Fire"];
+  var HANDLE_SUF = ["chan", "tan", "Q", "x", "ie", "y", "s", "ko", "mi", "rin", "XD", "OwO"];
+
   // ---------------- 聯賽（括號＝世界大賽種子數，合計 16） ----------------
   // members：由哪些國家組成、各幾隊（合計 8 隊）。str：聯賽平均實力。
   var LEAGUES = [
@@ -368,7 +405,7 @@
   window.PriTestChampData = {
     C: C, L: L,
     ROLES: ROLES, ROLE: ROLE, STATS: STATS, STAT: STAT,
-    REGIONS: REGIONS, REGION: REGION, DIFF: DIFF, HANDLES: HANDLES, LEAGUES: LEAGUES, LEAGUE: LEAGUE, DYNASTY: DYNASTY, HALL: HALL,
+    REGIONS: REGIONS, REGION: REGION, NAMEGEN: NAMEGEN, HANDLE_MORE: HANDLE_MORE, HANDLE_PRE: HANDLE_PRE, HANDLE_SUF: HANDLE_SUF, DIFF: DIFF, HANDLES: HANDLES, LEAGUES: LEAGUES, LEAGUE: LEAGUE, DYNASTY: DYNASTY, HALL: HALL,
     HEROES: HEROES, HERO: HERO, TAG: TAG, SYNERGIES: SYNERGIES,
     TACTICS: TACTICS, TACTIC: TACTIC, MOMENTS: MOMENTS,
     TRAITS: TRAITS, TRAIT: TRAIT,
