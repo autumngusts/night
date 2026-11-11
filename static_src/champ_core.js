@@ -10,6 +10,8 @@
   var D = window.PriTestChampData, ST = window.PriTestChampStory, EX = window.PriTestChampExtra;
   // 經營與事件模組（champ_life.js，在本檔之後載入，執行時才取用）
   function LIFE() { return window.PriTestChampLife || null; }
+  // 羈絆模組（champ_bond.js：約會、親密互動、深夜陪練、新人導師）
+  function BOND() { return window.PriTestChampBond || null; }
   function hook(name) { var lf = LIFE(); if (lf && lf[name]) return lf[name].apply(null, Array.prototype.slice.call(arguments, 1)); return null; }
   function fac(id) { return (S.fac && S.fac[id]) || 0; }
   var L = D.L;
@@ -313,6 +315,7 @@
     var p = person(pid);
     if (!p) return;
     hook("ending", p, reason);
+    if (BOND()) BOND().onRemove(pid);
     var role = p.role;
     S.roster = S.roster.filter(function (id) { return id !== pid; });
     Object.keys(S.chem || {}).forEach(function (k) { if (k.split("|").indexOf(pid) >= 0) delete S.chem[k]; });
@@ -756,7 +759,7 @@
     var lines = [];
     S.roster.forEach(function (id) {
       var p = person(id);
-      trainOne(p, p.squad === 1 ? S.focus1 : S.focus2, p.squad === 1 ? 1 : 1.1);
+      trainOne(p, p.squad === 1 ? S.focus1 : S.focus2, (p.squad === 1 ? 1 : 1.1) * (BOND() ? BOND().trainMul(p) : 1));
       // 心情回歸，二軍中實力不輸先發的人會想上場
       p.mood = clamp(p.mood + (60 - p.mood) * 0.12, 0, 100);
       if (p.squad === 2) {
@@ -772,6 +775,7 @@
     var income = Math.round(reg.sponsor * (S.chal && S.chal.budget ? 0.5 : 1)) + Math.round(S.fans / 2000);
     S.funds += income - wage - upkeep;
     S.lastBudget = { income: income, wage: wage, upkeep: upkeep };
+    if (BOND()) BOND().mentorWeek();
     return lines;
   }
 
@@ -1390,31 +1394,12 @@
     save();
     return { ok: true, msg: tr("act_coach_done", { name: p.handle, stat: L(D.STAT[low]), g: g.toFixed(1) }), scene: checkMilestone(p) };
   }
-  // 約會：先決定地點，約會中會出現一個對話選項（DATE_EVENTS），選到她喜歡的回應效果更好
-  function dateEvent() { return Math.floor(Math.random() * ST.DATE_EVENTS.length); }
+  // 約會：多段式約會的流程與結算在 champ_bond.js；這裡只檢查行動點與資金
   function canDate(spotId) {
     var sp = D.DATE_SPOT[spotId];
     if (!needAP(1)) return { ok: false, msg: tr("err_ap") };
     if (S.funds < sp.cost) return { ok: false, msg: tr("err_funds") };
     return { ok: true };
-  }
-  function date(pid, spotId, evIdx, optIdx) {
-    var p = person(pid), sp = D.DATE_SPOT[spotId], t = D.TRAIT[p.trait];
-    var chk = canDate(spotId);
-    if (!chk.ok) return chk;
-    S.ap -= 1; S.funds -= sp.cost;
-    var like = t.likes.indexOf(spotId) >= 0 ? 1.4 : (t.dislikes || []).indexOf(spotId) >= 0 ? 0.6 : 1;
-    var opt = ST.DATE_EVENTS[evIdx] && ST.DATE_EVENTS[evIdx].o[optIdx], answer = 1;
-    if (opt) answer = opt.like.indexOf(p.trait) >= 0 ? 1.5 : opt.dislike.indexOf(p.trait) >= 0 ? 0.5 : 1;
-    var mul = like * answer * (t.dateMul || 1);
-    p.mood = clamp(p.mood + sp.mood * mul, 0, 100);
-    p.aff = clamp(p.aff + sp.aff * mul, 0, 100);
-    p.fatigue = clamp(p.fatigue - 8, 0, 100);
-    if (p.mood >= 80 && p.cond < 2 && Math.random() < 0.35) p.cond++;
-    var good = like * answer > 1.05, bad = like * answer < 0.95;
-    var line = L((good ? ST.DATE_LIKE : bad ? ST.DATE_DISLIKE : ST.DATE_LIKE)[p.trait]);
-    save();
-    return { ok: true, good: good, bad: bad, msg: L(sp.text) + "\n" + (good || bad ? line + "\n" : "") + tr(good ? "date_like" : bad ? "date_dislike" : "date_ok", { name: p.handle }), scene: checkMilestone(p) };
   }
   // 飯店談心：每次聽一章身世小故事，三章讀完解開心結（該故事的能力 +2、心態 +2）
   function storyOf(p) {
@@ -1532,9 +1517,9 @@
     photoFile: photoFile, ovr: ovr, ovrI: ovrI, person: person, team: team, teamName: teamName, teamPlayers: teamPlayers, teamStr: teamStr,
     heroesOfRole: heroesOfRole, topHeroes: topHeroes, metaTier: metaTier, signFee: signFee, standings: standings, groupStandings: groupStandings,
     worldsPairs: worldsPairs, msiPairs: msiPairs, playerFor: playerFor, myLg: myLg, AP_MAX: AP_MAX, oldSave: oldSave, answerOffer: answerOffer,
-    murmur: murmur, creativeLine: creativeLine, dateEvent: dateEvent, canDate: canDate, storyOf: storyOf,
+    murmur: murmur, creativeLine: creativeLine, canDate: canDate, storyOf: storyOf, checkMilestone: checkMilestone,
     sign: sign, scoutReveal: scoutReveal, release: release, setLineup: setLineup, setFocus: setFocus, setPractice: setPractice,
-    talk: talk, coach: coach, date: date, hotel: hotel, teamDinner: teamDinner,
+    talk: talk, coach: coach, hotel: hotel, teamDinner: teamDinner,
     startSeries: startSeries, draftTurn: draftTurn, draftAct: draftAct, draftDone: draftDone, aiChoose: aiChoose, canPick: canPick, canBan: canBan,
     heroTaken: heroTaken, fearlessLocked: fearlessLocked, mySide: mySide, teamOfSide: teamOfSide,
     compFit: compFit, fitPct: fitPct, activeSynergies: activeSynergies, aiTactic: aiTactic, predict: predict, matchRating: matchRating,

@@ -349,3 +349,14 @@
 .cc-optrow { flex-direction: row !important; flex-wrap: wrap; justify-content: center; }
 .cc-left { text-align: left; }
 @media (max-width: 520px) { .cc-asr { grid-template-columns: repeat(3, 1fr); } .cc-cutin img { width: 4.5rem; height: 4.5rem; } .cc-cutin b { font-size: 1.2em; } }
+
+/* 第五版：羈絆（多段式約會、交往與親密互動、深夜陪練、新人導師） */
+.cc-love { border-color: var(--cc-accent); color: var(--cc-accent); }
+.cc-love:disabled { color: inherit; border-color: var(--cc-line); }
+.cc-datebox .cc-dots { letter-spacing: 0.2em; color: var(--cc-accent); }
+.cc-bondline b { color: var(--cc-accent); }
+.cc-quote { font-style: italic; color: var(--cc-accent); }
+.cc-mentor { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-top: 1px dashed var(--cc-line); }
+.cc-mentor:first-of-type { border-top: 0; }
+.cc-mentor > span:first-of-type { flex: 1 1 10rem; min-width: 0; }
+.cc-mentor select { max-width: 100%; }
