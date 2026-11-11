@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestChampData, Core = window.PriTestChampCore, V3 = window.PriTestChamp3D, EX = window.PriTestChampExtra, Life = window.PriTestChampLife;
+  var D = window.PriTestChampData, Core = window.PriTestChampCore, V3 = window.PriTestChamp3D, EX = window.PriTestChampExtra, Life = window.PriTestChampLife, Bond = window.PriTestChampBond;
   var L = D.L;
   var app = document.getElementById("cc-app");
   if (!app) return;
@@ -89,7 +89,7 @@
     var got = Life.achState(), gn = Object.keys(got).length;
     h += '<div class="cc-panel"><h2>🏅 ' + esc(t("ach_title")) + " " + gn + "/" + EX.ACH.length + '</h2><div class="cc-achs">' + achGrid(got) + "</div></div>";
     h += '<div class="cc-panel"><h2>' + esc(t("how_title")) + '</h2><ol class="cc-rules">';
-    for (var i = 1; i <= 13; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
+    for (var i = 1; i <= 14; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
     h += "</ol></div>";
     return h;
   }
@@ -255,8 +255,24 @@
       ps.forEach(function (p) { fat += p.fatigue; });
       h += '<p class="cc-small">' + esc(t("train_members", { n: ps.length, f: ps.length ? Math.round(fat / ps.length) : 0 })) + "</p></div>";
     });
+    h += mentorPanel();
+    h += '<div class="cc-panel"><h2>🌙 ' + esc(t("late_title")) + '</h2><p class="cc-small">' + esc(t("late_hint", { n: Bond.LATE_AP })) + "</p></div>";
     h += '<div class="cc-panel"><p class="cc-small">' + esc(t("train_hint")) + "</p></div>";
     return h;
+  }
+  // 新人導師：20 歲以下的新人各可指定一位導師（21 歲以上、OVR 高 3 以上），8 週出師
+  function mentorPanel() {
+    var s = S(), M = Bond.mentors(), rooks = s.roster.map(Core.person).filter(Bond.isRookie);
+    var h = '<div class="cc-panel"><h2>🎓 ' + esc(t("mentor_title")) + ' <span class="cc-small">' + Object.keys(M).length + "/" + Bond.MENTOR_MAX + '</span></h2><p class="cc-small cc-muted">' + esc(t("mentor_hint", { w: Bond.MENTOR_WEEKS })) + "</p>";
+    if (!rooks.length) return h + '<p class="cc-small">' + esc(t("mentor_none")) + "</p></div>";
+    rooks.forEach(function (r) {
+      var cur = M[r.id], cands = Bond.mentorCands(r.id);
+      h += '<div class="cc-mentor"><img class="cc-rimg" src="' + photo(r) + '" style="' + Core.lookStyle(r.look) + '" alt=""><span><b>' + esc(r.handle) + '</b> <small>' + D.ROLE[r.role].icon + " " + t("age_n", { n: r.age }) + "・OVR " + Core.ovrI(r) + "</small></span>" +
+        '<select data-act="mentor" data-id="' + r.id + '"><option value="">' + esc(t("mentor_pick")) + "</option>";
+      cands.forEach(function (m) { h += '<option value="' + m.id + '"' + (cur && cur.m === m.id ? " selected" : "") + ">" + esc(m.handle) + "（" + esc(roleName(m.role)) + "・OVR " + Core.ovrI(m) + "）</option>"; });
+      h += "</select>" + (cur ? '<span class="cc-small cc-gold">' + esc(t("mentor_prog", { n: cur.wk, w: Bond.MENTOR_WEEKS })) + "</span>" : "") + "</div>";
+    });
+    return h + "</div>";
   }
 
   function renderMarket() {
@@ -495,6 +511,15 @@
       h += "</ol>" + (mv ? '<p class="cc-gold">MVP：' + esc(mv.handle) + "（" + esc(Core.teamName(mv.team)) + "）</p>" : "") + '<button class="cc-btn cc-primary" data-act="ev" data-c="">OK</button>';
     } else if (ev.t === "ending") {
       h += '<img src="' + IMG_BASE + Core.photoFile(ev.img) + '.webp" style="' + Core.lookStyle(ev.look) + '" alt=""><p class="cc-gold">' + esc(t("ending_" + ev.tier)) + "</p><h3>" + esc(ev.handle) + ' <small class="cc-muted">' + esc(ev.name) + '</small></h3><p class="cc-small">' + esc(t("leave_" + ev.reason)) + '</p><p class="cc-line">' + esc(ev.text) + '</p><p class="cc-small cc-muted">' + esc(t("ending_stats", { g: ev.games, w: ev.wins, mvp: ev.mvp, aff: ev.aff })) + '</p><button class="cc-btn cc-primary" data-act="ev" data-c="">' + esc(t("ending_ok")) + "</button>";
+    } else if (ev.t === "bond") {
+      var bv = Bond.evView(ev);
+      if (!bv) { h += '<button class="cc-btn cc-primary" data-act="ev" data-c="">OK</button>'; }
+      else {
+        var bm = bv.mid ? Core.person(bv.mid) : null;
+        h += (bm ? '<div class="cc-two">' + face(Core.person(bv.pid)) + face(bm) + "</div>" : face(Core.person(bv.pid))) + '<p class="cc-gold">' + bv.icon + " " + esc(bv.title) + '</p><p class="cc-line">' + esc(bv.text).replace(/\n/g, "<br>") + "</p>" + (bv.quote ? '<p class="cc-line cc-quote">' + esc(bv.quote) + "</p>" : "") + '<div class="cc-opts">';
+        bv.opts.forEach(function (o, i) { h += '<button class="cc-btn' + (i === 0 ? " cc-primary" : "") + '" data-act="ev" data-c="' + i + '"' + (o.dis ? " disabled" : "") + ">" + esc(o.t) + "</button>"; });
+        h += "</div>";
+      }
     } else if (ev.t === "awards") {
       var A = (s.awards || []).filter(function (x) { return x.y === ev.y; })[0];
       h += '<p class="cc-gold cc-big">🏅 ' + esc(t("awards_ceremony", { y: ev.y })) + "</p>" + (A ? awardBlock(A) : "") + '<button class="cc-btn cc-primary" data-act="ev" data-c="">OK</button>';
@@ -539,7 +564,11 @@
         '<button class="cc-btn" data-act="talk" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">💬 " + esc(t("act_talk")) + "</button>" +
         '<button class="cc-btn" data-act="coach" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">📋 " + esc(t("act_coach")) + "</button>" +
         '<button class="cc-btn" data-act="datepick" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">💕 " + esc(t("act_date")) + "</button>" +
-        '<button class="cc-btn cc-hotel" data-act="hotel" data-id="' + p.id + '"' + (s.ap < D.HOTEL.ap || p.aff < D.HOTEL.needAff ? " disabled" : "") + ">🏨 " + esc(t("act_hotel", { cost: money(D.HOTEL.cost) })) + "</button></div>";
+        '<button class="cc-btn cc-hotel" data-act="hotel" data-id="' + p.id + '"' + (s.ap < D.HOTEL.ap || p.aff < D.HOTEL.needAff ? " disabled" : "") + ">🏨 " + esc(t("act_hotel", { cost: money(D.HOTEL.cost) })) + "</button>" +
+        '<button class="cc-btn" data-act="late" data-id="' + p.id + '"' + (Bond.canLate(p) ? "" : " disabled") + ">🌙 " + esc(t("act_late", { n: Bond.LATE_AP })) + "</button>" +
+        (Bond.canConfess(p) ? '<button class="cc-btn cc-love" data-act="confess" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">💌 " + esc(t("act_confess")) + "</button>" : "") +
+        (Bond.isLover(p) ? '<button class="cc-btn cc-love" data-act="hug" data-id="' + p.id + '"' + (Bond.canHug(p) ? "" : " disabled") + ">🤗 " + esc(t("act_hug")) + "</button>" +
+          '<button class="cc-btn cc-love" data-act="kiss" data-id="' + p.id + '"' + (Bond.canKiss(p) ? "" : " disabled") + ">💋 " + esc(t("act_kiss")) + "</button>" : "") + "</div>" + bondLine(p);
       var gp = Life.goalProgress(p);
       if (p.goal) h += '<p class="cc-small">🎯 ' + esc(t("goal_line", { goal: Life.goalText(p), cur: gp.cur, need: gp.need })) + (gp.ok ? " ✅" : "") + (p.wantLeave ? ' <span class="cc-loss">' + esc(t("want_leave")) + "</span>" : "") + "</p>";
       if (p.sig) { var sk = EX.SIG[p.sig]; h += '<p class="cc-small">' + sk.icon + " " + esc(t(p.sigOn ? "sig_on" : "sig_off", { skill: L(sk.name) })) + "</p>"; }
@@ -559,7 +588,9 @@
       if (ui.datePick) {
         h += '<div class="cc-dates">';
         D.DATE_SPOTS.forEach(function (sp) {
-          h += '<button class="cc-btn" data-act="date" data-id="' + p.id + '" data-spot="' + sp.id + '"' + (s.funds < sp.cost ? " disabled" : "") + ">" + sp.icon + " " + esc(L(sp.name)) + " <small>" + money(sp.cost) + "</small></button>";
+          var okReq = Bond.spotReq(sp, p);
+          if (sp.req && !okReq && !Bond.adult(p)) return;
+          h += '<button class="cc-btn' + (sp.req ? " cc-love" : "") + '" data-act="date" data-id="' + p.id + '" data-spot="' + sp.id + '"' + (s.funds < sp.cost || !okReq ? " disabled" : "") + ">" + sp.icon + " " + esc(L(sp.name)) + " <small>" + money(sp.cost) + (sp.req && !okReq ? " 🔒" + esc(t("spot_req_" + sp.req)) : "") + "</small></button>";
         });
         h += "</div>";
       }
@@ -969,11 +1000,27 @@
   }
 
   // ================= 約會、談心的視窗 =================
+  // 多段式約會：出發 → 途中 → 道別，每題回答後顯示她的反應
   function renderDateEv() {
-    var e = ui.dateEv, p = Core.person(e.pid), ev = window.PriTestChampStory.DATE_EVENTS[e.ev], sp = D.DATE_SPOT[e.spot];
-    var h = '<div class="cc-modal cc-scene"><div class="cc-sbox"><img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt=""><p class="cc-small cc-gold">' + sp.icon + " " + esc(L(sp.name)) + "</p><p class=\"cc-line\">" + esc(L(ev.q)) + '</p><div class="cc-opts">';
-    ev.o.forEach(function (o, i) { h += '<button class="cc-btn" data-act="date-opt" data-i="' + i + '">' + esc(L(o.t)) + "</button>"; });
+    var e = ui.dateEv, p = Core.person(e.pid), q = Bond.question(e), sp = D.DATE_SPOT[e.spot], step = e.steps[e.n];
+    if (!p || !q) { ui.dateEv = null; return ""; }
+    var stepName = step.k === "acc" ? "⚠ " + t("date_accident") : t(["date_step1", "date_step2", "date_step3"][e.n]);
+    var h = '<div class="cc-modal cc-scene"><div class="cc-sbox cc-datebox"><img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt="">' +
+      '<p class="cc-small cc-gold">' + sp.icon + " " + esc(L(sp.name)) + "　" + esc(stepName) + '　<span class="cc-dots">' + [0, 1, 2].map(function (i) { return i < e.n ? "●" : i === e.n ? "◉" : "○"; }).join("") + "</span></p>";
+    if (e.last != null) h += '<p class="cc-small ' + (e.last > 0 ? "cc-win" : e.last < 0 ? "cc-loss" : "cc-muted") + '">' + esc(t(e.last > 0 ? "date_react_good" : e.last < 0 ? "date_react_bad" : "date_react_ok", { name: p.handle })) + "</p>";
+    h += '<p class="cc-line">' + (step.k === "acc" ? q.icon + " " : "") + esc(L(q.q)) + '</p><div class="cc-opts">';
+    q.o.forEach(function (o, i) { h += '<button class="cc-btn" data-act="date-opt" data-i="' + i + '">' + esc(L(o.t)) + "</button>"; });
     return h + "</div></div></div>";
+  }
+  // 選手詳細：關係階段與「第一次」
+  function bondLine(p) {
+    var st = Bond.stage(p), f = p.firsts || {}, marks = [];
+    [["hand", "✋"], ["hug", "🤗"], ["cheek", "😚"], ["kiss", "💋"]].forEach(function (x) { if (f[x[0]]) marks.push(x[1]); });
+    var h = '<p class="cc-small cc-bondline">💞 ' + esc(t("rel_label")) + "：<b>" + esc(t("rel_" + st)) + "</b>" + (marks.length ? "　" + marks.join(" ") : "");
+    if (!Bond.adult(p)) h += ' <span class="cc-muted">' + esc(t("rel_minor", { n: Bond.ADULT })) + "</span>";
+    else if (Bond.canConfess(p)) h += ' <span class="cc-muted">' + esc(t("rel_can_confess")) + "</span>";
+    else if (!p.lover && !p.vow && st === 1 && p.aff < Bond.CONFESS_AFF) h += ' <span class="cc-muted">' + esc(t("rel_confess_need", { n: Bond.CONFESS_AFF })) + "</span>";
+    return h + "</p>";
   }
   function renderStory() {
     var st = ui.story, p = Core.person(st.pid);
@@ -985,8 +1032,9 @@
   // 好感全滿約會後的特別夜晚：一頁一頁點下去，背景逐頁變暗，最後一頁天色全暗
   function renderNight() {
     var n = ui.night, p = Core.person(n.pid), pg = n.pages[n.i], last = n.i === n.pages.length - 1;
-    return '<div class="cc-modal cc-scene cc-night cc-night-' + n.i + '"><div class="cc-sbox cc-storybox cc-nightbox">' + (last ? "" : '<img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt="">') +
-      '<p class="cc-small cc-gold">🌙 ' + esc(t("night_head", { name: p.handle })) + "　" + (n.i + 1) + " / " + n.pages.length + "</p>" +
+    var dark = Math.round(n.i * 5 / Math.max(1, n.pages.length - 1)), teen = n.kind === "teen";
+    return '<div class="cc-modal cc-scene cc-night cc-night-' + dark + '"><div class="cc-sbox cc-storybox cc-nightbox">' + (last ? "" : '<img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt="">') +
+      '<p class="cc-small cc-gold">' + (teen ? "🧋 " : "🌙 ") + esc(t(teen ? "night_head_teen" : "night_head", { name: p.handle })) + "　" + (n.i + 1) + " / " + n.pages.length + "</p>" +
       '<p class="cc-line">' + esc(pg.text) + "</p>" + (pg.say ? '<p class="cc-line cc-night-say">' + esc(pg.say) + "</p>" : "") +
       '<button class="cc-btn cc-primary" data-act="night-next">' + esc(t(last ? "night_end" : "night_next")) + "</button></div></div>";
   }
@@ -1035,15 +1083,34 @@
       case "coach": r = Core.coach(id); afterAct(r); break;
       case "datepick": ui.datePick = !ui.datePick; break;
       case "date":
-        r = Core.canDate(el.getAttribute("data-spot"));
-        if (!r.ok) { flash(r.msg); break; }
-        ui.dateEv = { pid: id, spot: el.getAttribute("data-spot"), ev: Core.dateEvent() }; ui.datePick = false; break;
+        r = Bond.canDate(id, el.getAttribute("data-spot"));
+        if (!r.ok) { flash(r.msg || ""); break; }
+        ui.dateEv = Bond.dateStart(id, el.getAttribute("data-spot")); ui.datePick = false; break;
       case "date-opt":
-        r = Core.date(ui.dateEv.pid, ui.dateEv.spot, ui.dateEv.ev, +el.getAttribute("data-i"));
+        ui.dateEv.last = Bond.answer(ui.dateEv, +el.getAttribute("data-i"));
+        if (Bond.question(ui.dateEv)) break;
+        r = Bond.dateFinish(ui.dateEv);
         var dpid = ui.dateEv.pid; ui.dateEv = null;
-        if (r.ok) ui.quote = { pid: dpid, text: r.msg }; else flash(r.msg);
-        if (r.ok && r.night) ui.night = { pid: dpid, pages: r.night, i: 0 };
+        if (r.ok) ui.quote = { pid: dpid, text: r.msg }; else flash(r.msg || "");
+        if (r.ok && r.night) ui.night = { pid: dpid, pages: r.night, i: 0, kind: r.nightKind };
         if (r.ok && r.scene) ui.scene = { pid: dpid, level: r.scene.level, line: r.scene.line };
+        break;
+      case "late":
+        r = Bond.lateTrain(id);
+        if (!r.ok) { if (r.msg) flash(r.msg); break; }
+        ui.quote = { pid: id, text: r.msg + (r.line ? "\n\n" + r.line : "") };
+        if (r.scene) ui.scene = { pid: id, level: r.scene.level, line: r.scene.line };
+        break;
+      case "confess":
+        if (!window.confirm(t("confirm_confess"))) return;
+        r = Bond.confess(id);
+        if (!r.ok) { if (r.msg) flash(r.msg); break; }
+        ui.quote = { pid: id, text: (r.yes ? "💕 " + t("confess_ok") : "💔 " + t("confess_ng")) + "\n" + r.line };
+        break;
+      case "hug": case "kiss":
+        r = act === "hug" ? Bond.hug(id) : Bond.kiss(id);
+        if (!r.ok) { if (r.msg) flash(r.msg); break; }
+        ui.quote = { pid: id, text: r.line };
         break;
       case "hotel":
         if (!window.confirm(t("confirm_hotel"))) return;
@@ -1102,6 +1169,7 @@
     var act = el.getAttribute && el.getAttribute("data-act");
     if (act === "leagueview") { ui.leagueView = el.value; render(); }
     else if (act === "practice") { Core.setPractice(el.getAttribute("data-id"), el.value); flash(t("practice_set")); render(); }
+    else if (act === "mentor") { var mr = Bond.setMentor(el.getAttribute("data-id"), el.value); if (mr.msg) flash(mr.msg); render(); }
   });
   window.addEventListener("i18n:change", function () { if (ui.screen !== "replay") render(); });
 

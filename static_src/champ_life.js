@@ -14,6 +14,8 @@
   function ri(a, b) { return Core.ri(a, b); }
   function pick(a) { return Core.pick(a); }
   function person(id) { return Core.person(id); }
+  // 羈絆模組（champ_bond.js，在本檔之後載入，執行時才取用）
+  function B() { return window.PriTestChampBond || null; }
   function roster() { return S().roster.map(person).filter(Boolean); }
 
   // 節日所在的週（Core.CAL 的索引）：新年＝季前第 1 週、情人節＝春季第 3 週、夏日祭＝夏季第 4 週、聖誕節＝休賽季
@@ -184,6 +186,7 @@
     s.roster.forEach(function (id) { var p = person(id); if (!p.goal) assignGoal(p); });
     updateRival();
     refreshMarket();
+    if (B()) B().init(s);
   }
 
   // ---------------- 回憶相簿 ----------------
@@ -262,7 +265,7 @@
     aiPracticeNew();
     // 私人邀約：好感 50 以上的選手每週 25%
     var cand = roster().filter(function (p) { return p.aff >= 50; });
-    if (cand.length && Math.random() < 0.25) s.events.push({ t: "invite", pid: pick(cand).id, spot: pick(D.DATE_SPOTS).id });
+    if (cand.length && Math.random() < 0.25) s.events.push({ t: "invite", pid: pick(cand).id, spot: pick(D.DATE_SPOTS.filter(function (x) { return !x.req; })).id });
     // 生日
     roster().forEach(function (p) { if (p.bday === s.wk) s.events.push({ t: "bday", pid: p.id }); });
     // 節日
@@ -281,6 +284,8 @@
     }
     // 別隊挖角：季前第 2 週與 MSI 第 2 週，35%
     if (((w.k === "pre" && w.i === 1) || (w.k === "msi" && w.i === 1)) && Math.random() < 0.35) poachOffer();
+    // 羈絆：關係階段的事件、她主動的事件、成年禮
+    if (B()) B().onWeek();
     // 轉會市場：季前、MSI、休賽季更新
     if ((w.k === "pre" && w.i === 0) || (w.k === "msi" && w.i === 0) || w.k === "off") refreshMarket();
     // 休賽季：頒獎、引退、合約
@@ -295,11 +300,12 @@
     }
     checkAch();
   }
-  // 告白：好感 95 以上且身世故事讀完、還沒有誓約對象時（聖誕節、世界冠軍後）
+  // 告白（誓約）：好感 95 以上且身世故事讀完、還沒有誓約對象時（聖誕節、世界冠軍後）
+  // 第五版：只限 18 歲以上；已經有交往對象時只會是她
   function confessCheck() {
-    var s = S();
+    var s = S(), pt = B() && B().partner();
     if (s.vowPid && person(s.vowPid)) return;
-    var c = roster().filter(function (p) { return p.aff >= 95 && p.chap >= 3 && !p.vow; }).sort(function (a, b) { return b.aff - a.aff; })[0];
+    var c = roster().filter(function (p) { return p.aff >= 95 && p.chap >= 3 && !p.vow && p.age >= 18 && (!pt || pt.id === p.id); }).sort(function (a, b) { return b.aff - a.aff; })[0];
     if (c && !s.events.some(function (e) { return e.t === "confess"; })) s.events.push({ t: "confess", pid: c.id });
   }
   function retirements() {
@@ -347,6 +353,8 @@
         p.mood = clamp(p.mood + (like ? 15 : 8), 0, 100); p.aff = clamp(p.aff + (like ? 8 : 4), 0, 100);
         msg = tr(like ? "bday_like" : "bday_ok", { name: p.handle, gift: L(g.name) });
         album("bday", p, msg);
+        var bk = B() ? B().bdayKiss(p) : "";
+        if (bk) msg += "\n" + bk;
       }
     } else if (ev.t === "valentine") {
       p = person(ev.pid);
@@ -412,6 +420,7 @@
       if (!p) return null;
       if (choice === "yes") {
         p.vow = true; s.vowPid = p.id; s.flags.vow = 1;
+        if (B() && !p.lover) { p.lover = true; s.partnerPid = p.id; }
         p.stats.mental = clamp(p.stats.mental + 5, 1, 99); p.mood = 100; p.aff = 100;
         msg = L(EX.CONFESS[p.trait]);
         album("vow", p, msg);
@@ -441,6 +450,10 @@
       s.events.unshift({ t: "allstar_res", win: win, side: tm.mySide, mine: tm.mine, other: tm.other, moments: ex.res.moments, picksA: ex.picksA, picksB: ex.picksB, tacA: tac, tacB: ex.tacticB, mvp: ex.res.mvp });
       if (win) s.flags.allstarWin = 1;
       msg = tr(win ? "allstar_win" : "allstar_loss");
+    } else if (ev.t === "bond") {
+      var br = B() ? B().resolve(ev, choice) : "";
+      if (br && br.fail) { s.events.unshift(ev); return { ok: false, msg: br.fail }; }
+      msg = br || "";
     } else if (ev.t === "poach") {
       p = person(ev.pid);
       if (!p) return null;
@@ -579,6 +592,7 @@
     if (win) s.flags.firstWin = 1;
     if (win && se.bo === 5 && se.wins.opp === 0) s.flags.sweep = 1;
     if (win && Core.teamPlayers(se.opp).some(function (p) { return p && p.star; })) s.flags.beatTaker = 1;
+    if (B()) B().onSeries(se, win);
     var rv = rivalOf(se.opp);
     if (rv) {
       s.rivalRec[win ? "w" : "l"]++;
@@ -606,7 +620,7 @@
       hard_world: f.worldsWin && D.REGION[s.region].diff === "high", challenge_world: f.worldsWin && anyChal,
       homegrown: f.homegrownWorld, transfer: f.transfer, beat_taker: f.beatTaker, rival: (s.rivalRec || {}).w >= 3,
       sweep: f.sweep, comeback: f.comeback, creative: f.creative, bond: f.bond, stories: (f.stories || 0) >= 3,
-      award: f.awardMvp, vow: f.vow, allstar: f.allstarWin, coach_award: f.coachAward, years5: s.year >= 6, facility: fac.train >= 3 && fac.dorm >= 3 && fac.mental >= 3 && fac.analyst >= 3
+      award: f.awardMvp, vow: f.vow, lover: f.lover, first_kiss: f.firstKiss, mentor: f.mentor, allstar: f.allstarWin, coach_award: f.coachAward, years5: s.year >= 6, facility: fac.train >= 3 && fac.dorm >= 3 && fac.mental >= 3 && fac.analyst >= 3
     };
     EX.ACH.forEach(function (a) { if (cond[a.id] && !got[a.id]) { got[a.id] = s.year; neu.push(a); } });
     if (neu.length) {
