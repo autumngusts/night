@@ -1,0 +1,157 @@
+/* ===================== 秘密的同居生活（nest） ===================== */
+/* 老公寓的木頭與山茶花色調。只用 ns- 前綴。 */
+.ns-wrap {
+  --ns-bg: #1a1416;
+  --ns-panel: #261d20;
+  --ns-line: rgba(255, 200, 190, 0.18);
+  --ns-text: #f6ece8;
+  --ns-muted: rgba(246, 236, 232, 0.6);
+  --ns-accent: #ff8fa3;
+  --ns-wood: #c99a6b;
+  --ns-love: #ff6f9c;
+  --ns-warn: #ff9a6b;
+  max-width: 64rem;
+  margin: 0 auto;
+  color: var(--ns-text);
+  background: linear-gradient(180deg, #3a2226 0%, var(--ns-bg) 35%);
+  border-radius: 12px;
+  padding: 0.8rem;
+  font-family: "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", sans-serif;
+  box-sizing: border-box;
+}
+.ns-wrap *, .ns-wrap *::before, .ns-wrap *::after { box-sizing: border-box; }
+.ns-wrap button { font: inherit; color: inherit; cursor: pointer; }
+.ns-wrap button:disabled { cursor: default; opacity: 0.4; }
+.ns-root { position: relative; }
+.ns-muted { color: var(--ns-muted); }
+.ns-small { font-size: 0.85em; }
+.ns-center { text-align: center; }
+.ns-warn { color: var(--ns-warn); }
+.ns-love { color: var(--ns-love); font-weight: 700; }
+.ns-dim { opacity: 0.55; }
+.ns-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin: 0.8rem 0 0.2rem; }
+.ns-row-l { justify-content: flex-start; margin-top: 0.4rem; }
+.ns-btn { background: #33262a; border: 1px solid var(--ns-line); border-radius: 8px; padding: 0.5rem 0.95rem; }
+.ns-btn:hover:not(:disabled) { border-color: var(--ns-accent); }
+.ns-primary { background: #8a3446; border-color: var(--ns-accent); color: #fff0f3; }
+.ns-sm { padding: 0.28rem 0.6rem; font-size: 0.85em; }
+.ns-on { border-color: var(--ns-accent); box-shadow: 0 0 0 1px var(--ns-accent); }
+.ns-knock { animation: ns-pulse 1.4s infinite; }
+@keyframes ns-pulse { 50% { box-shadow: 0 0 16px var(--ns-love); } }
+
+.ns-age { text-align: center; padding: 2rem 1rem; }
+.ns-age-mark { display: inline-block; font-size: 2rem; font-weight: 800; color: #fff; background: #c0392b; border-radius: 50%; width: 4.5rem; height: 4.5rem; line-height: 4.5rem; margin: 0 0 0.6rem; }
+
+.ns-title { text-align: center; padding: 1.6rem 0.4rem 1rem; background: radial-gradient(ellipse at 50% 0%, rgba(255, 143, 163, 0.28), transparent 65%); border-radius: 10px; }
+.ns-title h1 { font-size: 2.4rem; margin: 0.2rem 0; letter-spacing: 0.2em; color: var(--ns-accent); text-shadow: 0 0 18px rgba(255, 143, 163, 0.45); }
+.ns-sub { letter-spacing: 0.25em; color: var(--ns-wood); margin: 0; }
+.ns-tag { line-height: 1.8; }
+.ns-faces { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; margin: 1rem 0; }
+
+.ns-pt { display: block; object-fit: cover; border-radius: 50%; border: 2px solid var(--ns-c, var(--ns-line)); background: #0d0a0b; flex: none; }
+.ns-face { width: 3rem; height: 3rem; }
+.ns-mini { width: 2.6rem; height: 2.6rem; }
+.ns-mid-pt { width: 3.6rem; height: 3.6rem; }
+.ns-big { width: 5rem; height: 5rem; }
+.ns-vnpt { width: min(15rem, 60vw); height: min(15rem, 60vw); border-radius: 14px; border-width: 3px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+
+.ns-top { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.4rem 0.2rem 0.6rem; border-bottom: 1px solid var(--ns-line); }
+.ns-day { font-size: 1.25em; color: var(--ns-accent); }
+.ns-phase { color: var(--ns-wood); }
+.ns-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.ns-bar { display: inline-block; width: 4.5rem; height: 0.45rem; background: rgba(255, 255, 255, 0.12); border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.ns-bar i { display: block; height: 100%; background: var(--ns-accent); }
+.ns-aff i { background: var(--ns-love); }
+
+.ns-panel { background: var(--ns-panel); border: 1px solid var(--ns-line); border-radius: 10px; padding: 0.8rem; margin: 0.7rem 0; }
+.ns-panel h2, .ns-panel h3 { margin: 0.1rem 0 0.5rem; color: var(--ns-accent); }
+.ns-panel h4 { margin: 0.8rem 0 0.35rem; color: #ffc9b0; }
+.ns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem; }
+.ns-card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; text-align: left; background: #30252a; border: 1px solid var(--ns-line); border-radius: 9px; padding: 0.6rem; }
+button.ns-card:hover:not(:disabled) { border-color: var(--ns-accent); transform: translateY(-1px); }
+.ns-cardhead { display: flex; gap: 0.5rem; align-items: center; }
+.ns-lovecard { background: #42222f; border-color: rgba(255, 111, 156, 0.5); }
+.ns-new { color: var(--ns-love); font-weight: 800; animation: ns-blink 1s infinite; }
+@keyframes ns-blink { 50% { opacity: 0.3; } }
+.ns-hint { background: rgba(255, 143, 163, 0.12); border-left: 3px solid var(--ns-accent); padding: 0.4rem 0.6rem; margin: 0 0 0.6rem; font-size: 0.9em; }
+.ns-log { max-height: 16rem; overflow: auto; padding-left: 1.1rem; margin: 0 0 0.5rem; font-size: 0.88em; }
+.ns-roster { display: flex; flex-direction: column; gap: 0.7rem; }
+.ns-mem { display: flex; gap: 0.7rem; align-items: flex-start; }
+.ns-mem p { margin: 0.2rem 0; }
+.ns-helplist { padding-left: 1rem; font-size: 0.88em; line-height: 1.8; }
+
+/* 特質標籤 */
+.ns-tag { display: inline-block; font-size: 0.95em; margin-right: 1px; }
+.ns-tagl { display: inline-block; font-size: 0.8em; padding: 0.05rem 0.4rem; border-radius: 999px; margin: 0.1rem 0.1rem 0.1rem 0; border: 1px solid var(--ns-line); }
+.ns-tag-emit.ns-tagl { background: rgba(255, 154, 107, 0.16); border-color: rgba(255, 154, 107, 0.5); }
+.ns-tag-sens.ns-tagl { background: rgba(120, 170, 255, 0.16); border-color: rgba(120, 170, 255, 0.5); }
+.ns-tag-trait.ns-tagl { background: rgba(130, 220, 150, 0.14); border-color: rgba(130, 220, 150, 0.45); }
+.ns-tag-pref.ns-tagl { background: rgba(240, 210, 120, 0.14); border-color: rgba(240, 210, 120, 0.45); }
+
+/* ---------- 公寓 ---------- */
+.ns-bldg { background: linear-gradient(180deg, #4a3830, #3a2b25); border: 3px solid #5c4335; border-radius: 10px 10px 4px 4px; padding: 0.5rem 0.4rem 0.3rem; }
+.ns-floor { display: grid; grid-template-columns: 2rem repeat(4, 1fr); gap: 0.35rem; margin-bottom: 0.35rem; align-items: stretch; }
+.ns-flabel { display: flex; align-items: center; justify-content: center; color: var(--ns-wood); font-weight: 700; font-size: 0.85em; }
+.ns-ground { grid-template-columns: 2rem 1fr; border-top: 2px dashed rgba(201, 154, 107, 0.4); padding-top: 0.3rem; margin-bottom: 0; }
+.ns-room { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-height: 6.6rem; padding: 0.95rem 0.2rem 0.3rem; background: #f3e4cf; color: #3b2a22; border: 2px solid #b48a63; border-radius: 6px; }
+.ns-room:hover { border-color: var(--ns-accent); }
+/* .ns-wrap button 的 color: inherit 會蓋掉房間的深色字，這裡提高權重 */
+.ns-wrap .ns-room { color: #3b2a22; }
+.ns-wrap .ns-empty { color: var(--ns-text); }
+.ns-empty { background: rgba(243, 228, 207, 0.25); color: var(--ns-text); border-style: dashed; justify-content: center; }
+.ns-rno { position: absolute; left: 0.25rem; top: 0.1rem; font-size: 0.65em; opacity: 0.7; }
+.ns-rpt { width: 2.8rem; height: 2.8rem; }
+.ns-rname { font-size: 0.8em; font-weight: 700; line-height: 1.1; text-align: center; }
+.ns-ricons { font-size: 0.85em; min-height: 1em; }
+.ns-room .ns-bar { width: 85%; height: 0.38rem; background: rgba(0, 0, 0, 0.15); }
+.ns-grade { position: absolute; right: 0.25rem; top: 0.05rem; font-size: 0.7em; color: #c78a1e; }
+.ns-pv { position: absolute; right: 0.2rem; bottom: 0.2rem; font-size: 0.8em; font-weight: 800; padding: 0 0.3rem; border-radius: 6px; background: #222; color: #fff; }
+.ns-selroom { box-shadow: 0 0 0 3px var(--ns-accent), 0 0 14px var(--ns-accent); }
+.ns-loveroom { background: #ffe0e8; }
+.ns-good { color: #3fbf6a; } .ns-mid { color: #d9a72a; } .ns-low { color: #e07a3a; } .ns-bad { color: #e0443a; }
+.ns-bar.ns-good i { background: #3fbf6a; } .ns-bar.ns-mid i { background: #e3b23c; } .ns-bar.ns-low i { background: #e07a3a; } .ns-bar.ns-bad i { background: #e0443a; }
+.ns-pv.ns-good { background: #2c8a4c; color: #fff; } .ns-pv.ns-mid { background: #9a7414; color: #fff; } .ns-pv.ns-low { background: #a4521f; color: #fff; } .ns-pv.ns-bad { background: #a52c24; color: #fff; }
+.ns-room.ns-bad { border-color: #e0443a; }
+.ns-detail { display: flex; gap: 0.7rem; margin-top: 0.7rem; padding: 0.6rem; background: rgba(255, 255, 255, 0.04); border-radius: 8px; }
+.ns-detail p { margin: 0.3rem 0; }
+.ns-why { margin: 0.2rem 0 0; padding-left: 1rem; font-size: 0.85em; }
+.ns-plus { color: #7fe0a0; } .ns-minus { color: #ff9a8a; }
+
+/* VN */
+.ns-vn, .ns-story { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 0.4rem 0; }
+.ns-vn-title { margin: 0; color: var(--ns-wood); letter-spacing: 0.1em; }
+.ns-stage { min-height: 6rem; display: flex; justify-content: center; }
+.ns-stage-night { filter: saturate(0.9) brightness(0.92); }
+.ns-box { width: 100%; background: rgba(16, 10, 12, 0.9); border: 1px solid var(--ns-line); border-radius: 10px; padding: 0.9rem 1rem; min-height: 8rem; }
+.ns-box-night { background: rgba(36, 10, 22, 0.92); border-color: rgba(255, 111, 156, 0.35); }
+.ns-name { margin: 0 0 0.3rem; font-weight: 700; }
+.ns-text { margin: 0; line-height: 1.9; font-size: 1.05em; white-space: pre-wrap; }
+.ns-next { display: block; margin: 0.5rem 0 0 auto; padding: 0.25rem 0.9rem; }
+.ns-choices { display: flex; flex-direction: column; gap: 0.45rem; }
+.ns-choice { text-align: left; }
+
+.ns-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr)); gap: 0.35rem; max-height: 22rem; overflow-y: auto; padding: 0.2rem; }
+.ns-gimg { padding: 0; border: 2px solid transparent; border-radius: 8px; background: none; overflow: hidden; aspect-ratio: 1; }
+.ns-gimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ns-gimg:hover { border-color: var(--ns-accent); }
+.ns-gsel { border-color: var(--ns-accent); box-shadow: 0 0 10px var(--ns-accent); }
+
+.ns-ending h2 { text-align: center; }
+.ns-partner { display: flex; gap: 0.8rem; align-items: center; justify-content: center; margin: 0.6rem 0; }
+.ns-partner p { max-width: 30rem; }
+
+.ns-toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); background: rgba(30, 18, 22, 0.95); border: 1px solid var(--ns-accent); color: var(--ns-text); padding: 0.5rem 1rem; border-radius: 20px; z-index: 50; animation: ns-toast 2.6s forwards; pointer-events: none; max-width: 90vw; }
+@keyframes ns-toast { 0% { opacity: 0; transform: translate(-50%, 10px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+
+@media (max-width: 560px) {
+  .ns-wrap { padding: 0.5rem; border-radius: 0; }
+  .ns-title h1 { font-size: 1.8rem; letter-spacing: 0.1em; }
+  .ns-grid { grid-template-columns: 1fr 1fr; }
+  .ns-floor { grid-template-columns: 1.4rem repeat(4, 1fr); gap: 0.2rem; }
+  .ns-ground { grid-template-columns: 1.4rem 1fr; }
+  .ns-room { min-height: 5.6rem; padding: 0.85rem 0.05rem 0.2rem; }
+  .ns-rpt { width: 2.2rem; height: 2.2rem; }
+  .ns-rname { font-size: 0.7em; }
+  .ns-empty .ns-small { font-size: 0.68em; }
+  .ns-detail { flex-direction: column; }
+}

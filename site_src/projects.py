@@ -158,4 +158,16 @@ PROJECTS = [
         "name_key": "project_tour_name",
         "desc_key": "project_tour_desc",
     },
+    {
+        "id": "shutter",
+        "href": "shutter/index.html",
+        "name_key": "project_shutter_name",
+        "desc_key": "project_shutter_desc",
+    },
+    {
+        "id": "nest",
+        "href": "nest/index.html",
+        "name_key": "project_nest_name",
+        "desc_key": "project_nest_desc",
+    },
 ]

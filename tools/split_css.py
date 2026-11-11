@@ -46,6 +46,8 @@ GAMES: dict[str, tuple[str, ...]] = {
     "sennyu": ("sn-",),
     "champ": ("cc-",),
     "natsu": ("nt-",),
+    "shutter": ("sh-",),
+    "nest": ("ns-",),
     "tour": ("tr-",),
 }
 
