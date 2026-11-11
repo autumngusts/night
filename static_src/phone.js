@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestPhoneData, N = window.PriTestPhoneNight;
+  var D = window.PriTestPhoneData, N = window.PriTestPhoneNight, MORE = window.PriTestPhoneNightMore || { OWN: {}, SHARED: [], LATE: [] };
   var app = document.getElementById("ph-app");
   if (!D || !N || !app) return;
 
@@ -32,6 +32,10 @@
   function addAlbum(k) { var a = album(); a[k] = 1; store(ALBUM_KEY, a); }
   function slotKey(d, s) { return d * 10 + s; }
   function now() { return slotKey(st.day, st.slot); }
+  // 夜晚劇情：女主角各 4 段專屬（phone_night.js 的第 1 段＋phone_night2/3.js 的第 2〜4 段），之後從共用劇情挑
+  function ownList(id) { return N.OWN[id] ? [N.OWN[id]].concat(MORE.OWN[id] || []) : []; }
+  var SHARED_ALL = N.SHARED.concat(MORE.SHARED || []);
+  var LATE_ALL = D.LATE.concat(MORE.LATE || []);
 
   // 女主角（H）與配對對象（st.match，id 以 m 開頭）共用 P／C
   function P(id) { return H[id] || st.mp[id]; }
@@ -123,7 +127,8 @@
       pushMsg(id, { k: "quiz", right: right, q: D.FACT_Q[tq], o: shuffle([[right, "R"], [wrong, "W"], ["……我忘了，對不起。", "F"]]) });
       return;
     }
-    if (st.slot === 3 && c.stage >= 1 && Math.random() < 0.6) { var L = pick(D.LATE); pushMsg(id, { k: "late", q: L.q, o: shuffle(L.o), photo: /傳了一張照片/.test(L.q) ? g.img : null }); if (/傳了一張照片/.test(L.q)) st.photos.push({ id: id, img: g.img, day: st.day }); return; }
+    var flirty = (st.slot === 3 && c.stage >= 1 && Math.random() < 0.75) || (st.slot === 2 && c.stage >= 2 && Math.random() < 0.25);
+    if (flirty) { var L = pick(LATE_ALL); pushMsg(id, { k: "late", q: L.q, o: shuffle(L.o), photo: /傳了一張照片/.test(L.q) ? g.img : null }); if (/傳了一張照片/.test(L.q)) st.photos.push({ id: id, img: g.img, day: st.day }); return; }
     var pool = D.POOL[Math.min(c.stage, 3)], left = pool.map(function (x, i) { return i; }).filter(function (i) { return !c.used[c.stage + "_" + i]; });
     if (!left.length) { left = pool.map(function (x, i) { return i; }); Object.keys(c.used).forEach(function (k) { if (k.indexOf(c.stage + "_") === 0) delete c.used[k]; }); }
     var k = pick(left); c.used[c.stage + "_" + k] = 1;
@@ -212,9 +217,9 @@
   }
   function endEventSlot() { ui.screen = "phone"; ui.view = "home"; endSlot(); }
   function openNight(id) {
-    var c = Cn(id), story, key;
-    if (!c.nights && N.OWN[id]) { story = N.OWN[id]; key = "own_" + id; }
-    else { var k; do { k = Math.floor(Math.random() * N.SHARED.length); } while (N.SHARED.length > 1 && k === st.lastShared); st.lastShared = k; story = N.SHARED[k]; key = "sh" + k + "_" + id; }
+    var c = Cn(id), story, key, own = ownList(id);
+    if (c.nights < own.length) { story = own[c.nights]; key = c.nights ? "own" + c.nights + "_" + id : "own_" + id; }
+    else { var k; do { k = Math.floor(Math.random() * SHARED_ALL.length); } while (SHARED_ALL.length > 1 && k === st.lastShared); st.lastShared = k; story = SHARED_ALL[k]; key = "sh" + k + "_" + id; }
     c.nights++; c.aff = clamp(c.aff + 5, 0, 100);
     if (H[id]) addAlbum(key); else addAlbum("m|" + P(id).img + "|" + P(id).name + "|" + key.split("_")[0].slice(2));
     log("🌙 在 " + P(id).short + " 的家過夜：" + story.title);
@@ -370,8 +375,8 @@
     var a = album(), h = '<div class="ph-panel"><h2>相簿與回憶</h2>';
     D.GIRLS.forEach(function (g) {
       var b = [];
-      if (a["own_" + g.id]) b.push('<button class="ph-btn ph-sm" data-act="replay" data-k="own" data-id="' + g.id + '">' + esc(N.OWN[g.id].title) + "</button>");
-      N.SHARED.forEach(function (s, i) { if (a["sh" + i + "_" + g.id]) b.push('<button class="ph-btn ph-sm" data-act="replay" data-k="' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
+      ownList(g.id).forEach(function (s, i) { if (a[i ? "own" + i + "_" + g.id : "own_" + g.id]) b.push('<button class="ph-btn ph-sm" data-act="replay" data-k="own' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
+      SHARED_ALL.forEach(function (s, i) { if (a["sh" + i + "_" + g.id]) b.push('<button class="ph-btn ph-sm" data-act="replay" data-k="' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
       h += '<div class="ph-mem"><img class="ph-av ph-mini" src="' + IMG + esc(g.img) + '" alt=""><div><b>' + esc(g.name) + "</b><br>" + (b.length ? b.join(" ") : '<span class="ph-muted ph-small">？？？</span>') + "</div></div>";
     });
     return h + '<div class="ph-row"><button class="ph-btn" data-act="title">返回</button></div></div>';
@@ -404,7 +409,7 @@
     if (act === "continue") { st = load(SAVE_KEY); ui.screen = st ? "phone" : "title"; ui.view = "home"; render(); return; }
     if (act === "title") { if (st && !st.ended) save(); ui.screen = "title"; render(); return; }
     if (act === "album") { ui.screen = "album"; render(); return; }
-    if (act === "replay") { var sto = b.getAttribute("data-k") === "own" ? N.OWN[id] : N.SHARED[+b.getAttribute("data-k")]; ui.story = { who: id, title: sto.title, pages: sto.pages, i: 0, after: function () { ui.screen = "album"; render(); } }; ui.screen = "story"; render(); return; }
+    if (act === "replay") { var rk = b.getAttribute("data-k"), sto = rk.indexOf("own") === 0 ? ownList(id)[+rk.slice(3)] : SHARED_ALL[+rk]; ui.story = { who: id, title: sto.title, pages: sto.pages, i: 0, after: function () { ui.screen = "album"; render(); } }; ui.screen = "story"; render(); return; }
     if (act === "view") { ui.view = b.getAttribute("data-v"); render(); return; }
     if (act === "open") { ui.chat = id; ui.view = "thread"; ui.sticker = null; var c = st.c[id]; if (c.pend) c.pend.read = true; save(); render(); return; }
     if (act === "sticker") { var s = b.getAttribute("data-s"); ui.sticker = ui.sticker === s ? null : s; render(); return; }

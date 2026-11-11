@@ -79,6 +79,9 @@ var SHOT_DIR = path.join(__dirname, "shots");
   assert(fin.contacts >= 8, "8 位女主角都要加好友");
   assert(seen.quiz > 0, "要出現記憶題");
   assert(seen.story > 0, "要能交往並看到夜晚劇情");
+  // 2026-11-12 加量：每位女主角 4 段專屬夜晚，第 2 段以後的專屬劇情要真的被播到
+  var albumKeys = await page.evaluate(function () { return Object.keys(JSON.parse(localStorage.getItem("pritest-phone-album") || "{}")); });
+  assert(albumKeys.some(function (k) { return /^own[123]_/.test(k); }), "第 2〜4 段專屬夜晚要能播到（相簿：" + albumKeys.join(",") + "）");
   await page.screenshot({ path: path.join(SHOT_DIR, "02_ending.png"), fullPage: true });
   await page.dispatchEvent('[data-act="title"]', "click");
   await page.dispatchEvent('[data-act="album"]', "click");
