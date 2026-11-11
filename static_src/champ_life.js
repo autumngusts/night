@@ -591,6 +591,8 @@
     var s = S();
     if (win) s.flags.firstWin = 1;
     if (win && se.bo === 5 && se.wins.opp === 0) s.flags.sweep = 1;
+    // BP 大師：Bo5 獲勝且每局 BP 評分都在 A 以上
+    if (win && se.bo === 5 && se.games.length && se.games.every(function (g) { return g.bp === "S" || g.bp === "A"; })) s.flags.bpMaster = 1;
     if (win && Core.teamPlayers(se.opp).some(function (p) { return p && p.star; })) s.flags.beatTaker = 1;
     if (B()) B().onSeries(se, win);
     var rv = rivalOf(se.opp);
@@ -620,7 +622,7 @@
       hard_world: f.worldsWin && D.REGION[s.region].diff === "high", challenge_world: f.worldsWin && anyChal,
       homegrown: f.homegrownWorld, transfer: f.transfer, beat_taker: f.beatTaker, rival: (s.rivalRec || {}).w >= 3,
       sweep: f.sweep, comeback: f.comeback, creative: f.creative, bond: f.bond, stories: (f.stories || 0) >= 3,
-      award: f.awardMvp, vow: f.vow, lover: f.lover, first_kiss: f.firstKiss, mentor: f.mentor, allstar: f.allstarWin, coach_award: f.coachAward, years5: s.year >= 6, facility: fac.train >= 3 && fac.dorm >= 3 && fac.mental >= 3 && fac.analyst >= 3
+      award: f.awardMvp, vow: f.vow, lover: f.lover, first_kiss: f.firstKiss, mentor: f.mentor, bp_master: f.bpMaster, allstar: f.allstarWin, coach_award: f.coachAward, years5: s.year >= 6, facility: fac.train >= 3 && fac.dorm >= 3 && fac.mental >= 3 && fac.analyst >= 3
     };
     EX.ACH.forEach(function (a) { if (cond[a.id] && !got[a.id]) { got[a.id] = s.year; neu.push(a); } });
     if (neu.length) {

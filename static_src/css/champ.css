@@ -360,6 +360,28 @@
 .cc-mentor:first-of-type { border-top: 0; }
 .cc-mentor > span:first-of-type { flex: 1 1 10rem; min-width: 0; }
 .cc-mentor select { max-width: 100%; }
+
+/* 第六版：BP 戰略（剋制、搖擺位、選邊、對手的讀法、選手請求、BP 評分） */
+.cc-cv-good { color: var(--cc-good); font-style: normal; font-weight: bold; }
+.cc-cv-bad { color: var(--cc-bad); font-style: normal; font-weight: bold; }
+.cc-flex { font-style: normal; font-size: 0.85em; }
+.cc-flexhid { margin: 0.3rem 0 0; color: var(--cc-gold); }
+.cc-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin: 0.6rem 0; }
+.cc-side-blue { border-color: var(--cc-blue); }
+.cc-side-red { border-color: var(--cc-red); }
+.cc-read { border-left: 3px solid var(--cc-gold); padding: 0.3rem 0.6rem; margin: 0.5rem 0; background: var(--cc-accent-soft); border-radius: 0 6px 6px 0; }
+.cc-read p { margin: 0.2rem 0; }
+.cc-req { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; margin: 0.5rem 0; border: 1px dashed var(--cc-accent); border-radius: 8px; }
+.cc-req img { width: 2.6rem; height: 2.6rem; border-radius: 50%; object-fit: cover; flex: none; }
+.cc-req span { min-width: 0; }
+.cc-grade { display: inline-block; min-width: 1.6em; padding: 0 0.35em; border-radius: 5px; text-align: center; font-weight: bold; color: #fff; background: #888; }
+.cc-g-S { background: linear-gradient(90deg, var(--cc-accent), var(--cc-gold)); }
+.cc-g-A { background: var(--cc-good); }
+.cc-g-B { background: var(--cc-blue); }
+.cc-g-C { background: #8a8a8a; }
+.cc-g-D { background: var(--cc-bad); }
+.cc-bpnotes { margin: 0.3rem 0; padding-left: 1.2rem; }
+.cc-arch { color: var(--cc-gold); }
 /* 好感全滿約會的特別夜晚：背景逐頁變暗，最後一頁天色全暗 */
 .cc-night { transition: background-color 0.8s ease; }
 .cc-night-0 { background-color: rgba(40, 20, 50, 0.55); }
