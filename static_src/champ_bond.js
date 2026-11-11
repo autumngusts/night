@@ -511,6 +511,11 @@
         if (ni > 0) night = NL.build(ni - 1, p.trait, L);
       }
       if (!night) night = NS.pages.map(function (pg, i) { return { text: L(pg), say: say[i] ? L(say[i]) : "" }; });
+      // 經典版（NIGHT.adult2）：床上那頁之後插入 champ_night.js 的 CLASSIC_MORE 3 頁
+      if (nightKind === "adult2" && NL && p.lastNight === 0) {
+        var hs = (NL.SAY[p.trait] || NL.SAY.calm).heat;
+        night.splice.apply(night, [8, 0].concat(NL.CLASSIC_MORE.map(function (pg, k) { return { text: L(pg), say: k === 0 ? "" : L(hs[k - 1] || hs[0]) }; })));
+      }
       p.mood = 100; p.fatigue = 0;
       if (nightKind === "teen") { if (!p.teaNights) album("night_teen", p, L(NS.pages[4])); p.teaNights = (p.teaNights || 0) + 1; }
       else {
