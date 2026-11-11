@@ -12,6 +12,8 @@
   function LIFE() { return window.PriTestChampLife || null; }
   // 羈絆模組（champ_bond.js：約會、親密互動、深夜陪練、新人導師）
   function BOND() { return window.PriTestChampBond || null; }
+  // BP 戰略模組（champ_bp.js：剋制、搖擺位、原型、局間學習、選手請求、BP 評分）
+  function BP() { return window.PriTestChampBP || null; }
   function hook(name) { var lf = LIFE(); if (lf && lf[name]) return lf[name].apply(null, Array.prototype.slice.call(arguments, 1)); return null; }
   function fac(id) { return (S.fac && S.fac[id]) || 0; }
   var L = D.L;
@@ -110,7 +112,8 @@
     return s;
   }
   function ovrI(p) { return Math.round(ovr(p)); }
-  function heroesOfRole(role) { return D.HEROES.filter(function (h) { return h.role === role; }); }
+  // 包含可以打這個位置的搖擺位英雄（h.flex，champ_bp.js 登記）
+  function heroesOfRole(role) { return D.HEROES.filter(function (h) { return h.role === role || h.flex === role; }); }
   // 每年 MSI 後上市的新英雄（存在 S.newHeroes；載入／新遊戲時重新登記到 D.HEROES）
   var BASE_HEROES = D.HEROES.length;
   function registerHeroes() {
@@ -138,7 +141,7 @@
     var o = ovr(p);
     p.pot = Math.round(clamp(o + (age <= 18 ? rnd(8, 28) : age <= 21 ? rnd(4, 18) : rnd(0, 7)), o, 99));
     var hs = shuffle(heroesOfRole(role).slice()), base = (o - 65) * 0.35;
-    hs.forEach(function (h, i) { p.mastery[h.id] = Math.round(clamp((i < 2 ? rnd(76, 94) : i < 4 ? rnd(55, 75) : rnd(18, 55)) + base, 5, 100)); });
+    hs.forEach(function (h, i) { p.mastery[h.id] = Math.round(clamp(((i < 2 ? rnd(76, 94) : i < 4 ? rnd(55, 75) : rnd(18, 55)) + base) * (h.role === role ? 1 : 0.7), 5, 100)); });
     p.salary = salaryOf(o);
     // 電腦隊的頂尖選手一開始就會招牌技
     if (!opts.unique && o >= 82) p.sigOn = true;
@@ -898,12 +901,28 @@
     save();
     return S.series;
   }
+  // 選邊權（第六版）：第 1 局聯賽隨機、其他賽事由積分高的一方決定；第 2 局起由上一局的輸家決定。
+  // 藍方：第一手＋0.4；紅方：最後一手（可以針對剋制）。輪到我方決定時先停在選邊畫面（S.draft＝null、se.sideWait）。
   function startGame() {
-    var se = S.series, n = se.games.length;
-    var blueMe;
-    if (n === 0) blueMe = se.stage === "league" ? Math.random() < 0.5 : (S.points.me || 0) >= (S.points[se.opp] || 0);
-    else blueMe = se.games[n - 1].winner !== "me";   // 輸的一方拿藍方
-    S.draft = { blue: blueMe ? "me" : se.opp, red: blueMe ? se.opp : "me", step: 0, bans: { blue: [], red: [] }, picks: { blue: {}, red: {} }, tactic: null, oppTactic: null };
+    var se = S.series, n = se.games.length, chooser;
+    if (n === 0) chooser = se.stage === "league" ? (Math.random() < 0.5 ? "me" : "opp") : (S.points.me || 0) >= (S.points[se.opp] || 0) ? "me" : "opp";
+    else chooser = se.games[n - 1].winner === "me" ? "opp" : "me";
+    se.chooser = chooser;
+    S.draft = null;
+    if (chooser === "me" && !se.auto) { se.sideWait = true; return; }
+    chooseSide(chooser === "me" ? true : aiSideBlue(se.opp) === false);
+  }
+  // 電腦決定：BP 鬼才偏好紅方（最後一手），其他教練 65% 選藍方
+  function aiSideBlue(tid) { var cc = coachOf(tid); return cc && cc.style === "draft" ? Math.random() < 0.3 : Math.random() < 0.65; }
+  function needSide() { return !!(S.series && S.series.sideWait && !S.draft); }
+  function chooseSide(blueMe) {
+    var se = S.series, bp = BP();
+    se.sideWait = false;
+    S.draft = { blue: blueMe ? "me" : se.opp, red: blueMe ? se.opp : "me", step: 0, bans: { blue: [], red: [] }, picks: { blue: {}, red: {} }, hidden: { blue: {}, red: {} },
+      tactic: null, oppTactic: null, myFirst: null, chooser: se.chooser };
+    if (bp) { S.draft.read = bp.read(se); S.draft.req = bp.makeRequest(se); }
+    save();
+    return S.draft;
   }
   function sideOf(tid) { return S.draft.blue === tid ? "blue" : "red"; }
   function teamOfSide(side) { return S.draft[side]; }
@@ -918,16 +937,32 @@
   }
   // 無懼選角：同系列賽中，雙方任一隊用過的英雄，兩隊都不能再選（每個位置 20 位，撐得到 Bo5 第 5 局）
   function fearlessLocked(tid, hid) { return S.series.used.indexOf(hid) >= 0; }
+  // 可以放的位置（主位置、搖擺位的副位置）
+  function openRoles(side, hid) {
+    var h = D.HERO[hid];
+    if (!h) return [];
+    return (h.flex ? [h.role, h.flex] : [h.role]).filter(function (r) { return !S.draft.picks[side][r]; });
+  }
   function canPick(side, hid) {
     var h = D.HERO[hid], tid = teamOfSide(side);
     if (!h || heroTaken(hid)) return false;
-    if (S.draft.picks[side][h.role]) return false;
+    var rs = openRoles(side, hid);
+    if (!rs.length) return false;
     if (fearlessLocked(tid, hid)) {
       // 保險：該位置已經沒有任何可選英雄時解除無懼限制
-      var any = heroesOfRole(h.role).some(function (x) { return !heroTaken(x.id) && !fearlessLocked(tid, x.id); });
+      var any = rs.some(function (r) { return heroesOfRole(r).some(function (x) { return !heroTaken(x.id) && !fearlessLocked(tid, x.id) && openRoles(side, x.id).indexOf(r) >= 0; }); });
       if (any) return false;
     }
     return true;
+  }
+  // 對手「看得到」已經選好的位置（兩個位置都空時選的搖擺位英雄，BP 結束前看不出放在哪個位置）
+  function knownFilled(side, role) { return !!S.draft.picks[side][role] && !(S.draft.hidden && S.draft.hidden[side] && S.draft.hidden[side][role]); }
+  // 搖擺位英雄放哪個位置：該隊選手熟練度高的那一邊
+  function bestRole(side, hid) {
+    var rs = openRoles(side, hid), tid = teamOfSide(side);
+    if (rs.length < 2) return rs[0] || null;
+    var a = playerFor(tid, rs[0]), b = playerFor(tid, rs[1]);
+    return ((b && b.mastery[hid]) || 0) > ((a && a.mastery[hid]) || 0) + 5 ? rs[1] : rs[0];
   }
   function canBan(hid) { return !heroTaken(hid); }
   function playerFor(tid, role) {
@@ -948,14 +983,19 @@
   // 電腦（或助理教練）的選擇
   function aiChoose(side) {
     var turn = draftTurn(), tid = teamOfSide(side), other = side === "blue" ? "red" : "blue", otid = teamOfSide(other);
-    var best = null, bestS = -1e9;
+    var best = null, bestS = -1e9, bp = BP(), rd = otid === "me" && S.draft.read ? S.draft.read : {};
     if (turn[1] === "ban") {
       D.HEROES.forEach(function (h) {
         if (!canBan(h.id)) return;
-        if (S.draft.picks[other][h.role]) return;   // 對方該位置已經選了，禁也沒用
+        // 對方能放的位置都已經（看得到）選了，禁也沒用
+        var rr = (h.flex ? [h.role, h.flex] : [h.role]).filter(function (r) { return !knownFilled(other, r); });
+        if (!rr.length) return;
         if (fearlessLocked(otid, h.id)) return;
-        var p = playerFor(otid, h.role);
+        var p = null;
+        rr.forEach(function (r) { var q = playerFor(otid, r); if (q && (!p || (q.mastery[h.id] || 0) > (p.mastery[h.id] || 0))) p = q; });
         var s = (p ? (p.mastery[h.id] || 0) * 0.9 + ovr(p) * 0.25 : 0) + metaTier(h.id) * 14 + synergyWith(pickedList(other), h.id) * 18 + rnd(0, 10);
+        // 局間學習：針對我方連續先搶的位置
+        if (bp && otid === "me") s += bp.aiBanBonus(rd, h);
         // 局間調整：針對上一局表現最好的我方選手；用過的秘密武器已經曝光
         if (otid === "me" && S.series.focusRole === h.role) s += 16;
         if (otid === "me" && p && p.played && p.played[h.id] && (p.mastery[h.id] || 0) >= 85) s += 8;
@@ -968,29 +1008,50 @@
       var mine = pickedList(side);
       D.HEROES.forEach(function (h) {
         if (!canPick(side, h.id)) return;
-        var p = playerFor(tid, h.role);
+        var role = bestRole(side, h.id), p = playerFor(tid, role);
         var s = (p ? (p.mastery[h.id] || 0) : 30) + metaTier(h.id) * 12 + synergyWith(mine, h.id) * 16 + rnd(0, 9);
         // 對方還沒選的位置上，對手招牌英雄先搶
-        var op = playerFor(otid, h.role);
-        if (op && !S.draft.picks[other][h.role] && (op.mastery[h.id] || 0) > 85) s += 6;
+        var op = playerFor(otid, role);
+        if (op && !S.draft.picks[other][role] && (op.mastery[h.id] || 0) > 85) s += 6;
+        if (bp) {
+          // 對位剋制：對方同位置已經（看得到）選了，就挑剋制她的
+          if (knownFilled(other, role)) s += bp.counter(h.id, S.draft.picks[other][role]) * 7;
+          // 搖擺位：兩個位置都空時先拿，可以藏位置
+          if (h.flex && openRoles(side, h.id).length === 2) s += 3;
+          if (otid === "me") s += bp.aiPickBonus(rd, h);
+        }
         if (s > bestS) { bestS = s; best = h.id; }
       });
     }
     return best;
   }
-  function draftAct(hid) {
-    var turn = draftTurn();
+  // role：搖擺位英雄放的位置（省略時自動決定）
+  function draftAct(hid, role) {
+    var turn = draftTurn(), d = S.draft;
     if (!turn) return false;
     var side = turn[0];
     if (turn[1] === "ban") {
       if (!canBan(hid)) return false;
-      S.draft.bans[side].push(hid);
+      d.bans[side].push(hid);
     } else {
       if (!canPick(side, hid)) return false;
-      S.draft.picks[side][D.HERO[hid].role] = hid;
+      var rs = openRoles(side, hid);
+      if (!role || rs.indexOf(role) < 0) role = bestRole(side, hid);
+      if (rs.length === 2) { if (!d.hidden) d.hidden = { blue: {}, red: {} }; d.hidden[side][role] = 1; }
+      d.picks[side][role] = hid;
+      if (teamOfSide(side) === "me" && !d.myFirst) d.myFirst = { hid: hid, role: role };
     }
-    S.draft.step++;
+    d.step++;
+    if (draftDone()) finalizeDraft();
     return true;
+  }
+  // BP 結束：出其不意判定、選手請求結算、BP 評分
+  function finalizeDraft() {
+    var d = S.draft, bp = BP(), me = mySide();
+    if (!bp || d.grade) return;
+    d.surprise = bp.surprise(S.series, d, me);
+    bp.settleRequest(d, me);
+    d.grade = { me: bp.grade(d, me, S.series), opp: bp.grade(d, me === "blue" ? "red" : "blue", S.series) };
   }
   function draftDone() { return S.draft && S.draft.step >= DRAFT.length; }
   function mySide() { return sideOf("me"); }
@@ -1006,8 +1067,9 @@
     var hs = Object.keys(picksObj).map(function (r) { return picksObj[r]; });
     return D.SYNERGIES.filter(function (s) { return hs.indexOf(s.a) >= 0 && hs.indexOf(s.b) >= 0; });
   }
-  function aiTactic(picksObj, style, vsTactic) {
-    var best = null, bs = -1e9, counterOn = vsTactic && Math.random() < 0.45;
+  // prob：針對對手上一局戰術的機率（局間學習：連續兩局同戰術時提高）
+  function aiTactic(picksObj, style, vsTactic, prob) {
+    var best = null, bs = -1e9, counterOn = vsTactic && Math.random() < (prob || 0.45);
     D.TACTICS.forEach(function (t) {
       var s = compFit(picksObj, t.id) + curveBias(picksObj, t.id) + rnd(0, 1.6) + (t.id === style ? 1.5 : 0);
       if (counterOn && t.beats.indexOf(vsTactic) >= 0) s += 2.5;
@@ -1060,7 +1122,8 @@
   // 我方的額外戰力：默契、研究對手、分析師
   function myExtra(opp) { return chemBonus() + (researched(opp) ? 0.6 : 0) + fac("analyst") * 0.25; }
   // 各時段的戰力
-  function power(tid, picksObj, tactic, oppTactic, blue) {
+  // oppPicks：對手陣容（對位剋制用）
+  function power(tid, picksObj, tactic, oppTactic, blue, oppPicks) {
     var base = 0, rs = {};
     D.ROLES.forEach(function (r) { var p = playerFor(tid, r); rs[r] = matchRating(p, picksObj[r]) + (isSecret(p, picksObj[r]) ? 3 : 0); base += rs[r]; });
     base /= 5;
@@ -1069,22 +1132,25 @@
     var counter = D.TACTIC[tactic].beats.indexOf(oppTactic) >= 0 ? 1.8 : D.TACTIC[oppTactic].beats.indexOf(tactic) >= 0 ? -1.8 : 0;
     var syn = activeSynergies(picksObj).length * 1.2;
     var extra = tid === "me" && S.series ? myExtra(S.series.opp) : 0;
-    var common = base + fit + counter + syn + extra + (blue ? 0.4 : 0);
+    // 第六版：對位剋制、陣容原型、出其不意
+    var bp = BP(), lane = bp && oppPicks ? bp.laneCounter(picksObj, oppPicks) : { power: 0, by: {} }, arch = bp ? bp.archPhase(picksObj) : { early: 0, mid: 0, late: 0 };
+    var sur = bp && tid === "me" && S.draft && S.draft.surprise ? S.draft.surprise.length * bp.SURPRISE_POW : 0;
+    var common = base + fit + counter + syn + extra + lane.power + sur + (blue ? 0.4 : 0);
     // 北美選手：框架外的奇招（人數越多越常發生）
     var cre = 0;
     D.ROLES.forEach(function (r) { var p = playerFor(tid, r); if (p && D.REGION[p.region] && D.REGION[p.region].creative) cre++; });
     return {
-      base: base, fit: fit, counter: counter, syn: syn, extra: extra, rs: rs, cre: cre,
-      early: common + (c[0] - 15) * 0.3 + ph.early,
-      mid: common + (c[1] - 15) * 0.3 + ph.mid,
-      late: common + (c[2] - 15) * 0.3 + ph.late
+      base: base, fit: fit, counter: counter, syn: syn, extra: extra, rs: rs, cre: cre, lane: lane.power, laneBy: lane.by, arch: arch, sur: sur,
+      early: common + (c[0] - 15) * 0.3 + ph.early + arch.early,
+      mid: common + (c[1] - 15) * 0.3 + ph.mid + arch.mid,
+      late: common + (c[2] - 15) * 0.3 + ph.late + arch.late
     };
   }
   // 賽前的分析師預測（不知道對手戰術，用平均）
   function predict(myTactic) {
     var d = S.draft, me = mySide(), opp = me === "blue" ? "red" : "blue";
-    var pa = power("me", d.picks[me], myTactic || "fight", d.oppTactic || "fight", me === "blue");
-    var pb = power(S.series.opp, d.picks[opp], d.oppTactic || "fight", myTactic || "fight", opp === "blue");
+    var pa = power("me", d.picks[me], myTactic || "fight", d.oppTactic || "fight", me === "blue", d.picks[opp]);
+    var pb = power(S.series.opp, d.picks[opp], d.oppTactic || "fight", myTactic || "fight", opp === "blue", d.picks[me]);
     // 對手戰術未知：不計克制
     var diff = (pa.early + pa.mid + pa.late - pb.early - pb.mid - pb.late) / 3 - pa.counter + pb.counter;
     return { pct: Math.round(sigmoid(diff / 4.2) * 100), me: pa, opp: pb };
@@ -1096,7 +1162,7 @@
   // 一局比賽以「幕」為單位推進（G＝live 狀態，存在 S.live，重新整理也能接著打）。
   // 每一幕開打前雙方可以下指令（EX.ORDERS）；大幅領先時提前推高地，推失敗＝對方「守住高地」，比賽繼續。
   function liveStart(A, B) {
-    var pa = power(A.tid, A.picks, A.tactic, B.tactic, A.blue), pb = power(B.tid, B.picks, B.tactic, A.tactic, B.blue);
+    var pa = power(A.tid, A.picks, A.tactic, B.tactic, A.blue, B.picks), pb = power(B.tid, B.picks, B.tactic, A.tactic, B.blue, A.picks);
     var box = { A: {}, B: {} };
     D.ROLES.forEach(function (r) { box.A[r] = { k: 0, d: 0, a: 0 }; box.B[r] = { k: 0, d: 0, a: 0 }; });
     var ca = coachOf(A.tid), cb = coachOf(B.tid);
@@ -1231,7 +1297,7 @@
   function beginGame(myTactic) {
     var d = S.draft, se = S.series, me = mySide(), opp = me === "blue" ? "red" : "blue";
     d.tactic = myTactic;
-    if (!d.oppTactic) d.oppTactic = aiTactic(d.picks[opp], team(se.opp).style, se.lastMyTactic);
+    if (!d.oppTactic) d.oppTactic = aiTactic(d.picks[opp], team(se.opp).style, se.lastMyTactic, d.read && d.read.tactic ? 0.85 : 0.45);
     S.live = liveStart(
       { tid: "me", picks: d.picks[me], tactic: myTactic, blue: me === "blue" },
       { tid: se.opp, picks: d.picks[opp], tactic: d.oppTactic, blue: opp === "blue" }
@@ -1260,7 +1326,8 @@
     var win = res.winner === "A";
     se.wins[win ? "me" : "opp"]++;
     var g = { n: se.games.length + 1, blue: d.blue, red: d.red, bans: d.bans, picks: d.picks, myTactic: d.tactic, oppTactic: d.oppTactic,
-      winner: win ? "me" : se.opp, res: res, mySide: me };
+      winner: win ? "me" : se.opp, res: res, mySide: me, bp: d.grade ? d.grade.me.g : null, bpOpp: d.grade ? d.grade.opp.g : null, req: d.req || null, surprise: d.surprise || [] };
+    if (BP()) BP().logGame(se, d, me);
     se.games.push(g);
     Object.keys(d.picks[me]).forEach(function (r) { se.used.push(d.picks[me][r]); });
     Object.keys(d.picks[opp]).forEach(function (r) { se.used.push(d.picks[opp][r]); });
@@ -1353,6 +1420,7 @@
     var guard = 0;
     if (S.live) endGame();
     while (S.series && !seriesOver() && guard++ < 10) {
+      if (needSide()) chooseSide(aiSideBlue(S.series.opp));
       while (!draftDone()) draftAct(aiChoose(draftTurn()[0]));
       playGame(aiTactic(S.draft.picks[mySide()]));
     }
@@ -1502,6 +1570,8 @@
       }
       // 第四版欄位（教練、頭像外觀、招牌技、個人目標）
       if (!S.v4) { S.v4 = 1; hook("init", S); }
+      // 第六版：搖擺位英雄的副位置熟練度
+      if (!S.v6) { S.v6 = 1; if (BP()) Object.keys(S.people).forEach(function (id) { BP().ensureFlexMastery(S.people[id]); }); }
       return S;
     } catch (e) { return null; }
   }
@@ -1521,7 +1591,8 @@
     sign: sign, scoutReveal: scoutReveal, release: release, setLineup: setLineup, setFocus: setFocus, setPractice: setPractice,
     talk: talk, coach: coach, hotel: hotel, teamDinner: teamDinner,
     startSeries: startSeries, draftTurn: draftTurn, draftAct: draftAct, draftDone: draftDone, aiChoose: aiChoose, canPick: canPick, canBan: canBan,
-    heroTaken: heroTaken, fearlessLocked: fearlessLocked, mySide: mySide, teamOfSide: teamOfSide,
+    heroTaken: heroTaken, fearlessLocked: fearlessLocked, mySide: mySide, teamOfSide: teamOfSide, openRoles: openRoles, knownFilled: knownFilled,
+    needSide: needSide, chooseSide: chooseSide,
     compFit: compFit, fitPct: fitPct, activeSynergies: activeSynergies, aiTactic: aiTactic, predict: predict, matchRating: matchRating,
     playGame: playGame, seriesOver: seriesOver, autoSeries: autoSeries,
     beginGame: beginGame, stepLive: stepLive, endGame: endGame, liveInfo: liveInfo, isSecret: isSecret,

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestChampData, Core = window.PriTestChampCore, V3 = window.PriTestChamp3D, EX = window.PriTestChampExtra, Life = window.PriTestChampLife, Bond = window.PriTestChampBond;
+  var D = window.PriTestChampData, Core = window.PriTestChampCore, V3 = window.PriTestChamp3D, EX = window.PriTestChampExtra, Life = window.PriTestChampLife, Bond = window.PriTestChampBond, BP = window.PriTestChampBP;
   var L = D.L;
   var app = document.getElementById("cc-app");
   if (!app) return;
@@ -88,7 +88,7 @@
     var got = Life.achState(), gn = Object.keys(got).length;
     h += '<div class="cc-panel"><h2>🏅 ' + esc(t("ach_title")) + " " + gn + "/" + EX.ACH.length + '</h2><div class="cc-achs">' + achGrid(got) + "</div></div>";
     h += '<div class="cc-panel"><h2>' + esc(t("how_title")) + '</h2><ol class="cc-rules">';
-    for (var i = 1; i <= 14; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
+    for (var i = 1; i <= 15; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
     h += "</ol></div>";
     return h;
   }
@@ -386,7 +386,8 @@
     var ps = s.roster.map(Core.person).filter(function (p) { return p.role === r; });
     Core.heroesOfRole(r).forEach(function (hero) {
       var syn = D.SYNERGIES.filter(function (x) { return x.a === hero.id || x.b === hero.id; }).map(function (x) { return L(x.name) + "（" + heroName(x.a === hero.id ? x.b : x.a) + "）"; });
-      h += '<div class="cc-hcard" style="--hc:#' + ("00000" + hero.color.toString(16)).slice(-6) + '"><div class="cc-hname">' + esc(L(hero.name)) + (hero.isNew ? ' <i class="cc-new">NEW</i>' : "") + " " + metaBadge(hero.id) + "</div>" +
+      h += '<div class="cc-hcard" style="--hc:#' + ("00000" + hero.color.toString(16)).slice(-6) + '"><div class="cc-hname">' + esc(L(hero.name)) + (hero.isNew ? ' <i class="cc-new">NEW</i>' : "") + " " + metaBadge(hero.id) + (hero.flex ? ' <i class="cc-flex">🔀 ' + esc(roleName(hero.role === r ? hero.flex : hero.role)) + "</i>" : "") + "</div>" +
+        '<div class="cc-small">⚔ ' + esc(t("counter_line", { good: beatsList(hero, true), bad: beatsList(hero, false) })) + "</div>" +
         '<div class="cc-tags">' + hero.tags.map(function (g) { return '<span class="cc-tagc">' + esc(L(D.TAG[g])) + "</span>"; }).join("") + "</div>" +
         '<div class="cc-small">' + esc(t("curve")) + " " + hero.curve.map(function (c) { return "★★★★★".slice(0, c); }).join(" / ") + "</div>" +
         (syn.length ? '<div class="cc-small">🔗 ' + esc(syn.join("、")) + "</div>" : "") +
@@ -612,17 +613,47 @@
     h += '<div class="cc-bans">';
     for (var i = 0; i < 5; i++) { var b = d.bans[side][i]; h += '<span class="cc-banslot">' + (b ? "🚫 " + esc(heroName(b)) : "—") + "</span>"; }
     h += '</div><div class="cc-picks">';
+    var other = side === "blue" ? "red" : "blue", done = Core.draftDone(), flexHid = [];
     D.ROLES.forEach(function (r) {
       var p = Core.playerFor(tid, r), hid = d.picks[side][r];
+      // 對手兩個位置都空時選的搖擺位英雄：BP 結束前看不出放在哪個位置
+      if (hid && !me && !done && d.hidden && d.hidden[side] && d.hidden[side][r]) { flexHid.push(hid); hid = null; }
+      var cv = hid && d.picks[other][r] && (me || done) && Core.knownFilled(other, r) ? BP.counter(hid, d.picks[other][r]) : 0;
       h += '<div class="cc-pslot' + (hid ? " cc-filled" : "") + '"><img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt="" loading="lazy"><div><span class="cc-small">' + D.ROLE[r].icon + " " + esc(p.handle) + "</span>" +
-        "<b>" + (hid ? esc(heroName(hid)) : "…") + "</b>" + (hid ? '<span class="cc-small">' + esc(t("mastery_s")) + " " + Math.round(p.mastery[hid] || 0) + "</span>" : "") + "</div></div>";
+        "<b>" + (hid ? esc(heroName(hid)) + (D.HERO[hid].role !== r ? " 🔀" : "") : "…") + "</b>" + (hid ? '<span class="cc-small">' + esc(t("mastery_s")) + " " + Math.round(p.mastery[hid] || 0) + (cv ? ' <i class="' + (cv > 0 ? "cc-cv-good" : "cc-cv-bad") + '">' + (cv > 0 ? "⚔+" : "⚠") + cv + "</i>" : "") + "</span>" : "") + "</div></div>";
     });
+    flexHid.forEach(function (hid) { var hh = D.HERO[hid]; h += '<p class="cc-small cc-flexhid">🔀 ' + esc(t("flex_hidden", { hero: L(hh.name), a: roleName(hh.role), b: roleName(hh.flex) })) + "</p>"; });
     return h + "</div></div>";
   }
+  // 選邊權：藍方（第一手）或紅方（最後一手）
+  function renderSidePick() {
+    var se = S().series;
+    var h = '<div class="cc-top"><h1 class="cc-h1">' + esc(t("bp_title", { n: se.games.length + 1, bo: se.bo })) + '</h1><span class="cc-week">' + esc(t("series_score", { a: se.wins.me, b: se.wins.opp })) + "</span></div>";
+    h += '<div class="cc-panel"><h2>🎲 ' + esc(t("side_title")) + '</h2><p class="cc-small">' + esc(t(se.games.length ? "side_why_loser" : "side_why_first")) + '</p><div class="cc-sides">' +
+      '<button class="cc-fbtn cc-side-blue" data-act="side" data-id="blue"><b>🔵 ' + esc(t("blue")) + "</b><small>" + esc(t("side_blue_desc")) + "</small></button>" +
+      '<button class="cc-fbtn cc-side-red" data-act="side" data-id="red"><b>🔴 ' + esc(t("red")) + "</b><small>" + esc(t("side_red_desc")) + "</small></button></div>";
+    var rd = BP.read(se);
+    if (rd.role || rd.tag || rd.tactic) h += readNotes(rd);
+    return h + "</div>";
+  }
+  function readNotes(rd) {
+    var h = '<div class="cc-read"><b>🕵 ' + esc(t("read_title")) + "</b>";
+    if (rd.role) h += '<p class="cc-small">' + esc(t("read_role", { role: roleName(rd.role) })) + "</p>";
+    if (rd.tag) h += '<p class="cc-small">' + esc(t("read_tag", { tag: L(D.TAG[rd.tag]) })) + "</p>";
+    if (rd.tactic) h += '<p class="cc-small">' + esc(t("read_tactic", { tac: L(D.TACTIC[rd.tactic].name) })) + "</p>";
+    return h + "</div>";
+  }
   function renderDraft() {
-    var s = S(), se = s.series, d = s.draft, turn = Core.draftTurn(), mySide = Core.mySide();
+    if (Core.needSide()) return renderSidePick();
+    var s = S(), se = s.series, d = s.draft, turn = Core.draftTurn(), mySide = Core.mySide(), oppSide = mySide === "blue" ? "red" : "blue";
     var myTurn = turn && turn[0] === mySide;
     var h = '<div class="cc-top"><h1 class="cc-h1">' + esc(t("bp_title", { n: se.games.length + 1, bo: se.bo })) + '</h1><span class="cc-week">' + esc(t("series_score", { a: se.wins.me, b: se.wins.opp })) + "</span></div>";
+    h += '<p class="cc-small cc-center">' + esc(t(d.chooser === "me" ? "side_me_chose" : "side_opp_chose", { side: t(mySide) })) + "</p>";
+    if (d.req && !d.req.res) {
+      var rp = Core.person(d.req.pid);
+      if (rp) h += '<div class="cc-req"><img src="' + photo(rp) + '" style="' + Core.lookStyle(rp.look) + '" alt=""><span><b>' + esc(rp.handle) + "</b> " + esc(BP.reqLine(d.req)) + '<small class="cc-muted">　' + esc(t("req_hint")) + "</small></span></div>";
+    }
+    if (d.read && (d.read.role || d.read.tag || d.read.tactic)) h += readNotes(d.read);
     h += '<div class="cc-turn ' + (myTurn ? "cc-myturn" : "") + '">' + (turn ? esc(t(turn[0])) + " " + esc(t(turn[1] === "ban" ? "ban" : "pick")) + "　" + esc(myTurn ? t("your_turn") : t("opp_thinking")) : esc(t("bp_done"))) + "</div>";
     h += '<div class="cc-draft">' + draftSideBox("blue") + '<div class="cc-dmid">';
     h += '<div class="cc-tabs">';
@@ -630,27 +661,35 @@
     h += '</div><div class="cc-hgrid">';
     var oppTid = se.opp;
     D.HEROES.forEach(function (hero) {
-      if (ui.roleFilter !== "all" && hero.role !== ui.roleFilter) return;
+      if (ui.roleFilter !== "all" && hero.role !== ui.roleFilter && hero.flex !== ui.roleFilter) return;
       var taken = Core.heroTaken(hero.id), ok = turn ? (turn[1] === "ban" ? Core.canBan(hero.id) : Core.canPick(turn[0], hero.id)) : false;
       var lockMe = Core.fearlessLocked("me", hero.id);
       var myP = Core.playerFor("me", hero.role), opP = Core.playerFor(oppTid, hero.role);
       var mm = Math.round(myP.mastery[hero.id] || 0), om = Math.round(opP.mastery[hero.id] || 0);
+      if (hero.flex) { var fp = Core.playerFor("me", hero.flex); if (fp && (fp.mastery[hero.id] || 0) > mm) { mm = Math.round(fp.mastery[hero.id]); myP = fp; } }
+      // 對位剋制：輪到我方選角時，對方同位置已經（看得到）選了
+      var cv = null;
+      if (myTurn && turn[1] === "pick" && ok) Core.openRoles(mySide, hero.id).forEach(function (r) { if (Core.knownFilled(oppSide, r)) { var v = BP.counter(hero.id, d.picks[oppSide][r]); if (cv === null || v > cv) cv = v; } });
       // 對手招牌：研究過才全部看得到，否則只看得到情報範圍內的位置
       var hintN = Core.researched(oppTid) ? 5 : 1 + ((s.fac && s.fac.analyst >= 1) ? 1 : 0), seen = se.hint ? se.hint.slice(0, hintN).indexOf(hero.role) >= 0 : true;
       var secret = Core.isSecret(myP, hero.id);
       var cls = "cc-hbtn" + (taken ? " cc-taken" : "") + (!ok ? " cc-dis" : "") + (ui.selHero === hero.id ? " cc-sel" : "");
       h += '<button class="' + cls + '" data-act="hero" data-id="' + hero.id + '"' + (myTurn && ok ? "" : " disabled") + ' style="--hc:#' + ("00000" + hero.color.toString(16)).slice(-6) + '">' +
         '<span class="cc-hb-name">' + esc(L(hero.name)) + (hero.isNew ? ' <i class="cc-new">NEW</i>' : "") + "</span>" + metaBadge(hero.id) +
-        '<span class="cc-hb-sub">' + D.ROLE[hero.role].icon + " " + esc(t("mine_short")) + " " + mm + (secret ? ' <i class="cc-secret">🤫' + esc(t("secret")) + "</i>" : "") + (om >= 85 && seen ? ' <i class="cc-sig">' + esc(t("opp_sig")) + "</i>" : "") + "</span>" +
+        '<span class="cc-hb-sub">' + D.ROLE[hero.role].icon + (hero.flex ? "/" + D.ROLE[hero.flex].icon + '<i class="cc-flex">🔀</i>' : "") + " " + esc(t("mine_short")) + " " + mm + (cv ? ' <i class="' + (cv > 0 ? "cc-cv-good" : "cc-cv-bad") + '">' + (cv > 0 ? "⚔+" : "⚠") + cv + "</i>" : "") + (secret ? ' <i class="cc-secret">🤫' + esc(t("secret")) + "</i>" : "") + (om >= 85 && seen ? ' <i class="cc-sig">' + esc(t("opp_sig")) + "</i>" : "") + "</span>" +
         (taken === "ban" ? '<span class="cc-hb-st">🚫</span>' : taken === "pick" ? '<span class="cc-hb-st">✔</span>' : lockMe ? '<span class="cc-hb-st cc-fl">' + esc(t("fearless_lock")) + "</span>" : "") +
         "</button>";
     });
     h += "</div>";
     if (ui.selHero && myTurn) {
       var sh = D.HERO[ui.selHero];
-      h += '<div class="cc-selinfo"><b>' + esc(L(sh.name)) + "</b> " + sh.tags.map(function (g) { return '<span class="cc-tagc">' + esc(L(D.TAG[g])) + "</span>"; }).join("") + "</div>";
+      h += '<div class="cc-selinfo"><b>' + esc(L(sh.name)) + "</b> " + sh.tags.map(function (g) { return '<span class="cc-tagc">' + esc(L(D.TAG[g])) + "</span>"; }).join("") +
+        '<div class="cc-small">⚔ ' + esc(t("counter_line", { good: beatsList(sh, true), bad: beatsList(sh, false) })) + "</div>" +
+        (sh.flex ? '<div class="cc-small">🔀 ' + esc(t("flex_info", { a: roleName(sh.role), b: roleName(sh.flex) })) + "</div>" : "") + "</div>";
     }
-    h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="confirm-hero"' + (myTurn && ui.selHero ? "" : " disabled") + ">" + esc(turn && turn[1] === "ban" ? t("confirm_ban") : t("confirm_pick")) + '</button>' +
+    var flexRoles = myTurn && turn[1] === "pick" && ui.selHero ? Core.openRoles(mySide, ui.selHero) : [];
+    h += '<div class="cc-actions cc-center">' + (flexRoles.length === 2 ? flexRoles.map(function (r) { return '<button class="cc-btn cc-primary" data-act="confirm-hero" data-role="' + r + '">' + esc(t("confirm_pick_as", { role: roleName(r) })) + "</button>"; }).join("") :
+      '<button class="cc-btn cc-primary" data-act="confirm-hero"' + (myTurn && ui.selHero ? "" : " disabled") + ">" + esc(turn && turn[1] === "ban" ? t("confirm_ban") : t("confirm_pick")) + "</button>") +
       '<button class="cc-btn" data-act="suggest"' + (myTurn ? "" : " disabled") + ">💡 " + esc(t("suggest")) + '</button><button class="cc-btn" data-act="auto-rest">🤖 ' + esc(t("auto_rest")) + "</button></div>";
     h += '<p class="cc-small cc-muted">' + esc(t("fearless_hint")) + " " + esc(Core.researched(se.opp) ? t("intel_full") : t("intel_part")) + "</p>";
     if (se.used.length) h += '<p class="cc-small">' + esc(t("used_all")) + "：" + se.used.map(heroName).map(esc).join("、") + "</p>";
@@ -672,12 +711,25 @@
     });
     return h + "</div>";
   }
-  function doDraft(hid) {
+  // 標籤剋制關係的說明（剋：她的標籤剋的標籤；被剋：剋她的標籤）
+  function beatsList(hero, good) {
+    var out = [];
+    hero.tags.forEach(function (tg) {
+      Object.keys(BP.TAG_BEATS).forEach(function (a) {
+        var x = good ? (a === tg ? BP.TAG_BEATS[a] : []) : (BP.TAG_BEATS[a].indexOf(tg) >= 0 ? [a] : []);
+        x.forEach(function (y) { var n = L(D.TAG[y]); if (out.indexOf(n) < 0) out.push(n); });
+      });
+    });
+    return out.join("、") || "—";
+  }
+  function doDraft(hid, role) {
     var s = S(), turn = Core.draftTurn();
-    if (!turn || !Core.draftAct(hid)) return false;
+    if (!turn || !Core.draftAct(hid, role)) return false;
     var list = s.series.murmurs || (s.series.murmurs = []), hero = D.HERO[hid];
     if (turn[1] === "pick") {
-      var tid = Core.teamOfSide(turn[0]), p = Core.playerFor(tid, hero.role), m = p.mastery[hid] || 0;
+      var tid = Core.teamOfSide(turn[0]), pr = hero.role, pk = s.draft.picks[turn[0]];
+      Object.keys(pk).forEach(function (r) { if (pk[r] === hid) pr = r; });
+      var p = Core.playerFor(tid, pr), m = p.mastery[hid] || 0;
       var sit = m >= 72 ? "pick_good" : m < 45 ? "pick_bad" : (Math.random() < 0.5 ? "pick_good" : null);
       if (sit && (tid === "me" || Math.random() < 0.6)) addMurmur(list, p, tid === "me" ? "me" : "opp", Core.murmur(p, sit));
     } else {
@@ -707,15 +759,18 @@
   // ================= 戰術 =================
   function compBox(side) {
     var s = S(), d = s.draft, picks = d.picks[side], syn = Core.activeSynergies(picks);
-    var h = '<div class="cc-comp cc-' + side + '"><h3>' + esc(t(side)) + "・" + esc(Core.teamName(d[side])) + '</h3><ul class="cc-clist">';
-    D.ROLES.forEach(function (r) { h += "<li>" + D.ROLE[r].icon + " " + esc(heroName(picks[r])) + " " + metaBadge(picks[r]) + "</li>"; });
-    h += "</ul>" + (syn.length ? '<p class="cc-small">🔗 ' + syn.map(function (x) { return esc(L(x.name)); }).join("、") + "</p>" : "") + "</div>";
+    var other = side === "blue" ? "red" : "blue", lc = BP.laneCounter(picks, d.picks[other]), arch = BP.archetypes(picks), gr = d.grade ? d.grade[d[side] === "me" ? "me" : "opp"] : null;
+    var h = '<div class="cc-comp cc-' + side + '"><h3>' + esc(t(side)) + "・" + esc(Core.teamName(d[side])) + (gr ? ' <span class="cc-grade cc-g-' + gr.g + '">BP ' + gr.g + "</span>" : "") + '</h3><ul class="cc-clist">';
+    D.ROLES.forEach(function (r) { var cv = lc.by[r]; h += "<li>" + D.ROLE[r].icon + " " + esc(heroName(picks[r])) + (D.HERO[picks[r]] && D.HERO[picks[r]].role !== r ? " 🔀" : "") + " " + metaBadge(picks[r]) + (cv ? ' <i class="' + (cv > 0 ? "cc-cv-good" : "cc-cv-bad") + '">' + (cv > 0 ? "⚔+" : "⚠") + cv + "</i>" : "") + "</li>"; });
+    h += "</ul>" + (syn.length ? '<p class="cc-small">🔗 ' + syn.map(function (x) { return esc(L(x.name)); }).join("、") + "</p>" : "") +
+      (arch.length ? '<p class="cc-small cc-arch">' + arch.map(function (a) { return a.icon + " " + esc(L(a.name)); }).join("　") + "</p>" : "") + "</div>";
     return h;
   }
   function renderTactic() {
     var s = S(), d = s.draft, me = Core.mySide();
     var h = '<div class="cc-top"><h1 class="cc-h1">' + esc(t("tactic_title")) + "</h1></div>";
     h += '<div class="cc-grid2">' + compBox("blue") + compBox("red") + "</div>";
+    h += bpReport(d);
     h += '<div class="cc-panel"><p class="cc-small cc-muted">' + esc(t("tactic_hint")) + '</p><div class="cc-tactics">';
     D.TACTICS.forEach(function (tc) {
       var fit = Core.fitPct(d.picks[me], tc.id);
@@ -725,6 +780,24 @@
         '<span class="cc-small">' + esc(t("beats")) + "：" + tc.beats.map(function (b) { return esc(L(D.TACTIC[b].name)); }).join("、") + "</span></button>";
     });
     h += '</div><div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="to-pre"' + (ui.tactic ? "" : " disabled") + ">" + esc(t("to_prematch")) + " ▶</button></div></div>";
+    return h;
+  }
+
+  // BP 評分與選手請求的結果
+  function bpReport(d) {
+    var h = "", gr = d.grade && d.grade.me;
+    if (gr) {
+      h += '<div class="cc-panel cc-bprep"><h3>🧠 ' + esc(t("bp_grade_title")) + ' <span class="cc-grade cc-g-' + gr.g + '">' + gr.g + '</span> <small class="cc-muted">' + esc(t("bp_grade_opp", { g: d.grade.opp.g })) + '</small></h3><ul class="cc-bpnotes">';
+      gr.notes.slice(0, 6).forEach(function (n) { h += '<li class="' + (n.v > 0.05 ? "cc-n-win" : n.v < -0.05 ? "cc-n-loss" : "") + '">' + esc(BP.noteText(n)) + "</li>"; });
+      h += "</ul>";
+      if (d.surprise && d.surprise.length) h += '<p class="cc-small cc-gold">💥 ' + esc(t("surprise_on", { v: "+" + (d.surprise.length * BP.SURPRISE_POW).toFixed(1) })) + "</p>";
+      h += "</div>";
+    }
+    var rq = d.req;
+    if (rq && rq.res) {
+      var p = Core.person(rq.pid);
+      if (p) h += '<div class="cc-req"><img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt=""><span><b>' + esc(p.handle) + "</b> " + esc(t("req_" + rq.res, { hero: heroName(rq.hid) })) + (rq.line ? " " + esc(rq.line) : "") + "</span></div>";
+    }
     return h;
   }
 
@@ -742,6 +815,7 @@
         (s.series.mind && s.series.mind.length ? '<p class="cc-small cc-loss">🎭 ' + esc(t("mind_hit", { names: s.series.mind.join("、") })) + "</p>" : "") + "</div>";
     }
     var ex = pr.me.extra || 0;
+    if (pr.me.lane || pr.me.sur || pr.me.arch.early || pr.me.arch.mid || pr.me.arch.late) h += '<p class="cc-small cc-center">' + esc(t("bp_power_line", { lane: (pr.me.lane >= 0 ? "+" : "") + pr.me.lane.toFixed(1), arch: BP.archetypes(d.picks[me]).map(function (a) { return L(a.name); }).join("、") || "—", sur: "+" + pr.me.sur.toFixed(1) })) + "</p>";
     h += '<p class="cc-small cc-center">' + esc(t("extra_line", { chem: (Core.chemBonus() >= 0 ? "+" : "") + Core.chemBonus().toFixed(1), res: Core.researched(s.series.opp) ? "+0.6" : "0", ana: "+" + ((s.fac && s.fac.analyst) || 0) * 0.25, tot: (ex >= 0 ? "+" : "") + ex.toFixed(1) })) + "</p>";
     h += '<div class="cc-panel"><table class="cc-table cc-pre"><tr><th>' + esc(s.teams.me.name) + "</th><th></th><th>" + esc(Core.teamName(s.series.opp)) + "</th></tr>";
     D.ROLES.forEach(function (r) {
@@ -922,6 +996,7 @@
       var sp = Core.person(m.sig.pid), sk = EX.SIG[m.sig.id];
       if (sp) h += '<p class="cc-small cc-sigline">' + sk.icon + " " + esc(t("sig_fired", { name: sp.handle, skill: L(sk.name) })) + "　" + esc(L(sk.shout)) + "</p>";
     });
+    if (g.bp) h += '<p class="cc-small">🧠 ' + esc(t("bp_grade_res", { a: g.bp, b: g.bpOpp || "—" })) + "</p>";
     if (g.secret) h += '<p class="cc-small">🤫 ' + esc(t("secret_used", { names: g.secret.map(function (r) { return Core.playerFor("me", r).handle + "（" + heroName(g.picks[me][r]) + "）"; }).join("、") })) + "</p>";
     if (win && res.minLead <= -8) h += '<p class="cc-gold">🔄 ' + esc(t("comeback", { v: Math.abs(Math.round(res.minLead * 10) / 10) })) + "</p>";
     h += '<table class="cc-table"><tr><th></th><th>' + esc(s.teams.me.name) + "</th><th>K/D/A</th><th></th><th>" + esc(Core.teamName(se.opp)) + "</th><th>K/D/A</th></tr>";
@@ -1126,7 +1201,8 @@
         var turn = Core.draftTurn();
         if (turn) { ui.selHero = Core.aiChoose(turn[0]); if (ui.selHero) ui.roleFilter = turn[1] === "pick" ? D.HERO[ui.selHero].role : "all"; }
         break;
-      case "confirm-hero": if (ui.selHero && doDraft(ui.selHero)) { ui.selHero = null; Core.save(); } break;
+      case "confirm-hero": if (ui.selHero && doDraft(ui.selHero, el.getAttribute("data-role"))) { ui.selHero = null; Core.save(); } break;
+      case "side": Core.chooseSide(id === "blue"); ui.selHero = null; ui.roleFilter = "all"; break;
       case "tactic": ui.tactic = id; break;
       case "to-pre": if (ui.tactic) { ui.screen = "pre"; ui.preLines = null; ui.rivalLine = null; } break;
       case "back-tactic": ui.screen = "tactic"; break;
