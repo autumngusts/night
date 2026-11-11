@@ -433,6 +433,10 @@ CHAMP_ZH: dict[str, str] = {
     "cc_album_invite": "她的邀約",
     "cc_album_vow": "誓約",
     "cc_album_allstar": "全明星",
+    "cc_album_night": "兩人的夜晚",
+    "cc_night_head": "和 {name} 的夜晚",
+    "cc_night_next": "……",
+    "cc_night_end": "晚安",
 }
 
 CHAMP_JA: dict[str, str] = {
@@ -861,6 +865,10 @@ CHAMP_JA: dict[str, str] = {
     "cc_album_invite": "彼女からのお誘い",
     "cc_album_vow": "誓い",
     "cc_album_allstar": "オールスター",
+    "cc_album_night": "二人の夜",
+    "cc_night_head": "{name} との夜",
+    "cc_night_next": "……",
+    "cc_night_end": "おやすみ",
 }
 
 CHAMP_EN: dict[str, str] = {

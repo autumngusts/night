@@ -1413,8 +1413,17 @@
     if (p.mood >= 80 && p.cond < 2 && Math.random() < 0.35) p.cond++;
     var good = like * answer > 1.05, bad = like * answer < 0.95;
     var line = L((good ? ST.DATE_LIKE : bad ? ST.DATE_DISLIKE : ST.DATE_LIKE)[p.trait]);
+    var scene = checkMilestone(p), night = null;
+    // 好感全滿時的特別夜晚（喝酒，只限 20 歲以上）
+    if (p.aff >= 100 && p.age >= 20) {
+      var NS = ST.NIGHT, say = NS.say[p.trait] || NS.say.calm;
+      night = NS.pages.map(function (pg, i) { return { text: L(pg), say: say[i] ? L(say[i]) : "" }; });
+      p.mood = 100; p.fatigue = 0;
+      p.nights = (p.nights || 0) + 1;
+      if (p.nights === 1) hook("album", "night", p, L(NS.pages[4]));
+    }
     save();
-    return { ok: true, good: good, bad: bad, msg: L(sp.text) + "\n" + (good || bad ? line + "\n" : "") + tr(good ? "date_like" : bad ? "date_dislike" : "date_ok", { name: p.handle }), scene: checkMilestone(p) };
+    return { ok: true, good: good, bad: bad, msg: L(sp.text) + "\n" + (good || bad ? line + "\n" : "") + tr(good ? "date_like" : bad ? "date_dislike" : "date_ok", { name: p.handle }), scene: scene, night: night };
   }
   // 飯店談心：每次聽一章身世小故事，三章讀完解開心結（該故事的能力 +2、心態 +2）
   function storyOf(p) {

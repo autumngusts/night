@@ -11,7 +11,7 @@
   var IMG_BASE = app.getAttribute("data-img") || "../static/images/jikan/";
 
   var ui = { screen: "title", tab: "home", modal: null, flash: null, scene: null, roleFilter: "all", selHero: null, tactic: null,
-    aiTimer: null, replay: null, lastGame: null, newRegion: "tw", leagueView: null, heroRole: "top", datePick: false, chal: {}, duoPick: false, dateEv: null, story: null, quote: null, ff: null, preLines: null };
+    aiTimer: null, replay: null, lastGame: null, newRegion: "tw", leagueView: null, heroRole: "top", datePick: false, chal: {}, duoPick: false, dateEv: null, story: null, quote: null, night: null, ff: null, preLines: null };
 
   function t(k, p) { return window.I18N ? window.I18N.t("cc_" + k, p) : k; }
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
@@ -59,8 +59,9 @@
     if (ui.dateEv) h += renderDateEv();
     else if (ui.story) h += renderStory();
     else if (ui.quote) h += renderQuote();
-    if (ui.scene && !ui.dateEv && !ui.story && !ui.quote) h += renderScene();
-    else if (ui.screen === "hub" && !ui.modal && !ui.dateEv && !ui.story && !ui.quote && Core.get() && Life.current()) h += renderEvent();
+    else if (ui.night) h += renderNight();
+    if (ui.scene && !ui.dateEv && !ui.story && !ui.quote && !ui.night) h += renderScene();
+    else if (ui.screen === "hub" && !ui.modal && !ui.dateEv && !ui.story && !ui.quote && !ui.night && Core.get() && Life.current()) h += renderEvent();
     if (Core.get() && ui.screen !== "title" && ui.screen !== "new") {
       var na = Life.popNewAch();
       if (na.length) { Core.save(); ui.flash = "🏅 " + t("ach_unlocked") + "：" + na.map(function (id) { return L(EX.ACH_BY_ID[id].name); }).join("、"); }
@@ -981,6 +982,14 @@
       '<button class="cc-btn cc-primary" data-act="close-story">OK</button></div></div>';
     return h;
   }
+  // 好感全滿約會後的特別夜晚：一頁一頁點下去，背景逐頁變暗，最後一頁天色全暗
+  function renderNight() {
+    var n = ui.night, p = Core.person(n.pid), pg = n.pages[n.i], last = n.i === n.pages.length - 1;
+    return '<div class="cc-modal cc-scene cc-night cc-night-' + n.i + '"><div class="cc-sbox cc-storybox cc-nightbox">' + (last ? "" : '<img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt="">') +
+      '<p class="cc-small cc-gold">🌙 ' + esc(t("night_head", { name: p.handle })) + "　" + (n.i + 1) + " / " + n.pages.length + "</p>" +
+      '<p class="cc-line">' + esc(pg.text) + "</p>" + (pg.say ? '<p class="cc-line cc-night-say">' + esc(pg.say) + "</p>" : "") +
+      '<button class="cc-btn cc-primary" data-act="night-next">' + esc(t(last ? "night_end" : "night_next")) + "</button></div></div>";
+  }
   function renderQuote() {
     var q = ui.quote, p = Core.person(q.pid);
     return '<div class="cc-modal cc-scene" data-act="close-quote"><div class="cc-sbox"><img src="' + photo(p) + '" style="' + Core.lookStyle(p.look) + '" alt=""><p class="cc-line">' + esc(q.text).replace(/\n/g, "<br>") + '</p><button class="cc-btn cc-primary" data-act="close-quote">OK</button></div></div>';
@@ -1033,6 +1042,7 @@
         r = Core.date(ui.dateEv.pid, ui.dateEv.spot, ui.dateEv.ev, +el.getAttribute("data-i"));
         var dpid = ui.dateEv.pid; ui.dateEv = null;
         if (r.ok) ui.quote = { pid: dpid, text: r.msg }; else flash(r.msg);
+        if (r.ok && r.night) ui.night = { pid: dpid, pages: r.night, i: 0 };
         if (r.ok && r.scene) ui.scene = { pid: dpid, level: r.scene.level, line: r.scene.line };
         break;
       case "hotel":
@@ -1044,6 +1054,7 @@
         break;
       case "close-story": ui.story = null; break;
       case "close-quote": ui.quote = null; break;
+      case "night-next": if (ui.night && ++ui.night.i >= ui.night.pages.length) ui.night = null; break;
       case "offer-yes": Core.answerOffer(true); break;
       case "offer-no": Core.answerOffer(false); break;
       case "dinner": r = Core.teamDinner(); afterAct(r); break;

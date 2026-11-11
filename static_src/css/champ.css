@@ -349,3 +349,16 @@
 .cc-optrow { flex-direction: row !important; flex-wrap: wrap; justify-content: center; }
 .cc-left { text-align: left; }
 @media (max-width: 520px) { .cc-asr { grid-template-columns: repeat(3, 1fr); } .cc-cutin img { width: 4.5rem; height: 4.5rem; } .cc-cutin b { font-size: 1.2em; } }
+/* 好感全滿約會的特別夜晚：背景逐頁變暗，最後一頁天色全暗 */
+.cc-night { transition: background-color 0.8s ease; }
+.cc-night-0 { background-color: rgba(40, 20, 50, 0.55); }
+.cc-night-1 { background-color: rgba(30, 15, 45, 0.65); }
+.cc-night-2 { background-color: rgba(22, 10, 38, 0.74); }
+.cc-night-3 { background-color: rgba(14, 6, 28, 0.82); }
+.cc-night-4 { background-color: rgba(6, 3, 16, 0.9); }
+.cc-night-5 { background-color: rgba(0, 0, 0, 0.97); }
+.cc-nightbox { border: 1px solid #7a4bb8; }
+.cc-night-say { color: #e0457b; font-weight: bold; }
+.cc-night-4 .cc-nightbox, .cc-night-5 .cc-nightbox { background-color: #120a1c; color: #d8cfe6; }
+.cc-night-5 .cc-nightbox { animation: cc-night-fade 2.4s ease-in both; }
+@keyframes cc-night-fade { from { opacity: 1; } to { opacity: 0.55; } }
