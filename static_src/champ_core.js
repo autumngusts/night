@@ -1,13 +1,15 @@
 // 冠軍教練（champ）：規則與狀態（localStorage）。
-// 一年＝季前 2 週 → 春季聯賽 7 週（Bo3）→ 季後賽 2 週（Bo5）→ 休賽 2 週 → 夏季聯賽 7 週 → 季後賽 2 週 → 世界大賽 6 週 → 休賽季 1 週。
-// 12 個地區各 8 隊同時進行聯賽（電腦隊互打用快速計算），夏季冠軍＋積分取得世界大賽名額（合計 16 隊）。
-// 玩家的比賽：BP（藍紅各 3 禁 5 選，無懼選角：同系列賽中自己用過的英雄不能再選）→ 選戰術 → 賽前看選手數值與調子 → 系統計算勝負，產生 3〜5 個關鍵會戰給 3D 重播。
-// 2026-11-11 依使用者需求新增。
+// 一年＝季前 2 週 → 春季聯賽 7 週（Bo3）→ 季後賽 2 週（Bo5）→ MSI 3 週（Bo5）→ 夏季聯賽 7 週 → 季後賽 2 週 → 世界大賽 6 週 → 休賽季 1 週。
+// 7 個聯賽（中國・韓國・台日・亞洲區・北美・南美・歐洲）各 8 隊同時進行（電腦隊互打用快速計算），夏季冠軍＋積分取得世界大賽種子（合計 16 隊）。
+// 玩家的比賽：BP（藍紅各 5 禁 5 選，無懼選角：同系列賽中雙方用過的英雄兩隊都不能再選）→ 選戰術 → 賽前看選手數值與調子 → 系統計算勝負，產生 3〜5 個關鍵會戰給 3D 重播。
+// 韓國開始：從中段隊伍出發，拿下國際大獎（MSI／世界大賽）後有機緣轉隊到王朝隊伍（Taker 所在）。
+// 2026-11-11 依使用者需求新增；同日改版（聯賽分區、MSI、轉隊、100 英雄、完整無懼、murmur、約會選項、飯店談心故事）。
 (function () {
   "use strict";
 
-  var D = window.PriTestChampData;
+  var D = window.PriTestChampData, ST = window.PriTestChampStory;
   var L = D.L;
+  var AP_MAX = 5;
   var KEY = "pritest-champ-save";
   var S = null;
 
@@ -34,7 +36,7 @@
     c.push({ k: "pre", i: 0 }, { k: "pre", i: 1 });
     for (i = 0; i < 7; i++) c.push({ k: "league", split: "spring", i: i });
     c.push({ k: "po", split: "spring", i: 0 }, { k: "po", split: "spring", i: 1 });
-    c.push({ k: "break", i: 0 }, { k: "break", i: 1 });
+    for (i = 0; i < 3; i++) c.push({ k: "msi", i: i });
     for (i = 0; i < 7; i++) c.push({ k: "league", split: "summer", i: i });
     c.push({ k: "po", split: "summer", i: 0 }, { k: "po", split: "summer", i: 1 });
     for (i = 0; i < 6; i++) c.push({ k: "worlds", i: i });
@@ -110,28 +112,46 @@
     return s / 5;
   }
   function teamName(id) { var t = team(id); return t ? t.name : "?"; }
-  function makeAITeam(region, idx, target, name) {
-    var id = region + idx, ps = [];
+  function myLg() { return S.teams.me.league; }
+  function lgStr(lid) { return D.LEAGUE[lid].str; }
+  function makeAITeam(region, league, target, name) {
+    S.tseq = (S.tseq || 0) + 1;
+    var id = "t" + S.tseq, ps = [];
     D.ROLES.forEach(function (r) {
       var p = newPlayer(region, r, target + gauss() * 3, ri(17, 25), { team: id });
       p.squad = 1;
       S.people[p.id] = p;
       ps.push(p.id);
     });
-    S.teams[id] = { id: id, region: region, name: name, players: ps, me: false };
+    S.teams[id] = { id: id, region: region, league: league, name: name, players: ps, me: false };
+    return id;
+  }
+  // 韓國王朝隊伍：整體強＋當代超一流中路 Taker
+  function makeDynasty(league) {
+    var DY = D.DYNASTY, id = makeAITeam(DY.region, league, lgStr(league) + DY.boost, DY.name), t = S.teams[id];
+    var st = DY.star, idx = -1;
+    t.players.forEach(function (pid, k) { if (person(pid).role === st.role) idx = k; });
+    delete S.people[t.players[idx]];
+    var p = newPlayer(DY.region, st.role, st.target, st.age, { team: id });
+    p.handle = st.handle; p.name = st.name; p.trait = st.trait; p.squad = 1; p.star = true; p.pot = 99;
+    Object.keys(p.mastery).forEach(function (h) { p.mastery[h] = clamp(p.mastery[h] + 18, 0, 100); });
+    S.people[p.id] = p; t.players[idx] = p.id;
+    t.dyn = true; S.dynasty = id;
     return id;
   }
 
   // ---------------- 新遊戲 ----------------
   function newGame(regionId, teamNameIn) {
-    var reg = D.REGION[regionId];
-    S = { v: 1, year: 1, wk: 0, region: regionId, people: {}, teams: {}, seq: 0, photoBag: null,
-      funds: reg.fund, fans: Math.round(reg.sponsor * 90), ap: 3, focus1: "fight", focus2: "lane",
+    var reg = D.REGION[regionId], lid = reg.league;
+    S = { v: 2, year: 1, wk: 0, region: regionId, people: {}, teams: {}, seq: 0, tseq: 0, photoBag: null,
+      funds: reg.fund, fans: Math.round(reg.sponsor * 90), ap: AP_MAX, focus1: "fight", focus2: "lane",
       lineup: {}, roster: [], scouts: [], news: [], trophies: [], history: [], meta: {}, patch: 1,
-      leagues: {}, points: {}, worlds: null, series: null, draft: null, done: true, hotelThisWeek: 0, lastEvent: null, lastBudget: null };
-    // 自己的隊伍
-    var T = reg.str + reg.start;
-    S.teams.me = { id: "me", region: regionId, name: teamNameIn || tr("default_team"), me: true };
+      leagues: {}, points: {}, worlds: null, msi: null, series: null, draft: null, done: true, hotelThisWeek: 0, lastEvent: null, lastBudget: null,
+      dynasty: null, offer: null, pendingTransfer: false, transferred: false, intl: 0,
+      worldsHist: D.HALL.map(function (h) { return { s: h.s, team: h.team, lg: h.lg, rumor: !!h.rumor }; }) };
+    // 自己的隊伍（實力＝所屬聯賽平均＋地區的起始差）
+    var T = lgStr(lid) + reg.start;
+    S.teams.me = { id: "me", region: regionId, league: lid, name: teamNameIn || tr("default_team"), me: true };
     D.ROLES.forEach(function (r) {
       var p = newPlayer(regionId, r, T + gauss() * 2.5, ri(18, 23), { unique: true, team: "me" });
       p.squad = 1; p.aff = ri(10, 25);
@@ -141,17 +161,23 @@
       var p = newPlayer(regionId, r, T - 9 + gauss() * 2.5, ri(16, 19), { unique: true, team: "me" });
       S.people[p.id] = p; S.roster.push(p.id);
     });
-    // 各地區的電腦隊
-    D.REGIONS.forEach(function (rg) {
-      var offs = shuffle([7, 4.5, 2.5, 0.5, -1, -3, -5, -7]);
-      var names = shuffle(rg.cities.slice());
-      var n = rg.id === regionId ? 7 : 8;
-      for (var i = 0; i < n; i++) makeAITeam(rg.id, i, rg.str + offs[i], names[i]);
+    // 各聯賽的電腦隊（由組成國家的城市命名）
+    D.LEAGUES.forEach(function (lg) {
+      var offs = shuffle([7, 4.5, 2.5, 0.5, -1, -3, -5, -7]), k = 0;
+      lg.members.forEach(function (mb) {
+        var rg = D.REGION[mb[0]], n = mb[1] - (mb[0] === regionId ? 1 : 0);
+        var names = shuffle(rg.cities.filter(function (c) { return c !== D.DYNASTY.name; }));
+        for (var i = 0; i < n; i++) {
+          if (rg.id === D.DYNASTY.region && !S.dynasty) { makeDynasty(lg.id); k++; continue; }
+          makeAITeam(rg.id, lg.id, lg.str + offs[k++], names[i]);
+        }
+      });
     });
     newPatch();
     refreshScouts();
     rollConditions();
     addNews(tr("news_start", { team: S.teams.me.name, region: L(reg.name) }));
+    if (reg.lore) addNews(L(reg.lore), "event");
     save();
     return S;
   }
@@ -172,7 +198,7 @@
     // 舊的候選人移除
     (S.scouts || []).forEach(function (id) { if (S.people[id] && S.people[id].scout) delete S.people[id]; });
     S.scouts = [];
-    var reg = D.REGION[S.region], base = reg.str + reg.scout;
+    var reg = D.REGION[S.region], base = lgStr(myLg()) + reg.scout;
     for (var i = 0; i < 6; i++) {
       var age = ri(16, 22), gem = Math.random() < 0.12;
       var p = newPlayer(S.region, pick(D.ROLES), base - 10 + rnd(-4, 6) + (gem ? 6 : 0) + (age - 16) * 0.8, age, { unique: true });
@@ -184,7 +210,7 @@
     var others = D.REGIONS.filter(function (r) { return r.id !== S.region; });
     for (var j = 0; j < 2; j++) {
       var rg = pick(others);
-      var q = newPlayer(rg.id, pick(D.ROLES), Math.max(rg.str, base) - 2 + rnd(-3, 5), ri(18, 24), { unique: true });
+      var q = newPlayer(rg.id, pick(D.ROLES), Math.max(lgStr(rg.league), base) - 2 + rnd(-3, 5), ri(18, 24), { unique: true });
       q.scout = true; q.known = false; q.foreign = true;
       S.people[q.id] = q; S.scouts.push(q.id);
     }
@@ -264,16 +290,16 @@
     }
     return rounds;
   }
-  function regionTeams(rid) {
-    return Object.keys(S.teams).filter(function (id) { return S.teams[id].region === rid; });
+  function leagueTeams(lid) {
+    return Object.keys(S.teams).filter(function (id) { return S.teams[id].league === lid; });
   }
   function setupLeagues(split) {
     S.leagues = {};
-    D.REGIONS.forEach(function (rg) {
-      var ids = shuffle(regionTeams(rg.id));
+    D.LEAGUES.forEach(function (lgd) {
+      var ids = shuffle(leagueTeams(lgd.id));
       var table = {};
       ids.forEach(function (id) { table[id] = { w: 0, l: 0, gw: 0, gl: 0 }; });
-      S.leagues[rg.id] = { split: split, teams: ids, sched: roundRobin(ids), table: table, results: [], po: null, champ: null, rank: null };
+      S.leagues[lgd.id] = { split: split, teams: ids, sched: roundRobin(ids), table: table, results: [], po: null, champ: null, rank: null };
     });
   }
   function standings(lg) {
@@ -309,7 +335,7 @@
   function myMatch() {
     var w = week();
     if (w.k === "league") {
-      var lg = S.leagues[S.region], pairs = lg.sched[w.i];
+      var lg = S.leagues[myLg()], pairs = lg.sched[w.i];
       for (var i = 0; i < pairs.length; i++) {
         if (pairs[i][0] === "me") return { opp: pairs[i][1], bo: 3, stage: "league" };
         if (pairs[i][1] === "me") return { opp: pairs[i][0], bo: 3, stage: "league" };
@@ -317,12 +343,21 @@
       return null;
     }
     if (w.k === "po") {
-      var po = S.leagues[S.region].po;
+      var po = S.leagues[myLg()].po;
       if (!po) return null;
       var list = w.i === 0 ? po.sf : (po.final ? [po.final] : []);
       for (var j = 0; j < list.length; j++) {
         if (list[j][0] === "me") return { opp: list[j][1], bo: 5, stage: w.i === 0 ? "sf" : "final" };
         if (list[j][1] === "me") return { opp: list[j][0], bo: 5, stage: w.i === 0 ? "sf" : "final" };
+      }
+      return null;
+    }
+    if (w.k === "msi" && S.msi) {
+      var mp = msiPairs(w.i);
+      for (var q = 0; q < mp.length; q++) {
+        var stg = ["mqf", "msf", "mfinal"][w.i];
+        if (mp[q][0] === "me") return { opp: mp[q][1], bo: 5, stage: stg };
+        if (mp[q][1] === "me") return { opp: mp[q][0], bo: 5, stage: stg };
       }
       return null;
     }
@@ -377,7 +412,7 @@
         lg.final = order;
         var pts = lg.split === "spring" ? [90, 70, 50, 50, 30, 30, 10, 10] : [0, 100, 70, 70, 40, 40, 10, 10];
         order.forEach(function (id, k) { S.points[id] = (S.points[id] || 0) + pts[k]; });
-        if (rid === S.region) {
+        if (rid === myLg()) {
           var place = order.indexOf("me");
           var prize = lg.split === "spring" ? [200, 100, 50, 50, 20, 20, 10, 10] : [300, 150, 70, 70, 30, 30, 15, 15];
           S.funds += prize[place];
@@ -397,12 +432,12 @@
   // ---------------- 世界大賽 ----------------
   function qualifyWorlds() {
     var teams = [], seeds = {};
-    D.REGIONS.forEach(function (rg) {
+    D.LEAGUES.forEach(function (rg) {
       var lg = S.leagues[rg.id], q = [lg.champ];
       var rest = lg.teams.filter(function (id) { return id !== lg.champ; }).sort(function (a, b) {
         return (S.points[b] || 0) - (S.points[a] || 0) || lg.final.indexOf(a) - lg.final.indexOf(b);
       });
-      for (var i = 1; i < rg.slots; i++) q.push(rest[i - 1]);
+      for (var i = 1; i < rg.seeds; i++) q.push(rest[i - 1]);
       q.forEach(function (id, k) { teams.push(id); seeds[id] = k + 1; });
     });
     // 分組：依實力排序蛇形分到 4 組，同地區盡量不同組
@@ -410,10 +445,10 @@
     var groups = [[], [], [], []];
     sorted.forEach(function (id, idx) {
       var pot = Math.floor(idx / 4), order = pot % 2 ? [3, 2, 1, 0] : [0, 1, 2, 3];
-      var reg = team(id).region, placed = false;
+      var reg = team(id).league, placed = false;
       order.forEach(function (g) {
         if (placed || groups[g].length > pot) return;
-        if (groups[g].some(function (o) { return team(o).region === reg; })) return;
+        if (groups[g].some(function (o) { return team(o).league === reg; })) return;
         groups[g].push(id); placed = true;
       });
       if (!placed) order.forEach(function (g) { if (!placed && groups[g].length <= pot) { groups[g].push(id); placed = true; } });
@@ -492,7 +527,8 @@
       W.champ = koWinner(W.final);
       W.out[W.champ === W.final[0] ? W.final[1] : W.final[0]] = "second";
       W.out[W.champ] = "champ";
-      addNews(tr("news_worlds_champ", { team: teamName(W.champ), region: L(D.REGION[team(W.champ).region].name) }), "gold");
+      addNews(tr("news_worlds_champ", { team: teamName(W.champ), region: L(D.LEAGUE[team(W.champ).league].name) }), "gold");
+      S.worldsHist.push({ s: 9 + S.year, team: teamName(W.champ), lg: team(W.champ).league, me: W.champ === "me" });
       if (me && (W.out.me === "champ" || W.out.me === "second")) worldsPrize(W.out.me);
     }
   }
@@ -504,9 +540,85 @@
     if (place === "champ") {
       S.trophies.push({ y: S.year, kind: "worlds" });
       addNews(tr("news_worlds_win", { team: S.teams.me.name }), "gold");
+      intlTitle();
     } else {
       addNews(tr("news_worlds_place", { place: tr("wplace_" + place), prize: prize }));
     }
+  }
+
+  // ---------------- MSI（季中國際賽：7 聯賽春季冠軍＋最強的春季亞軍，8 隊 Bo5 淘汰） ----------------
+  function setupMSI() {
+    var champs = [], seconds = [];
+    D.LEAGUES.forEach(function (lgd) {
+      var lg = S.leagues[lgd.id];
+      if (!lg || !lg.final) return;
+      champs.push(lg.final[0]); seconds.push(lg.final[1]);
+    });
+    seconds.sort(function (a, b) { return teamStr(b) - teamStr(a); });
+    var teams = champs.concat(seconds.slice(0, 8 - champs.length));
+    var s8 = teams.slice().sort(function (a, b) { return teamStr(b) - teamStr(a); });
+    S.msi = { teams: teams, qf: [[s8[0], s8[7]], [s8[3], s8[4]], [s8[1], s8[6]], [s8[2], s8[5]]], sf: null, final: null, ko: {}, champ: null, out: {} };
+    if (teams.indexOf("me") >= 0) { addNews(tr("news_msi_in"), "gold"); S.fans += 2000; }
+    else addNews(tr("news_msi_start"));
+  }
+  function msiPairs(i) {
+    var M = S.msi;
+    if (!M) return [];
+    return i === 0 ? M.qf : i === 1 ? (M.sf || []) : (M.final ? [M.final] : []);
+  }
+  function msiWinner(pr) { var r = S.msi.ko[pr[0] + "|" + pr[1]]; return r ? (r.wa > r.wb ? pr[0] : pr[1]) : null; }
+  function recordMSI(a, b, wa, wb) { S.msi.ko[a + "|" + b] = { wa: wa, wb: wb }; }
+  function resolveMSIWeek(i) {
+    var M = S.msi;
+    if (!M) return;
+    msiPairs(i).forEach(function (pr) { if (!M.ko[pr[0] + "|" + pr[1]]) { var q = quickSeries(pr[0], pr[1], 5); recordMSI(pr[0], pr[1], q.wa, q.wb); } });
+    var lose = function (pr) { var w = msiWinner(pr); return w === pr[0] ? pr[1] : pr[0]; };
+    var me = M.teams.indexOf("me") >= 0, prize = { qf: 80, sf: 150, second: 300, champ: 600 };
+    if (i === 0) { M.sf = [[msiWinner(M.qf[0]), msiWinner(M.qf[1])], [msiWinner(M.qf[2]), msiWinner(M.qf[3])]]; M.qf.forEach(function (pr) { M.out[lose(pr)] = "qf"; }); }
+    else if (i === 1) { M.final = [msiWinner(M.sf[0]), msiWinner(M.sf[1])]; M.sf.forEach(function (pr) { M.out[lose(pr)] = "sf"; }); }
+    else { M.champ = msiWinner(M.final); M.out[lose(M.final)] = "second"; M.out[M.champ] = "champ"; addNews(tr("news_msi_champ", { team: teamName(M.champ) }), "gold"); }
+    if (me && M.out.me && !M.paid) {
+      M.paid = true;
+      S.funds += prize[M.out.me];
+      S.fans += { qf: 1000, sf: 3000, second: 6000, champ: 15000 }[M.out.me];
+      S.history.push({ y: S.year, kind: "msi", place: M.out.me });
+      if (M.out.me === "champ") { S.trophies.push({ y: S.year, kind: "msi" }); addNews(tr("news_msi_win", { team: S.teams.me.name }), "gold"); intlTitle(); }
+      else addNews(tr("news_msi_place", { place: tr("wplace_" + M.out.me), prize: prize[M.out.me] }));
+    }
+  }
+
+  // ---------------- 韓國：拿下國際大獎後，王朝隊伍的轉隊邀請 ----------------
+  function intlTitle() {
+    S.intl = (S.intl || 0) + 1;
+    if (S.region !== D.DYNASTY.region || S.transferred || S.pendingTransfer || !S.dynasty || !S.teams[S.dynasty]) return;
+    if (S.intl >= 2 || Math.random() < 0.55) {
+      S.offer = { from: S.dynasty };
+      addNews(tr("news_offer", { team: teamName(S.dynasty) }), "gold");
+    }
+  }
+  function answerOffer(yes) {
+    if (!S.offer) return;
+    if (yes) { S.pendingTransfer = true; addNews(tr("news_offer_yes", { team: teamName(S.offer.from) }), "gold"); }
+    else addNews(tr("news_offer_no", { team: teamName(S.offer.from) }));
+    S.offer = null;
+    save();
+  }
+  // 新的分季開始前執行：舊隊伍的先發留下（變成電腦隊、沿用王朝隊的 id），二軍離隊；王朝隊的選手成為自己的隊伍
+  function applyTransfer() {
+    var did = S.dynasty, dyn = S.teams[did], me = S.teams.me;
+    if (!dyn) { S.pendingTransfer = false; return; }
+    var oldName = me.name, keep = D.ROLES.map(function (r) { return S.lineup[r]; });
+    var newIds = dyn.players.slice();
+    S.roster.forEach(function (pid) { if (keep.indexOf(pid) < 0) delete S.people[pid]; });
+    keep.forEach(function (pid) { var p = person(pid); p.team = did; p.squad = 1; });
+    dyn.players = keep; dyn.name = oldName; dyn.dyn = false;
+    S.roster = []; S.lineup = {};
+    newIds.forEach(function (pid) { var p = person(pid); p.team = "me"; p.squad = 1; p.aff = ri(5, 15); S.roster.push(pid); S.lineup[p.role] = pid; });
+    me.name = D.DYNASTY.name; me.dyn = true;
+    var pm = S.points.me || 0; S.points.me = S.points[did] || 0; S.points[did] = pm;
+    S.dynasty = "me"; S.transferred = true; S.pendingTransfer = false;
+    S.funds += 500;
+    addNews(tr("news_transfer", { team: me.name }), "gold");
   }
 
   // ---------------- 每週的電腦隊比賽 ----------------
@@ -525,6 +637,8 @@
     } else if (w.k === "po") {
       resolvePlayoffWeek(w.i);
       if (w.split === "summer" && w.i === 1) qualifyWorlds();
+    } else if (w.k === "msi") {
+      resolveMSIWeek(w.i);
     } else if (w.k === "worlds") {
       resolveWorldsWeek(w.i);
     }
@@ -613,7 +727,7 @@
       var o = ovr(p), d;
       if (p.age <= 22) d = (p.pot - o) * rnd(0.08, 0.2);
       else if (p.age <= 25) d = rnd(-0.5, 1.5);
-      else d = -rnd(0.5, 2.5);
+      else d = p.star ? rnd(-1, 0.4) : -rnd(0.5, 2.5);
       if (p.team !== "me") d += gauss() * 1.5;
       D.STATS.forEach(function (k) { p.stats[k] = clamp(p.stats[k] + d * rnd(0.7, 1.3), 1, 99); });
       p.pot = Math.max(Math.round(ovr(p)), p.pot);
@@ -625,10 +739,9 @@
       if (t.me) return;
       t.players = t.players.map(function (pid) {
         var p = S.people[pid];
-        if (p.age >= 28 || Math.random() < 0.12) {
-          var rg = D.REGION[t.region];
+        if (p.star ? p.age >= 31 : (p.age >= 28 || Math.random() < 0.12)) {
           delete S.people[pid];
-          var np = newPlayer(t.region, p.role, rg.str + rnd(-6, 6), ri(17, 20), { team: tid });
+          var np = newPlayer(t.region, p.role, lgStr(t.league) + rnd(-6, 6), ri(17, 20), { team: tid });
           np.squad = 1; S.people[np.id] = np;
           return np.id;
         }
@@ -644,10 +757,11 @@
   // ---------------- 進入新的一週 ----------------
   function enterWeek() {
     var w = week();
-    S.ap = 3; S.done = false; S.hotelThisWeek = 0; S.series = null; S.draft = null;
+    S.ap = AP_MAX; S.done = false; S.hotelThisWeek = 0; S.series = null; S.draft = null;
     if (w.k === "pre" && w.i === 0) { newPatch(); refreshScouts(); addNews(tr("news_patch", { n: S.patch })); }
+    if (w.k === "league" && w.i === 0 && S.pendingTransfer) applyTransfer();
     if (w.k === "league" && w.i === 0) { setupLeagues(w.split); addNews(tr("news_split_start", { split: tr("split_" + w.split) })); }
-    if (w.k === "break" && w.i === 0) { newPatch(); refreshScouts(); addNews(tr("news_patch", { n: S.patch })); }
+    if (w.k === "msi" && w.i === 0) { newPatch(); refreshScouts(); addNews(tr("news_patch", { n: S.patch })); setupMSI(); }
     rollConditions();
     S.lastEvent = randomEvent();
     if (!myMatch()) S.done = true;
@@ -665,17 +779,17 @@
   }
 
   // ================= 比賽：BP =================
-  // 藍紅各 3 禁 5 選：禁(藍紅藍紅) → 選(藍、紅紅、藍藍、紅) → 禁(紅藍) → 選(紅、藍藍、紅)
+  // 藍紅各 5 禁 5 選：禁(藍紅藍紅藍紅) → 選(藍、紅紅、藍藍、紅) → 禁(紅藍紅藍) → 選(紅、藍藍、紅)
   var DRAFT = [
-    ["blue", "ban"], ["red", "ban"], ["blue", "ban"], ["red", "ban"],
+    ["blue", "ban"], ["red", "ban"], ["blue", "ban"], ["red", "ban"], ["blue", "ban"], ["red", "ban"],
     ["blue", "pick"], ["red", "pick"], ["red", "pick"], ["blue", "pick"], ["blue", "pick"], ["red", "pick"],
-    ["red", "ban"], ["blue", "ban"],
+    ["red", "ban"], ["blue", "ban"], ["red", "ban"], ["blue", "ban"],
     ["red", "pick"], ["blue", "pick"], ["blue", "pick"], ["red", "pick"]
   ];
   function startSeries(auto) {
     var m = myMatch();
     if (!m || S.done) return null;
-    S.series = { opp: m.opp, bo: m.bo, stage: m.stage, wins: { me: 0, opp: 0 }, games: [], used: { me: [], opp: [] }, auto: !!auto };
+    S.series = { opp: m.opp, bo: m.bo, stage: m.stage, wins: { me: 0, opp: 0 }, games: [], used: [], auto: !!auto, murmurs: [] };
     // 對手每場比賽的調子
     teamPlayers(m.opp).forEach(aiCond);
     startGame();
@@ -700,8 +814,8 @@
     ["blue", "red"].forEach(function (s) { Object.keys(d.picks[s]).forEach(function (r) { if (d.picks[s][r] === hid) p = s; }); });
     return p ? "pick" : null;
   }
-  // 無懼選角：同系列賽中自己隊伍用過的英雄不能再選（50 位英雄無法讓雙方共用的完整無懼撐到 Bo5，因此以隊伍為單位）
-  function fearlessLocked(tid, hid) { return S.series.used[seriesKey(tid)].indexOf(hid) >= 0; }
+  // 無懼選角：同系列賽中，雙方任一隊用過的英雄，兩隊都不能再選（每個位置 20 位，撐得到 Bo5 第 5 局）
+  function fearlessLocked(tid, hid) { return S.series.used.indexOf(hid) >= 0; }
   function canPick(side, hid) {
     var h = D.HERO[hid], tid = teamOfSide(side);
     if (!h || heroTaken(hid)) return false;
@@ -815,8 +929,11 @@
     var counter = D.TACTIC[tactic].beats.indexOf(oppTactic) >= 0 ? 1.8 : D.TACTIC[oppTactic].beats.indexOf(tactic) >= 0 ? -1.8 : 0;
     var syn = activeSynergies(picksObj).length * 1.2;
     var common = base + fit + counter + syn + (blue ? 0.4 : 0);
+    // 北美選手：框架外的奇招（人數越多越常發生）
+    var cre = 0;
+    D.ROLES.forEach(function (r) { var p = playerFor(tid, r); if (p && D.REGION[p.region] && D.REGION[p.region].creative) cre++; });
     return {
-      base: base, fit: fit, counter: counter, syn: syn, rs: rs,
+      base: base, fit: fit, counter: counter, syn: syn, rs: rs, cre: cre,
       early: common + (c[0] - 15) * 0.3 + ph.early,
       mid: common + (c[1] - 15) * 0.3 + ph.mid,
       late: common + (c[2] - 15) * 0.3 + ph.late
@@ -844,7 +961,11 @@
     var lastMin = 0, ended = false;
     function fight(type, forced) {
       var M = D.MOMENTS[type];
-      var diff = pa[M.phase] - pb[M.phase] + lead * 0.35;
+      var diff = pa[M.phase] - pb[M.phase] + lead * 0.35, creative = null;
+      if (!forced) {
+        if (pa.cre && Math.random() < 0.045 * pa.cre) { creative = "A"; diff += 4.5; }
+        else if (pb.cre && Math.random() < 0.045 * pb.cre) { creative = "B"; diff -= 4.5; }
+      }
       var aWin = forced ? forced === "A" : Math.random() < sigmoid(diff / 5);
       var w = aWin ? "A" : "B", l = aWin ? "B" : "A", wp = aWin ? pa : pb, lp = aWin ? pb : pa;
       var close = Math.abs(diff) < 2.5;
@@ -876,7 +997,7 @@
       lead += aWin ? swing : -swing;
       var min = type === "siege" ? lastMin + ri(2, 6) : Math.max(lastMin + 2, ri(M.min[0], M.min[1]));
       lastMin = min;
-      moments.push({ type: type, min: min, sec: ri(0, 59), winner: w, kills: kills, lead: Math.round(lead * 10) / 10, obj: M.obj || null, close: close });
+      moments.push({ type: type, min: min, sec: ri(0, 59), winner: w, kills: kills, lead: Math.round(lead * 10) / 10, obj: M.obj || null, close: close, creative: creative });
       return aWin;
     }
     for (var i = 0; i < seq.length; i++) {
@@ -918,8 +1039,8 @@
       winner: win ? "me" : se.opp, res: res, mySide: me };
     se.games.push(g);
     // 無懼：記錄用過的英雄
-    Object.keys(d.picks[me]).forEach(function (r) { se.used.me.push(d.picks[me][r]); });
-    Object.keys(d.picks[opp]).forEach(function (r) { se.used.opp.push(d.picks[opp][r]); });
+    Object.keys(d.picks[me]).forEach(function (r) { se.used.push(d.picks[me][r]); });
+    Object.keys(d.picks[opp]).forEach(function (r) { se.used.push(d.picks[opp][r]); });
     // 自己選手的成長與紀錄
     D.ROLES.forEach(function (r) {
       var p = person(S.lineup[r]), b = res.box.A[r], hid = d.picks[me][r];
@@ -942,8 +1063,13 @@
     S.roster.forEach(function (id) { var p = person(id); if (p.squad === 1) p.mood = clamp(p.mood + (win ? 7 : -6), 0, 100); });
     S.fans += win ? 400 : -100;
     if (win && se.stage === "league") S.funds += 8;
-    if (se.stage === "league" || se.stage === "sf" || se.stage === "final") {
-      var lg = S.leagues[S.region];
+    if (se.stage === "mqf" || se.stage === "msf" || se.stage === "mfinal") {
+      msiPairs(week().i).forEach(function (pr) {
+        if (pr[0] === "me") recordMSI("me", se.opp, se.wins.me, se.wins.opp);
+        else if (pr[1] === "me") recordMSI(se.opp, "me", se.wins.opp, se.wins.me);
+      });
+    } else if (se.stage === "league" || se.stage === "sf" || se.stage === "final") {
+      var lg = S.leagues[myLg()];
       if (se.stage === "league") recordLeague(lg, "me", se.opp, se.wins.me, se.wins.opp, "league");
       else {
         recordLeague(lg, "me", se.opp, se.wins.me, se.wins.opp, se.stage);
@@ -993,7 +1119,7 @@
     p.aff = clamp(p.aff + (3 + rnd(0, 2)) * (t.talkMul || 1), 0, 100);
     p.mood = clamp(p.mood + 6, 0, 100);
     save();
-    return { ok: true, msg: tr("act_talk_done", { name: p.handle }), scene: checkMilestone(p) };
+    return { ok: true, msg: tr("act_talk_done", { name: p.handle }), line: L(pick(ST.TALK[p.trait])), scene: checkMilestone(p) };
   }
   function coach(pid) {
     var p = person(pid);
@@ -1007,19 +1133,43 @@
     save();
     return { ok: true, msg: tr("act_coach_done", { name: p.handle, stat: L(D.STAT[low]), g: g.toFixed(1) }), scene: checkMilestone(p) };
   }
-  function date(pid, spotId) {
-    var p = person(pid), sp = D.DATE_SPOT[spotId], t = D.TRAIT[p.trait];
+  // 約會：先決定地點，約會中會出現一個對話選項（DATE_EVENTS），選到她喜歡的回應效果更好
+  function dateEvent() { return Math.floor(Math.random() * ST.DATE_EVENTS.length); }
+  function canDate(spotId) {
+    var sp = D.DATE_SPOT[spotId];
     if (!needAP(1)) return { ok: false, msg: tr("err_ap") };
     if (S.funds < sp.cost) return { ok: false, msg: tr("err_funds") };
+    return { ok: true };
+  }
+  function date(pid, spotId, evIdx, optIdx) {
+    var p = person(pid), sp = D.DATE_SPOT[spotId], t = D.TRAIT[p.trait];
+    var chk = canDate(spotId);
+    if (!chk.ok) return chk;
     S.ap -= 1; S.funds -= sp.cost;
-    var like = t.likes.indexOf(spotId) >= 0 ? 1.5 : (t.dislikes || []).indexOf(spotId) >= 0 ? 0.5 : 1;
-    var mul = like * (t.dateMul || 1);
+    var like = t.likes.indexOf(spotId) >= 0 ? 1.4 : (t.dislikes || []).indexOf(spotId) >= 0 ? 0.6 : 1;
+    var opt = ST.DATE_EVENTS[evIdx] && ST.DATE_EVENTS[evIdx].o[optIdx], answer = 1;
+    if (opt) answer = opt.like.indexOf(p.trait) >= 0 ? 1.5 : opt.dislike.indexOf(p.trait) >= 0 ? 0.5 : 1;
+    var mul = like * answer * (t.dateMul || 1);
     p.mood = clamp(p.mood + sp.mood * mul, 0, 100);
     p.aff = clamp(p.aff + sp.aff * mul, 0, 100);
     p.fatigue = clamp(p.fatigue - 8, 0, 100);
     if (p.mood >= 80 && p.cond < 2 && Math.random() < 0.35) p.cond++;
+    var good = like * answer > 1.05, bad = like * answer < 0.95;
+    var line = L((good ? ST.DATE_LIKE : bad ? ST.DATE_DISLIKE : ST.DATE_LIKE)[p.trait]);
     save();
-    return { ok: true, msg: L(sp.text) + " " + tr(like > 1 ? "date_like" : like < 1 ? "date_dislike" : "date_ok", { name: p.handle }), scene: checkMilestone(p) };
+    return { ok: true, good: good, bad: bad, msg: L(sp.text) + "\n" + (good || bad ? line + "\n" : "") + tr(good ? "date_like" : bad ? "date_dislike" : "date_ok", { name: p.handle }), scene: checkMilestone(p) };
+  }
+  // 飯店談心：每次聽一章身世小故事，三章讀完解開心結（該故事的能力 +2、心態 +2）
+  function storyOf(p) {
+    if (!p.story) {
+      var used = {};
+      S.roster.forEach(function (id) { var o = person(id); if (o && o.story) used[o.story] = 1; });
+      var free = ST.STORIES.filter(function (x) { return !used[x.id]; });
+      p.story = pick(free.length ? free : ST.STORIES).id;
+      p.chap = 0;
+    }
+    for (var i = 0; i < ST.STORIES.length; i++) if (ST.STORIES[i].id === p.story) return ST.STORIES[i];
+    return ST.STORIES[0];
   }
   function hotel(pid) {
     var p = person(pid), H = D.HOTEL;
@@ -1029,20 +1179,41 @@
     S.ap -= H.ap; S.funds -= H.cost; S.hotelThisWeek++;
     p.mood = clamp(p.mood + H.mood, 0, 100);
     p.aff = clamp(p.aff + H.aff, 0, 100);
-    p.fatigue = clamp(p.fatigue - 15, 0, 100);
+    p.fatigue = clamp(p.fatigue - 12, 0, 100);
     p.cond = Math.min(2, p.cond + 1);
-    var msg = L(H.text), scandal = false;
-    if (Math.random() < H.scandal * S.hotelThisWeek) {
-      scandal = true;
-      S.fans = Math.round(S.fans * 0.92);
-      S.funds -= 20;
-      S.roster.forEach(function (id) { var o = person(id); if (id !== pid && o.squad === 1) o.mood = clamp(o.mood - 6, 0, 100); });
-      addNews(tr("news_scandal", { name: p.handle }), "loss");
-      msg += "\n" + tr("hotel_scandal");
+    var st = storyOf(p), out = { ok: true, title: L(st.title), chap: p.chap || 0, done: false };
+    if ((p.chap || 0) < 3) {
+      out.text = L(st.ch[p.chap || 0]);
+      p.chap = (p.chap || 0) + 1;
+      out.chap = p.chap;
+      if (p.chap === 3) {
+        p.stats[st.stat] = clamp(p.stats[st.stat] + 2, 1, 99);
+        p.stats.mental = clamp(p.stats.mental + 2, 1, 99);
+        out.done = true;
+        out.bonus = tr("story_done", { name: p.handle, stat: L(D.STAT[st.stat]) });
+      }
+    } else {
+      out.text = L(ST.AFTER[p.trait]);
+      out.chap = 4;
     }
+    if (Math.random() < H.scandal * S.hotelThisWeek) {
+      out.scandal = true;
+      S.fans = Math.round(S.fans * 0.93);
+      S.funds -= 15;
+      S.roster.forEach(function (id) { var o = person(id); if (id !== pid && o.squad === 1) o.mood = clamp(o.mood - 5, 0, 100); });
+      addNews(tr("news_scandal", { name: p.handle }), "loss");
+    }
+    out.scene = checkMilestone(p);
     save();
-    return { ok: true, msg: msg, scandal: scandal, scene: checkMilestone(p) };
+    return out;
   }
+  // 比賽中的碎碎念（依個性與情境）
+  function murmur(p, sit) {
+    if (!p) return "";
+    var m = ST.MURMUR[p.trait] || ST.MURMUR.calm, arr = m[sit];
+    return arr ? L(pick(arr)) : "";
+  }
+  function creativeLine() { return L(pick(ST.CREATIVE)); }
   function teamDinner() {
     var cost = 8 + S.roster.length;
     if (!needAP(1)) return { ok: false, msg: tr("err_ap") };
@@ -1062,11 +1233,12 @@
       var raw = localStorage.getItem(KEY);
       if (!raw) return null;
       var s = JSON.parse(raw);
-      if (!s || s.v !== 1) return null;
+      if (!s || s.v !== 2) return null;
       S = s;
       return S;
     } catch (e) { return null; }
   }
+  function oldSave() { try { var r = localStorage.getItem(KEY); return !!r && JSON.parse(r).v !== 2; } catch (e) { return false; } }
   function hasSave() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
   function reset() { try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } S = null; }
 
@@ -1077,7 +1249,8 @@
     week: week, myMatch: myMatch, canAdvance: canAdvance, advance: advance,
     photoFile: photoFile, ovr: ovr, ovrI: ovrI, person: person, team: team, teamName: teamName, teamPlayers: teamPlayers, teamStr: teamStr,
     heroesOfRole: heroesOfRole, topHeroes: topHeroes, metaTier: metaTier, signFee: signFee, standings: standings, groupStandings: groupStandings,
-    worldsPairs: worldsPairs, playerFor: playerFor,
+    worldsPairs: worldsPairs, msiPairs: msiPairs, playerFor: playerFor, myLg: myLg, AP_MAX: AP_MAX, oldSave: oldSave, answerOffer: answerOffer,
+    murmur: murmur, creativeLine: creativeLine, dateEvent: dateEvent, canDate: canDate, storyOf: storyOf,
     sign: sign, scoutReveal: scoutReveal, release: release, setLineup: setLineup, setFocus: setFocus, setPractice: setPractice,
     talk: talk, coach: coach, date: date, hotel: hotel, teamDinner: teamDinner,
     startSeries: startSeries, draftTurn: draftTurn, draftAct: draftAct, draftDone: draftDone, aiChoose: aiChoose, canPick: canPick, canBan: canBan,

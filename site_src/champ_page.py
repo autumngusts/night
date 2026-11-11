@@ -4,7 +4,7 @@
 管理一軍／二軍、招募新人、訓練、約會與飯店秘密約會提升好感與心情；比賽時負責 BP（無懼選角）與戰術，
 勝負由選手數值、英雄熟練度、陣容與當天調子計算，並以 3D 重播 3〜5 個關鍵會戰。
 遊戲邏輯全部在瀏覽器端：static/champ_data.js（地區、50 英雄、戰術、約會）→ champ_core.js（規則與狀態，localStorage）
-→ champ_3d.js（three.js 關鍵會戰重播，第一次用到才載入 vendor/three.min.js）→ champ.js（畫面）。
+→ champ_story.js（個性台詞、murmur、約會選項、身世小故事）→ champ_3d.js（three.js 關鍵會戰重播，第一次用到才載入 vendor/three.min.js）→ champ.js（畫面）。
 選手頭像沿用時間管理大師（jikan）的女生照片。2026-11-11 依使用者需求新增。
 """
 
@@ -14,6 +14,7 @@ from site_src.layout import asset_url, page_shell
 
 CHAMP_SCRIPTS: tuple[str, ...] = (
     "champ_data.js",
+    "champ_story.js",
     "champ_core.js",
     "champ_3d.js",
     "champ.js",

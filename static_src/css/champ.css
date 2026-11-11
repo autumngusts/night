@@ -249,3 +249,30 @@
   .cc-pw { grid-template-columns: 2.6rem 1fr; }
   .cc-pw .cc-small { grid-column: 2; }
 }
+
+/* 2026-11-11 改版：背景故事、轉隊邀請、碎碎念、重播對白泡泡、快轉、約會選項、飯店談心 */
+.cc-lore { line-height: 1.75; padding: 0.45rem 0.7rem; border-left: 4px solid var(--cc-gold); background: rgba(184, 134, 11, 0.08); border-radius: 0 6px 6px 0; }
+.cc-offer { border: 2px solid var(--cc-gold); background: linear-gradient(90deg, rgba(240, 192, 80, 0.16), transparent); }
+.cc-murmurs { margin-top: 0.7rem; }
+.cc-murmurs h3 { margin: 0 0 0.3rem; font-size: 0.9em; }
+.cc-mm { display: flex; gap: 0.45rem; align-items: center; padding: 0.3rem 0.45rem; border-radius: 9px; margin-bottom: 0.25rem; font-size: 0.86em; line-height: 1.5; }
+.cc-mm img { width: 2rem; height: 2rem; object-fit: cover; border-radius: 50%; flex: none; }
+.cc-mm-me { background: var(--cc-accent-soft); }
+.cc-mm-opp { background: rgba(127, 127, 127, 0.12); flex-direction: row-reverse; text-align: right; }
+.cc-mm-new { animation: cc-pop 0.3s ease-out; }
+.cc-says { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.2rem 0.6rem; }
+.cc-say { font-size: 0.8em; opacity: 0.85; margin-top: 0.2rem; }
+.cc-say-r { text-align: right; }
+.cc-bubble { position: absolute; left: 0.6rem; bottom: 2.8rem; max-width: min(24rem, 70%); display: flex; gap: 0.5rem; align-items: center; padding: 0.4rem 0.7rem 0.4rem 0.4rem; border-radius: 999px 14px 14px 999px; background: rgba(255, 255, 255, 0.93); color: #222; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); font-size: 0.86em; opacity: 0; transform: translateY(8px); transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
+.cc-bubble.cc-bub-on { opacity: 1; transform: none; }
+.cc-bubble.cc-bub-opp { left: auto; right: 0.6rem; flex-direction: row-reverse; border-radius: 14px 999px 999px 14px; padding: 0.4rem 0.4rem 0.4rem 0.7rem; }
+.cc-bubble img { width: 2.4rem; height: 2.4rem; border-radius: 50%; object-fit: cover; flex: none; }
+.cc-bubble b { display: block; font-size: 0.85em; color: #c2185b; }
+.cc-bub-opp b { color: #444; text-align: right; }
+.cc-ffl { opacity: 0; animation: cc-ffin 0.3s ease-out forwards; }
+@keyframes cc-ffin { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+.cc-ffm { list-style: none; margin-left: -1.2rem; display: flex; gap: 0.4rem; align-items: center; font-size: 0.88em; opacity: 0.9; }
+.cc-ffm img { width: 1.6rem; height: 1.6rem; border-radius: 50%; object-fit: cover; }
+.cc-opts { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+.cc-storybox { width: min(32rem, 100%) !important; }
+.cc-storybox .cc-line { text-align: left; }

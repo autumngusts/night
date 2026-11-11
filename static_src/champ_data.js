@@ -1,4 +1,4 @@
-// 冠軍教練（champ）：靜態資料。12 個起始地區、5 個位置、50 位英雄、5 種戰術、羈絆組合、約會地點、個性、選手名。
+// 冠軍教練（champ）：靜態資料。12 個起始地區、7 個聯賽、5 個位置、100 位英雄、5 種戰術、羈絆組合、約會地點、個性、選手名。
 // 規則在 champ_core.js；畫面在 champ.js；3D 重播在 champ_3d.js。這裡只放數值與雙語文字（C(zh, ja)）。2026-11-11 依使用者需求新增。
 (function () {
   "use strict";
@@ -27,48 +27,79 @@
 
   // ---------------- 起始地區 ----------------
   // diff：難度（low＝韓國・中國；mid＝台灣・北美・西歐；high＝其餘）。str：該地區聯賽的平均實力。
-  // slots：世界大賽名額（合計 16）。sponsor：每週贊助收入（K）。fund：起始資金（K）。
+  // league：所屬聯賽（LEAGUES）。str：該國選手的平均實力（新人、引退補充用）。sponsor：每週贊助收入（K）。fund：起始資金（K）。
   // start：起始一軍相對聯賽平均的實力差；scout：新人素質相對聯賽平均。
   var REGIONS = [
-    { id: "tw", abbr: "TW", name: C("台灣", "台湾"), diff: "mid", str: 66, slots: 2, sponsor: 120, fund: 900, start: 1, scout: -2,
+    { id: "tw", abbr: "TW", name: C("台灣", "台湾"), lore: C("傳聞台灣隊伍曾在草創時期拿過一次世界冠軍——但紀錄早已散失，只剩老玩家口中的傳說。重新找回當年的榮景吧。", "台湾チームは創成期に一度世界王者になったという噂がある――記録は失われ、古参ファンの語り草だけが残る。あの栄光をもう一度。"), diff: "mid", str: 66, league: "tj", sponsor: 120, fund: 900, start: 1, scout: -2,
       cities: ["Taipei Morning Star", "Kaohsiung Harbor", "Taichung Skylark", "Tainan Phoenix", "Hsinchu Breeze", "Taoyuan Comet", "Keelung Rain", "Hualien Wave"],
       names: ["張家瑜", "黃詩涵", "吳宜蓁", "劉品妍", "蔡佳穎", "楊子晴", "許芷瑄", "鄭雅筑", "謝語彤", "洪若涵", "林沛綺", "陳昕妤"] },
-    { id: "jp", abbr: "JP", name: C("日本", "日本"), diff: "high", str: 61, slots: 1, sponsor: 95, fund: 550, start: -1, scout: -3,
+    { id: "jp", abbr: "JP", name: C("日本", "日本"), lore: C("與台灣同屬台日聯賽。後起之秀，但熱情的粉絲與職人精神正在醞釀奇蹟。", "台湾と同じ台日リーグ。後発だが、熱いファンと職人気質が奇跡を育てている。"), diff: "high", str: 61, league: "tj", sponsor: 95, fund: 550, start: -1, scout: -3,
       cities: ["Tokyo Sakura", "Osaka Kitsune", "Nagoya Shachi", "Fukuoka Swallow", "Sapporo Snow", "Sendai Tanabata", "Kyoto Miko", "Kobe Pearl"],
       names: ["佐藤 美咲", "鈴木 陽菜", "高橋 結衣", "田中 さくら", "伊藤 葵", "渡辺 凛", "山本 芽依", "中村 ひなた", "小林 楓", "加藤 莉子", "吉田 澪", "松本 杏"] },
-    { id: "kr", abbr: "KR", name: C("韓國", "韓国"), diff: "low", str: 74, slots: 2, sponsor: 190, fund: 1500, start: 4, scout: 2,
+    { id: "kr", abbr: "KR", name: C("韓國", "韓国"), lore: C("一流選手多到滿出來的強權。王朝隊伍 Seoul Starlight 擁有當代超一流中路 Taker，拿下過最多冠軍。你從中段隊伍出發——拿下國際大獎，或許就會有機緣被王朝隊挖角。", "一流選手があふれる強豪地域。王朝 Seoul Starlight には当代最強のミッド Taker が在籍し、最多の優勝を誇る。あなたは中堅チームから――国際タイトルを取れば、王朝から声がかかるかもしれない。"), diff: "low", str: 76, league: "kr", sponsor: 190, fund: 1500, start: 3.5, scout: 3,
       cities: ["Seoul Starlight", "Busan Tide", "Incheon Aurora", "Daegu Phoenix", "Gwangju Lilies", "Daejeon Comet", "Suwon Valkyrie", "Ulsan Blossom"],
       names: ["金智妍", "朴秀彬", "李夏恩", "崔允瑞", "鄭佳仁", "姜睿琳", "尹書雅", "韓智友", "宋多恩", "林娜妍", "徐敏智", "吳采媛"] },
-    { id: "cn", abbr: "CN", name: C("中國", "中国"), diff: "low", str: 73, slots: 2, sponsor: 185, fund: 1450, start: 4, scout: 2,
+    { id: "cn", abbr: "CN", name: C("中國", "中国"), lore: C("冠軍爭奪的熱門賽區，許多隊伍都擁有一流選手，常與韓國殺得難分難解。", "優勝争いの常連地域。多くのチームが一流選手を抱え、韓国とはいつも互角の勝負。"), diff: "low", str: 75, league: "cn", sponsor: 185, fund: 1450, start: 4, scout: 3,
       cities: ["Shanghai Dragoness", "Beijing Moonlight", "Chengdu Bamboo", "Shenzhen Spark", "Hangzhou Lotus", "Wuhan Storm", "Xi'an Jade", "Chongqing Flame"],
       names: ["林語晴", "蘇沐瑤", "葉欣妍", "陳思彤", "王雨萱", "趙夢琪", "周婉清", "唐詩涵", "許靈汐", "何夢瑤", "沈清歡", "江晚吟"] },
-    { id: "vn", abbr: "VN", name: C("越南", "ベトナム"), diff: "high", str: 63, slots: 1, sponsor: 90, fund: 520, start: -1, scout: -2,
+    { id: "vn", abbr: "VN", name: C("越南", "ベトナム"), lore: C("亞洲區的熱血代表。只有一個世界賽名額，每一場都是決戰。", "アジア地域の熱き代表。世界大会枠は 1 つ、すべてが決戦。"), diff: "high", str: 63, league: "asia", sponsor: 90, fund: 520, start: -1, scout: -2,
       cities: ["Hanoi Lotus", "Saigon Comet", "Da Nang Wave", "Hue Lantern", "Hai Phong Storm", "Can Tho River", "Nha Trang Coral", "Da Lat Mist"],
       names: ["Nguyễn Thu Hà", "Trần Mai Anh", "Lê Ngọc Lan", "Phạm Thảo Vy", "Hoàng Minh Thư", "Vũ Bảo Ngọc", "Đặng Khánh Linh", "Bùi Gia Hân", "Đỗ Phương Uyên", "Hồ Thanh Trúc", "Ngô Tuyết Mai", "Dương Hải Yến"] },
-    { id: "ru", abbr: "RU", name: C("俄羅斯", "ロシア"), diff: "high", str: 60, slots: 1, sponsor: 90, fund: 520, start: -1, scout: -3,
+    { id: "ru", abbr: "RU", name: C("俄羅斯", "ロシア"), lore: C("編入歐洲聯賽。嚴寒鍛鍊出的冷靜運營是武器。", "欧州リーグ所属。極寒が鍛えた冷静なマクロが武器。"), diff: "high", str: 60, league: "eu", sponsor: 90, fund: 520, start: -1, scout: -3,
       cities: ["Moscow Snowfall", "St. Petersburg Swan", "Kazan Firebird", "Novosibirsk Aurora", "Yekaterinburg Gem", "Sochi Sun", "Vladivostok Tide", "Samara Star"],
       names: ["Anastasia Volkova", "Daria Sokolova", "Ekaterina Morozova", "Polina Lebedeva", "Sofia Kozlova", "Alina Novikova", "Viktoria Orlova", "Ksenia Pavlova", "Maria Fedorova", "Yulia Smirnova", "Vera Belova", "Irina Zaitseva"] },
-    { id: "mn", abbr: "MN", name: C("蒙古", "モンゴル"), diff: "high", str: 55, slots: 1, sponsor: 75, fund: 450, start: 0, scout: -2,
+    { id: "mn", abbr: "MN", name: C("蒙古", "モンゴル"), lore: C("亞洲區的新興勢力。草原上長大的選手們有驚人的韌性。", "アジア地域の新興勢力。草原育ちの選手たちは驚くほどタフ。"), diff: "high", str: 55, league: "asia", sponsor: 75, fund: 450, start: 0, scout: -2,
       cities: ["Ulaanbaatar Steppe", "Darkhan Eagles", "Erdenet Wolves", "Khovd Horizon", "Gobi Wind", "Orkhon Spirit", "Altai Snow", "Kharkhorin Sky"],
       names: ["Anujin Batbayar", "Saran Gantulga", "Nomin Erdene", "Khulan Bold", "Oyun Tsetseg", "Enkhjin Bat", "Solongo Dorj", "Misheel Ganbold", "Uyanga Purev", "Tsolmon Altan", "Narantsetseg Bayar", "Ariunaa Sukh"] },
-    { id: "naw", abbr: "NAW", name: C("北美西岸", "北米西海岸"), diff: "mid", str: 65, slots: 1, sponsor: 140, fund: 950, start: 1, scout: -1,
+    { id: "naw", abbr: "NAW", name: C("北美西岸", "北米西海岸"), lore: C("北美選手饒富創意，總能拚出框架外的玩法——比賽中有機會打出意想不到的奇招。", "北米の選手は創造力豊かで、型破りなプレーを生み出す――試合中に予想外の奇策が飛び出すことも。"), diff: "mid", str: 66, league: "na", sponsor: 140, fund: 950, start: 1, scout: -1, creative: true,
       cities: ["LA Starlets", "SF Fog", "Seattle Rain", "Portland Roses", "San Diego Waves", "Vegas Neon", "Phoenix Sunbirds", "Sacramento Gold"],
       names: ["Emily Carter", "Chloe Nguyen", "Madison Park", "Ava Ramirez", "Olivia Chen", "Harper Lee", "Sophia Kim", "Riley Brooks", "Zoe Martinez", "Lily Tanaka", "Nora Hayes", "Mia Delgado"] },
-    { id: "nae", abbr: "NAE", name: C("北美東岸", "北米東海岸"), diff: "mid", str: 64, slots: 1, sponsor: 135, fund: 920, start: 1, scout: -1,
+    { id: "nae", abbr: "NAE", name: C("北美東岸", "北米東海岸"), lore: C("北美選手饒富創意，總能拚出框架外的玩法——比賽中有機會打出意想不到的奇招。", "北米の選手は創造力豊かで、型破りなプレーを生み出す――試合中に予想外の奇策が飛び出すことも。"), diff: "mid", str: 66, league: "na", sponsor: 135, fund: 920, start: 1, scout: -1, creative: true,
       cities: ["New York Skyline", "Boston Clovers", "Miami Flamingos", "Atlanta Peach", "Toronto Maple", "Philadelphia Bell", "DC Monarchs", "Montreal Lune"],
       names: ["Abigail Walsh", "Emma Rossi", "Grace O'Brien", "Hannah Cohen", "Natalie Brooks", "Samantha Hill", "Brianna Scott", "Kayla Johnson", "Megan Price", "Leah Morgan", "Claire Dubois", "Audrey Fox"] },
-    { id: "sa", abbr: "SA", name: C("南美洲", "南米"), diff: "high", str: 58, slots: 1, sponsor: 85, fund: 500, start: -1, scout: -2,
+    { id: "sa", abbr: "SA", name: C("南美洲", "南米"), lore: C("南美聯賽只有一個世界賽名額。熱情的觀眾讓主場永遠沸騰。", "南米リーグの世界大会枠は 1 つ。情熱的な観客でホームはいつも沸騰。"), diff: "high", str: 58, league: "sa", sponsor: 85, fund: 500, start: -1, scout: -2,
       cities: ["São Paulo Samba", "Rio Carnaval", "Buenos Aires Tango", "Santiago Andes", "Lima Condors", "Bogotá Esmeralda", "Montevideo Sol", "Quito Volcán"],
       names: ["Valentina Silva", "Camila Rocha", "Isabela Costa", "Luciana Pérez", "Martina Gómez", "Gabriela Souza", "Sofía Herrera", "Mariana Lopes", "Julieta Díaz", "Renata Alves", "Paula Ríos", "Bianca Torres"] },
-    { id: "weu", abbr: "WEU", name: C("西歐", "西欧"), diff: "mid", str: 69, slots: 2, sponsor: 150, fund: 1000, start: 1, scout: 0,
+    { id: "weu", abbr: "WEU", name: C("西歐", "西欧"), lore: C("草創時期的前王者——第一屆世界冠軍就是歐洲隊伍。如今被中韓超越，需要再次找回過去的榮景。", "創成期の元王者――第 1 回世界大会を制したのは欧州だった。中韓に追い越された今、かつての栄光を取り戻せ。"), diff: "mid", str: 69, league: "eu", sponsor: 150, fund: 1000, start: 1, scout: 0,
       cities: ["Paris Lumière", "Berlin Valkyrie", "Madrid Flamenco", "London Rose", "Milan Moda", "Amsterdam Tulip", "Lisbon Fado", "Brussels Iris"],
       names: ["Léa Dubois", "Clara Schmidt", "Sofia Romano", "Emma de Vries", "Lucía García", "Hannah Müller", "Chloé Laurent", "Giulia Bianchi", "Nora Jansen", "Inès Martín", "Freya Larsen", "Elodie Petit"] },
-    { id: "eeu", abbr: "EEU", name: C("東歐", "東欧"), diff: "high", str: 60, slots: 1, sponsor: 88, fund: 520, start: -1, scout: -2,
+    { id: "eeu", abbr: "EEU", name: C("東歐", "東欧"), lore: C("編入歐洲聯賽。在西歐強隊的陰影下尋找突破口。", "欧州リーグ所属。西欧強豪の影で突破口を探す。"), diff: "high", str: 60, league: "eu", sponsor: 88, fund: 520, start: -1, scout: -2,
       cities: ["Warsaw Mermaid", "Prague Golden", "Budapest Danube", "Bucharest Lynx", "Belgrade White", "Kyiv Sunflower", "Sofia Rosa", "Zagreb Comet"],
       names: ["Zofia Kowalska", "Ewa Nowak", "Tereza Nováková", "Ana Popescu", "Mila Horvat", "Katarzyna Wójcik", "Elena Ionescu", "Petra Kovács", "Nina Petrović", "Iveta Dvořáková", "Maja Zielińska", "Lenka Svobodová"] }
   ];
   var REGION = {};
   REGIONS.forEach(function (r) { REGION[r.id] = r; });
+
+  // ---------------- 聯賽（括號＝世界大賽種子數，合計 16） ----------------
+  // members：由哪些國家組成、各幾隊（合計 8 隊）。str：聯賽平均實力。
+  var LEAGUES = [
+    { id: "cn", name: C("中國", "中国"), seeds: 3, str: 75, members: [["cn", 8]] },
+    { id: "kr", name: C("韓國", "韓国"), seeds: 3, str: 75, members: [["kr", 8]] },
+    { id: "tj", name: C("台日", "台日"), seeds: 2, str: 64, members: [["tw", 4], ["jp", 4]] },
+    { id: "asia", name: C("亞洲區", "アジア"), seeds: 1, str: 60, members: [["vn", 4], ["mn", 4]] },
+    { id: "na", name: C("北美", "北米"), seeds: 3, str: 66, members: [["naw", 4], ["nae", 4]] },
+    { id: "sa", name: C("南美", "南米"), seeds: 1, str: 58, members: [["sa", 8]] },
+    { id: "eu", name: C("歐洲", "欧州"), seeds: 3, str: 68, members: [["weu", 4], ["eeu", 2], ["ru", 2]] }
+  ];
+  var LEAGUE = {};
+  LEAGUES.forEach(function (l) { LEAGUE[l.id] = l; });
+
+  // 韓國的王朝隊伍與當代超一流中路 Taker（從韓國開始時無法直接帶領；拿下國際大獎後才有機緣轉隊）
+  var DYNASTY = { region: "kr", name: "Seoul Starlight", boost: 8,
+    star: { handle: "Taker", name: "李相熙", role: "mid", target: 96, age: 24, trait: "calm" } };
+
+  // 歷屆世界冠軍（遊戲開始前的歷史）
+  var HALL = [
+    { s: 1, team: "Paris Lumière", lg: "eu" },
+    { s: 2, team: C("台灣隊伍（紀錄遺失，僅存傳聞）", "台湾チーム（記録喪失、噂のみ）"), lg: "tj", rumor: true },
+    { s: 3, team: "Seoul Starlight", lg: "kr" },
+    { s: 4, team: "Busan Tide", lg: "kr" },
+    { s: 5, team: "Seoul Starlight", lg: "kr" },
+    { s: 6, team: "Shanghai Dragoness", lg: "cn" },
+    { s: 7, team: "Seoul Starlight（Taker）", lg: "kr" },
+    { s: 8, team: "Beijing Moonlight", lg: "cn" },
+    { s: 9, team: "Seoul Starlight（Taker）", lg: "kr" }
+  ];
   var DIFF = {
     low: { name: C("低", "低"), cls: "low" },
     mid: { name: C("中", "中"), cls: "mid" },
@@ -83,7 +114,7 @@
     "Nimbus", "Orca", "Pepper", "Raven", "Snow", "Tsuki", "Ume", "Viola", "Wren", "Yoru", "Zinnia", "Akari", "Bambi", "Clover", "Dove", "Fern",
     "Gem", "Hime", "Juno", "Kai", "Lily", "Maple", "Nana", "Olive", "Poppy", "Riko", "Shiro", "Tea", "Uta", "Mirai", "Sena", "Aoi"];
 
-  // ---------------- 英雄（50） ----------------
+  // ---------------- 英雄（100，每個位置 20） ----------------
   // tags：engage 開團／cc 控制／peel 保護／poke 消耗／burst 爆發／dive 突進／split 分推／scale 後期／early 前期／sustain 續戰
   // curve：[前期, 中期, 後期] 1〜5。color：3D 重播的代表色。
   function H(id, role, zh, ja, tags, curve, color) { return { id: id, role: role, name: C(zh, ja), tags: tags, curve: curve, color: color }; }
@@ -141,7 +172,58 @@
     H("s_lantern", "sup", "燈籠魂使", "灯籠の魂使い", ["cc", "peel"], [3, 4, 4], 0xffd080),
     H("s_war", "sup", "戰吼女傑", "雄叫びの女傑", ["engage", "early"], [4, 4, 2], 0xc04030),
     H("s_mage", "sup", "星詠法師", "星詠みの法師", ["poke", "burst"], [4, 4, 3], 0x80a0ff),
-    H("s_angel", "sup", "守護天使", "守護天使", ["peel", "scale"], [2, 3, 5], 0xfff8e0)
+    H("s_angel", "sup", "守護天使", "守護天使", ["peel", "scale"], [2, 3, 5], 0xfff8e0),
+    // ---- 2026-11-11 追加：每個位置 20 位（雙方共用的完整無懼選角撐得到 Bo5） ----
+    H("t_paladin", "top", "曙光聖騎", "曙光の聖騎士", ["engage", "peel", "sustain"], [3, 4, 3], 0xf8e070),
+    H("t_berserk", "top", "狂戰少女", "狂戦士の少女", ["early", "burst", "split"], [5, 3, 2], 0xc03020),
+    H("t_samurai", "top", "紅葉武士", "紅葉の武士", ["split", "burst"], [3, 4, 4], 0xe06030),
+    H("t_druid", "top", "熊之德魯伊", "熊のドルイド", ["sustain", "engage"], [3, 3, 4], 0x7a5a30),
+    H("t_knight", "top", "黑薔薇騎士", "黒薔薇の騎士", ["dive", "burst"], [4, 4, 3], 0x502040),
+    H("t_giant", "top", "冰原巨人", "氷原の巨人", ["engage", "cc", "peel"], [2, 4, 4], 0x90c0e0),
+    H("t_duelist", "top", "決鬥家", "決闘者", ["split", "scale"], [3, 3, 5], 0xd0d0e0),
+    H("t_mech", "top", "機甲少女", "メカ少女", ["poke", "sustain"], [3, 4, 3], 0x70a0b0),
+    H("t_vamp", "top", "血族伯爵", "吸血の伯爵", ["sustain", "scale"], [2, 3, 5], 0x901830),
+    H("t_shaman", "top", "雷鳴薩滿", "雷鳴のシャーマン", ["cc", "early"], [4, 4, 2], 0x4060e0),
+    H("j_ninja", "jg", "影忍", "影忍", ["early", "burst", "dive"], [5, 4, 2], 0x282838),
+    H("j_panther", "jg", "黑豹獵人", "黒豹の狩人", ["burst", "dive"], [4, 4, 3], 0x303020),
+    H("j_ent", "jg", "古樹守護者", "古樹の守り手", ["engage", "cc", "sustain"], [2, 4, 4], 0x507030),
+    H("j_spider", "jg", "蛛后", "蜘蛛の女王", ["early", "burst"], [5, 3, 2], 0x602060),
+    H("j_dragon", "jg", "龍騎姬", "竜騎姫", ["engage", "dive"], [3, 4, 4], 0xd04020),
+    H("j_sprite", "jg", "森林精靈", "森の精霊", ["poke", "cc"], [3, 4, 3], 0x80e080),
+    H("j_rogue", "jg", "盜賊公主", "盗賊の姫", ["split", "burst"], [3, 4, 3], 0xa08040),
+    H("j_lava", "jg", "熔岩泰坦", "溶岩の巨神", ["engage", "cc"], [2, 4, 4], 0xff6020),
+    H("j_owl", "jg", "夜梟", "夜梟", ["scale", "dive"], [2, 4, 5], 0x6a5a8a),
+    H("j_cat", "jg", "貓又", "猫又", ["early", "dive", "split"], [4, 4, 3], 0xf0a0c0),
+    H("m_song", "mid", "風之歌姬", "風の歌姫", ["poke", "cc"], [3, 4, 4], 0x80f0d0),
+    H("m_dark", "mid", "影魔導", "影の魔導師", ["burst", "scale"], [2, 4, 5], 0x402060),
+    H("m_foxfire", "mid", "狐火巫女", "狐火の巫女", ["burst", "dive"], [4, 4, 3], 0xff9040),
+    H("m_alch", "mid", "鍊金術士", "錬金術師", ["poke", "sustain"], [3, 4, 4], 0x60c060),
+    H("m_grav", "mid", "重力魔女", "重力の魔女", ["cc", "engage"], [3, 4, 4], 0x5040a0),
+    H("m_blood", "mid", "血魔法師", "血の魔法使い", ["sustain", "burst"], [3, 4, 4], 0xa01040),
+    H("m_priest", "mid", "光之大祭司", "光の大司祭", ["poke", "peel"], [2, 4, 4], 0xfff0a0),
+    H("m_mirror", "mid", "鏡像幻術師", "鏡像の幻術師", ["burst", "split"], [3, 4, 4], 0xc0e0ff),
+    H("m_msword", "mid", "魔劍士", "魔剣士", ["dive", "burst", "early"], [4, 4, 3], 0x6060c0),
+    H("m_abyss", "mid", "深淵女王", "深淵の女王", ["scale", "cc"], [2, 3, 5], 0x203060),
+    H("a_wind", "adc", "風行者", "風の旅人", ["poke", "early"], [4, 4, 3], 0x90e0b0),
+    H("a_icebow", "adc", "冰晶弩手", "氷晶の弩手", ["cc", "scale"], [2, 4, 5], 0xb0e8ff),
+    H("a_spear", "adc", "雷槍少女", "雷槍の少女", ["burst", "poke"], [3, 4, 4], 0xf0e040),
+    H("a_pirate", "adc", "海賊船長", "海賊船長", ["early", "sustain"], [4, 4, 3], 0x8a4a2a),
+    H("a_meteor", "adc", "流星弓", "流星の弓", ["scale", "poke"], [2, 3, 5], 0xa0a0ff),
+    H("a_shade", "adc", "影之射手", "影の射手", ["burst", "dive"], [3, 4, 4], 0x403050),
+    H("a_chem", "adc", "化學狂人", "マッドケミスト", ["poke", "sustain"], [3, 4, 4], 0x80ff40),
+    H("a_xbow", "adc", "弩騎士", "弩騎士", ["sustain", "peel"], [3, 4, 4], 0x8090a0),
+    H("a_fairy", "adc", "妖精射手", "妖精の射手", ["early", "poke"], [4, 4, 2], 0xffc0f0),
+    H("a_breath", "adc", "龍息砲手", "竜息の砲手", ["scale", "burst"], [2, 4, 5], 0xe05030),
+    H("s_nun", "sup", "修女", "シスター", ["peel", "sustain"], [2, 4, 4], 0x303040),
+    H("s_rope", "sup", "繩索使", "縄使い", ["engage", "cc", "early"], [4, 4, 3], 0xb08050),
+    H("s_bell", "sup", "鈴音巫女", "鈴音の巫女", ["cc", "peel"], [3, 4, 4], 0xff6070),
+    H("s_dance", "sup", "舞姬", "舞姫", ["sustain", "poke"], [3, 4, 3], 0xffa0c0),
+    H("s_stone", "sup", "石像守衛", "石像の番人", ["engage", "peel"], [3, 4, 4], 0x909080),
+    H("s_time", "sup", "時之魔女", "時の魔女", ["cc", "scale"], [2, 4, 5], 0xc0a060),
+    H("s_fox", "sup", "狐仙", "狐仙", ["poke", "burst"], [4, 3, 3], 0xffb060),
+    H("s_shieldk", "sup", "盾騎士", "盾騎士", ["engage", "peel", "early"], [4, 4, 3], 0x6080c0),
+    H("s_starsaint", "sup", "星辰聖女", "星辰の聖女", ["peel", "scale"], [2, 3, 5], 0xe0e0ff),
+    H("s_lucky", "sup", "招財貓", "招き猫", ["sustain", "peel"], [3, 4, 3], 0xffe0a0)
   ];
   var HERO = {};
   HEROES.forEach(function (h) { HERO[h.id] = h; });
@@ -170,7 +252,19 @@
     { a: "s_lantern", b: "a_arrow", name: C("燈下精靈", "灯火とエルフ") },
     { a: "t_monk", b: "j_wind", name: C("疾風拳舞", "疾風拳舞") },
     { a: "m_clock", b: "s_bard", name: C("時之樂章", "時の楽章") },
-    { a: "t_lancer", b: "m_void", name: C("虛空龍槍", "虚空竜槍") }
+    { a: "t_lancer", b: "m_void", name: C("虛空龍槍", "虚空竜槍") },
+    { a: "t_paladin", b: "s_nun", name: C("聖光庇護", "聖光の加護") },
+    { a: "j_ninja", b: "m_foxfire", name: C("影與狐火", "影と狐火") },
+    { a: "s_rope", b: "a_pirate", name: C("海賊繩索", "海賊ロープ") },
+    { a: "s_time", b: "a_meteor", name: C("流星時刻", "流星の刻") },
+    { a: "j_lava", b: "m_grav", name: C("熔岩重力井", "溶岩重力井") },
+    { a: "t_giant", b: "a_icebow", name: C("冰河時代", "氷河期") },
+    { a: "s_bell", b: "a_spear", name: C("鈴與雷", "鈴と雷") },
+    { a: "t_samurai", b: "j_cat", name: C("武士與貓", "侍と猫") },
+    { a: "s_starsaint", b: "a_breath", name: C("星龍守護", "星竜の加護") },
+    { a: "m_alch", b: "a_chem", name: C("瘋狂實驗室", "マッドラボ") },
+    { a: "j_dragon", b: "s_shieldk", name: C("龍與盾", "竜と盾") },
+    { a: "s_lucky", b: "a_fairy", name: C("幸運妖精", "幸運の妖精") }
   ];
 
   // ---------------- 戰術 ----------------
@@ -234,13 +328,18 @@
     { id: "night", name: C("夜景餐廳", "夜景レストラン"), icon: "🌃", cost: 10, mood: 15, aff: 7, text: C("在能看見整座城市燈火的餐廳吃了晚餐。", "街の灯りが一望できるレストランでディナー。") },
     { id: "amuse", name: C("遊樂園", "遊園地"), icon: "🎡", cost: 12, mood: 18, aff: 7, text: C("搭了雲霄飛車，最後在摩天輪頂端看夕陽。", "ジェットコースターに乗り、最後は観覧車のてっぺんで夕日を見た。") },
     { id: "shopping", name: C("購物", "ショッピング"), icon: "🛍", cost: 15, mood: 16, aff: 6, text: C("逛了一整天街，送了她一條小小的項鍊。", "一日中ショッピング、小さなネックレスをプレゼントした。") },
-    { id: "onsen", name: C("溫泉旅行", "温泉旅行"), icon: "♨", cost: 20, mood: 22, aff: 8, text: C("週末的溫泉小旅行，泡完湯一起喝了咖啡牛奶。", "週末の温泉小旅行。湯上がりに一緒にコーヒー牛乳を飲んだ。") }
+    { id: "onsen", name: C("溫泉旅行", "温泉旅行"), icon: "♨", cost: 20, mood: 22, aff: 8, text: C("週末的溫泉小旅行，泡完湯一起喝了咖啡牛奶。", "週末の温泉小旅行。湯上がりに一緒にコーヒー牛乳を飲んだ。") },
+    { id: "books", name: C("書店", "本屋"), icon: "📚", cost: 3, mood: 9, aff: 5, text: C("在書店角落各自挑了一本書，交換推薦。", "本屋の片隅でお互いに一冊ずつ選んで、おすすめを交換した。") },
+    { id: "catcafe", name: C("貓咪咖啡廳", "猫カフェ"), icon: "🐈", cost: 5, mood: 13, aff: 5, text: C("貓咪跳到她腿上睡著了，她一動也不敢動。", "猫が彼女の膝で眠ってしまい、彼女は身動きが取れなくなった。") },
+    { id: "beach", name: C("海邊", "海辺"), icon: "🌊", cost: 6, mood: 15, aff: 6, text: C("赤腳走在沙灘上，浪花打濕了褲腳。", "裸足で砂浜を歩き、波しぶきで裾が濡れた。") },
+    { id: "arcade", name: C("電玩中心", "ゲームセンター"), icon: "🕹", cost: 4, mood: 13, aff: 5, text: C("在電玩中心對決格鬥遊戲，她不服輸地連投了十個硬幣。", "ゲーセンで格ゲー対決、負けず嫌いの彼女はコインを十枚も入れた。") },
+    { id: "planet", name: C("天文館", "プラネタリウム"), icon: "🌌", cost: 7, mood: 14, aff: 7, text: C("在天文館的星空下，她小聲說起小時候的夢想。", "プラネタリウムの星空の下、彼女は小さな声で子どもの頃の夢を話した。") },
+    { id: "fireworks", name: C("煙火大會", "花火大会"), icon: "🎆", cost: 9, mood: 18, aff: 8, text: C("穿著浴衣看煙火，最大的那朵綻放時她握住了你的袖子。", "浴衣で花火大会へ。一番大きな花火が開いた瞬間、彼女があなたの袖をつかんだ。") }
   ];
   var DATE_SPOT = {};
   DATE_SPOTS.forEach(function (d) { DATE_SPOT[d.id] = d; });
-  var HOTEL = { cost: 40, ap: 2, mood: 35, aff: 10, needAff: 60, scandal: 0.12,
-    text: C("避開記者，兩人在市區飯店的頂樓套房度過了不被打擾的夜晚。夜景、果汁乾杯，還有只屬於兩個人的悄悄話——隔天，她的眼神充滿自信。",
-      "記者を避け、二人は市内ホテルの最上階スイートで誰にも邪魔されない夜を過ごした。夜景、ジュースで乾杯、二人だけの内緒話――翌朝、彼女の瞳は自信に満ちていた。") };
+  // 飯店談心：好感 50 以上、2 點。每次聽她說一章身世小故事（champ_story.js 的 STORIES），三章讀完解開心結。
+  var HOTEL = { cost: 30, ap: 2, mood: 25, aff: 8, needAff: 50, scandal: 0.1 };
 
   // ---------------- 訓練 ----------------
   var FOCUS = [
@@ -267,7 +366,7 @@
   window.PriTestChampData = {
     C: C, L: L,
     ROLES: ROLES, ROLE: ROLE, STATS: STATS, STAT: STAT,
-    REGIONS: REGIONS, REGION: REGION, DIFF: DIFF, HANDLES: HANDLES,
+    REGIONS: REGIONS, REGION: REGION, DIFF: DIFF, HANDLES: HANDLES, LEAGUES: LEAGUES, LEAGUE: LEAGUE, DYNASTY: DYNASTY, HALL: HALL,
     HEROES: HEROES, HERO: HERO, TAG: TAG, SYNERGIES: SYNERGIES,
     TACTICS: TACTICS, TACTIC: TACTIC, MOMENTS: MOMENTS,
     TRAITS: TRAITS, TRAIT: TRAIT,

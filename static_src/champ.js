@@ -11,7 +11,7 @@
   var IMG_BASE = app.getAttribute("data-img") || "../static/images/jikan/";
 
   var ui = { screen: "title", tab: "home", modal: null, flash: null, scene: null, roleFilter: "all", selHero: null, tactic: null,
-    aiTimer: null, replay: null, lastGame: null, newRegion: "tw", leagueView: null, heroRole: "top", datePick: false };
+    aiTimer: null, replay: null, lastGame: null, newRegion: "tw", leagueView: null, heroRole: "top", datePick: false, dateEv: null, story: null, quote: null, ff: null, preLines: null };
 
   function t(k, p) { return window.I18N ? window.I18N.t("cc_" + k, p) : k; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -36,6 +36,7 @@
     if (w.k === "po") return y + "・" + t("split_" + w.split) + t(w.i === 0 ? "wk_po_sf" : "wk_po_final");
     if (w.k === "break") return y + "・" + t("wk_break");
     if (w.k === "worlds") return y + "・" + (w.i < 3 ? t("wk_wgroup", { n: w.i + 1 }) : t(["wk_wqf", "wk_wsf", "wk_wfinal"][w.i - 3]));
+    if (w.k === "msi") return y + "・" + t(["wk_mqf", "wk_msf", "wk_mfinal"][w.i]);
     return y + "・" + t("wk_off");
   }
 
@@ -51,8 +52,13 @@
     else if (ui.screen === "pre") h = renderPre();
     else if (ui.screen === "replay") h = renderReplayShell();
     else if (ui.screen === "result") h = renderResult();
+    else if (ui.screen === "ff") h = renderFF();
     if (ui.modal) h += renderModal();
-    if (ui.scene) h += renderScene();
+    // 對話類視窗一次只顯示一個（約會選項 → 談心故事 → 台詞 → 好感里程碑），關掉後才出現下一個
+    if (ui.dateEv) h += renderDateEv();
+    else if (ui.story) h += renderStory();
+    else if (ui.quote) h += renderQuote();
+    if (ui.scene && !ui.dateEv && !ui.story && !ui.quote) h += renderScene();
     if (ui.flash) h += '<div class="cc-toast">' + esc(ui.flash).replace(/\n/g, "<br>") + "</div>";
     app.innerHTML = h;
     if (ui.screen === "replay") startReplay();
@@ -70,10 +76,11 @@
     var h = '<div class="cc-hero-title"><h1>🏆 ' + esc(t("title")) + '</h1><p class="cc-sub">' + esc(t("subtitle")) + "</p></div>";
     h += '<div class="cc-panel"><p class="cc-intro">' + esc(t("intro")) + "</p>";
     h += '<div class="cc-actions">';
+    if (!has && Core.oldSave()) h += '<p class="cc-event">' + esc(t("old_save")) + "</p>";
     if (has) h += '<button class="cc-btn cc-primary" data-act="continue">▶ ' + esc(t("continue")) + " — " + esc(S().teams.me.name) + "（" + esc(weekLabel()) + "）</button>";
     h += '<button class="cc-btn' + (has ? "" : " cc-primary") + '" data-act="to-new">✚ ' + esc(t("new_game")) + "</button></div></div>";
     h += '<div class="cc-panel"><h2>' + esc(t("how_title")) + '</h2><ol class="cc-rules">';
-    for (var i = 1; i <= 7; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
+    for (var i = 1; i <= 9; i++) h += "<li>" + esc(t("how_" + i)) + "</li>";
     h += "</ol></div>";
     return h;
   }
@@ -85,11 +92,11 @@
       h += '<button class="cc-region' + (ui.newRegion === r.id ? " cc-on" : "") + '" data-act="region" data-id="' + r.id + '">' +
         '<b class="cc-abbr">' + esc(r.abbr) + "</b><span class=\"cc-rname\">" + esc(L(r.name)) + "</span>" +
         '<span class="cc-diff cc-diff-' + d.cls + '">' + esc(t("diff")) + " " + esc(L(d.name)) + "</span>" +
-        '<span class="cc-small">' + esc(t("league_lv")) + " " + r.str + "・" + esc(t("fund")) + " " + money(r.fund) + "・" + esc(t("worlds_slots", { n: r.slots })) + "</span></button>";
+        '<span class="cc-small">' + esc(t("league_of", { lg: L(D.LEAGUE[r.league].name), n: D.LEAGUE[r.league].seeds })) + "・" + esc(t("fund")) + " " + money(r.fund) + "</span></button>";
     });
     h += "</div>";
     var r0 = D.REGION[ui.newRegion];
-    h += '<div class="cc-panel"><p>' + esc(t("diff_desc_" + r0.diff)) + '</p><label class="cc-field">' + esc(t("team_name")) +
+    h += '<div class="cc-panel">' + (r0.lore ? '<p class="cc-lore">📜 ' + esc(L(r0.lore)) + "</p>" : "") + "<p>" + esc(t("diff_desc_" + r0.diff)) + '</p><label class="cc-field">' + esc(t("team_name")) +
       ' <input id="cc-teamname" maxlength="24" value="' + esc(t("default_team")) + '"></label>' +
       '<div class="cc-actions"><button class="cc-btn cc-primary" data-act="start">' + esc(t("start_career", { region: L(r0.name) })) + "</button></div></div>";
     return h;
@@ -100,7 +107,7 @@
   function renderHub() {
     var s = S();
     var h = '<div class="cc-top"><h1 class="cc-h1">' + esc(s.teams.me.name) + " " + flagOf(s.region) + '</h1><span class="cc-week">' + esc(weekLabel()) + "</span></div>";
-    h += '<div class="cc-status"><span>💰 ' + money(s.funds) + "</span><span>👥 " + esc(t("fans")) + " " + s.fans.toLocaleString() + "</span><span>⚡ " + esc(t("ap")) + " " + s.ap + "/3</span><span>📦 " + esc(t("patch_n", { n: s.patch })) + "</span><span>🏆 × " + s.trophies.length + "</span></div>";
+    h += '<div class="cc-status"><span>💰 ' + money(s.funds) + "</span><span>👥 " + esc(t("fans")) + " " + s.fans.toLocaleString() + "</span><span>⚡ " + esc(t("ap")) + " " + s.ap + "/" + Core.AP_MAX + "</span><span>📦 " + esc(t("patch_n", { n: s.patch })) + "</span><span>🏆 × " + s.trophies.length + "</span></div>";
     h += '<div class="cc-tabs">';
     TABS.forEach(function (k) { h += '<button class="cc-tab' + (ui.tab === k ? " cc-on" : "") + '" data-act="tab" data-id="' + k + '">' + esc(t("tab_" + k)) + "</button>"; });
     h += "</div>";
@@ -122,6 +129,10 @@
 
   function renderHome() {
     var s = S(), m = Core.myMatch(), h = "";
+    if (s.offer) {
+      h += '<div class="cc-panel cc-offer"><h2>✉ ' + esc(t("offer_title", { team: Core.teamName(s.offer.from) })) + "</h2><p>" + esc(t("offer_body", { team: Core.teamName(s.offer.from) })) + '</p><div class="cc-actions"><button class="cc-btn cc-primary" data-act="offer-yes">' + esc(t("offer_yes")) + '</button><button class="cc-btn" data-act="offer-no">' + esc(t("offer_no")) + "</button></div></div>";
+    }
+    if (s.pendingTransfer) h += '<p class="cc-event">✈ ' + esc(t("transfer_pending")) + "</p>";
     h += '<div class="cc-grid2"><div class="cc-panel"><h2>' + esc(t("this_week")) + "</h2>";
     if (m) {
       var opp = Core.team(m.opp);
@@ -214,9 +225,9 @@
   function teamCell(id) { var tm = Core.team(id); return (id === "me" ? "<b>" : "") + esc(tm.name) + (id === "me" ? "</b>" : ""); }
   function renderLeague() {
     var s = S(), h = "";
-    var rid = ui.leagueView || s.region;
+    var rid = ui.leagueView || Core.myLg();
     h += '<div class="cc-panel"><div class="cc-row"><h2 class="cc-grow">' + esc(t("league_title")) + '</h2><select data-act="leagueview">';
-    D.REGIONS.forEach(function (r) { h += '<option value="' + r.id + '"' + (r.id === rid ? " selected" : "") + ">" + esc(r.abbr + " " + L(r.name)) + "</option>"; });
+    D.LEAGUES.forEach(function (r) { h += '<option value="' + r.id + '"' + (r.id === rid ? " selected" : "") + ">" + esc(L(r.name) + "（" + r.seeds + "）") + "</option>"; });
     h += "</select></div>";
     var lg = s.leagues && s.leagues[rid];
     if (!lg || !lg.teams) { h += "<p>" + esc(t("league_none")) + "</p></div>"; }
@@ -236,7 +247,7 @@
         h += "</div>";
       }
       var mine = lg.results.filter(function (r) { return r.a === "me" || r.b === "me"; }).slice(-8).reverse();
-      if (mine.length && rid === s.region) {
+      if (mine.length && rid === Core.myLg()) {
         h += "<h3>" + esc(t("my_results")) + '</h3><ul class="cc-news">';
         mine.forEach(function (r) {
           var me = r.a === "me", wa = me ? r.wa : r.wb, wb = me ? r.wb : r.wa, opp = me ? r.b : r.a;
@@ -246,6 +257,7 @@
       }
       h += "</div>";
     }
+    if (s.msi) h += renderMSI();
     if (s.worlds) h += renderWorlds();
     return h;
   }
@@ -253,6 +265,15 @@
     if (!pr || !pr[0]) return "";
     var a = res ? (res.a === pr[0] ? res.wa : res.wb) : "", b = res ? (res.a === pr[0] ? res.wb : res.wa) : "";
     return '<div class="cc-bline"><span class="' + (res && a > b ? "cc-bw" : "") + '">' + teamCell(pr[0]) + " " + flagOf(Core.team(pr[0]).region) + "</span><b>" + (res ? a + " - " + b : "vs") + '</b><span class="' + (res && b > a ? "cc-bw" : "") + '">' + teamCell(pr[1]) + " " + flagOf(Core.team(pr[1]).region) + "</span></div>";
+  }
+  function renderMSI() {
+    var M = S().msi, h = '<div class="cc-panel cc-worlds"><h2>🌐 ' + esc(t("msi")) + "</h2>";
+    function res(pr) { var r = M.ko[pr[0] + "|" + pr[1]]; return r ? { a: pr[0], wa: r.wa, wb: r.wb } : null; }
+    h += "<h3>" + esc(t("wk_mqf")) + '</h3><div class="cc-bracket">'; M.qf.forEach(function (pr) { h += bracketLine(pr, res(pr)); }); h += "</div>";
+    if (M.sf) { h += "<h3>" + esc(t("wk_msf")) + '</h3><div class="cc-bracket">'; M.sf.forEach(function (pr) { h += bracketLine(pr, res(pr)); }); h += "</div>"; }
+    if (M.final) h += "<h3>" + esc(t("wk_mfinal")) + '</h3><div class="cc-bracket">' + bracketLine(M.final, res(M.final)) + "</div>";
+    if (M.champ) h += '<p class="cc-gold">🏆 ' + esc(Core.teamName(M.champ)) + "</p>";
+    return h + "</div>";
   }
   function renderWorlds() {
     var s = S(), W = s.worlds, h = '<div class="cc-panel cc-worlds"><h2>🌏 ' + esc(t("worlds")) + "</h2>";
@@ -296,7 +317,11 @@
     else { h += '<div class="cc-trophies">'; s.trophies.forEach(function (tp) { h += '<span class="cc-trophy cc-tr-' + tp.kind + '">🏆 ' + esc(t("year_n", { n: tp.y })) + " " + esc(t("trophy_" + tp.kind)) + "</span>"; }); h += "</div>"; }
     h += "<h3>" + esc(t("history")) + '</h3><ul class="cc-news">';
     s.history.slice().reverse().forEach(function (x) {
-      h += "<li>" + esc(t("year_n", { n: x.y })) + " " + esc(x.kind === "worlds" ? t("worlds") + " " + t("wplace_" + x.place) : t("split_" + x.kind) + " " + t("place_n", { n: x.place })) + "</li>";
+      h += "<li>" + esc(t("year_n", { n: x.y })) + " " + esc(x.kind === "worlds" ? t("worlds") + " " + t("wplace_" + x.place) : x.kind === "msi" ? t("msi") + " " + t("wplace_" + x.place) : t("split_" + x.kind) + " " + t("place_n", { n: x.place })) + "</li>";
+    });
+    h += "</ul><h3>" + esc(t("hall")) + '</h3><ul class="cc-news">';
+    (s.worldsHist || []).slice().reverse().forEach(function (x) {
+      h += '<li class="' + (x.me ? "cc-n-gold" : "") + '">' + esc(t("season_n", { n: x.s })) + "　" + esc(typeof x.team === "string" ? x.team : L(x.team)) + "（" + esc(L(D.LEAGUE[x.lg].name)) + "）" + (x.rumor ? " ❓" : "") + "</li>";
     });
     h += "</ul><h3>" + esc(t("player_stats")) + '</h3><table class="cc-table"><tr><th>' + esc(t("player")) + "</th><th>" + esc(t("games")) + "</th><th>W%</th><th>KDA</th><th>MVP</th></tr>";
     s.roster.map(Core.person).forEach(function (p) {
@@ -334,6 +359,7 @@
         '<button class="cc-btn" data-act="coach" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">📋 " + esc(t("act_coach")) + "</button>" +
         '<button class="cc-btn" data-act="datepick" data-id="' + p.id + '"' + (s.ap < 1 ? " disabled" : "") + ">💕 " + esc(t("act_date")) + "</button>" +
         '<button class="cc-btn cc-hotel" data-act="hotel" data-id="' + p.id + '"' + (s.ap < D.HOTEL.ap || p.aff < D.HOTEL.needAff ? " disabled" : "") + ">🏨 " + esc(t("act_hotel", { cost: money(D.HOTEL.cost) })) + "</button></div>";
+      if (p.story) h += '<p class="cc-small">📖 ' + esc(t("story_progress", { title: L(Core.storyOf(p).title), n: Math.min(3, p.chap || 0) })) + "</p>";
       if (p.aff < D.HOTEL.needAff) h += '<p class="cc-small cc-muted">' + esc(t("hotel_locked", { n: D.HOTEL.needAff })) + "</p>";
       if (ui.datePick) {
         h += '<div class="cc-dates">';
@@ -359,7 +385,7 @@
     var s = S(), d = s.draft, tid = d[side], me = tid === "me";
     var h = '<div class="cc-dside cc-' + side + (me ? " cc-mine" : "") + '"><h3>' + esc(t(side)) + "・" + esc(Core.teamName(tid)) + (me ? " ★" : "") + "</h3>";
     h += '<div class="cc-bans">';
-    for (var i = 0; i < 3; i++) { var b = d.bans[side][i]; h += '<span class="cc-banslot">' + (b ? "🚫 " + esc(heroName(b)) : "—") + "</span>"; }
+    for (var i = 0; i < 5; i++) { var b = d.bans[side][i]; h += '<span class="cc-banslot">' + (b ? "🚫 " + esc(heroName(b)) : "—") + "</span>"; }
     h += '</div><div class="cc-picks">';
     D.ROLES.forEach(function (r) {
       var p = Core.playerFor(tid, r), hid = d.picks[side][r];
@@ -381,14 +407,14 @@
     D.HEROES.forEach(function (hero) {
       if (ui.roleFilter !== "all" && hero.role !== ui.roleFilter) return;
       var taken = Core.heroTaken(hero.id), ok = turn ? (turn[1] === "ban" ? Core.canBan(hero.id) : Core.canPick(turn[0], hero.id)) : false;
-      var lockMe = Core.fearlessLocked("me", hero.id), lockOpp = Core.fearlessLocked(oppTid, hero.id);
+      var lockMe = Core.fearlessLocked("me", hero.id);
       var myP = Core.playerFor("me", hero.role), opP = Core.playerFor(oppTid, hero.role);
       var mm = Math.round(myP.mastery[hero.id] || 0), om = Math.round(opP.mastery[hero.id] || 0);
       var cls = "cc-hbtn" + (taken ? " cc-taken" : "") + (!ok ? " cc-dis" : "") + (ui.selHero === hero.id ? " cc-sel" : "");
       h += '<button class="' + cls + '" data-act="hero" data-id="' + hero.id + '"' + (myTurn && ok ? "" : " disabled") + ' style="--hc:#' + ("00000" + hero.color.toString(16)).slice(-6) + '">' +
         '<span class="cc-hb-name">' + esc(L(hero.name)) + "</span>" + metaBadge(hero.id) +
         '<span class="cc-hb-sub">' + D.ROLE[hero.role].icon + " " + esc(t("mine_short")) + " " + mm + (om >= 85 ? ' <i class="cc-sig">' + esc(t("opp_sig")) + "</i>" : "") + "</span>" +
-        (taken === "ban" ? '<span class="cc-hb-st">🚫</span>' : taken === "pick" ? '<span class="cc-hb-st">✔</span>' : lockMe ? '<span class="cc-hb-st cc-fl">' + esc(t("fearless_lock")) + "</span>" : lockOpp ? '<span class="cc-hb-st cc-fl2">' + esc(t("fearless_opp")) + "</span>" : "") +
+        (taken === "ban" ? '<span class="cc-hb-st">🚫</span>' : taken === "pick" ? '<span class="cc-hb-st">✔</span>' : lockMe ? '<span class="cc-hb-st cc-fl">' + esc(t("fearless_lock")) + "</span>" : "") +
         "</button>";
     });
     h += "</div>";
@@ -399,9 +425,40 @@
     h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="confirm-hero"' + (myTurn && ui.selHero ? "" : " disabled") + ">" + esc(turn && turn[1] === "ban" ? t("confirm_ban") : t("confirm_pick")) + '</button>' +
       '<button class="cc-btn" data-act="suggest"' + (myTurn ? "" : " disabled") + ">💡 " + esc(t("suggest")) + '</button><button class="cc-btn" data-act="auto-rest">🤖 ' + esc(t("auto_rest")) + "</button></div>";
     h += '<p class="cc-small cc-muted">' + esc(t("fearless_hint")) + "</p>";
-    if (se.used.me.length) h += '<p class="cc-small">' + esc(t("used_me")) + "：" + se.used.me.map(heroName).map(esc).join("、") + "</p>";
+    if (se.used.length) h += '<p class="cc-small">' + esc(t("used_all")) + "：" + se.used.map(heroName).map(esc).join("、") + "</p>";
+    h += murmurPanel(se.murmurs);
     h += "</div>" + draftSideBox("red") + "</div>";
     return h;
+  }
+  // BP 中的碎碎念：選到英雄時那位選手、被禁掉招牌英雄時的選手
+  function addMurmur(list, p, side, text) {
+    if (!p || !text) return;
+    list.push({ pid: p.id, img: p.img, handle: p.handle, side: side, text: text });
+    while (list.length > 6) list.shift();
+  }
+  function murmurPanel(list) {
+    if (!list || !list.length) return "";
+    var h = '<div class="cc-murmurs"><h3>💭 ' + esc(t("murmur_title")) + "</h3>";
+    list.slice().reverse().forEach(function (m, i) {
+      h += '<div class="cc-mm cc-mm-' + m.side + (i === 0 ? " cc-mm-new" : "") + '"><img src="' + IMG_BASE + Core.photoFile(m.img) + '.webp" alt=""><span><b>' + esc(m.handle) + "</b> " + esc(m.text) + "</span></div>";
+    });
+    return h + "</div>";
+  }
+  function doDraft(hid) {
+    var s = S(), turn = Core.draftTurn();
+    if (!turn || !Core.draftAct(hid)) return false;
+    var list = s.series.murmurs || (s.series.murmurs = []), hero = D.HERO[hid];
+    if (turn[1] === "pick") {
+      var tid = Core.teamOfSide(turn[0]), p = Core.playerFor(tid, hero.role), m = p.mastery[hid] || 0;
+      var sit = m >= 72 ? "pick_good" : m < 45 ? "pick_bad" : (Math.random() < 0.5 ? "pick_good" : null);
+      if (sit && (tid === "me" || Math.random() < 0.6)) addMurmur(list, p, tid === "me" ? "me" : "opp", Core.murmur(p, sit));
+    } else {
+      ["me", s.series.opp].forEach(function (tid) {
+        var p = Core.playerFor(tid, hero.role);
+        if (p && (p.mastery[hid] || 0) >= 80) addMurmur(list, p, tid === "me" ? "me" : "opp", Core.murmur(p, "banned"));
+      });
+    }
+    return true;
   }
   function draftTick() {
     var s = S();
@@ -413,7 +470,7 @@
       ui.aiTimer = null;
       var hid = Core.aiChoose(turn[0]);
       if (!hid) { var all = D.HEROES.filter(function (h) { return turn[1] === "ban" ? Core.canBan(h.id) : Core.canPick(turn[0], h.id); }); hid = all.length ? all[0].id : null; }
-      if (hid) Core.draftAct(hid);
+      if (hid) doDraft(hid);
       Core.save();
       render();
     }, 520);
@@ -451,7 +508,10 @@
     h += '<div class="cc-panel"><table class="cc-table cc-pre"><tr><th>' + esc(s.teams.me.name) + "</th><th></th><th>" + esc(Core.teamName(s.series.opp)) + "</th></tr>";
     D.ROLES.forEach(function (r) {
       var a = Core.playerFor("me", r), b = Core.playerFor(s.series.opp, r), ha = d.picks[me][r], hb = d.picks[opp][r];
-      h += "<tr><td>" + preCell(a, ha) + '</td><td class="cc-center">' + D.ROLE[r].icon + "</td><td>" + preCell(b, hb) + "</td></tr>";
+      if (!ui.preLines) ui.preLines = {};
+      if (!ui.preLines[a.id]) ui.preLines[a.id] = Core.murmur(a, "pre");
+      if (!ui.preLines[b.id]) ui.preLines[b.id] = Core.murmur(b, "pre");
+      h += "<tr><td>" + preCell(a, ha) + '<div class="cc-say">💬 ' + esc(ui.preLines[a.id]) + '</div></td><td class="cc-center">' + D.ROLE[r].icon + "</td><td>" + preCell(b, hb) + '<div class="cc-say cc-say-r">💬 ' + esc(ui.preLines[b.id]) + "</div></td></tr>";
     });
     h += "</table>";
     h += '<div class="cc-powers">';
@@ -475,13 +535,13 @@
     m.kills.forEach(function (k) { if (k.side === m.winner) wk++; else lk++; });
     var who = winMe ? S().teams.me.name : Core.teamName(S().series.opp);
     var key = m.type === "siege" ? "cap_siege" : m.obj ? "cap_obj" : "cap_fight";
-    return ("0" + m.min).slice(-2) + ":" + ("0" + m.sec).slice(-2) + "　" + L(D.MOMENTS[m.type].name) + " — " +
+    return ("0" + m.min).slice(-2) + ":" + ("0" + m.sec).slice(-2) + "　" + (m.creative ? "💡" + t("creative") + " " : "") + L(D.MOMENTS[m.type].name) + " — " +
       t(key, { team: who, k: wk, l: lk, obj: m.obj ? t("obj_" + m.obj) : "" });
   }
   function renderReplayShell() {
     var g = ui.lastGame;
     var h = '<div class="cc-top"><h1 class="cc-h1">📺 ' + esc(t("replay_title", { n: g.n })) + "</h1></div>";
-    h += '<div class="cc-replay"><div id="cc-3d" class="cc-3d"></div><div class="cc-cap" id="cc-cap"></div><ul class="cc-kf" id="cc-kf"></ul><div class="cc-score" id="cc-score"></div></div>';
+    h += '<div class="cc-replay"><div id="cc-3d" class="cc-3d"></div><div class="cc-cap" id="cc-cap"></div><ul class="cc-kf" id="cc-kf"></ul><div class="cc-bubble" id="cc-bubble"></div><div class="cc-score" id="cc-score"></div></div>';
     h += '<ol class="cc-mlist" id="cc-mlist"></ol>';
     h += '<div class="cc-actions cc-center"><button class="cc-btn" data-act="rp-next">⏭ ' + esc(t("next_scene")) + '</button><button class="cc-btn cc-primary" data-act="rp-skip">' + esc(t("skip_replay")) + "</button></div>";
     return h;
@@ -492,8 +552,27 @@
     var kA = 0, kB = 0;
     function score() { sc.innerHTML = '<span class="cc-' + me + '">' + esc(S().teams.me.name) + " " + kA + '</span> ⚔ <span class="cc-' + opp + '">' + kB + " " + esc(Core.teamName(S().series.opp)) + "</span>"; }
     score();
+    var bub = document.getElementById("cc-bubble"), bubTm = null;
+    function say(side, role, sit, text) {
+      var p = Core.playerFor(side === "A" ? "me" : S().series.opp, role);
+      text = text || Core.murmur(p, sit);
+      if (!p || !text || !bub) return;
+      bub.className = "cc-bubble cc-bub-" + (side === "A" ? "me" : "opp") + " cc-bub-on";
+      bub.innerHTML = '<img src="' + photo(p) + '" alt=""><span><b>' + esc(p.handle) + "</b>" + esc(text) + "</span>";
+      clearTimeout(bubTm);
+      bubTm = setTimeout(function () { if (bub) bub.className = "cc-bubble"; }, 2300);
+    }
     function showMoment(i, m) {
       cap.textContent = momentCaption(m, g);
+      if (m.creative) {
+        var naRole = null;
+        D.ROLES.forEach(function (r) { var p = Core.playerFor(m.creative === "A" ? "me" : S().series.opp, r); if (!naRole && p && D.REGION[p.region].creative) naRole = r; });
+        if (naRole) say(m.creative, naRole, null, Core.creativeLine());
+      }
+      setTimeout(function () {
+        if (ui.screen !== "replay") return;
+        say("A", D.ROLES[Math.floor(Math.random() * 5)], m.winner === "A" ? "win_fight" : "lose_fight");
+      }, m.creative ? 3600 : 4300);
       kf.innerHTML = "";
       var li = document.createElement("li"); li.textContent = momentCaption(m, g); li.className = m.winner === "A" ? "cc-n-win" : "cc-n-loss";
       list.appendChild(li);
@@ -507,6 +586,9 @@
       li.textContent = heroName(picks[k.killer]) + "  ⚔  " + heroName(vp[k.victim]);
       kf.appendChild(li);
       while (kf.children.length > 5) kf.removeChild(kf.firstChild);
+      var r0 = Math.random();
+      if (r0 < 0.35) say(k.side, k.killer, "kill");
+      else if (r0 < 0.6) say(k.side === "A" ? "B" : "A", k.victim, "death");
     }
     function done() { ui.screen = "result"; render(); }
     var box = document.getElementById("cc-3d");
@@ -540,6 +622,14 @@
       h += "<tr><td>" + D.ROLE[r].icon + "</td><td>" + esc(pa.handle) + "<br><span class=\"cc-small\">" + esc(heroName(g.picks[me][r])) + "</span>" + (mvpA ? ' <span class="cc-mvp">MVP</span>' : "") + "</td><td>" + a.k + "/" + a.d + "/" + a.a + "</td><td></td><td>" + esc(pb.handle) + "<br><span class=\"cc-small\">" + esc(heroName(g.picks[opp][r])) + "</span>" + (mvpB ? ' <span class="cc-mvp">MVP</span>' : "") + "</td><td>" + b.k + "/" + b.d + "/" + b.a + "</td></tr>";
     });
     h += "</table></div>";
+    h += '<div class="cc-panel"><h3>💭 ' + esc(t("murmur_title")) + '</h3><div class="cc-says">';
+    D.ROLES.forEach(function (r) {
+      var p = Core.playerFor("me", r);
+      if (!g.lines) g.lines = {};
+      if (!g.lines[r]) g.lines[r] = Core.murmur(p, win ? "victory" : "defeat");
+      h += '<div class="cc-mm cc-mm-me"><img src="' + photo(p) + '" alt=""><span><b>' + esc(p.handle) + "</b> " + esc(g.lines[r]) + "</span></div>";
+    });
+    h += "</div></div>";
     if (Core.seriesOver()) {
       var sw = se.wins.me > se.wins.opp;
       h += '<p class="cc-result ' + (sw ? "cc-win" : "cc-loss") + '">' + esc(t(sw ? "series_win" : "series_loss", { a: se.wins.me, b: se.wins.opp })) + "</p>";
@@ -548,6 +638,57 @@
       h += '<div class="cc-actions cc-center"><button class="cc-btn cc-primary" data-act="next-game">' + esc(t("next_game", { n: se.games.length + 1 })) + '</button><button class="cc-btn" data-act="auto-rest">🤖 ' + esc(t("auto_rest")) + "</button></div>";
     }
     return h;
+  }
+
+  // ================= 快轉（交給助理教練） =================
+  function runAuto() {
+    var s = S(), before = s.series ? s.series.games.length : 0;
+    clearTimeout(ui.aiTimer); ui.aiTimer = null;
+    Core.autoSeries();
+    s = S();
+    if (!s.series) { ui.screen = "hub"; return; }
+    ui.ff = { games: s.series.games.slice(before), opp: s.series.opp, wins: { me: s.series.wins.me, opp: s.series.wins.opp } };
+    ui.screen = "ff";
+  }
+  function renderFF() {
+    var ff = ui.ff, d = 0, h = '<div class="cc-top"><h1 class="cc-h1">⏩ ' + esc(t("ff_title")) + "</h1></div>";
+    ff.games.forEach(function (g) {
+      var me = g.mySide, win = g.winner === "me";
+      h += '<div class="cc-panel cc-ff"><h3 class="cc-ffl" style="animation-delay:' + (d += 0.2) + 's">' + esc(t("ff_game", { n: g.n })) + "　" + esc(L(D.TACTIC[g.myTactic].name)) + " vs " + esc(L(D.TACTIC[g.oppTactic].name)) + "</h3><ul class=\"cc-mlist\">";
+      g.res.moments.forEach(function (m) {
+        h += '<li class="cc-ffl ' + (m.winner === "A" ? "cc-n-win" : "cc-n-loss") + '" style="animation-delay:' + (d += 0.35) + 's">' + esc(momentCaption(m, g)) + "</li>";
+        if (Math.random() < 0.7) {
+          var p = Core.playerFor("me", D.ROLES[Math.floor(Math.random() * 5)]);
+          var line = m.creative === "A" && D.REGION[p.region].creative ? Core.creativeLine() : Core.murmur(p, m.winner === "A" ? "win_fight" : "lose_fight");
+          h += '<li class="cc-ffl cc-ffm" style="animation-delay:' + (d += 0.25) + 's"><img src="' + photo(p) + '" alt=""><b>' + esc(p.handle) + "</b> " + esc(line) + "</li>";
+        }
+      });
+      h += '</ul><p class="cc-ffl cc-result ' + (win ? "cc-win" : "cc-loss") + '" style="animation-delay:' + (d += 0.3) + 's">' + esc(t(win ? "game_win" : "game_loss")) + "</p></div>";
+      void me;
+    });
+    var sw = ff.wins.me > ff.wins.opp;
+    h += '<p class="cc-ffl cc-result ' + (sw ? "cc-win" : "cc-loss") + '" style="animation-delay:' + (d += 0.4) + 's">' + esc(t(sw ? "series_win" : "series_loss", { a: ff.wins.me, b: ff.wins.opp })) + "</p>";
+    h += '<div class="cc-actions cc-center cc-ffl" style="animation-delay:' + (d + 0.2) + 's"><button class="cc-btn cc-primary" data-act="to-hub">' + esc(t("back_hub")) + "</button></div>";
+    return h;
+  }
+
+  // ================= 約會、談心的視窗 =================
+  function renderDateEv() {
+    var e = ui.dateEv, p = Core.person(e.pid), ev = window.PriTestChampStory.DATE_EVENTS[e.ev], sp = D.DATE_SPOT[e.spot];
+    var h = '<div class="cc-modal cc-scene"><div class="cc-sbox"><img src="' + photo(p) + '" alt=""><p class="cc-small cc-gold">' + sp.icon + " " + esc(L(sp.name)) + "</p><p class=\"cc-line\">" + esc(L(ev.q)) + '</p><div class="cc-opts">';
+    ev.o.forEach(function (o, i) { h += '<button class="cc-btn" data-act="date-opt" data-i="' + i + '">' + esc(L(o.t)) + "</button>"; });
+    return h + "</div></div></div>";
+  }
+  function renderStory() {
+    var st = ui.story, p = Core.person(st.pid);
+    var h = '<div class="cc-modal cc-scene"><div class="cc-sbox cc-storybox"><img src="' + photo(p) + '" alt=""><p class="cc-small cc-gold">🏨 ' + esc(st.chap <= 3 ? t("story_head", { title: st.title, n: st.chap }) : t("story_after")) + "</p>" +
+      '<p class="cc-line">' + esc(st.text) + "</p>" + (st.bonus ? '<p class="cc-gold">✨ ' + esc(st.bonus) + "</p>" : "") + (st.scandal ? '<p class="cc-loss cc-small">' + esc(t("hotel_scandal")) + "</p>" : "") +
+      '<button class="cc-btn cc-primary" data-act="close-story">OK</button></div></div>';
+    return h;
+  }
+  function renderQuote() {
+    var q = ui.quote, p = Core.person(q.pid);
+    return '<div class="cc-modal cc-scene" data-act="close-quote"><div class="cc-sbox"><img src="' + photo(p) + '" alt=""><p class="cc-line">' + esc(q.text).replace(/\n/g, "<br>") + '</p><button class="cc-btn cc-primary" data-act="close-quote">OK</button></div></div>';
   }
 
   // ================= 事件 =================
@@ -573,28 +714,47 @@
       case "tryout": r = Core.scoutReveal(id); if (!r.ok && r.msg) flash(r.msg); break;
       case "sign": r = Core.sign(id); flash(r.ok ? t("signed") : r.msg || ""); break;
       case "release": if (!window.confirm(t("confirm_release"))) return; r = Core.release(id); if (r.ok) ui.modal = null; else if (r.msg) flash(r.msg); break;
-      case "talk": r = Core.talk(id); afterAct(r); break;
+      case "talk": r = Core.talk(id); afterAct(r); if (r.ok) ui.quote = { pid: id, text: r.line }; break;
       case "coach": r = Core.coach(id); afterAct(r); break;
       case "datepick": ui.datePick = !ui.datePick; break;
-      case "date": r = Core.date(id, el.getAttribute("data-spot")); ui.datePick = false; afterAct(r); break;
-      case "hotel": if (!window.confirm(t("confirm_hotel"))) return; r = Core.hotel(id); afterAct(r); break;
+      case "date":
+        r = Core.canDate(el.getAttribute("data-spot"));
+        if (!r.ok) { flash(r.msg); break; }
+        ui.dateEv = { pid: id, spot: el.getAttribute("data-spot"), ev: Core.dateEvent() }; ui.datePick = false; break;
+      case "date-opt":
+        r = Core.date(ui.dateEv.pid, ui.dateEv.spot, ui.dateEv.ev, +el.getAttribute("data-i"));
+        var dpid = ui.dateEv.pid; ui.dateEv = null;
+        if (r.ok) ui.quote = { pid: dpid, text: r.msg }; else flash(r.msg);
+        if (r.ok && r.scene) ui.scene = { pid: dpid, level: r.scene.level, line: r.scene.line };
+        break;
+      case "hotel":
+        if (!window.confirm(t("confirm_hotel"))) return;
+        r = Core.hotel(id);
+        if (!r.ok) { flash(r.msg); break; }
+        ui.story = { pid: id, title: r.title, chap: r.chap, text: r.text, bonus: r.bonus, scandal: r.scandal };
+        if (r.scene) ui.scene = { pid: id, level: r.scene.level, line: r.scene.line };
+        break;
+      case "close-story": ui.story = null; break;
+      case "close-quote": ui.quote = null; break;
+      case "offer-yes": Core.answerOffer(true); break;
+      case "offer-no": Core.answerOffer(false); break;
       case "dinner": r = Core.teamDinner(); afterAct(r); break;
       case "advance":
         if (Core.advance()) { var w = Core.week(); flash(weekLabel()); if (w.k === "off") ui.tab = "records"; else ui.tab = "home"; }
         break;
       case "match": Core.startSeries(false); ui.screen = "draft"; ui.selHero = null; ui.roleFilter = "all"; break;
       case "resume": ui.screen = Core.draftDone() ? "tactic" : "draft"; break;
-      case "auto": Core.autoSeries(); break;
-      case "auto-rest": clearTimeout(ui.aiTimer); ui.aiTimer = null; Core.autoSeries(); ui.screen = "hub"; ui.tab = "home"; break;
+      case "auto": runAuto(); break;
+      case "auto-rest": runAuto(); break;
       case "rolefilter": ui.roleFilter = id; break;
       case "hero": ui.selHero = id; break;
       case "suggest":
         var turn = Core.draftTurn();
         if (turn) { ui.selHero = Core.aiChoose(turn[0]); if (ui.selHero) ui.roleFilter = turn[1] === "pick" ? D.HERO[ui.selHero].role : "all"; }
         break;
-      case "confirm-hero": if (ui.selHero && Core.draftAct(ui.selHero)) { ui.selHero = null; Core.save(); } break;
+      case "confirm-hero": if (ui.selHero && doDraft(ui.selHero)) { ui.selHero = null; Core.save(); } break;
       case "tactic": ui.tactic = id; break;
-      case "to-pre": if (ui.tactic) ui.screen = "pre"; break;
+      case "to-pre": if (ui.tactic) { ui.screen = "pre"; ui.preLines = null; } break;
       case "back-tactic": ui.screen = "tactic"; break;
       case "play":
         ui.lastGame = Core.playGame(ui.tactic);
