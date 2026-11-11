@@ -502,8 +502,15 @@
     var night = null, nightKind = null;
     if (p.aff >= 100 && kind !== "awkward") {
       nightKind = isLover(p) ? ((p.nights || 0) >= 1 ? "adult2" : "adult") : "teen";
-      var NS = ST.NIGHT[nightKind], say = NS.say[p.trait] || NS.say.calm;
-      night = NS.pages.map(function (pg, i) { return { text: L(pg), say: say[i] ? L(say[i]) : "" }; });
+      var NS = ST.NIGHT[nightKind], say = NS.say[p.trait] || NS.say.calm, NL = window.PriTestChampNight;
+      if (nightKind === "adult2" && NL) {
+        // 進階版：50 個劇情（0＝NIGHT.adult2，1〜49＝champ_night.js）隨機挑一個，不和上一次重複
+        var total = NL.SCENES.length + 1, ni = Math.floor(Math.random() * total);
+        if (total > 1 && ni === p.lastNight) ni = (ni + 1 + Math.floor(Math.random() * (total - 1))) % total;
+        p.lastNight = ni;
+        if (ni > 0) night = NL.build(ni - 1, p.trait, L);
+      }
+      if (!night) night = NS.pages.map(function (pg, i) { return { text: L(pg), say: say[i] ? L(say[i]) : "" }; });
       p.mood = 100; p.fatigue = 0;
       if (nightKind === "teen") { if (!p.teaNights) album("night_teen", p, L(NS.pages[4])); p.teaNights = (p.teaNights || 0) + 1; }
       else {
