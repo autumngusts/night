@@ -122,4 +122,10 @@ PROJECTS = [
         "name_key": "project_mahou_name",
         "desc_key": "project_mahou_desc",
     },
+    {
+        "id": "champ",
+        "href": "champ/index.html",
+        "name_key": "project_champ_name",
+        "desc_key": "project_champ_desc",
+    },
 ]
