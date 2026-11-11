@@ -45,7 +45,7 @@
     { id: "vn", abbr: "VN", name: C("越南", "ベトナム"), lore: C("亞洲區的熱血代表。只有一個世界賽名額，每一場都是決戰。", "アジア地域の熱き代表。世界大会枠は 1 つ、すべてが決戦。"), diff: "high", str: 63, league: "asia", sponsor: 90, fund: 520, start: -1, scout: -2,
       cities: ["Hanoi Lotus", "Saigon Comet", "Da Nang Wave", "Hue Lantern", "Hai Phong Storm", "Can Tho River", "Nha Trang Coral", "Da Lat Mist"],
       names: ["Nguyễn Thu Hà", "Trần Mai Anh", "Lê Ngọc Lan", "Phạm Thảo Vy", "Hoàng Minh Thư", "Vũ Bảo Ngọc", "Đặng Khánh Linh", "Bùi Gia Hân", "Đỗ Phương Uyên", "Hồ Thanh Trúc", "Ngô Tuyết Mai", "Dương Hải Yến"] },
-    { id: "ru", abbr: "RU", name: C("俄羅斯", "ロシア"), lore: C("編入歐洲聯賽。嚴寒鍛鍊出的冷靜運營是武器。", "欧州リーグ所属。極寒が鍛えた冷静なマクロが武器。"), diff: "high", str: 60, league: "eu", sponsor: 90, fund: 520, start: -1, scout: -3,
+    { id: "ru", abbr: "RU", name: C("俄羅斯", "ロシア"), lore: C("編入亞洲區聯賽。嚴寒鍛鍊出的冷靜運營是武器。", "アジアリーグ所属。極寒が鍛えた冷静なマクロが武器。"), diff: "high", str: 60, league: "asia", sponsor: 90, fund: 520, start: -1, scout: -3,
       cities: ["Moscow Snowfall", "St. Petersburg Swan", "Kazan Firebird", "Novosibirsk Aurora", "Yekaterinburg Gem", "Sochi Sun", "Vladivostok Tide", "Samara Star"],
       names: ["Anastasia Volkova", "Daria Sokolova", "Ekaterina Morozova", "Polina Lebedeva", "Sofia Kozlova", "Alina Novikova", "Viktoria Orlova", "Ksenia Pavlova", "Maria Fedorova", "Yulia Smirnova", "Vera Belova", "Irina Zaitseva"] },
     { id: "mn", abbr: "MN", name: C("蒙古", "モンゴル"), lore: C("亞洲區的新興勢力。草原上長大的選手們有驚人的韌性。", "アジア地域の新興勢力。草原育ちの選手たちは驚くほどタフ。"), diff: "high", str: 55, league: "asia", sponsor: 75, fund: 450, start: 0, scout: -2,
@@ -76,10 +76,10 @@
     { id: "cn", name: C("中國", "中国"), seeds: 3, str: 75, members: [["cn", 8]] },
     { id: "kr", name: C("韓國", "韓国"), seeds: 3, str: 75, members: [["kr", 8]] },
     { id: "tj", name: C("台日", "台日"), seeds: 2, str: 64, members: [["tw", 4], ["jp", 4]] },
-    { id: "asia", name: C("亞洲區", "アジア"), seeds: 1, str: 60, members: [["vn", 4], ["mn", 4]] },
+    { id: "asia", name: C("亞洲區", "アジア"), seeds: 1, str: 60, members: [["vn", 3], ["mn", 3], ["ru", 2]] },
     { id: "na", name: C("北美", "北米"), seeds: 3, str: 66, members: [["naw", 4], ["nae", 4]] },
     { id: "sa", name: C("南美", "南米"), seeds: 1, str: 58, members: [["sa", 8]] },
-    { id: "eu", name: C("歐洲", "欧州"), seeds: 3, str: 68, members: [["weu", 4], ["eeu", 2], ["ru", 2]] }
+    { id: "eu", name: C("歐洲", "欧州"), seeds: 3, str: 68, members: [["weu", 4], ["eeu", 4]] }
   ];
   var LEAGUE = {};
   LEAGUES.forEach(function (l) { LEAGUE[l.id] = l; });
