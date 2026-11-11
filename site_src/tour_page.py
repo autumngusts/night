@@ -14,6 +14,8 @@ from site_src.layout import page_shell
 TOUR_SCRIPTS: tuple[str, ...] = (
     "tour_data.js",
     "tour_night.js",
+    "tour_night2.js",
+    "tour_night3.js",
     "tour_cast.js",
     "tour.js",
 )

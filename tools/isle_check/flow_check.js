@@ -88,6 +88,11 @@ var SHOT_DIR = path.join(__dirname, "shots");
   assert.strictEqual(fin.screen, "ending", "要走到結局");
   assert(fin.built.length >= 5, "30 天內應該能蓋好 5 座以上建築（實際 " + fin.built.join("、") + "）");
   assert(stories > 0, "要看到夜晚劇情");
+  // 2026-11-12 加量：每位漂流者 4 段專屬夜晚，第 2 段以後要真的被播到
+  var albumKeys = await page.evaluate(function () { return Object.keys(JSON.parse(localStorage.getItem("pritest-isle-album") || "{}")); });
+  var maxNights = await page.evaluate(function () { var st = window.PriTestIsle._state(); return Math.max.apply(null, Object.keys(st.g).map(function (k) { return st.g[k].nights; })); });
+  // 訊號火可能讓大家很早就獲救；有人共度 2 晚以上時，第 2 段以後的專屬劇情一定要出現
+  if (maxNights >= 2) assert(albumKeys.some(function (k) { return /^own[123]_/.test(k); }), "第 2〜4 段專屬夜晚要能播到（相簿：" + albumKeys.join(",") + "）");
   await page.screenshot({ path: path.join(SHOT_DIR, "02_ending.png"), fullPage: true });
   await page.dispatchEvent('[data-act="title"]', "click");
   await page.dispatchEvent('[data-act="album"]', "click");

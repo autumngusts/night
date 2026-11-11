@@ -14,6 +14,9 @@ from site_src.layout import page_shell
 NATSU_SCRIPTS: tuple[str, ...] = (
     "natsu_data.js",
     "natsu_night.js",
+    "natsu_night2.js",
+    "natsu_night3.js",
+    "natsu_night4.js",
     "natsu_cast.js",
     "natsu.js",
 )

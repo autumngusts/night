@@ -131,6 +131,10 @@ var SHOT_DIR = path.join(__dirname, "shots");
   assert(fin.met >= 18, "90 天內至少要遇到 18 位女主角（實際 " + fin.met + "）");
   assert(fin.dating.length >= 1 && seen.story > 0, "要能交往並看到夜晚劇情");
   assert(seen.moves > 0 && seen.happen > 0, "要有搬家與意外事件");
+  // 2026-11-12 加量：每位房客 4 段專屬夜晚；有人共度 3 晚以上時，第 3 段以後要真的被播到
+  var albumKeys = await page.evaluate(function () { return Object.keys(JSON.parse(localStorage.getItem("pritest-nest-album") || "{}")); });
+  var maxNights = await page.evaluate(function () { var st = window.PriTestNest._state(); return Math.max.apply(null, Object.keys(st.h).map(function (k) { return st.h[k].nights; })); });
+  if (maxNights >= 3) assert(albumKeys.some(function (k) { return /^own[23]_/.test(k); }), "第 3〜4 段專屬夜晚要能播到（相簿：" + albumKeys.join(",") + "）");
   await page.screenshot({ path: path.join(SHOT_DIR, "03_ending.png"), fullPage: true });
   await page.dispatchEvent('[data-act="title"]', "click");
   await page.dispatchEvent('[data-act="album"]', "click");

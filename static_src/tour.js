@@ -5,7 +5,12 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestTourData, N = window.PriTestTourNight, C = window.PriTestTourCast;
+  var D = window.PriTestTourData, N = window.PriTestTourNight, MORE = window.PriTestTourNightMore || { OWN: {}, SHARED: [], FREE: [] }, C = window.PriTestTourCast;
+  // 夜晚劇情加量（2026-11-12）：每人第一段在 N.OWN，之後的專屬夜晚在 MORE.OWN；共用夜晚與自由行動事件也併入
+  function ownList(id) { return (N.OWN[id] ? [N.OWN[id]] : []).concat(MORE.OWN[id] || []); }
+  function ownKey(id, i) { return (i ? "own" + i + "_" : "own_") + id; }
+  var SHARED_ALL = N.SHARED.concat(MORE.SHARED || []);
+  var FREE_ALL = D.FREE.concat(MORE.FREE || []);
   var app = document.getElementById("tr-app");
   if (!D || !N || !C || !app) return;
 
@@ -335,7 +340,7 @@
     log(spot.ic + " " + spot.name + "：遇到 " + M(who).name);
     if (dueConfess(who)) { runConfess(who, endNight); return; }
     if (dueLine(who)) { runLine(who, endNight); return; }
-    var f = pick(D.FREE.filter(function (x) { return x.spot === spotId; }));
+    var f = pick(FREE_ALL.filter(function (x) { return x.spot === spotId; }));
     startVN(who, spot.name, f.steps.concat([{ ch: f.ch }]), endNight);
   }
   function visit(id) {
@@ -352,10 +357,11 @@
   }
   function openStory(id) {
     var x = S(id), story, key;
-    if (!x.nights && N.OWN[id]) { story = N.OWN[id]; key = "own_" + id; }
+    var own = ownList(id);
+    if (x.nights < own.length) { story = own[x.nights]; key = ownKey(id, x.nights); }
     else {
-      var k; do { k = rnd(0, N.SHARED.length - 1); } while (N.SHARED.length > 1 && k === st.lastShared);
-      st.lastShared = k; story = N.SHARED[k]; key = "sh_" + k;
+      var k; do { k = rnd(0, SHARED_ALL.length - 1); } while (SHARED_ALL.length > 1 && k === st.lastShared);
+      st.lastShared = k; story = SHARED_ALL[k]; key = "sh_" + k;
     }
     x.nights++; addAff(id, 6); x.mood = clamp(x.mood + 1, -2, 2);
     log("🌙 和 " + nm(id) + " 共度夜晚：" + story.title);
@@ -446,8 +452,9 @@
     var a = album(), h = '<div class="tr-panel"><h2>夜晚回憶</h2><div class="tr-album">';
     D.MEMBERS.forEach(function (m) {
       h += '<div class="tr-alb">' + portrait(m.id, "tr-mini") + "<div><b>" + esc(m.name) + "</b><br>";
-      h += a["own_" + m.id + "_" + m.id] ? '<button class="tr-btn tr-sm" data-act="replay" data-k="own" data-id="' + m.id + '">' + esc(N.OWN[m.id].title) + "</button>" : '<span class="tr-muted tr-small">？？？</span>';
-      N.SHARED.forEach(function (s, i) { if (a["sh_" + i + "_" + m.id]) h += ' <button class="tr-btn tr-sm" data-act="replay" data-k="' + i + '" data-id="' + m.id + '">' + esc(s.title) + "</button>"; });
+      var ownHas = false; ownList(m.id).forEach(function (o, i) { if (a[ownKey(m.id, i) + "_" + m.id]) { ownHas = true; h += '<button class="tr-btn tr-sm" data-act="replay" data-k="own" data-i="' + i + '" data-id="' + m.id + '">' + esc(o.title) + "</button> "; } });
+      if (!ownHas) h += '<span class="tr-muted tr-small">？？？</span>';
+      SHARED_ALL.forEach(function (s, i) { if (a["sh_" + i + "_" + m.id]) h += ' <button class="tr-btn tr-sm" data-act="replay" data-k="' + i + '" data-id="' + m.id + '">' + esc(s.title) + "</button>"; });
       h += "</div></div>";
     });
     // 邂逅角色：鍵是 enc|頭像|名字|共用劇情編號
@@ -456,7 +463,7 @@
     Object.keys(encs).forEach(function (key) {
       var p = key.split("|");
       h += '<div class="tr-alb"><img class="tr-pt tr-mini" src="' + IMG + esc(p[0]) + '" alt=""><div><b>' + esc(p[1]) + '</b> <span class="tr-small tr-muted">邂逅</span><br>' +
-        encs[key].sort().map(function (i) { return '<button class="tr-btn tr-sm" data-act="replayEnc" data-k="' + i + '" data-img="' + esc(p[0]) + '" data-name="' + esc(p[1]) + '">' + esc(N.SHARED[i].title) + "</button>"; }).join(" ") + "</div></div>";
+        encs[key].sort().map(function (i) { return '<button class="tr-btn tr-sm" data-act="replayEnc" data-k="' + i + '" data-img="' + esc(p[0]) + '" data-name="' + esc(p[1]) + '">' + esc(SHARED_ALL[i].title) + "</button>"; }).join(" ") + "</div></div>";
     });
     return h + '</div><div class="tr-row"><button class="tr-btn" data-act="title">返回</button></div></div>';
   }
@@ -585,12 +592,12 @@
     if (act === "title") { if (st && !st.ended) save(); ui.screen = "title"; ui.panel = null; render(); return; }
     if (act === "album") { ui.screen = "album"; render(); return; }
     if (act === "replay") {
-      var k = b.getAttribute("data-k"), story = k === "own" ? N.OWN[id] : N.SHARED[+k];
+      var k = b.getAttribute("data-k"), story = k === "own" ? ownList(id)[+(b.getAttribute("data-i") || 0)] : SHARED_ALL[+k];
       ui.story = { who: id, title: story.title, pages: story.pages, i: 0, cityName: "", after: function () { ui.screen = "album"; render(); } };
       ui.screen = "story"; render(); return;
     }
     if (act === "replayEnc") {
-      var sk = N.SHARED[+b.getAttribute("data-k")];
+      var sk = SHARED_ALL[+b.getAttribute("data-k")];
       ui.story = { who: null, look: { img: b.getAttribute("data-img"), short: b.getAttribute("data-name") }, title: sk.title, pages: sk.pages, i: 0, cityName: "", after: function () { ui.screen = "album"; render(); } };
       ui.screen = "story"; render(); return;
     }

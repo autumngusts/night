@@ -93,6 +93,10 @@ var TARGET = process.env.TOUR_TARGET || "th";
   assert(seen.manual != null && seen.manual > 0.85, "模擬按鍵實際打節奏遊戲要能拿高準確率（實際 " + seen.manual + "）");
   assert(st.m[TARGET].dating, "專心攻略一人時要能交往");
   assert(seen.story >= 11, "要讀過至少一段夜晚劇情");
+  // 夜晚劇情加量（2026-11-12）：共度第 2 晚以後要播到追加的專屬夜晚（own1_ 鍵）
+  var alb = await page.evaluate(function () { return JSON.parse(localStorage.getItem("pritest-tour-album") || "{}"); });
+  console.log("album keys", Object.keys(alb).join(" "));
+  if (st.m[TARGET].nights >= 2) assert(alb["own1_" + TARGET + "_" + TARGET], "第 2 晚要播追加的專屬夜晚");
   var encs = Object.keys(st.enc).map(function (k) { return st.enc[k]; });
   console.log("encounters", encs.length, encs.map(function (e) { return e.name + "(" + (e.home ? e.home + "的" : "") + e.job + "," + e.aff + (e.dating ? ",💕" : "") + ")"; }).join(" "));
   assert(encs.length >= 1, "巡演中要遇到邂逅角色");

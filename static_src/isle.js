@@ -4,7 +4,11 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestIsleData, N = window.PriTestIsleNight;
+  var D = window.PriTestIsleData, N = window.PriTestIsleNight, MORE = window.PriTestIsleNightMore || { OWN: {}, SHARED: [], HAPPEN: [] };
+  // 夜晚劇情：每位漂流者 4 段專屬（isle_night.js 第 1 段＋isle_night2/3.js 第 2〜4 段），之後從共用劇情挑（2026-11-12 加量）
+  function ownList(id) { return N.OWN[id] ? [N.OWN[id]].concat(MORE.OWN[id] || []) : []; }
+  var SHARED_ALL = N.SHARED.concat(MORE.SHARED || []);
+  var HAPPEN_ALL = D.HAPPEN.concat(MORE.HAPPEN || []);
   var app = document.getElementById("il-app");
   if (!D || !N || !app) return;
 
@@ -176,8 +180,8 @@
       return;
     }
     if (lineDue(who)) { var ln = G[who].lines[x.line]; x.line++; log("📝 " + G[who].short + "的故事：" + ln.title); startVN(who, G[who].short + "・" + ln.title + "（" + x.line + "/2）", ln.steps, nextDay); return; }
-    var hs = D.HAPPEN.filter(function (h) { return h.sp === sp; });
-    if (hs.length && Math.random() < 0.4) {
+    var hs = HAPPEN_ALL.filter(function (h) { return h.sp === sp; });
+    if (hs.length && Math.random() < 0.45) {
       var h = pick(hs), ok = x.aff >= h.need || x.dating;
       log("💓 意外：" + h.title + "（" + G[who].short + "）");
       startVN(who, "意外・" + h.title, h.steps.concat([{ ch: [h.safe, { t: h.bold.t, e: { a: ok ? 10 : -4 }, r: ok ? h.bold.ok : h.bold.ng }] }]), nextDay);
@@ -187,9 +191,9 @@
     startVN(who, name, f.steps.concat([{ ch: f.ch }]), nextDay);
   }
   function openStory(id) {
-    var x = st.g[id], story, key;
-    if (!x.nights) { story = N.OWN[id]; key = "own_" + id; }
-    else { var k; do { k = Math.floor(Math.random() * N.SHARED.length); } while (N.SHARED.length > 1 && k === st.lastShared); st.lastShared = k; story = N.SHARED[k]; key = "sh" + k + "_" + id; }
+    var x = st.g[id], story, key, own = ownList(id);
+    if (x.nights < own.length) { story = own[x.nights]; key = x.nights ? "own" + x.nights + "_" + id : "own_" + id; }
+    else { var k; do { k = Math.floor(Math.random() * SHARED_ALL.length); } while (SHARED_ALL.length > 1 && k === st.lastShared); st.lastShared = k; story = SHARED_ALL[k]; key = "sh" + k + "_" + id; }
     x.nights++; addAff(id, 5); x.mor = clamp(x.mor + 8, 0, 100); addAlbum(key);
     log("🌙 和 " + G[id].short + " 共度夜晚：" + story.title);
     ui.story = { who: id, title: story.title, pages: story.pages, i: 0, after: nextDay };
@@ -325,8 +329,8 @@
     var a = album(), h = '<div class="il-panel"><h2>夜晚回憶</h2>';
     D.GIRLS.forEach(function (g) {
       var b = [];
-      if (a["own_" + g.id]) b.push('<button class="il-btn il-sm" data-act="replay" data-k="own" data-id="' + g.id + '">' + esc(N.OWN[g.id].title) + "</button>");
-      N.SHARED.forEach(function (s, i) { if (a["sh" + i + "_" + g.id]) b.push('<button class="il-btn il-sm" data-act="replay" data-k="' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
+      ownList(g.id).forEach(function (s, i) { if (a[i ? "own" + i + "_" + g.id : "own_" + g.id]) b.push('<button class="il-btn il-sm" data-act="replay" data-k="own' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
+      SHARED_ALL.forEach(function (s, i) { if (a["sh" + i + "_" + g.id]) b.push('<button class="il-btn il-sm" data-act="replay" data-k="' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
       h += '<div class="il-mem">' + portrait(g.id, "il-mini") + "<div><b>" + esc(g.name) + "</b><br>" + (b.length ? b.join(" ") : '<span class="il-muted il-small">？？？</span>') + "</div></div>";
     });
     return h + '<div class="il-row"><button class="il-btn" data-act="title">返回</button></div></div>';
@@ -365,7 +369,7 @@
     if (act === "continue") { st = load(SAVE_KEY); ui.screen = st ? (st.phase === "night" ? "report" : "plan") : "title"; if (st && st.phase === "night" && !ui.rep) ui.rep = { food: 0, water: 0, wood: 0, stone: 0, fiber: 0, explore: 0, build: 0, lines: [] }; render(); return; }
     if (act === "title") { if (st && !st.ended) save(); ui.screen = "title"; render(); return; }
     if (act === "album") { ui.screen = "album"; render(); return; }
-    if (act === "replay") { var sto = b.getAttribute("data-k") === "own" ? N.OWN[id] : N.SHARED[+b.getAttribute("data-k")]; ui.story = { who: id, title: sto.title, pages: sto.pages, i: 0, after: function () { ui.screen = "album"; render(); } }; ui.screen = "story"; render(); return; }
+    if (act === "replay") { var rk = b.getAttribute("data-k"), sto = rk.indexOf("own") === 0 ? ownList(id)[+rk.slice(3)] : SHARED_ALL[+rk]; ui.story = { who: id, title: sto.title, pages: sto.pages, i: 0, after: function () { ui.screen = "album"; render(); } }; ui.screen = "story"; render(); return; }
     if (act === "startbuild") { var bd = BD[id]; if (!st.proj && afford(bd.cost) && canBuild(bd)) { spend(bd.cost); st.proj = { id: id, work: 0 }; log("🔨 開始建造" + bd.name); save(); } render(); return; }
     if (act === "endday") { endDay(); return; }
     if (act === "sail") { endGame("raft"); return; }

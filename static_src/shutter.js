@@ -6,6 +6,11 @@
   "use strict";
 
   var D = window.PriTestShutterData, N = window.PriTestShutterNight, C = window.PriTestShutterCast, SH = window.PriTestShutterShoot;
+  var MORE = window.PriTestShutterNightMore || { OWN: {}, SHARED: [] };
+  // 夜晚劇情：女主角各 4 段專屬（shutter_night.js 第 1 段＋shutter_night2〜4.js 第 2〜4 段），之後從共用劇情挑（2026-11-12 加量）
+  function ownList(id) { return N.OWN[id] ? [N.OWN[id]].concat(MORE.OWN[id] || []) : []; }
+  var SHARED_ALL = N.SHARED.concat(MORE.SHARED || []);
+  function ownKey(id, i) { return i ? "own" + i + "_" + id : "own_" + id + "_" + id; } // 第 1 段沿用舊的相簿鍵
   var app = document.getElementById("sh-app");
   if (!D || !N || !C || !SH || !app) return;
 
@@ -409,16 +414,16 @@
   }
   function visit(id) { openStory(id, endNight); }
   function openStory(id, after) {
-    var x = S(id), story, key;
-    if (!x.nights && !isCl(id) && N.OWN[id]) { story = N.OWN[id]; key = "own_" + id; }
+    var x = S(id), story, key, own = isCl(id) ? [] : ownList(id), ownIdx = -1;
+    if (x.nights < own.length) { ownIdx = x.nights; story = own[ownIdx]; }
     else {
-      var k; do { k = rnd(0, N.SHARED.length - 1); } while (N.SHARED.length > 1 && k === st.lastShared);
-      st.lastShared = k; story = N.SHARED[k]; key = "sh_" + k;
+      var k; do { k = rnd(0, SHARED_ALL.length - 1); } while (SHARED_ALL.length > 1 && k === st.lastShared);
+      st.lastShared = k; story = SHARED_ALL[k]; key = "sh_" + k;
     }
     x.nights++; addAff(id, 5);
     log("🌙 和 " + M(id).short + " 共度夜晚：" + story.title);
     if (isCl(id)) addAlbum("cl|" + x.img + "|" + x.name + "|" + key.slice(3));
-    else addAlbum(key + "_" + id);
+    else addAlbum(ownIdx >= 0 ? ownKey(id, ownIdx) : key + "_" + id);
     ui.story = { who: id, title: story.title, pages: story.pages, i: 0, after: after };
     ui.screen = "story";
     render();
@@ -708,10 +713,10 @@
   function renderAlbum() {
     var a = album(), h = '<div class="sh-panel"><h2>夜晚回憶</h2><p class="sh-muted sh-small">看過的夜晚劇情可以在這裡重看。</p><div class="sh-roster">';
     D.HEROINES.forEach(function (m) {
-      var own = a["own_" + m.id + "_" + m.id];
+      var btns = ownList(m.id).map(function (s, i) { return a[ownKey(m.id, i)] ? '<button class="sh-btn sh-sm" data-act="replay" data-k="own' + i + '" data-id="' + m.id + '">' + esc(s.title) + "</button> " : ""; }).join("");
       h += '<div class="sh-mem"><img class="sh-pt sh-mini" src="' + IMG + esc(m.img) + '" alt=""><div><b>' + esc(m.name) + "</b><br>";
-      h += own ? '<button class="sh-btn sh-sm" data-act="replay" data-k="own" data-id="' + m.id + '">' + esc(N.OWN[m.id].title) + "</button>" : '<span class="sh-muted sh-small">？？？</span>';
-      N.SHARED.forEach(function (s, i) { if (a["sh_" + i + "_" + m.id]) h += ' <button class="sh-btn sh-sm" data-act="replay" data-k="' + i + '" data-id="' + m.id + '">' + esc(s.title) + "</button>"; });
+      h += btns || '<span class="sh-muted sh-small">？？？</span>';
+      SHARED_ALL.forEach(function (s, i) { if (a["sh_" + i + "_" + m.id]) h += ' <button class="sh-btn sh-sm" data-act="replay" data-k="' + i + '" data-id="' + m.id + '">' + esc(s.title) + "</button>"; });
       h += "</div></div>";
     });
     var cls = {};
@@ -719,7 +724,7 @@
     Object.keys(cls).forEach(function (key) {
       var p = key.split("|");
       h += '<div class="sh-mem"><img class="sh-pt sh-mini" src="' + IMG + esc(p[0]) + '" alt=""><div><b>' + esc(p[1]) + '</b> <span class="sh-small sh-muted">客人</span><br>' +
-        cls[key].sort().map(function (i) { return '<button class="sh-btn sh-sm" data-act="replayCl" data-k="' + i + '" data-img="' + esc(p[0]) + '" data-name="' + esc(p[1]) + '">' + esc(N.SHARED[i].title) + "</button>"; }).join(" ") + "</div></div>";
+        cls[key].sort().map(function (i) { return '<button class="sh-btn sh-sm" data-act="replayCl" data-k="' + i + '" data-img="' + esc(p[0]) + '" data-name="' + esc(p[1]) + '">' + esc(SHARED_ALL[i].title) + "</button>"; }).join(" ") + "</div></div>";
     });
     return h + '</div><div class="sh-row"><button class="sh-btn" data-act="title">返回</button></div></div>';
   }
@@ -760,12 +765,12 @@
     if (act === "title") { if (st && !st.ended) save(); ui.screen = "title"; ui.panel = null; render(); return; }
     if (act === "album") { ui.screen = "album"; render(); return; }
     if (act === "replay") {
-      var k = b.getAttribute("data-k"), story = k === "own" ? N.OWN[id] : N.SHARED[+k];
+      var k = b.getAttribute("data-k"), story = k.indexOf("own") === 0 ? ownList(id)[+k.slice(3)] : SHARED_ALL[+k];
       ui.story = { who: null, look: { img: D.BY_ID[id].img, short: D.BY_ID[id].short }, title: story.title, pages: story.pages, i: 0, after: function () { ui.screen = "album"; render(); } };
       ui.screen = "story"; render(); return;
     }
     if (act === "replayCl") {
-      var sk = N.SHARED[+b.getAttribute("data-k")], nm = b.getAttribute("data-name");
+      var sk = SHARED_ALL[+b.getAttribute("data-k")], nm = b.getAttribute("data-name");
       ui.story = { who: null, look: { img: b.getAttribute("data-img"), short: nm.length > 2 ? nm.slice(1) : nm }, title: sk.title, pages: sk.pages, i: 0, after: function () { ui.screen = "album"; render(); } };
       ui.screen = "story"; render(); return;
     }

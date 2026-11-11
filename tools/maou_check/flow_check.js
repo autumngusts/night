@@ -109,6 +109,10 @@ var SHOT_DIR = path.join(__dirname, "shots");
   console.log("結局：", JSON.stringify(fin), "重打：", JSON.stringify(retries), "王座剩餘：", hpLog.join(" "), "夜晚頁數", stories, "奧義", skills);
   assert.strictEqual(fin.screen, "ending", "要走到結局");
   assert(stories > 0, "要看到夜晚劇情");
+  // 2026-11-12 加量：每位部下 4 段專屬夜晚；有人共度 2 晚以上時，第 2 段以後要真的被播到
+  var albumKeys = await page.evaluate(function () { return Object.keys(JSON.parse(localStorage.getItem("pritest-maou-album") || "{}")); });
+  var maxNights = await page.evaluate(function () { var st = window.PriTestMaou._state(); return Math.max.apply(null, Object.keys(st.girls).map(function (k) { return st.girls[k].nights; })); });
+  if (maxNights >= 2) assert(albumKeys.some(function (k) { return /^own[123]_/.test(k); }), "第 2〜4 段專屬夜晚要能播到（相簿：" + albumKeys.join(",") + "）");
   await page.screenshot({ path: path.join(SHOT_DIR, "03_ending.png"), fullPage: true });
   await page.dispatchEvent('[data-act="title"]', "click");
   await page.dispatchEvent('[data-act="album"]', "click");

@@ -5,7 +5,7 @@
 左右鄰居、樓上樓下、樓層與角間決定滿意度，滿意度決定房租，太低就會搬走。
 20 位房客女主角各有 3 段個人故事、告白、2 段專屬夜晚劇情；另有共用夜晚劇情與公共空間的意外事件（18 禁確認沿用盛夏合宿）。
 遊戲邏輯全部在瀏覽器端：static/nest_data.js（系統）→ nest_heroines.js／nest_heroines2.js（20 位女主角）
-→ nest_night.js／nest_night2.js（夜晚劇情）→ nest_cast.js（頭像池、一般房客）→ nest.js（規則與畫面）。
+→ nest_night.js〜nest_night6.js（夜晚劇情：每人 4 段專屬＋共用 16 段、意外事件 16 種）→ nest_cast.js（頭像池、一般房客）→ nest.js（規則與畫面）。
 頭像沿用 static/images/jikan/ 的 g_ 成年女性圖（n_ 系列是學生制服，不使用）。2026-11-11 依使用者需求新增。
 """
 
@@ -19,6 +19,10 @@ NEST_SCRIPTS: tuple[str, ...] = (
     "nest_heroines2.js",
     "nest_night.js",
     "nest_night2.js",
+    "nest_night3.js",
+    "nest_night4.js",
+    "nest_night5.js",
+    "nest_night6.js",
     "nest_cast.js",
     "nest.js",
 )

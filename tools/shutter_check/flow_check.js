@@ -121,6 +121,10 @@ var SHOT_DIR = path.join(__dirname, "shots");
   assert(fin.done >= 6, "自動流程至少要完成 6 章（實際 " + fin.done + "）");
   assert(fin.port > 10, "作品集要有照片");
   assert(seen.story > 0, "要看到交往後的夜晚劇情");
+  // 2026-11-12 加量：每位女主角 4 段專屬夜晚；有人共度 2 晚以上時，第 2 段以後要真的被播到
+  var albumKeys = await page.evaluate(function () { return Object.keys(JSON.parse(localStorage.getItem("pritest-shutter-album") || "{}")); });
+  var maxNights = await page.evaluate(function () { var st = window.PriTestShutter._state(); return Math.max.apply(null, Object.keys(st.h).map(function (k) { return st.h[k].nights; })); });
+  if (maxNights >= 2) assert(albumKeys.some(function (k) { return /^own[123]_/.test(k); }), "第 2〜4 段專屬夜晚要能播到（相簿：" + albumKeys.join(",") + "）");
   assert((await page.$$(".sh-ending .sh-photo")).length >= 1, "結局要顯示封面照片");
   await page.screenshot({ path: path.join(SHOT_DIR, "05_ending.png"), fullPage: true });
   // 夜晚回憶可重看

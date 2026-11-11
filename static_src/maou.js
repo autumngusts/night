@@ -4,7 +4,10 @@
 (function () {
   "use strict";
 
-  var D = window.PriTestMaouData, ST = window.PriTestMaouStory, N = window.PriTestMaouNight;
+  var D = window.PriTestMaouData, ST = window.PriTestMaouStory, N = window.PriTestMaouNight, MORE = window.PriTestMaouNightMore || { OWN: {}, SHARED: [], TALK: [] };
+  // 夜晚劇情：每位部下 4 段專屬（maou_night.js 第 1 段＋maou_night2/3.js 第 2〜4 段），之後從共用劇情挑（2026-11-12 加量）
+  function ownList(id) { return N.OWN[id] ? [N.OWN[id]].concat(MORE.OWN[id] || []) : []; }
+  var SHARED_ALL = N.SHARED.concat(MORE.SHARED || []);
   var app = document.getElementById("mu-app");
   if (!D || !ST || !N || !app) return;
 
@@ -106,6 +109,7 @@
       return;
     }
     var lines = [["魔王大人，今天的戰鬥辛苦了。……要我幫你按摩肩膀嗎？", "「拜託你了。」", "「不用了，你也累了吧。」"], ["勇者軍好像越來越強了。我會更努力的。", "「有你在，我很安心。」", "「別勉強自己。」"], ["魔王大人，你看，今晚的月亮好漂亮。", "「你比月亮漂亮。」", "「嗯，很漂亮。」"]];
+    lines = lines.concat(MORE.TALK || []);
     var c = pick(lines);
     startVN(id, "談話・" + g.name, [["@", c[0]], { ch: Math.random() < 0.5 ? [{ t: c[1], e: { b: 16 } }, { t: c[2], e: { b: 10 } }] : [{ t: c[2], e: { b: 10 } }, { t: c[1], e: { b: 16 } }] }], function () { ui.screen = "hub"; save(); });
   }
@@ -256,9 +260,9 @@
     ui.screen = "night"; render();
   }
   function nightWith(id) {
-    var x = st.girls[id], story, key;
-    if (!x.nights) { story = N.OWN[id]; key = "own_" + id; }
-    else { var k; do { k = Math.floor(Math.random() * N.SHARED.length); } while (N.SHARED.length > 1 && k === st.lastShared); st.lastShared = k; story = N.SHARED[k]; key = "sh" + k + "_" + id; }
+    var x = st.girls[id], story, key, own = ownList(id);
+    if (x.nights < own.length) { story = own[x.nights]; key = x.nights ? "own" + x.nights + "_" + id : "own_" + id; }
+    else { var k; do { k = Math.floor(Math.random() * SHARED_ALL.length); } while (SHARED_ALL.length > 1 && k === st.lastShared); st.lastShared = k; story = SHARED_ALL[k]; key = "sh" + k + "_" + id; }
     x.nights++; addBond(id, 6); addAlbum(key);
     log("🌙 和 " + G[id].name + " 共度夜晚：" + story.title);
     ui.story = { who: id, title: story.title, pages: story.pages, i: 0, after: nextChapter };
@@ -434,8 +438,8 @@
     var a = album(), h = '<div class="mu-panel"><h2>夜晚回憶</h2><div class="mu-roster">';
     D.GIRLS.forEach(function (g) {
       var b = [];
-      if (a["own_" + g.id]) b.push('<button class="mu-btn mu-sm" data-act="replay" data-k="own" data-id="' + g.id + '">' + esc(N.OWN[g.id].title) + "</button>");
-      N.SHARED.forEach(function (s, i) { if (a["sh" + i + "_" + g.id]) b.push('<button class="mu-btn mu-sm" data-act="replay" data-k="' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
+      ownList(g.id).forEach(function (s, i) { if (a[i ? "own" + i + "_" + g.id : "own_" + g.id]) b.push('<button class="mu-btn mu-sm" data-act="replay" data-k="own' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
+      SHARED_ALL.forEach(function (s, i) { if (a["sh" + i + "_" + g.id]) b.push('<button class="mu-btn mu-sm" data-act="replay" data-k="' + i + '" data-id="' + g.id + '">' + esc(s.title) + "</button>"); });
       h += '<div class="mu-mem">' + portrait(g.id, "mu-mini") + "<div><b>" + esc(g.name) + "</b><br>" + (b.length ? b.join(" ") : '<span class="mu-muted mu-small">？？？</span>') + "</div></div>";
     });
     return h + '</div><div class="mu-row"><button class="mu-btn" data-act="title">返回</button></div></div>';
@@ -468,7 +472,7 @@
     if (act === "continue") { st = load(SAVE_KEY); ui.screen = st ? "hub" : "title"; render(); return; }
     if (act === "title") { cancelAnimationFrame(raf); sim = null; if (st && !st.ended) save(); ui.screen = "title"; render(); return; }
     if (act === "album") { ui.screen = "album"; render(); return; }
-    if (act === "replay") { var story = b.getAttribute("data-k") === "own" ? N.OWN[id] : N.SHARED[+b.getAttribute("data-k")]; ui.story = { who: id, title: story.title, pages: story.pages, i: 0, after: function () { ui.screen = "album"; render(); } }; ui.screen = "story"; render(); return; }
+    if (act === "replay") { var rk = b.getAttribute("data-k"), story = rk.indexOf("own") === 0 ? ownList(id)[+rk.slice(3)] : SHARED_ALL[+rk]; ui.story = { who: id, title: story.title, pages: story.pages, i: 0, after: function () { ui.screen = "album"; render(); } }; ui.screen = "story"; render(); return; }
     if (act === "pick") { ui.pick = ui.pick === id ? null : id; ui.sel = null; render(); return; }
     if (act === "recall") { delete st.place[id]; ui.sel = null; save(); render(); return; }
     if (act === "upgrade") { upgrade(id); render(); return; }
