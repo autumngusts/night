@@ -42,8 +42,17 @@
   }
 
   // ================= 全體繪製 =================
+  // 18 禁確認（使用者指定 2026-11-11）：遊戲含成人向的親密描寫，第一次進入時確認；同意後記在 localStorage
+  var AGE_KEY = "pritest-champ-age-ok";
+  function ageOk() { try { return window.localStorage.getItem(AGE_KEY) === "1"; } catch (e) { return !!ui.ageOk; } }
+  function renderAgeGate() {
+    return '<div class="cc-modal cc-agegate"><div class="cc-sbox cc-agebox"><p class="cc-age-mark">18+</p><p class="cc-big"><b>' + esc(t("age_title")) + "</b></p>" +
+      '<p class="cc-line">' + esc(t("age_body")) + '</p><div class="cc-opts"><button class="cc-btn cc-primary" data-act="age-yes">' + esc(t("age_yes")) +
+      '</button><button class="cc-btn" data-act="age-no">' + esc(t("age_no")) + "</button></div></div></div>";
+  }
   function render() {
     if (ui.screen !== "replay" && ui.replay) { ui.replay.dispose(); ui.replay = null; }
+    if (!ageOk()) { app.innerHTML = renderAgeGate(); return; }
     var h = "";
     if (ui.screen === "title") h = renderTitle();
     else if (ui.screen === "new") h = renderNew();
@@ -1122,6 +1131,8 @@
   function handle(act, el, ev) {
     var id = el.getAttribute("data-id"), s = S(), r;
     switch (act) {
+      case "age-yes": ui.ageOk = true; try { window.localStorage.setItem(AGE_KEY, "1"); } catch (e) {} break;
+      case "age-no": window.location.href = "../index.html"; return;
       case "to-title": ui.screen = "title"; ui.modal = null; break;
       case "to-new": ui.screen = "new"; break;
       case "continue": if (Core.load()) { ui.screen = "hub"; ui.tab = "home"; } break;

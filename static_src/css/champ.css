@@ -395,3 +395,7 @@
 .cc-night-4 .cc-nightbox, .cc-night-5 .cc-nightbox { background-color: #120a1c; color: #d8cfe6; }
 .cc-night-5 .cc-nightbox { animation: cc-night-fade 2.4s ease-in both; }
 @keyframes cc-night-fade { from { opacity: 1; } to { opacity: 0.55; } }
+/* 18 禁確認 */
+.cc-agegate { background-color: rgba(0, 0, 0, 0.92); }
+.cc-agebox { width: min(26rem, 100%); background-color: Canvas; color: CanvasText; border-radius: 14px; padding: 1.4rem; text-align: center; border: 2px solid #e0457b; }
+.cc-age-mark { display: inline-block; margin: 0 auto 0.6rem; width: 4rem; height: 4rem; line-height: 4rem; border-radius: 50%; border: 3px solid #e0457b; color: #e0457b; font-size: 1.4em; font-weight: bold; }

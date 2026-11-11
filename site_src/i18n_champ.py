@@ -552,6 +552,10 @@ CHAMP_ZH: dict[str, str] = {
     "cc_night_head": "和 {name} 的夜晚",
     "cc_night_next": "……",
     "cc_night_end": "晚安",
+    "cc_age_title": "未滿 18 歲請勿觀看",
+    "cc_age_body": "本遊戲含有成人向的戀愛與親密描寫（成年角色之間的飲酒、親吻、肢體接觸與暗示性的夜晚場景）。請確認你已年滿 18 歲。",
+    "cc_age_yes": "我已滿 18 歲，進入遊戲",
+    "cc_age_no": "未滿 18 歲，離開",
     "cc_night_head_teen": "和 {name} 的珍奶之夜",
     "cc_album_night_teen": "珍奶之夜",
 }
@@ -1101,6 +1105,10 @@ CHAMP_JA: dict[str, str] = {
     "cc_night_head": "{name} との夜",
     "cc_night_next": "……",
     "cc_night_end": "おやすみ",
+    "cc_age_title": "18 歳未満の方はご遠慮ください",
+    "cc_age_body": "このゲームには成人向けの恋愛・親密な描写（成人キャラクター同士の飲酒、キス、身体的な接触、示唆的な夜のシーン）が含まれます。18 歳以上であることを確認してください。",
+    "cc_age_yes": "18 歳以上です。ゲームに入る",
+    "cc_age_no": "18 歳未満です。戻る",
     "cc_night_head_teen": "{name} とタピオカナイト",
     "cc_album_night_teen": "タピオカナイト",
 }
