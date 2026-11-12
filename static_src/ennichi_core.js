@@ -199,6 +199,27 @@
     return true;
   }
 
+  // ---- 工房：每遊戲分鐘一次。每台機器每分鐘只做一件事（待機→取料開工／加工中→推進、完成產出）
+  function workshopStep(s) {
+    s.machines.forEach(function (m) {
+      var r = m.rid && D.RECIPES[m.rid];
+      if (!r) return;
+      if (m.t === null) {
+        var inN = 0, outN = 0, k;
+        for (k in r.in) inN += r.in[k];
+        for (k in r.out) outN += r.out[k];
+        if (have(s, r.in) && wareTotal(s) - inN + outN <= D.WARE_CAP) { take(s, r.in); m.t = 0; }
+        return;
+      }
+      m.t++;
+      if (m.t >= r.t) {
+        give(s, r.out);
+        if (s.today) for (var o in r.out) s.today.made[o] = (s.today.made[o] || 0) + r.out[o];
+        m.t = null;
+      }
+    });
+  }
+
   function serialize(s) { return JSON.stringify(s); }
   function restore(str) {
     try { var s = JSON.parse(str); return s && s.v === 1 ? s : null; } catch (e) { return null; }
@@ -210,6 +231,7 @@
     wareTotal: wareTotal, have: have, take: take, give: give, nearRide: nearRide,
     newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath,
     buy: buy, addMachine: addMachine, setRecipe: setRecipe, setPrice: setPrice, setFee: setFee,
+    workshopStep: workshopStep,
     serialize: serialize, restore: restore,
   };
 })();

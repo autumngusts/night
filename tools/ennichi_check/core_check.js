@@ -127,3 +127,31 @@ var Core = window.PriTestEnnichiCore;
   assert.deepStrictEqual(t, s); assert.strictEqual(Core.restore("{bad"), null);
   console.log("2. 核心（地圖、建造、組裝期、倉庫）OK");
 })();
+
+// ---------------- 3. 工房 ----------------
+(function () {
+  var s = Core.newGame({ seed: 3 });
+  s.ware = { wood: 2, iron: 1 };
+  s.machines = [{ type: "saw", rid: "plank", t: null }, { type: "press", rid: "sheet", t: null }, { type: "weld", rid: "frame", t: null }];
+  s.today = { made: {} };
+  Core.workshopStep(s);
+  assert.strictEqual(s.ware.wood, 1); assert.strictEqual(s.machines[0].t, 0);
+  assert.strictEqual(s.machines[2].t, null, "焊接台缺料不開工");
+  for (var i = 0; i < 3; i++) Core.workshopStep(s);
+  assert.strictEqual(s.ware.plank, 2, "3 分鐘後產出 2 木板"); assert.strictEqual(s.today.made.plank, 2);
+  assert.strictEqual(s.machines[0].t, null, "產出那一分鐘歸零待機");
+  Core.workshopStep(s);
+  assert.strictEqual(s.machines[0].t, 0, "下一分鐘取第 2 根原木"); assert.strictEqual(s.ware.wood || 0, 0);
+  // 三層：木板 → 雕刻木件 → 彩繪唐獅子
+  var t = Core.newGame({ seed: 4 });
+  t.ware = { plank: 4, paint: 1 }; t.today = { made: {} };
+  t.machines = [{ type: "carve", rid: "carving", t: null }, { type: "lacquer", rid: "lion", t: null }];
+  for (i = 0; i < 30; i++) Core.workshopStep(t);
+  assert.strictEqual(t.ware.lion, 1, "兩個雕刻木件＋彩漆 → 彩繪唐獅子");
+  // 倉庫滿了不開工
+  var u = Core.newGame({ seed: 5 });
+  u.ware = { wood: D.WARE_CAP }; u.machines = [{ type: "saw", rid: "plank", t: null }];
+  Core.workshopStep(u);
+  assert.strictEqual(u.machines[0].t, null, "放不下產出就不開工");
+  console.log("3. 工房 OK");
+})();
