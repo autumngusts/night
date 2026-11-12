@@ -443,7 +443,7 @@ var Wish = window.PriTestEnnichiWish;
   assert.ok(!Core.applyIntent(s, { a: "build", type: "bench", x: 15, y: 9 }).ok, "營業中不能蓋");
   Core.tick(s, D.DAY_END - D.DAY_START + 120);
   assert.strictEqual(s.phase, "close"); assert.strictEqual(s.guests.length, 0);
-  var sum = s.history[0];
+  var sum = s.history[0], hapN1 = s.today.hapN;
   assert.strictEqual(sum.day, 1); assert.ok(sum.guests > 0); assert.strictEqual(sum.weather, "sun");
   assert.ok(s.rep >= Math.max(0, sum.repDelta), "口碑至少加上當天的變化（繪馬完成會再加）");
   assert.ok(s.today.murmurs.length > 0);
@@ -468,5 +468,20 @@ var Wish = window.PriTestEnnichiWish;
   var res = Core.seasonResult(s);
   assert.ok(res.guests >= sum.guests && res.level >= 1 && res.wishes >= 0);
   assert.strictEqual(Core.applyIntent(s, { a: "bogus" }).err, "unknown");
+  assert.strictEqual(sum.repDelta, Math.round((sum.avgHap - 55) * hapN1 / 40) + sum.sns, "口碑變化公式");
+  // 已知等待資料：waitSum 90 / waitN 3 → lastWait 30；非 open 時 closeDay 不動作
+  var w1 = freshPark(32); assert.strictEqual(Core.closeDay(w1), null);
+  Core.applyIntent(w1, { a: "open" }); var m1 = w1.structs[sidOf(w1, "merry")]; m1.waitSum = 90; m1.waitN = 3;
+  Core.closeDay(w1); assert.strictEqual(m1.lastWait, 30); assert.strictEqual(m1.waitN, 0); assert.strictEqual(Core.closeDay(w1), null);
+  // 規劃期完成繪馬也要計入季末（含第 1 天 today 為 null）
+  var w2 = freshPark(33); assert.strictEqual(w2.today, null);
+  w2.wishes.push({ id: w2.nextWish++, kind: "build", target: "bench", n: 0, prog: 0, day: 1, gid: 0, photo: null, text: { zh: "x", ja: "x" }, done: false });
+  w2.wishes[0].target = "toilet"; Core.give(w2, D.BUILD.toilet.parts); w2.cash = 99999;
+  var before = Core.seasonResult(w2).wishes;
+  var bx = 0, by = 0; for (var yy = 0; yy < 14 && !bx; yy++) for (var xx = 0; xx < 20 && !bx; xx++) if (Core.canBuild(w2, "toilet", xx, yy).ok) { bx = xx; by = yy; }
+  var rb = Core.applyIntent(w2, { a: "build", type: "toilet", x: bx, y: by }); assert.ok(rb.ok, "build " + rb.err);
+  for (var q in w2.structs) w2.structs[q].build = 0;
+  window.PriTestEnnichiWish.check(w2);
+  assert.strictEqual(Core.seasonResult(w2).wishes, before + 1);
   console.log("10. 日循環、施工進度、結算、修理、季末 OK");
 })();

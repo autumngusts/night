@@ -59,7 +59,7 @@
       day: 1, phase: "plan", min: D.DAY_START, cash: D.START_CASH, rep: 0, fee: D.ENTRY_FEE,
       tiles: [], occ: [], structs: {}, nextId: 1, mapVer: 1,
       ware: {}, machines: [], guests: [], nextGid: 1,
-      weather: [], wishes: [], nextWish: 1,
+      weather: [], wishes: [], nextWish: 1, wishesDoneTotal: 0,
       dirt: 0, today: null, history: [], photos: [],
     };
     for (var i = 0; i < M.W * M.H; i++) { s.tiles.push(0); s.occ.push(0); }
@@ -267,6 +267,7 @@
   }
 
   function closeDay(s) {
+    if (s.phase !== "open") return null;
     var t = s.today;
     s.guests.forEach(function (g) { t.hapSum += g.hap; t.hapN++; t.left++; });
     s.guests = [];
@@ -307,8 +308,8 @@
   }
 
   function seasonResult(s) {
-    var g = 0, rev = 0, hs = 0, wishes = 0;
-    s.history.forEach(function (h) { g += h.guests; rev += h.rev; hs += h.avgHap * h.guests; wishes += h.wishesDone; });
+    var g = 0, rev = 0, hs = 0, wishes = s.wishesDoneTotal || 0;
+    s.history.forEach(function (h) { g += h.guests; rev += h.rev; hs += h.avgHap * h.guests; });
     return { guests: g, rev: rev, avgHap: g ? Math.round(hs / g) : 0, rep: s.rep, level: popLevel(s), wishes: wishes };
   }
 
@@ -320,6 +321,7 @@
       case "path": ok = setPath(s, it.x, it.y, !!it.on); break;
       case "buy": ok = buy(s, it.item, it.n); break;
       case "machine": ok = addMachine(s, it.type); break;
+      // recipe／price／ticket 營業中也可調整（規格允許暫停設定），故不限 plan
       case "recipe": ok = setRecipe(s, it.mi, it.rid); break;
       case "price": ok = setPrice(s, it.sid, it.price); break;
       case "fee": ok = setFee(s, it.fee); break;

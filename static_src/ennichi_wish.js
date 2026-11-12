@@ -85,6 +85,7 @@
       if (!met(s, w)) return;
       w.done = true;
       s.rep += D.WISH.REWARD[w.kind];
+      s.wishesDoneTotal = (s.wishesDoneTotal || 0) + 1; // 整季累計（trim 只留 5 個、規劃期完成時 today 已過期，故另存）
       if (s.today) s.today.wishesDone++;
       var g = null;
       for (var i = 0; i < s.guests.length; i++) if (s.guests[i].id === w.gid) g = s.guests[i];
