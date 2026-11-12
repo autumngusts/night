@@ -241,3 +241,67 @@ function sidOf(s, type) { return +Object.keys(s.structs).filter(function (k) { r
   var h = g.need.hunger; Sim.needsTick(s, g); assert.ok(g.need.hunger > h);
   console.log("5. 客人（生成、尋路、選目的地）OK");
 })();
+
+// ---------------- 6. 排隊、搭乘、攤位、故障、murmur ----------------
+var Murmur = window.PriTestEnnichiMurmur;
+function openToday(s) {
+  s.phase = "open"; s.min = D.DAY_START;
+  s.today = { guests: 0, left: 0, rev: 0, fees: 0, hapSum: 0, hapN: 0, sns: 0, made: {}, sales: {}, spawn: [], murmurs: [], topics: {}, weather: "cloud", closed: [], wishesDone: 0 };
+}
+function walker(s, x, y, sid, need) {
+  var g = Sim.spawn(s); g.cash = 5000; g.x = x; g.y = y; g.sid = sid;
+  g.need = { fun: 0, hunger: 0, thirst: 0, toilet: 0, fatigue: 0, dry: 0 };
+  for (var k in need) g.need[k] = need[k];
+  return g;
+}
+(function () {
+  var s = freshPark(21); openToday(s);
+  var g = Sim.spawn(s);
+  var m = Murmur.say(s, g, "complaint", "queue", { ride: D.BUILD.merry.name });
+  assert.ok(m.text.zh.length > 0 && m.text.zh.indexOf("{") < 0, "範本的變數都有換掉");
+  assert.strictEqual(s.today.topics.queue, 1); assert.deepStrictEqual(Murmur.topTopics(s, 1), [["queue", 1]]);
+  // 搭乘
+  var merry = s.structs[sidOf(s, "merry")];
+  g = walker(s, 6, 10, merry.id, { fun: 90 });
+  Sim.step(s); assert.strictEqual(g.state, "queue", "先排隊（設施在客人之前處理）");
+  Sim.step(s); assert.strictEqual(g.state, "ride", "下一分鐘上車");
+  assert.strictEqual(merry.waitN, 1);
+  for (var i = 0; i < D.BUILD.merry.cycle; i++) Sim.step(s);
+  assert.strictEqual(g.state, "walk"); assert.ok(g.need.fun < 90); assert.strictEqual(g.rides, 1);
+  assert.strictEqual(merry.wear, D.BUILD.merry.wear);
+  assert.ok(s.today.rev >= merry.price);
+  // 改裝過的磨損倍率
+  merry.mods.drive = 1; merry.wear = 0;
+  var g3 = walker(s, 6, 10, merry.id, { fun: 90 });
+  for (i = 0; i < 2 + D.BUILD.merry.cycle; i++) Sim.step(s);
+  assert.strictEqual(merry.wear, D.BUILD.merry.wear * 1.5, "高速迴轉台 磨損 ×1.5");
+  delete merry.mods.drive;
+  // 故障
+  merry.wear = 99; merry.riders = []; merry.t = 0;
+  g = walker(s, 6, 10, merry.id, { fun: 90 }); g.state = "queue"; merry.q = [g.id];
+  var g2 = walker(s, 6, 10, merry.id, { fun: 90 });
+  Sim.step(s);
+  for (i = 0; i < D.BUILD.merry.cycle; i++) Sim.step(s);
+  assert.ok(merry.broken); assert.strictEqual(merry.q.length, 0); assert.notStrictEqual(g2.state, "queue");
+  // 攤位
+  var t = freshPark(22); openToday(t);
+  var c = walker(t, 11, 10, sidOf(t, "takoyakiSt"), { hunger: 90 });
+  t.ware.takoyaki = 1;
+  Sim.step(t);
+  assert.strictEqual(t.ware.takoyaki || 0, 0); assert.ok(c.need.hunger < 90);
+  assert.strictEqual(t.today.rev, D.ITEMS.takoyaki.sell); assert.strictEqual(t.today.sales.takoyaki, 1);
+  assert.ok(t.dirt >= 1, "附近沒有垃圾桶 → 髒亂");
+  var c2 = walker(t, 11, 10, sidOf(t, "takoyakiSt"), { hunger: 90 });
+  var hap = c2.hap; Sim.step(t); assert.ok(c2.hap < hap, "賣完了心情下降");
+  // 排隊太久
+  var u = freshPark(23); openToday(u);
+  var mm = u.structs[sidOf(u, "merry")]; mm.riders = [999]; mm.t = 50;
+  var w = walker(u, 6, 10, mm.id, { fun: 90 });
+  for (i = 0; i <= w.patience + 1; i++) Sim.step(u);
+  assert.strictEqual(mm.q.indexOf(w.id), -1, "超過耐心離隊");
+  // 離場
+  u.min = D.DAY_END;
+  for (i = 0; i < 40 && u.guests.length; i++) { Sim.step(u); u.min++; }
+  assert.strictEqual(u.guests.length, 0); assert.ok(u.today.hapN >= 1);
+  console.log("6. 搭乘、攤位、故障、murmur OK");
+})();
