@@ -55,7 +55,8 @@
       x: M.GATE.x, y: M.GATE.y, state: "walk", sid: null,
       need: { fun: Core.rint(s, 30), hunger: Core.rint(s, 30), thirst: Core.rint(s, 30), toilet: Core.rint(s, 30), fatigue: Core.rint(s, 30), dry: 0 },
       hap: 60, cash: gt.cash[0] + Core.rint(s, gt.cash[1] - gt.cash[0] + 1), patience: gt.patience,
-      wait: 0, t: 0, leaving: false, spent: 0, rides: 0, kasa: false, ticket: null
+      wait: 0, t: 0, leaving: false, spent: 0, rides: 0, kasa: false, ticket: null,
+      skip: 0 // 下車後暫停選目的地的剩餘分鐘數
     };
     s.cash += s.fee; g.cash -= s.fee;
     if (s.today) { s.today.fees += s.fee; s.today.guests++; }

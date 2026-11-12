@@ -260,6 +260,9 @@ function walker(s, x, y, sid, need) {
   var m = Murmur.say(s, g, "complaint", "queue", { ride: D.BUILD.merry.name });
   assert.ok(m.text.zh.length > 0 && m.text.zh.indexOf("{") < 0, "範本的變數都有換掉");
   assert.strictEqual(s.today.topics.queue, 1); assert.deepStrictEqual(Murmur.topTopics(s, 1), [["queue", 1]]);
+  var mp = Murmur.say(s, g, "sns", "photo", { ride: D.BUILD.merry.name }), mg = Murmur.say(s, g, "sns", "goods", { item: D.ITEMS.takoyaki.name });
+  assert.ok(mp.text.zh.indexOf(D.BUILD.merry.name.zh) >= 0, "photo 的 sns 含設施名");
+  assert.ok(mg.text.zh.indexOf(D.ITEMS.takoyaki.name.zh) >= 0, "goods 的 sns 含商品名");
   // 搭乘
   var merry = s.structs[sidOf(s, "merry")];
   g = walker(s, 6, 10, merry.id, { fun: 90 });
