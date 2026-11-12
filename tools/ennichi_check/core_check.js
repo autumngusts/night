@@ -74,3 +74,56 @@ var D = window.PriTestEnnichiData;
   assert.strictEqual(D.PHOTOS.length, 32);
   console.log("1. 資料與層級 OK");
 })();
+
+// ---------------- 2. 新局、地圖、建造、組裝期、倉庫、市場、存檔 ----------------
+var Core = window.PriTestEnnichiCore;
+(function () {
+  var s = Core.newGame({ seed: 7 }), M = D.MAP;
+  assert.strictEqual(s.phase, "plan"); assert.strictEqual(s.cash, D.START_CASH);
+  for (var x = 0; x < M.SHRINE.x; x++) assert.ok(Core.isPath(s, x, M.GATE.y), "參道 " + x);
+  assert.ok(Object.keys(s.structs).some(function (k) { return s.structs[k].type === "shrine"; }));
+  assert.strictEqual(s.machines.length, D.START_MACHINES.length);
+  assert.strictEqual(s.weather.length, D.SEASON_DAYS + 1);
+  s.weather.slice(1).forEach(function (w) { assert.ok(D.WEATHER[w], "天氣：" + w); });
+  assert.strictEqual(Core.weatherOf(s, 3), s.weather[3]);
+  var a = Core.newGame({ seed: 99 }), b = Core.newGame({ seed: 99 });
+  assert.deepStrictEqual(a.weather, b.weather, "天氣可重播");
+  // 一般設施：當天完成
+  var r = Core.build(s, "takoyakiSt", 10, 8);
+  assert.ok(r.ok); assert.strictEqual(s.structs[r.sid].build, 0);
+  // 大型設施：沒有模組不能蓋；有模組就進入施工
+  assert.strictEqual(Core.canBuild(s, "merry", 4, 6).err, "parts");
+  Core.give(s, D.BUILD.merry.parts);
+  assert.strictEqual(Core.canBuild(s, "merry", 4, 5).err, "entrance");
+  r = Core.build(s, "merry", 4, 6);
+  assert.ok(r.ok); var merry = s.structs[r.sid];
+  assert.strictEqual(merry.build, D.BUILD.merry.days, "施工中");
+  assert.deepStrictEqual(merry.mods, {}); assert.strictEqual(merry.ticket, false);
+  assert.deepStrictEqual(Core.entranceOf(merry), { x: 6, y: 10 });
+  assert.strictEqual(Core.canBuild(s, "kingyo", 5, 8).err, "occupied");
+  assert.strictEqual(Core.canBuild(s, "kingyo", 23, 8).err, "locked");
+  assert.strictEqual(Core.canBuild(s, "kingyo", 31, 19).err, "bounds");
+  assert.strictEqual(Core.canBuild(s, "wheel", 10, 4).err, "level");
+  // 排隊屋台：附近要有遊樂設施
+  assert.strictEqual(Core.canBuild(s, "qstall", 18, 9).err, "noride");
+  r = Core.build(s, "qstall", 8, 9); // 入口 (8,10)，旋轉木馬入口 (6,10) 在 2 格內
+  assert.ok(r.ok, JSON.stringify(r)); assert.strictEqual(s.structs[r.sid].link, merry.id);
+  // 施工中拆除：模組退一半
+  var cash = s.cash;
+  assert.ok(Core.demolish(s, merry.id));
+  assert.strictEqual(s.ware.lionPost, Math.floor(6 * D.REFUND));
+  assert.strictEqual(s.cash, cash + Math.floor(D.BUILD.merry.cash * D.REFUND));
+  // 步道、市場、機器
+  cash = s.cash;
+  assert.ok(Core.setPath(s, 6, 11, true)); assert.strictEqual(s.cash, cash - D.PATH_COST);
+  assert.ok(Core.buy(s, "wood", 5)); assert.ok(!Core.buy(s, "plank", 1), "零件不能買");
+  assert.ok(!Core.buy(s, "wood", D.WARE_CAP), "超過倉庫上限");
+  assert.strictEqual(Core.machineSlots(s), D.MACHINE_SLOTS);
+  s.rep = 160; assert.strictEqual(Core.popLevel(s), 3); assert.strictEqual(Core.machineSlots(s), D.MACHINE_SLOTS + 2 * D.MACHINE_SLOTS_PER_LV);
+  assert.ok(Core.addMachine(s, "assembly"));
+  assert.ok(Core.setRecipe(s, s.machines.length - 1, "turntable"));
+  assert.ok(!Core.setRecipe(s, s.machines.length - 1, "plank"), "組裝台不能製材");
+  var t = Core.restore(Core.serialize(s));
+  assert.deepStrictEqual(t, s); assert.strictEqual(Core.restore("{bad"), null);
+  console.log("2. 核心（地圖、建造、組裝期、倉庫）OK");
+})();
