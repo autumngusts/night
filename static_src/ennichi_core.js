@@ -126,6 +126,11 @@
     s.cash -= b.cash;
     var sid = place(s, type, x, y);
     if (b.kind === "qstall") s.structs[sid].link = nearRide(s, entranceOf(s.structs[sid]));
+    // 新蓋遊樂設施：附近原本沒連結（設施被拆掉）的排隊屋台重新連上
+    if (b.kind === "ride") for (var j in s.structs) {
+      var q = s.structs[j];
+      if (D.BUILD[q.type].kind === "qstall" && !q.link) q.link = nearRide(s, entranceOf(q)) || null;
+    }
     return { ok: true, err: null, sid: sid };
   }
 
@@ -187,11 +192,14 @@
     return true;
   }
 
-  // 庫存上限：倉庫裡該配方產物 ≥ limit 時不開新工（待機），庫存降下來再自動開工。null／0 = 不限
+  function isNum(v) { return typeof v === "number" && isFinite(v); }
+
+  // 庫存上限：倉庫裡該配方產物 ≥ limit 時不開新工（待機），庫存降下來再自動開工。null = 不限
+  // （2026-11-13 起只接受 null 或 1〜WARE_CAP 的有限數字；0、NaN、字串一律拒絕）
   function setLimit(s, mi, n) {
     var m = s.machines[mi];
-    if (!m || (n != null && (n < 0 || n > D.WARE_CAP))) return false;
-    m.limit = n ? Math.floor(n) : null;
+    if (!m || (n !== null && (!isNum(n) || n < 1 || n > D.WARE_CAP))) return false;
+    m.limit = n === null ? null : Math.floor(n);
     return true;
   }
   function overLimit(s, m, r) {
@@ -202,13 +210,13 @@
 
   function setPrice(s, sid, price) {
     var st = s.structs[sid];
-    if (!st || D.BUILD[st.type].kind !== "ride" || price < 0 || price > 2000) return false;
+    if (!st || D.BUILD[st.type].kind !== "ride" || !isNum(price) || price < 0 || price > 2000) return false;
     st.price = Math.round(price / 10) * 10;
     return true;
   }
 
   function setFee(s, fee) {
-    if (s.phase !== "plan" || fee < 0 || fee > 2000) return false;
+    if (s.phase !== "plan" || !isNum(fee) || fee < 0 || fee > 2000) return false;
     s.fee = Math.round(fee / 10) * 10;
     return true;
   }
