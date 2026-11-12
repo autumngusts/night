@@ -429,3 +429,44 @@ var Wish = window.PriTestEnnichiWish;
   assert.ok(!s.wishes.some(function (w) { return w.target === "toilet"; })); assert.strictEqual(s.rep, Math.max(0, rep - D.WISH.PENALTY));
   console.log("9. 繪馬許願 OK");
 })();
+
+// ---------------- 10. 日循環、施工進度、結算、修理、季末 ----------------
+(function () {
+  var s = freshPark(31);
+  s.ware.takoyaki = 50; s.weather[1] = "sun"; s.weather[2] = "wind";
+  // 施工：第 1 天放下咖啡杯（組裝 1 天）→ 第 2 天營業
+  Core.give(s, D.BUILD.cups.parts);
+  var cups = s.structs[Core.applyIntent(s, { a: "build", type: "cups", x: 16, y: 7 }).sid];
+  assert.strictEqual(cups.build, 1);
+  assert.ok(Core.applyIntent(s, { a: "open" }).ok);
+  assert.strictEqual(s.today.weather, "sun"); assert.deepStrictEqual(s.today.closed, []);
+  assert.ok(!Core.applyIntent(s, { a: "build", type: "bench", x: 15, y: 9 }).ok, "營業中不能蓋");
+  Core.tick(s, D.DAY_END - D.DAY_START + 120);
+  assert.strictEqual(s.phase, "close"); assert.strictEqual(s.guests.length, 0);
+  var sum = s.history[0];
+  assert.strictEqual(sum.day, 1); assert.ok(sum.guests > 0); assert.strictEqual(sum.weather, "sun");
+  assert.ok(s.rep >= Math.max(0, sum.repDelta), "口碑至少加上當天的變化（繪馬完成會再加）");
+  assert.ok(s.today.murmurs.length > 0);
+  assert.strictEqual(cups.build, 0, "打烊時施工完成");
+  var merry = s.structs[sidOf(s, "merry")];
+  assert.ok(merry.lastWait >= 0 && merry.waitN === 0);
+  // 第 2 天強風：飛椅、摩天輪停駛清單
+  assert.ok(Core.applyIntent(s, { a: "next" }).ok); assert.strictEqual(s.day, 2);
+  merry.wear = 100; merry.broken = true; s.ware.gear = 5;
+  assert.ok(Core.applyIntent(s, { a: "repair", sid: merry.id }).ok); assert.ok(!merry.broken); assert.strictEqual(s.ware.gear, 3);
+  Core.give(s, { nightLanterns: 2 });
+  assert.ok(Core.applyIntent(s, { a: "upgrade", sid: merry.id, slot: "light" }).ok);
+  assert.ok(Core.applyIntent(s, { a: "ticket", sid: merry.id, on: true }).ok);
+  Core.applyIntent(s, { a: "open" });
+  assert.deepStrictEqual(s.today.closed.sort(), ["chairs", "wheel"]);
+  // 決定性
+  function run(seed) { var t = freshPark(seed); Core.applyIntent(t, { a: "open" }); Core.tick(t, 600); return Core.serialize(t); }
+  assert.strictEqual(run(77), run(77));
+  // 季末
+  s.phase = "close"; s.day = D.SEASON_DAYS;
+  Core.nextDay(s); assert.strictEqual(s.phase, "season");
+  var res = Core.seasonResult(s);
+  assert.ok(res.guests >= sum.guests && res.level >= 1 && res.wishes >= 0);
+  assert.strictEqual(Core.applyIntent(s, { a: "bogus" }).err, "unknown");
+  console.log("10. 日循環、施工進度、結算、修理、季末 OK");
+})();

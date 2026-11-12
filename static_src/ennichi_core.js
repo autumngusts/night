@@ -244,6 +244,95 @@
     return true;
   }
 
+  // ---- 日循環
+  function openDay(s) {
+    if (s.phase !== "plan") return false;
+    var Sim = window.PriTestEnnichiSim, w = weatherOf(s, s.day);
+    s.phase = "open"; s.min = D.DAY_START; s.guests = [];
+    s.today = {
+      guests: 0, left: 0, rev: 0, fees: 0, hapSum: 0, hapN: 0, sns: 0, made: {}, sales: {},
+      spawn: Sim.spawnSchedule(s), murmurs: [], topics: {}, weather: w, closed: Sim.closedFor(s, w), wishesDone: 0,
+    };
+    return true;
+  }
+
+  function tick(s, n) {
+    var Sim = window.PriTestEnnichiSim;
+    for (var i = 0; i < n && s.phase === "open"; i++) {
+      Sim.step(s);
+      workshopStep(s);
+      s.min++;
+      if ((s.min >= D.DAY_END && !s.guests.length && !s.today.spawn.length) || s.min >= D.DAY_END + 90) closeDay(s);
+    }
+  }
+
+  function closeDay(s) {
+    var t = s.today;
+    s.guests.forEach(function (g) { t.hapSum += g.hap; t.hapN++; t.left++; });
+    s.guests = [];
+    var avg = t.hapN ? Math.round(t.hapSum / t.hapN) : 0;
+    var delta = Math.round((avg - 55) * t.hapN / 40) + t.sns;
+    s.rep = Math.max(0, s.rep + delta);
+    for (var k in s.structs) {
+      var st = s.structs[k];
+      st.lastWait = st.waitN ? Math.round(st.waitSum / st.waitN) : 0;
+      st.waitSum = 0; st.waitN = 0; st.q = []; st.riders = []; st.t = 0;
+      if (st.build > 0) st.build--;
+    }
+    var Wish = window.PriTestEnnichiWish, Murmur = window.PriTestEnnichiMurmur;
+    if (Wish) { Wish.check(s); Wish.expire(s); }
+    var sum = { day: s.day, guests: t.guests, rev: t.rev + t.fees, avgHap: avg, repDelta: delta, sns: t.sns, weather: t.weather, wishesDone: t.wishesDone, topTopics: Murmur ? Murmur.topTopics(s, 3) : [] };
+    s.history.push(sum);
+    s.dirt = 0;
+    s.phase = "close";
+    return sum;
+  }
+
+  function repair(s, sid) {
+    var st = s.structs[sid];
+    if (!st || s.phase !== "plan") return false;
+    var b = D.BUILD[st.type];
+    if (b.kind !== "ride" || (!st.broken && !st.wear) || !have(s, b.fix)) return false;
+    take(s, b.fix);
+    st.wear = 0; st.broken = false; st.fixes++;
+    return true;
+  }
+
+  function nextDay(s) {
+    if (s.phase !== "close") return false;
+    s.day++;
+    s.phase = s.day > D.SEASON_DAYS ? "season" : "plan";
+    s.min = D.DAY_START;
+    return true;
+  }
+
+  function seasonResult(s) {
+    var g = 0, rev = 0, hs = 0, wishes = 0;
+    s.history.forEach(function (h) { g += h.guests; rev += h.rev; hs += h.avgHap * h.guests; wishes += h.wishesDone; });
+    return { guests: g, rev: rev, avgHap: g ? Math.round(hs / g) : 0, rep: s.rep, level: popLevel(s), wishes: wishes };
+  }
+
+  function applyIntent(s, it) {
+    var ok, Wish = window.PriTestEnnichiWish;
+    switch (it && it.a) {
+      case "build": var r = build(s, it.type, it.x, it.y); if (r.ok && Wish) Wish.check(s); return r;
+      case "demolish": ok = demolish(s, it.sid); break;
+      case "path": ok = setPath(s, it.x, it.y, !!it.on); break;
+      case "buy": ok = buy(s, it.item, it.n); break;
+      case "machine": ok = addMachine(s, it.type); break;
+      case "recipe": ok = setRecipe(s, it.mi, it.rid); break;
+      case "price": ok = setPrice(s, it.sid, it.price); break;
+      case "fee": ok = setFee(s, it.fee); break;
+      case "repair": ok = repair(s, it.sid); break;
+      case "upgrade": ok = upgrade(s, it.sid, it.slot); if (ok && Wish) Wish.check(s); break;
+      case "ticket": ok = setTicket(s, it.sid, it.on); break;
+      case "open": ok = openDay(s); break;
+      case "next": ok = nextDay(s); break;
+      default: return { ok: false, err: "unknown" };
+    }
+    return { ok: ok, err: ok ? null : "rejected" };
+  }
+
   function serialize(s) { return JSON.stringify(s); }
   function restore(str) {
     try { var s = JSON.parse(str); return s && s.v === 1 ? s : null; } catch (e) { return null; }
@@ -263,6 +352,7 @@
     newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath, setTicket: setTicket,
     buy: buy, addMachine: addMachine, setRecipe: setRecipe, setPrice: setPrice, setFee: setFee,
     workshopStep: workshopStep, effStats: effStats, upgrade: upgrade,
+    openDay: openDay, tick: tick, closeDay: closeDay, repair: repair, nextDay: nextDay, seasonResult: seasonResult, applyIntent: applyIntent,
     serialize: serialize, restore: restore,
   };
 })();
