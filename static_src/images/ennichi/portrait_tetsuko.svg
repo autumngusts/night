@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg_tetsuko" cx=".5" cy=".42" r=".7">
+      <stop offset="0" stop-color="#f7f8ff"/><stop offset="1" stop-color="#dfe5f2"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#bg_tetsuko)"/>
+  <!-- 放大 1.4 倍、以臉為中心，構圖接近 jikan 的胸上特寫 -->
+  <g transform="translate(-51.2,-56) scale(1.4)">
+
+  <!-- 後髮（短、亂翹） -->
+  <path d="M72,126 C62,48 194,48 184,126 C190,150 186,170 180,184 L170,170 L164,186 L92,186 L86,170 L76,184 C70,170 66,150 72,126 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.5"/>
+  <!-- 工作服（深藍連身服＋立領＋肩帶） -->
+  <path d="M26,256 C32,230 62,216 104,210 L152,210 C194,216 224,230 230,256 Z" fill="#2f3e64" stroke="#3a2a33" stroke-width="1.6"/>
+  <path d="M104,210 L118,232 L128,214 L138,232 L152,210" fill="#3d4f7c" stroke="#3a2a33" stroke-width="1.4"/>
+  <path d="M128,214 L128,256" stroke="#c9a640" stroke-width="2.5"/>
+  <rect x="58" y="230" width="22" height="26" rx="3" fill="#e9b640" stroke="#3a2a33" stroke-width="1.3"/>
+  <path d="M160,226 L212,256" stroke="#7a5030" stroke-width="7"/>
+  
+  <defs>
+    <linearGradient id="iris_tetsuko" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f5a3c"/><stop offset="1" stop-color="#5ac08a"/>
+    </linearGradient>
+    <filter id="soft_tetsuko" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <rect x="115" y="180" width="26" height="36" fill="#ffe2d0" stroke="#3a2a33" stroke-width="1.5"/>
+  <path d="M115,190 Q128,200 141,190 L141,200 Q128,206 115,200 Z" fill="#000" opacity=".08"/>
+  <path d="M84,112 C84,152 100,184 128,198 C156,184 172,152 172,112 C172,70 84,70 84,112 Z"
+        fill="#ffe2d0" stroke="#3a2a33" stroke-width="1.6"/>
+  <ellipse cx="99" cy="166" rx="11" ry="5" fill="#ff8f9a" opacity=".45" filter="url(#soft_tetsuko)"/>
+  <ellipse cx="157" cy="166" rx="11" ry="5" fill="#ff8f9a" opacity=".45" filter="url(#soft_tetsuko)"/>
+  
+  <ellipse cx="101" cy="142" rx="13" ry="15.5" fill="#fff"/>
+  <ellipse cx="101" cy="143.5" rx="11" ry="14" fill="url(#iris_tetsuko)"/>
+  <ellipse cx="101" cy="145" rx="5" ry="7.5" fill="#1d1018" opacity=".85"/>
+  <ellipse cx="101" cy="150" rx="7" ry="3.5" fill="#fff" opacity=".25"/>
+  <circle cx="105" cy="137" r="3.8" fill="#fff"/>
+  <circle cx="97" cy="149" r="1.8" fill="#fff"/>
+  <path d="M116,136 Q107,123 92,127 Q85,129 82,125
+           L84,131 Q89,131 87,136 Q97,128 116,136 Z"
+        fill="#3a2a33"/>
+  <path d="M110,157 Q101,160 92,157" fill="none" stroke="#3a2a33" stroke-width="1.2" opacity=".6"/>
+  
+  <ellipse cx="155" cy="142" rx="13" ry="15.5" fill="#fff"/>
+  <ellipse cx="155" cy="143.5" rx="11" ry="14" fill="url(#iris_tetsuko)"/>
+  <ellipse cx="155" cy="145" rx="5" ry="7.5" fill="#1d1018" opacity=".85"/>
+  <ellipse cx="155" cy="150" rx="7" ry="3.5" fill="#fff" opacity=".25"/>
+  <circle cx="151" cy="137" r="3.8" fill="#fff"/>
+  <circle cx="159" cy="149" r="1.8" fill="#fff"/>
+  <path d="M140,136 Q149,123 164,127 Q171,129 174,125
+           L172,131 Q167,131 169,136 Q159,128 140,136 Z"
+        fill="#3a2a33"/>
+  <path d="M146,157 Q155,160 164,157" fill="none" stroke="#3a2a33" stroke-width="1.2" opacity=".6"/>
+  <path d="M89,114 Q101,111 113,117" fill="none" stroke="#3a2a33" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M143,117 Q155,111 167,114" fill="none" stroke="#3a2a33" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M127,163 L129,166" stroke="#3a2a33" stroke-width="1.2" stroke-linecap="round" opacity=".6"/>
+  <path d="M116,176 Q128,190 140,176 Z" fill="#a83848" stroke="#5a2030" stroke-width="1.5" stroke-linejoin="round"/><path d="M119,177 L137,177 L135,180 L121,180 Z" fill="#fff"/>
+  <ellipse cx="160" cy="174" rx="8" ry="3.5" fill="#556" opacity=".35"/>
+  
+  <path d="M78,124 C66,58 190,58 178,124 C172,98 152,84 128,84 C104,84 84,98 78,124 Z"
+        fill="#b45a2a" stroke="#3a2a33" stroke-width="1.5"/>
+  <path d="M96,76 Q128,64 160,76" fill="none" stroke="#f0a060" stroke-width="5" stroke-linecap="round" opacity=".55"/>
+  <path d="M79,84 Q83.0,101.0 86,118 Q97.0,101.0 106,84 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M93,84 Q98.0,106.0 102,128 Q112.0,106.0 120,84 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M109,84 Q117.0,103.0 124,122 Q131.0,103.0 136,84 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M125,84 Q134.0,107.0 142,130 Q148.0,107.0 152,84 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M141,84 Q151.0,102.0 160,120 Q165.0,102.0 168,84 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M153,84 Q163.0,98.0 172,112 Q177.0,98.0 180,84 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M120,62 Q112,44 126,40 Q122,52 132,60 Z" fill="#b45a2a" stroke="#3a2a33" stroke-width="1.3"/>
+  <!-- 頭上的護目鏡 -->
+  <path d="M76,98 Q128,74 180,98" fill="none" stroke="#4a3a30" stroke-width="7"/>
+  <circle cx="108" cy="84" r="15" fill="#5a4a40" stroke="#3a2a33" stroke-width="1.5"/>
+  <circle cx="148" cy="84" r="15" fill="#5a4a40" stroke="#3a2a33" stroke-width="1.5"/>
+  <circle cx="108" cy="84" r="10" fill="#f0a030"/><circle cx="148" cy="84" r="10" fill="#f0a030"/>
+  <path d="M102,79 L107,76 M142,79 L147,76" stroke="#fff6d0" stroke-width="2.5" stroke-linecap="round"/>
+
+  </g>
+</svg>

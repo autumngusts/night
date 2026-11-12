@@ -1,0 +1,127 @@
+/* 緣日樂園（ennichi）— 技術驗證樣本 */
+.en-wrap {
+  --en-bg: #fbf7f2;
+  --en-panel: #ffffff;
+  --en-ink: #2b2230;
+  --en-sub: #6c6170;
+  --en-line: #e6dcd6;
+  --en-accent: #c8282e;
+  --en-accent-ink: #ffffff;
+  --en-stage: #141a33;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+  color: var(--en-ink);
+}
+@media (prefers-color-scheme: dark) {
+  .en-wrap {
+    --en-bg: #17141c;
+    --en-panel: #221d29;
+    --en-ink: #efe8f2;
+    --en-sub: #aaa0b0;
+    --en-line: #3a3242;
+  }
+}
+.en-head { margin-bottom: 12px; }
+.en-title { margin: 0 0 4px; font-size: 1.6rem; }
+.en-lead { margin: 0; color: var(--en-sub); line-height: 1.6; }
+.en-h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.en-h3 { font-size: .95rem; margin: 16px 0 8px; color: var(--en-sub); }
+.en-note { color: var(--en-sub); font-size: .85rem; margin: 0 0 8px; line-height: 1.6; }
+
+.en-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
+@media (max-width: 860px) { .en-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.en-stage {
+  position: relative;
+  width: 100%;
+  height: min(62vh, 560px);
+  min-height: 320px;
+  background: var(--en-stage);
+  border-radius: 10px;
+  overflow: hidden;
+  touch-action: none;
+}
+.en-stage canvas { display: block; width: 100%; height: 100%; }
+.en-overlay { position: absolute; inset: 0; pointer-events: none; }
+.en-loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #dfe6ff; font-size: .95rem; text-align: center; padding: 16px;
+}
+.en-loading.is-error { color: #ffb0b0; }
+
+.en-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.en-ctl-label { font-size: .8rem; color: var(--en-sub); margin: 0 2px 0 6px; }
+.en-btn {
+  border: 1px solid var(--en-line); background: var(--en-panel); color: var(--en-ink);
+  border-radius: 999px; padding: 6px 12px; font-size: .85rem; cursor: pointer;
+}
+.en-btn:hover { border-color: var(--en-accent); }
+.en-btn.is-on { background: var(--en-accent); border-color: var(--en-accent); color: var(--en-accent-ink); }
+
+.en-side { background: var(--en-panel); border: 1px solid var(--en-line); border-radius: 10px; padding: 12px; min-width: 0; }
+.en-report { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; margin: 0 0 16px; font-size: .8rem; }
+.en-report dt { color: var(--en-sub); }
+.en-report dd { margin: 0; word-break: break-word; font-variant-numeric: tabular-nums; }
+
+.en-wall { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.en-wall-item { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--en-line); cursor: pointer; }
+.en-wall-item img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; }
+.en-wall-item p { margin: 2px 0 0; font-size: .82rem; line-height: 1.45; }
+
+.en-mm-type { display: inline-block; font-size: .7rem; padding: 1px 6px; border-radius: 4px; color: #fff; background: #888; }
+.en-mm-impression { background: #d08a2a; }
+.en-mm-complaint { background: #c83a3a; }
+.en-mm-need { background: #2f7fc0; }
+.en-mm-recommend { background: #3a9a5a; }
+.en-mm-sns { background: #9a4ac0; }
+.en-mm-gossip { background: #8a7a6a; }
+.en-mm-season { background: #e07aa0; }
+.en-mm-love { background: #e0507a; }
+.en-mm-rival { background: #4a4a5a; }
+
+.en-bubble {
+  position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; max-width: 220px;
+  background: rgba(255, 255, 255, .94); color: #2b2230; border: 2px solid #d08a2a;
+  border-radius: 14px; padding: 4px 10px 4px 4px; font-size: .78rem; line-height: 1.35; text-align: left;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .3); will-change: transform;
+}
+.en-bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -6px;
+  border: 6px solid transparent; border-top-color: inherit; border-bottom: 0;
+}
+.en-bubble img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
+.en-mm-border-impression { border-color: #d08a2a; }
+.en-mm-border-complaint { border-color: #c83a3a; }
+.en-mm-border-need { border-color: #2f7fc0; }
+.en-mm-border-recommend { border-color: #3a9a5a; }
+.en-mm-border-sns { border-color: #9a4ac0; }
+.en-mm-border-gossip { border-color: #8a7a6a; }
+.en-mm-border-season { border-color: #e07aa0; }
+.en-mm-border-love { border-color: #e0507a; }
+.en-mm-border-rival { border-color: #4a4a5a; }
+
+.en-portraits { margin-top: 20px; background: var(--en-panel); border: 1px solid var(--en-line); border-radius: 10px; padding: 12px; }
+.en-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.en-card {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px; text-align: left; cursor: pointer;
+  background: var(--en-bg); color: var(--en-ink); border: 1px solid var(--en-line); border-radius: 10px;
+}
+.en-card img { width: 100%; aspect-ratio: 1; border-radius: 8px; object-fit: cover; background: #fff; }
+.en-card span { font-size: .78rem; color: var(--en-sub); }
+
+.en-modal {
+  position: fixed; inset: 0; z-index: 50; background: rgba(10, 8, 16, .7);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.en-modal[hidden] { display: none; }
+.en-modal-box {
+  display: flex; flex-wrap: wrap; gap: 16px; max-width: 640px; width: 100%;
+  background: var(--en-panel); color: var(--en-ink); border-radius: 12px; padding: 16px;
+}
+.en-modal-img { width: min(256px, 100%); aspect-ratio: 1; border-radius: 10px; object-fit: cover; background: #fff; }
+.en-modal-body { flex: 1 1 200px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.en-modal-name { font-size: 1.2rem; }
+.en-modal-role { color: var(--en-sub); font-size: .85rem; }
+.en-modal-text { margin: 0; font-size: 1rem; line-height: 1.6; }

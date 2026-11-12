@@ -39,6 +39,7 @@ from site_src.izakaya_page import IZAKAYA_SCRIPTS, build_izakaya_html
 from site_src.yoi_page import YOI_SCRIPTS, build_yoi_html
 from site_src.sennyu_page import SENNYU_SCRIPTS, build_sennyu_html
 from site_src.champ_page import CHAMP_SCRIPTS, build_champ_html
+from site_src.ennichi_page import ENNICHI_SCRIPTS, build_ennichi_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -68,6 +69,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "mahou": ("mh_",),
     "izakaya": ("iz_",),
     "champ": ("cc_",),
+    "ennichi": ("en_",),
 }
 
 
@@ -171,6 +173,7 @@ def build_static_assets() -> None:
         *YOI_SCRIPTS,
         *SENNYU_SCRIPTS,
         *CHAMP_SCRIPTS,
+        *ENNICHI_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -204,6 +207,11 @@ def build_static_assets() -> None:
         shutil.copytree(katana_art_src, static_dist / "katana_art")
 
     # 第三方函式庫（three.js r149：starV／賽狗／投賞／令和之野望／繩文帝國共用；頁面需要時才動態載入）
+    # 緣日樂園的 3D 模型（VRM／glTF，docs/ennichi_rules.md §8）
+    models_src = STATIC_SRC_DIR / "models"
+    if models_src.is_dir():
+        shutil.copytree(models_src, static_dist / "models")
+
     vendor_src = STATIC_SRC_DIR / "vendor"
     if vendor_src.is_dir():
         shutil.copytree(vendor_src, static_dist / "vendor")
@@ -315,10 +323,14 @@ def build_pages() -> None:
     champ_dir.mkdir(parents=True, exist_ok=True)
     (champ_dir / "index.html").write_text(build_champ_html(), encoding="utf-8")
 
+    ennichi_dir = DIST_DIR / "ennichi"
+    ennichi_dir.mkdir(parents=True, exist_ok=True)
+    (ennichi_dir / "index.html").write_text(build_ennichi_html(), encoding="utf-8")
+
 
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "ennichi", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
