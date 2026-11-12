@@ -394,3 +394,38 @@ function walker(s, x, y, sid, need) {
   assert.notStrictEqual(h.sid, m2.id, "不再鎖定故障設施");
   console.log("8b. 整理券修正 OK");
 })();
+
+// ---------------- 9. 繪馬許願 ----------------
+var Wish = window.PriTestEnnichiWish;
+(function () {
+  var s = freshPark(61); openToday(s);
+  var g = Sim.spawn(s);
+  var cs = Wish.candidates(s, g);
+  assert.ok(cs.some(function (c) { return c.kind === "build" && c.target === "kingyo"; }), "可以許願要金魚撈");
+  assert.ok(!cs.some(function (c) { return c.kind === "build" && c.target === "merry"; }), "已經有旋轉木馬");
+  assert.ok(cs.some(function (c) { return c.kind === "upgrade"; }), "旋轉木馬有空的改裝槽");
+  // 強制產生 3 個，第 4 個不會產生
+  var made = [];
+  for (var i = 0; i < 5; i++) { var w = Wish.maybeMake(s, g, true); if (w) made.push(w); }
+  assert.strictEqual(Wish.active(s).length, D.WISH.MAX);
+  assert.ok(made.every(function (w) { return w.text.zh.length > 0 && w.text.zh.indexOf("{") < 0; }));
+  // 完成「蓋金魚撈」
+  s.wishes = []; s.nextWish = 1;
+  s.wishes.push({ id: s.nextWish++, kind: "build", target: "kingyo", n: 0, prog: 0, day: s.day, gid: 0, photo: null, text: { zh: "x", ja: "x" }, done: false });
+  s.wishes.push({ id: s.nextWish++, kind: "sell", target: "takoyaki", n: 2, prog: 0, day: s.day, gid: 0, photo: null, text: { zh: "x", ja: "x" }, done: false });
+  var rep = s.rep;
+  s.phase = "plan"; Core.give(s, D.BUILD.kingyo.parts); Core.build(s, "kingyo", 16, 8); s.phase = "open";
+  Wish.check(s);
+  assert.ok(s.wishes[0].done); assert.strictEqual(s.rep, rep + D.WISH.REWARD.build);
+  // 賣出 2 份章魚燒完成 sell
+  s.ware.takoyaki = 5;
+  for (i = 0; i < 2; i++) { var c = walker(s, 11, 10, sidOf(s, "takoyakiSt"), { hunger: 90 }); Sim.step(s); }
+  Wish.check(s);
+  assert.ok(s.wishes[1].done, "賣出 2 份");
+  // 7 天沒完成撤下並扣口碑
+  s.wishes.push({ id: s.nextWish++, kind: "build", target: "toilet", n: 0, prog: 0, day: s.day, gid: 0, photo: null, text: { zh: "x", ja: "x" }, done: false });
+  rep = s.rep; s.day += D.WISH.EXPIRE;
+  Wish.expire(s);
+  assert.ok(!s.wishes.some(function (w) { return w.target === "toilet"; })); assert.strictEqual(s.rep, Math.max(0, rep - D.WISH.PENALTY));
+  console.log("9. 繪馬許願 OK");
+})();

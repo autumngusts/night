@@ -188,6 +188,7 @@
       for (var n in it.fill || {}) g.need[n] = Math.max(0, g.need[n] - it.fill[n]);
       if (it.umbrella) g.kasa = true;
       g.hap += 3 + (it.joy || 0); clampHap(g);
+      if (window.PriTestEnnichiWish) window.PriTestEnnichiWish.progressSale(s, id);
       return id;
     }
     return null;
@@ -201,6 +202,7 @@
       return;
     }
     var it = D.ITEMS[id];
+    if (id === "ema" && window.PriTestEnnichiWish) window.PriTestEnnichiWish.maybeMake(s, g, true);
     if (it.umbrella && chance(s, 0.3)) mm(s, g, "impression", "kasa", {});
     if (it.kind === "goods" && g.type === "photo" && chance(s, 0.3)) { mm(s, g, "sns", "goods", { item: it.name }); s.today.sns++; }
     if (it.kind === "food" || it.kind === "drink") {
@@ -232,6 +234,7 @@
     if (k === "shrine") {
       g.need.fun = Math.max(0, g.need.fun - 20); g.hap += 3; clampHap(g);
       if (chance(s, 0.2)) mm(s, g, "impression", "shrine", {});
+      if (window.PriTestEnnichiWish) window.PriTestEnnichiWish.maybeMake(s, g, false);
     } else if (k === "food" || k === "drink" || k === "goods" || k === "kasa") buyAt(s, g, st);
     else if (k === "fatigue" || k === "shelter") { g.state = "rest"; g.t = D.BUILD[st.type].time; return; }
     else if (k === "toilet") { g.state = "toilet"; g.t = D.BUILD[st.type].time; return; }
