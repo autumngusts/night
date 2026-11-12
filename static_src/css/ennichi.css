@@ -125,3 +125,6 @@
 .en-modal-name { font-size: 1.2rem; }
 .en-modal-role { color: var(--en-sub); font-size: .85rem; }
 .en-modal-text { margin: 0; font-size: 1rem; line-height: 1.6; }
+
+/* 3D 樂園（ennichi_3d.js）：canvas 填滿舞台，氣泡疊在上層 */
+.en-3d-canvas { display: block; width: 100%; height: 100%; }
