@@ -162,13 +162,16 @@
     flower: { kind: "deco", w: 1, h: 1, cash: 20, lv: 1, parts: {}, joy: 0.04, name: C("花圃", "花壇") },
   };
 
+  // 依 sim.js 調整（2026-11-12）：客群預算 原值 親子 1500〜3000／情侶 1500〜2500／學生 600〜1200／其餘 1000〜2000
+  //   → 新值 約 ×0.4（學生 300〜600）。理由：預算太多時客人錢花不完、免費參拜無限加心情，
+  //   四個種子的季平均心情都在 94（目標 50〜85）；調整後 76〜78。
   D.GUESTS = [
-    { id: "family", w: 0.25, cash: [1500, 3000], pref: { thrill: 0.2, charm: 1, photo: 0.4 }, patience: 25, name: C("親子", "親子") },
-    { id: "couple", w: 0.2, cash: [1500, 2500], pref: { thrill: 0.4, charm: 0.6, photo: 1 }, patience: 30, name: C("情侶", "カップル") },
-    { id: "student", w: 0.2, cash: [600, 1200], pref: { thrill: 0.8, charm: 0.5, photo: 0.4 }, patience: 20, name: C("學生", "学生") },
-    { id: "thrill", w: 0.1, cash: [1000, 2000], pref: { thrill: 1, charm: 0.1, photo: 0.2 }, patience: 35, name: C("刺激派", "絶叫派") },
-    { id: "photo", w: 0.15, cash: [1000, 2000], pref: { thrill: 0.2, charm: 0.6, photo: 1 }, patience: 25, name: C("拍照派", "映え派") },
-    { id: "elder", w: 0.1, cash: [1000, 2000], pref: { thrill: 0, charm: 0.8, photo: 0.3 }, patience: 40, name: C("老人家", "お年寄り") },
+    { id: "family", w: 0.25, cash: [600, 1200], pref: { thrill: 0.2, charm: 1, photo: 0.4 }, patience: 25, name: C("親子", "親子") },
+    { id: "couple", w: 0.2, cash: [600, 1000], pref: { thrill: 0.4, charm: 0.6, photo: 1 }, patience: 30, name: C("情侶", "カップル") },
+    { id: "student", w: 0.2, cash: [300, 600], pref: { thrill: 0.8, charm: 0.5, photo: 0.4 }, patience: 20, name: C("學生", "学生") },
+    { id: "thrill", w: 0.1, cash: [400, 800], pref: { thrill: 1, charm: 0.1, photo: 0.2 }, patience: 35, name: C("刺激派", "絶叫派") },
+    { id: "photo", w: 0.15, cash: [400, 800], pref: { thrill: 0.2, charm: 0.6, photo: 1 }, patience: 25, name: C("拍照派", "映え派") },
+    { id: "elder", w: 0.1, cash: [400, 800], pref: { thrill: 0, charm: 0.8, photo: 0.3 }, patience: 40, name: C("老人家", "お年寄り") },
   ];
 
   D.NEED_RATE = { fun: 0.3, hunger: 0.2, thirst: 0.25, toilet: 0.15, fatigue: 0.12, dry: 0 };
