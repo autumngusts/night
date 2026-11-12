@@ -39,7 +39,7 @@ from site_src.izakaya_page import IZAKAYA_SCRIPTS, build_izakaya_html
 from site_src.yoi_page import YOI_SCRIPTS, build_yoi_html
 from site_src.sennyu_page import SENNYU_SCRIPTS, build_sennyu_html
 from site_src.champ_page import CHAMP_SCRIPTS, build_champ_html
-from site_src.ennichi_page import ENNICHI_SCRIPTS, build_ennichi_html
+from site_src.ennichi_page import ENNICHI_LAB_SCRIPTS, ENNICHI_SCRIPTS, build_ennichi_html, build_ennichi_lab_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -174,6 +174,7 @@ def build_static_assets() -> None:
         *SENNYU_SCRIPTS,
         *CHAMP_SCRIPTS,
         *ENNICHI_SCRIPTS,
+        *ENNICHI_LAB_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -326,6 +327,8 @@ def build_pages() -> None:
     ennichi_dir = DIST_DIR / "ennichi"
     ennichi_dir.mkdir(parents=True, exist_ok=True)
     (ennichi_dir / "index.html").write_text(build_ennichi_html(), encoding="utf-8")
+    (ennichi_dir / "lab").mkdir(parents=True, exist_ok=True)
+    (ennichi_dir / "lab" / "index.html").write_text(build_ennichi_lab_html(), encoding="utf-8")
 
 
 

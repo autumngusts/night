@@ -146,4 +146,10 @@ PROJECTS = [
         "name_key": "project_champ_name",
         "desc_key": "project_champ_desc",
     },
+    {
+        "id": "ennichi",
+        "href": "ennichi/index.html",
+        "name_key": "project_ennichi_name",
+        "desc_key": "project_ennichi_desc",
+    },
 ]

@@ -8,6 +8,7 @@ murmur、角色名等遊戲資料的文字放在 static_src/ennichi_lab.js（C(z
 from __future__ import annotations
 
 ENNICHI_ZH: dict[str, str] = {
+    "en_title": "緣日樂園",
     "en_lab_title": "緣日樂園・人物呈現樣本",
     "en_lab_lead": "技術驗證：全站共用的 three.js r149 能否載入 VRM 與 glTF。近景是 VRM 巫女小夜（卡通著色、貼圖五官與眨眼、頭髮與袖子的彈簧），遠處的客人是把同一個 VRM 渲染成圖集的看板人物，頭上冒出 murmur；點氣泡或下方卡片可以看立繪。拖曳旋轉鏡頭、滾輪縮放。",
     "en_loading": "載入 three.js 與 VRM 中……",
@@ -61,6 +62,7 @@ ENNICHI_ZH: dict[str, str] = {
 }
 
 ENNICHI_JA: dict[str, str] = {
+    "en_title": "縁日遊園",
     "en_lab_title": "縁日遊園・キャラクター表現サンプル",
     "en_lab_lead": "技術検証：サイト共通の three.js r149 で VRM と glTF を読み込めるか。手前は VRM の巫女・小夜（トゥーン、テクスチャの顔とまばたき、髪と袖の揺れ）、奥のお客さんは同じ VRM をアトラスに焼いたビルボード。頭上に murmur が出て、吹き出しや下のカードで立ち絵を表示。ドラッグで回転、ホイールでズーム。",
     "en_loading": "three.js と VRM を読み込み中……",
@@ -114,6 +116,14 @@ ENNICHI_JA: dict[str, str] = {
 }
 
 ENNICHI_EN: dict[str, str] = {
+    "en_title": "Ennichi Park",
     "en_lab_title": "Ennichi Park — character rendering sample",
     "en_lab_lead": "Tech check: can the site's shared three.js r149 load VRM and glTF? Up close is the VRM shrine maiden Sayo (toon shading, expressions, spring-bone hair); the crowd are billboards baked from the same VRM, with murmurs over their heads. Click a bubble or a card to see the portrait. Drag to orbit, wheel to zoom.",
+}
+
+
+ENNICHI_PROJECT: dict[str, dict[str, str]] = {
+    "zh": {"project_ennichi_name": "緣日樂園", "project_ennichi_desc": "神社遊樂園經營：在老工房把原木、鐵料一層層加工成彩繪唐獅子、摩天輪車廂，組裝旋轉木馬與攤位；看天氣調整生產、實現客人掛在繪馬上的願望，讓沒落的小神社熱鬧起來"},
+    "ja": {"project_ennichi_name": "縁日遊園", "project_ennichi_desc": "神社の遊園地経営：古い工房で原木や鉄を何段も加工して彩色唐獅子や観覧車のゴンドラに仕上げ、メリーゴーランドや屋台を組み立てる。天気を見て生産を調整し、絵馬に書かれたお客さんの願いを叶えて寂れた神社をにぎやかに"},
+    "en": {"project_ennichi_name": "Ennichi Park", "project_ennichi_desc": "Run a shrine-side amusement park: refine lumber and iron through a three-tier workshop into painted lions and Ferris-wheel cabins, assemble rides and stalls, plan around the weather and grant the wishes guests hang on ema plaques"},
 }
