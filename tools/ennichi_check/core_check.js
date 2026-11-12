@@ -229,8 +229,9 @@ function sidOf(s, type) { return +Object.keys(s.structs).filter(function (k) { r
   assert.strictEqual(Sim.distField(s, "gate"), gate, "快取");
   Core.setPath(s, 3, 11, true); assert.notStrictEqual(Sim.distField(s, "gate"), gate, "改地圖後重算");
   // 來客數（第 1 天的天氣依種子而定 → 固定成晴天檢查公式）
-  // 2026-11-12 起以樂園容量封頂（舊斷言「rep 100 週末 = 90 × 1.8」已過時：freshPark 的容量只有 96）
-  var cap = D.CAPACITY.base + D.BUILD.merry.cap * D.CAPACITY.perSeat + 2 * D.CAPACITY.perShop; // 旋轉木馬＋章魚燒攤＋長椅
+  // 2026-11-12 起以樂園容量封頂（舊斷言「rep 100 週末 = 90 × 1.8」已過時：freshPark 的容量只有 96，2026-11-13 改設施加權後為 94）
+  // 2026-11-13 起設施依 cap 加權（舊公式「長椅也算 1 個 perShop」已過時：垃圾桶、長椅會灌容量；規格 §5.4.1）
+  var cap = D.CAPACITY.base + D.BUILD.merry.cap * D.CAPACITY.perSeat + D.CAPACITY.perShop + D.BUILD.bench.cap * D.CAPACITY.perFacSeat; // 旋轉木馬＋章魚燒攤＋長椅
   assert.strictEqual(Sim.capacity(s), cap, "容量公式");
   s.weather[1] = "sun"; assert.strictEqual(Sim.arrivals(s), Math.min(30, cap));
   s.weather[1] = "rain"; assert.strictEqual(Sim.arrivals(s), Math.round(Math.min(30, cap) * 0.6));
@@ -346,7 +347,7 @@ function walker(s, x, y, sid, need) {
   assert.ok(Math.abs(n.hap - (hap - D.MOOD.noFacility)) < 0.1, "第一次扣 noFacility");
   assert.strictEqual(t.today.topics.thirst, nm + 1, "一定會說出需求");
   assert.strictEqual(n.ncd, D.MOOD.noFacilityCd);
-  // 冷卻期間：每分鐘都找不到汽水攤，但不再抱怨（舊規則是每分鐘 −3）。客人會順路去參拜，所以用 murmur 次數驗證
+  // 冷卻期間：每分鐘都找不到汽水攤，但不再抱怨（舊規則是每分鐘 −3）。客人會在步道上閒逛（2026-11-13 前是被導去參拜），所以用 murmur 次數驗證
   for (i = 0; i < D.MOOD.noFacilityCd - 1; i++) { n.sid = null; n.skip = 0; n.need.thirst = 90; Sim.guestStep(t, n); }
   assert.strictEqual(t.today.topics.thirst, nm + 1, "冷卻期間不再抱怨／扣分");
   n.sid = null; n.skip = 0; n.need.thirst = 90; Sim.guestStep(t, n); Sim.guestStep(t, n);
@@ -554,4 +555,123 @@ var Wish = window.PriTestEnnichiWish;
   window.PriTestEnnichiWish.check(w2);
   assert.strictEqual(Core.seasonResult(w2).wishes, before + 1);
   console.log("10. 日循環、施工進度、結算、修理、季末 OK");
+})();
+
+// ---------------- 11. 最終審查修正（2026-11-13）：參拜、入園費、容量、輸入檢查、躲雨抱怨、排隊屋台重連 ----------------
+(function () {
+  // (1) 參拜每位客人每天只有第一次有效；找不到去處的客人不再被導去參拜，改在步道上閒逛
+  var s = freshPark(71); openToday(s);
+  var shrine = sidOf(s, "shrine"), ent = Core.entranceOf(s.structs[shrine]);
+  var g = walker(s, ent.x, ent.y, shrine, { fun: 90 });
+  var hap = g.hap, wishes = s.wishes.length;
+  Sim.arrive(s, g);
+  assert.ok(g.prayed, "參拜過了");
+  assert.strictEqual(g.need.fun, 90 - D.BUILD.shrine.fun, "fun 需求減少量取自 D.BUILD.shrine.fun");
+  assert.strictEqual(g.hap, hap + D.BUILD.shrine.hap, "心情增加量取自 D.BUILD.shrine.hap");
+  var hap2 = g.hap, fun2 = g.need.fun, w2 = s.wishes.length;
+  for (var i = 0; i < 200; i++) { g.sid = shrine; g.x = ent.x; g.y = ent.y; Sim.arrive(s, g); }
+  assert.strictEqual(g.hap, hap2, "第二次以後參拜不加心情");
+  assert.strictEqual(g.need.fun, fun2, "第二次以後參拜不減 fun");
+  assert.strictEqual(s.wishes.length, w2, "第二次以後參拜不掛繪馬");
+  // 參拜過的客人：沒有其他好玩的（旋轉木馬停駛）→ choose 不再選神社
+  s.today.closed = ["merry"]; g.need.fun = 90;
+  assert.strictEqual(Sim.choose(s, g), null, "參拜過就不再選神社");
+  var fresh = walker(s, 3, 10, null, { fun: 90 });
+  assert.strictEqual(Sim.choose(s, fresh), shrine, "還沒參拜的客人可以去參拜");
+  s.today.closed = [];
+  // 需求無法滿足（沒有汽水攤）的客人在神社前待 120 分鐘：心情不會上升、也不會參拜
+  var t = freshPark(72); openToday(t); t.guests = [];
+  var tShrine = sidOf(t, "shrine"), te = Core.entranceOf(t.structs[tShrine]);
+  var n = walker(t, te.x, te.y, null, { thirst: 90 });
+  var h0 = n.hap, pos = {};
+  for (i = 0; i < 120; i++) {
+    Sim.guestStep(t, n);
+    assert.ok(Core.isPath(t, n.x, n.y), "閒逛時一直走在步道上");
+    pos[n.x + "," + n.y] = 1;
+  }
+  assert.ok(n.hap <= h0, "需求無法滿足時心情不會上升：" + h0 + " → " + n.hap);
+  assert.ok(!n.prayed, "不會被導去參拜");
+  assert.ok(Object.keys(pos).length > 3, "會在步道上閒逛");
+  // 空樂園（只有神社）跑 5 天：口碑不會衝上 Lv3（修正前每天 +20、心情 100）
+  var e = Core.newGame({ seed: 73 });
+  for (var d = 0; d < 5; d++) {
+    Core.applyIntent(e, { a: "open" }); Core.tick(e, 700); Core.applyIntent(e, { a: "next" });
+    assert.ok(e.history[d].avgHap < 70, "空樂園的平均心情不該很高：" + e.history[d].avgHap);
+  }
+  assert.ok(Core.popLevel(e) < 3, "空樂園 5 天不會到 Lv3：rep " + e.rep);
+  assert.ok(e.rep < 50, "空樂園 5 天口碑幾乎不動：rep " + e.rep);
+
+  // (2) 入園費：錢不夠的客人在門口折返（不收費、不算入園、說一句太貴）；來客數隨入園費下降
+  var f = freshPark(74); openToday(f);
+  f.fee = 99999; // 直接改 state（不走 setFee 的 2000 上限），比所有客群的預算上限都高
+  var cash = f.cash, gn = f.today.guests, nFee = f.today.topics.fee || 0;
+  for (i = 0; i < 20; i++) assert.strictEqual(Sim.spawn(f), null, "錢不夠 → 門口折返");
+  assert.strictEqual(f.cash, cash, "折返的客人不收費");
+  assert.strictEqual(f.today.guests, gn, "折返的客人不算入園人數");
+  assert.strictEqual(f.today.fees, 0);
+  assert.strictEqual(f.guests.length, 0);
+  assert.strictEqual(f.today.topics.fee, nFee + 20, "每位折返的客人說一句入園費太貴");
+  assert.ok(Murmur.TEMPLATES.complaint.fee.length > 0);
+  // 入園費 900：學生（預算 600〜1200）有一部分會折返；整天跑完客人的錢不會變成負數
+  var p = freshPark(75); p.fee = 900; p.ware.takoyaki = 40;
+  Core.applyIntent(p, { a: "open" });
+  var minCash = 1e9;
+  while (p.phase === "open") { Core.tick(p, 1); p.guests.forEach(function (x) { minCash = Math.min(minCash, x.cash); }); }
+  assert.ok(minCash >= 0, "客人的錢不會是負數：" + minCash);
+  assert.ok(p.history[0].guests > 0);
+  // 來客係數
+  var a = freshPark(76); a.weather[1] = "sun"; a.rep = 100;
+  function arrAt(fee) { a.fee = fee; return Sim.arrivals(a); }
+  assert.strictEqual(Sim.feeFactor((a.fee = D.ENTRY_FEE, a)), 1, "基準入園費係數 1");
+  assert.strictEqual(Sim.feeFactor((a.fee = 0, a)), 1, "便宜不會超過 1");
+  assert.strictEqual(Sim.feeFactor((a.fee = 400, a)), Math.max(D.FEE.min, 1 - D.FEE.k), "400 元");
+  assert.strictEqual(Sim.feeFactor((a.fee = 2000, a)), D.FEE.min, "封底");
+  var r200 = arrAt(200), r300 = arrAt(300), r400 = arrAt(400), r1000 = arrAt(1000);
+  assert.ok(r200 > r300 && r300 > r400 && r400 > r1000 && r1000 > 0, "入園費越高來客越少：" + [r200, r300, r400, r1000]);
+  a.fee = 400; assert.strictEqual(r400, Math.round(Math.min(90, Sim.capacity(a)) * 1 * Sim.feeFactor(a)), "來客公式");
+
+  // (3) 容量：只算 cap > 0 的設施，依 cap 加權；垃圾桶不灌容量
+  var c = freshPark(77), c0 = Sim.capacity(c);
+  Core.give(c, D.BUILD.trash.parts); var tr = Core.build(c, "trash", 15, 9); assert.ok(tr.ok, "蓋垃圾桶 " + tr.err);
+  assert.strictEqual(Sim.capacity(c), c0, "垃圾桶（cap 0）不增加容量");
+  Core.give(c, D.BUILD.bench.parts); var bn = Core.build(c, "bench", 16, 9); assert.ok(bn.ok, "蓋長椅 " + bn.err);
+  assert.strictEqual(Sim.capacity(c), c0 + D.BUILD.bench.cap * D.CAPACITY.perFacSeat, "長椅依 cap 加權");
+  Core.give(c, D.BUILD.toilet.parts); var to = Core.build(c, "toilet", 17, 8); assert.ok(to.ok, "蓋廁所 " + to.err); finishAll(c);
+  assert.strictEqual(Sim.capacity(c), c0 + (D.BUILD.bench.cap + D.BUILD.toilet.cap) * D.CAPACITY.perFacSeat, "廁所依 cap 加權");
+
+  // (4) 輸入檢查：NaN／字串／Infinity 一律拒絕，狀態與存檔不被污染
+  var v = freshPark(78), mid = sidOf(v, "merry"), price = v.structs[mid].price, fee = v.fee;
+  [NaN, Infinity, -Infinity, "300", null, undefined].forEach(function (x) {
+    assert.ok(!Core.applyIntent(v, { a: "price", sid: mid, price: x }).ok, "price 拒絕 " + x);
+    assert.ok(!Core.applyIntent(v, { a: "fee", fee: x }).ok, "fee 拒絕 " + x);
+  });
+  assert.strictEqual(v.structs[mid].price, price); assert.strictEqual(v.fee, fee);
+  var back = JSON.parse(Core.serialize(v));
+  assert.strictEqual(back.fee, fee, "存檔的入園費不是 null"); assert.strictEqual(back.structs[mid].price, price);
+  assert.ok(Core.applyIntent(v, { a: "fee", fee: 300 }).ok); assert.strictEqual(v.fee, 300);
+  v.machines = [{ type: "saw", rid: "plank", t: null, limit: 5 }];
+  [0, NaN, Infinity, "5", 0.5, -3, undefined, D.WARE_CAP + 1].forEach(function (x) {
+    assert.ok(!Core.applyIntent(v, { a: "limit", mi: 0, n: x }).ok, "limit 拒絕 " + x);
+  });
+  assert.strictEqual(v.machines[0].limit, 5, "被拒絕時不改");
+  assert.ok(Core.applyIntent(v, { a: "limit", mi: 0, n: 1 }).ok); assert.strictEqual(v.machines[0].limit, 1);
+  assert.ok(Core.applyIntent(v, { a: "limit", mi: 0, n: null }).ok); assert.strictEqual(v.machines[0].limit, null);
+
+  // (5) 沒地方躲雨的抱怨與「找不到對應設施」共用冷卻：淋濕的客人 60 分鐘最多抱怨 3 次（舊版每分鐘 30%）
+  var rn = freshPark(79); openToday(rn); rn.today.weather = "rain"; rn.guests = [];
+  var wet = walker(rn, 3, 10, null, { dry: 90 });
+  var before = (rn.today.topics.rain || 0) + (rn.today.topics.dry || 0);
+  for (i = 0; i < 60; i++) { wet.need.dry = 90; Sim.guestStep(rn, wet); }
+  var said = (rn.today.topics.rain || 0) + (rn.today.topics.dry || 0) - before;
+  assert.ok(said >= 1 && said <= 3, "躲雨抱怨有冷卻：" + said);
+
+  // (7) 新蓋的遊樂設施會把附近沒連結的排隊屋台重新連上
+  var q = freshPark(80), qm = sidOf(q, "merry");
+  var qs = q.structs[Core.build(q, "qstall", 8, 9).sid];
+  assert.strictEqual(qs.link, qm);
+  assert.ok(Core.demolish(q, qm)); assert.strictEqual(qs.link, null, "拆掉設施 → 連結清空");
+  Core.give(q, D.BUILD.merry.parts);
+  var nm = Core.build(q, "merry", 4, 6); assert.ok(nm.ok, "重蓋旋轉木馬 " + nm.err);
+  assert.strictEqual(qs.link, nm.sid, "重蓋後排隊屋台重新連上");
+  console.log("11. 最終審查修正（參拜、入園費、容量、輸入檢查、躲雨抱怨、排隊屋台）OK");
 })();
