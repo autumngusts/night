@@ -1,7 +1,7 @@
 """緣日樂園（ennichi）的 UI 字串（zh / ja / en）。
 
 鍵用 en_ 前綴（generate.py 的 GAME_I18N_PREFIXES 會把它們輸出成 static/i18n/ennichi.js）。
-murmur、角色名等遊戲資料的文字放在 static_src/ennichi_lab.js（C(zh, ja)）。
+murmur、繪馬、設施名等遊戲資料的文字放在 static_src/ennichi_data.js、ennichi_murmur.js、ennichi_wish.js（C(zh, ja)）；人物呈現樣本的文字在 ennichi_lab.js。
 英文只有標題與樣本說明，其餘 fallback 到繁中。2026-11-12 依使用者需求新增；遊戲畫面（ennichi.js）的字串在「遊戲畫面」段。
 """
 
@@ -176,6 +176,7 @@ ENNICHI_ZH: dict[str, str] = {
     "en_topic_litter": "垃圾",
     "en_topic_wind": "強風停駛",
     "en_topic_rain": "沒地方躲雨",
+    "en_topic_fee": "入園費太貴",
     "en_topic_shrine": "參拜",
     "en_topic_recommend": "推薦",
     "en_topic_photo": "拍照",
@@ -355,6 +356,7 @@ ENNICHI_JA: dict[str, str] = {
     "en_topic_litter": "ゴミ",
     "en_topic_wind": "強風で運休",
     "en_topic_rain": "雨宿りできない",
+    "en_topic_fee": "入園料が高い",
     "en_topic_shrine": "お参り",
     "en_topic_recommend": "おすすめ",
     "en_topic_photo": "写真映え",

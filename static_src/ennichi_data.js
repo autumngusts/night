@@ -27,8 +27,15 @@
   D.OUTFITS = 4;
   D.QSTALL_RANGE = 3;
   D.TICKET_FACTOR = 2;
-  // 樂園容量（來客上限）＝ base ＋ 完工遊樂設施的座位數（cap 合計）× perSeat ＋ 完工攤位／排隊屋台／設施數 × perShop
-  D.CAPACITY = { base: 20, perSeat: 5, perShop: 8 };
+  // 樂園容量（來客上限）＝ base ＋ 完工遊樂設施的座位數（cap 合計）× perSeat ＋ 完工攤位／排隊屋台數 × perShop
+  //   ＋ 完工設施（長椅、廁所、休憩棚）的容量（cap 合計）× perFacSeat；cap 0 的設施（垃圾桶）不算。
+  //   （2026-11-13 修正：舊公式每個設施一律 +perShop，¥20 的垃圾桶也能灌容量）
+  D.CAPACITY = { base: 20, perSeat: 5, perShop: 8, perFacSeat: 3 };
+  // 入園費對來客的影響（使用者決定 2026-11-13，規格 §5.4.1）：
+  //   來客係數 ＝ clamp( 1 − k × (入園費 − ENTRY_FEE) ÷ ENTRY_FEE, min, 1 )
+  //   → 入園費 ≤ 200 時 1、300 時 0.75、400 時 0.5、≥ 520 時封底 min。
+  //   另外錢不夠付入園費的客人在門口折返（不收費、不算入園人數、說一句「入園費太貴」）。
+  D.FEE = { k: 0.5, min: 0.2 };
   // 口碑：每天 round((平均心情 − base) × mood) ＋ min(SNS, snsMax)，整體限制在 ±dayMax
   D.REP = { base: 55, mood: 1, snsMax: 5, dayMax: 20 };
   // 心情扣分：賣完、買不起（錢不夠）、需求 ≥ 70 卻沒有對應設施（每位客人冷卻 noFacilityCd 分鐘才再扣）
@@ -123,7 +130,8 @@
 
   function slot(m, n, eff) { return { mod: m, n: n, eff: eff }; }
   D.BUILD = {
-    shrine: { kind: "shrine", w: 4, h: 4, cash: 0, parts: {}, lv: 1, fun: 20, photo: 2, name: C("神社本殿", "本殿") },
+    // 參拜：每位客人每天只有第一次有效（fun 需求 −fun、心情 +hap、可能許願／感想），規格 §5.2.1
+    shrine: { kind: "shrine", w: 4, h: 4, cash: 0, parts: {}, lv: 1, fun: 20, hap: 3, photo: 2, name: C("神社本殿", "本殿") },
     // 大型設施（第三層模組＋組裝期）
     merry: { kind: "ride", large: true, days: 1, w: 4, h: 4, cash: 500, lv: 1, parts: { lionPost: 6, tent: 1, turntable: 1, lanterns: 2 },
       cap: 12, cycle: 4, price: 300, thrill: 1, charm: 3, photo: 2, wear: 4, fix: { gear: 2 },
@@ -165,13 +173,18 @@
   // 依 sim.js 調整（2026-11-12）：客群預算 原值 親子 1500〜3000／情侶 1500〜2500／學生 600〜1200／其餘 1000〜2000
   //   → 新值 約 ×0.4（學生 300〜600）。理由：預算太多時客人錢花不完、免費參拜無限加心情，
   //   四個種子的季平均心情都在 94（目標 50〜85）；調整後 76〜78。
+  // 依 sim.js 調整（2026-11-13）：客群預算 原值 親子 600〜1200／情侶 600〜1000／學生 300〜600／其餘 400〜800
+  //   → 新值 還原成 2026-11-12 以前的 親子 1500〜3000／情侶 1500〜2500／學生 600〜1200／其餘 1000〜2000。
+  //   理由：上一次 ×0.4 是為了壓住「免費參拜無限加心情」；參拜改成每天只有第一次有效後，心情掉到 55〜58，
+  //   錢少的客人很快買不起遊樂設施，口碑升不到 Lv2、機器槽不夠，四個種子都蓋不出旋轉木馬（第 10 天前）。
+  //   還原後季平均心情 58〜60、季末 Lv4、旋轉木馬第 5〜7 天完成。
   D.GUESTS = [
-    { id: "family", w: 0.25, cash: [600, 1200], pref: { thrill: 0.2, charm: 1, photo: 0.4 }, patience: 25, name: C("親子", "親子") },
-    { id: "couple", w: 0.2, cash: [600, 1000], pref: { thrill: 0.4, charm: 0.6, photo: 1 }, patience: 30, name: C("情侶", "カップル") },
-    { id: "student", w: 0.2, cash: [300, 600], pref: { thrill: 0.8, charm: 0.5, photo: 0.4 }, patience: 20, name: C("學生", "学生") },
-    { id: "thrill", w: 0.1, cash: [400, 800], pref: { thrill: 1, charm: 0.1, photo: 0.2 }, patience: 35, name: C("刺激派", "絶叫派") },
-    { id: "photo", w: 0.15, cash: [400, 800], pref: { thrill: 0.2, charm: 0.6, photo: 1 }, patience: 25, name: C("拍照派", "映え派") },
-    { id: "elder", w: 0.1, cash: [400, 800], pref: { thrill: 0, charm: 0.8, photo: 0.3 }, patience: 40, name: C("老人家", "お年寄り") },
+    { id: "family", w: 0.25, cash: [1500, 3000], pref: { thrill: 0.2, charm: 1, photo: 0.4 }, patience: 25, name: C("親子", "親子") },
+    { id: "couple", w: 0.2, cash: [1500, 2500], pref: { thrill: 0.4, charm: 0.6, photo: 1 }, patience: 30, name: C("情侶", "カップル") },
+    { id: "student", w: 0.2, cash: [600, 1200], pref: { thrill: 0.8, charm: 0.5, photo: 0.4 }, patience: 20, name: C("學生", "学生") },
+    { id: "thrill", w: 0.1, cash: [1000, 2000], pref: { thrill: 1, charm: 0.1, photo: 0.2 }, patience: 35, name: C("刺激派", "絶叫派") },
+    { id: "photo", w: 0.15, cash: [1000, 2000], pref: { thrill: 0.2, charm: 0.6, photo: 1 }, patience: 25, name: C("拍照派", "映え派") },
+    { id: "elder", w: 0.1, cash: [1000, 2000], pref: { thrill: 0, charm: 0.8, photo: 0.3 }, patience: 40, name: C("老人家", "お年寄り") },
   ];
 
   D.NEED_RATE = { fun: 0.3, hunger: 0.2, thirst: 0.25, toilet: 0.15, fatigue: 0.12, dry: 0 };

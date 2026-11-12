@@ -11,6 +11,7 @@
 
   function targetOf(s, key) {
     if (key === "gate") return M.GATE;
+    if (typeof key === "string" && key.charAt(0) === "t") { var i = +key.slice(1); return { x: i % M.W, y: Math.floor(i / M.W) }; } // 閒逛目標格（"t" + 格子索引）
     var st = s.structs[key];
     return st ? Core.entranceOf(st) : null;
   }
@@ -38,22 +39,29 @@
   }
 
   function isWeekend(day) { var w = day % 7; return w === 6 || w === 0; }
-  // 樂園容量：完工遊樂設施座位數 × perSeat ＋ 完工攤位／排隊屋台／設施數 × perShop ＋ base
+  // 樂園容量：base ＋ 完工遊樂設施座位數 × perSeat ＋ 完工攤位／排隊屋台數 × perShop ＋ 完工設施容量 × perFacSeat
+  // （設施依 cap 加權，cap 0 的垃圾桶不算；規格 §5.4.1）
   function capacity(s) {
     var c = D.CAPACITY, n = c.base;
     for (var k in s.structs) {
       var st = s.structs[k], b = D.BUILD[st.type];
       if (st.build > 0) continue;
       if (b.kind === "ride") n += b.cap * c.perSeat;
-      else if (b.kind === "stall" || b.kind === "qstall" || b.kind === "facility") n += c.perShop;
+      else if (b.kind === "stall" || b.kind === "qstall") n += c.perShop;
+      else if (b.kind === "facility" && b.cap > 0) n += b.cap * c.perFacSeat;
     }
     return n;
   }
-  // 來客數：口碑決定想來的人數（週末 ×1.8），以樂園容量封頂，再乘天氣係數
+  // 入園費係數：clamp(1 − k × (入園費 − ENTRY_FEE) ÷ ENTRY_FEE, min, 1)（規格 §5.4.1）
+  function feeFactor(s) {
+    var f = 1 - D.FEE.k * (s.fee - D.ENTRY_FEE) / D.ENTRY_FEE;
+    return Math.max(D.FEE.min, Math.min(1, f));
+  }
+  // 來客數：口碑決定想來的人數（週末 ×1.8），以樂園容量封頂，再乘天氣係數與入園費係數
   function arrivals(s) {
     var w = D.WEATHER[Core.weatherOf(s, s.day)];
     var want = (30 + s.rep * 0.6) * (isWeekend(s.day) ? 1.8 : 1);
-    return Math.round(Math.min(want, capacity(s)) * w.arrive);
+    return Math.round(Math.min(want, capacity(s)) * w.arrive * feeFactor(s));
   }
   function spawnSchedule(s) {
     var n = arrivals(s), out = [];
@@ -70,8 +78,12 @@
       hap: 60, cash: gt.cash[0] + Core.rint(s, gt.cash[1] - gt.cash[0] + 1), patience: gt.patience,
       wait: 0, t: 0, leaving: false, spent: 0, rides: 0, kasa: false, ticket: null,
       skip: 0, // 下車後暫停選目的地的剩餘分鐘數
-      ncd: 0 // 「找不到對應設施」抱怨的冷卻分鐘數
+      ncd: 0, // 「找不到對應設施」「沒地方躲雨」抱怨的冷卻分鐘數
+      prayed: false, // 今天參拜過了沒（只有第一次參拜有效）
+      wt: null // 沒有可去的地方時，閒逛的目標格索引
     };
+    // 錢不夠付入園費：在門口折返（不收費、不算入園人數），說一句「入園費太貴」
+    if (g.cash < s.fee) { mm(s, g, "complaint", "fee", {}); return null; }
     s.cash += s.fee; g.cash -= s.fee;
     if (s.today) { s.today.fees += s.fee; s.today.guests++; }
     s.guests.push(g);
@@ -125,12 +137,14 @@
       if (!isOpen(s, st) || kinds.indexOf(kindOf(st)) < 0) continue;
       if (g.ticket && g.ticket.sid === st.id && s.min < g.ticket.at) continue; // 持票者未到時間不可再選該設施
       if (D.BUILD[st.type].kind === "stall" && !stallUsable(s, g, st)) continue; // 賣完或買不起的攤位不去
+      if (g.prayed && D.BUILD[st.type].kind === "shrine") continue; // 今天已經參拜過
       var d = distField(s, k)[Core.ti(g.x, g.y)];
       if (d < 0) continue;
       var score = prefScore(g, st) * 50 - d * 1.5 - st.q.length * 3 + Core.rnd(s) * 10;
       if (score > bestScore) { bestScore = score; best = st.id; }
     }
-    if (!best && need === "dry" && Core.rnd(s) < 0.3) mm(s, g, "complaint", "rain", {});
+    // 沒地方躲雨：與「找不到對應設施」共用冷卻 g.ncd，避免每分鐘洗版
+    if (!best && need === "dry" && !(g.ncd > 0) && Core.rnd(s) < 0.3) { mm(s, g, "complaint", "rain", {}); g.ncd = D.MOOD.noFacilityCd; }
     if (need === "fun" && s.today && s.today.closed.length && Core.rnd(s) < 0.1) {
       var ct = s.today.closed[Core.rint(s, s.today.closed.length)];
       for (var j in s.structs) if (s.structs[j].type === ct) { mm(s, g, "complaint", "wind", { ride: D.BUILD[ct].name }); break; }
@@ -180,7 +194,6 @@
   function mm(s, g, type, topic, ctx) { if (window.PriTestEnnichiMurmur) window.PriTestEnnichiMurmur.say(s, g, type, topic, ctx); }
   function byId(s, gid) { for (var i = 0; i < s.guests.length; i++) if (s.guests[i].id === gid) return s.guests[i]; return null; }
   function clampHap(g) { g.hap = Math.max(0, Math.min(100, g.hap)); }
-  function shrineId(s) { for (var k in s.structs) if (s.structs[k].type === "shrine") return s.structs[k].id; return null; }
 
   function nearTrash(s, x, y) {
     for (var k in s.structs) {
@@ -261,9 +274,14 @@
       return;
     }
     if (k === "shrine") {
-      g.need.fun = Math.max(0, g.need.fun - 20); g.hap += 3; clampHap(g);
-      if (chance(s, 0.2)) mm(s, g, "impression", "shrine", {});
-      if (window.PriTestEnnichiWish) window.PriTestEnnichiWish.maybeMake(s, g, false);
+      // 每位客人每天只有第一次參拜有效（規格 §5.2.1）：否則找不到去處的客人會每分鐘重新參拜、心情無限上升
+      if (!g.prayed) {
+        var sb = D.BUILD[st.type];
+        g.prayed = true;
+        g.need.fun = Math.max(0, g.need.fun - sb.fun); g.hap += sb.hap; clampHap(g);
+        if (chance(s, 0.2)) mm(s, g, "impression", "shrine", {});
+        if (window.PriTestEnnichiWish) window.PriTestEnnichiWish.maybeMake(s, g, false);
+      }
     } else if (k === "food" || k === "drink" || k === "goods" || k === "kasa") buyAt(s, g, st);
     else if (k === "fatigue" || k === "shelter") { g.state = "rest"; g.t = D.BUILD[st.type].time; return; }
     else if (k === "toilet") { g.state = "toilet"; g.t = D.BUILD[st.type].time; return; }
@@ -372,10 +390,23 @@
         var need = urgentNeed(g);
         // 需求 ≥ 70 卻沒有對應設施：抱怨一次＋小扣分，之後冷卻 noFacilityCd 分鐘
         if (g.need[need] >= 70 && !(g.ncd > 0)) { g.hap -= D.MOOD.noFacility; clampHap(g); mm(s, g, "need", need, {}); g.ncd = D.MOOD.noFacilityCd; }
-        g.sid = shrineId(s); // 沒得選就去參拜
+        wander(s, g); // 沒得選就在步道上閒逛（2026-11-13 起不再被導去參拜）
+        return;
       }
+      g.wt = null;
     }
     if (g.sid && moveToward(s, g, g.sid)) arrive(s, g);
+  }
+
+  // 閒逛：走向隨機一格與入口相連的步道，到了再換一格
+  function wander(s, g) {
+    if (g.wt == null) {
+      var gate = distField(s, "gate"), cand = [];
+      for (var i = 0; i < gate.length; i++) if (gate[i] >= 0) cand.push(i);
+      if (!cand.length) return;
+      g.wt = cand[Core.rint(s, cand.length)];
+    }
+    if (moveToward(s, g, "t" + g.wt) || distField(s, "t" + g.wt)[Core.ti(g.x, g.y)] < 0) g.wt = null; // 到了（或地圖改了走不到）就換目標
   }
 
   function qstallStep(s, st) {
@@ -411,7 +442,7 @@
   }
 
   window.PriTestEnnichiSim = {
-    distField: distField, isWeekend: isWeekend, capacity: capacity, arrivals: arrivals, stallUsable: stallUsable, spawnSchedule: spawnSchedule, spawn: spawn,
+    distField: distField, isWeekend: isWeekend, capacity: capacity, feeFactor: feeFactor, arrivals: arrivals, wander: wander, stallUsable: stallUsable, spawnSchedule: spawnSchedule, spawn: spawn,
     kindOf: kindOf, guestType: guestType, prefScore: prefScore, urgentNeed: urgentNeed, isOpen: isOpen,
     choose: choose, moveToward: moveToward, needsTick: needsTick, weatherNow: weatherNow, closedFor: closedFor,
     step: step, rideStep: rideStep, buyAt: buyAt, arrive: arrive, breakDown: breakDown, byId: byId, chance: chance, mm: mm,
