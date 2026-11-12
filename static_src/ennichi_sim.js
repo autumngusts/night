@@ -107,6 +107,11 @@
       var score = prefScore(g, st) * 50 - d * 1.5 - st.q.length * 3 + Core.rnd(s) * 10;
       if (score > bestScore) { bestScore = score; best = st.id; }
     }
+    if (!best && need === "dry" && Core.rnd(s) < 0.3) mm(s, g, "complaint", "rain", {});
+    if (need === "fun" && s.today && s.today.closed.length && Core.rnd(s) < 0.1) {
+      var ct = s.today.closed[Core.rint(s, s.today.closed.length)];
+      for (var j in s.structs) if (s.structs[j].type === ct) { mm(s, g, "complaint", "wind", { ride: D.BUILD[ct].name }); break; }
+    }
     return best;
   }
 
@@ -124,9 +129,27 @@
     return f[Core.ti(g.x, g.y)] === 0;
   }
 
+  function weatherNow(s) { return D.WEATHER[s.today ? s.today.weather : Core.weatherOf(s, s.day)] || D.WEATHER.sun; }
+
+  function closedFor(s, weatherId) {
+    var w = D.WEATHER[weatherId], out = [];
+    if (w && w.stop) for (var t in D.BUILD) if (D.BUILD[t].wind) out.push(t);
+    return out;
+  }
+
   function needsTick(s, g) {
-    for (var k in D.NEED_RATE) g.need[k] = Math.min(100, g.need[k] + D.NEED_RATE[k]);
-    if (g.state === "walk") g.need.fatigue = Math.min(100, g.need.fatigue + 0.05);
+    var w = weatherNow(s);
+    for (var k in D.NEED_RATE) {
+      var r = D.NEED_RATE[k];
+      if (k === "thirst") r *= w.thirst;
+      if (k === "hunger") r *= w.hunger;
+      g.need[k] = Math.min(100, g.need[k] + r);
+    }
+    if (g.state === "walk") {
+      g.need.fatigue = Math.min(100, g.need.fatigue + 0.05);
+      if (w.wet && !g.kasa) g.need.dry = Math.min(100, g.need.dry + 0.6);
+    }
+    if (g.need.dry > 50) g.hap -= 0.03;
     g.hap = Math.max(0, Math.min(100, g.hap - s.dirt * 0.002));
   }
 
@@ -318,7 +341,7 @@
   window.PriTestEnnichiSim = {
     distField: distField, isWeekend: isWeekend, arrivals: arrivals, spawnSchedule: spawnSchedule, spawn: spawn,
     kindOf: kindOf, guestType: guestType, prefScore: prefScore, urgentNeed: urgentNeed, isOpen: isOpen,
-    choose: choose, moveToward: moveToward, needsTick: needsTick,
+    choose: choose, moveToward: moveToward, needsTick: needsTick, weatherNow: weatherNow, closedFor: closedFor,
     step: step, rideStep: rideStep, buyAt: buyAt, arrive: arrive, breakDown: breakDown, byId: byId, chance: chance, mm: mm,
     clampHap: clampHap, guestStep: guestStep, finishGuest: finishGuest
   };

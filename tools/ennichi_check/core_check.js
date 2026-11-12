@@ -308,3 +308,29 @@ function walker(s, x, y, sid, need) {
   assert.strictEqual(u.guests.length, 0); assert.ok(u.today.hapN >= 1);
   console.log("6. 搭乘、攤位、故障、murmur OK");
 })();
+
+// ---------------- 7. 天氣 ----------------
+(function () {
+  var s = freshPark(41); openToday(s);
+  s.today.weather = "sun";
+  var g = walker(s, 2, 10, null, {});
+  Sim.needsTick(s, g); var sunThirst = g.need.thirst;
+  s.today.weather = "rain";
+  var h = walker(s, 2, 10, null, {});
+  Sim.needsTick(s, h);
+  assert.ok(h.need.thirst < sunThirst, "雨天比較不渴");
+  assert.ok(h.need.dry > 0, "沒有傘會淋濕");
+  h.kasa = true; var d = h.need.dry; Sim.needsTick(s, h); assert.strictEqual(h.need.dry, d, "有傘不再淋濕");
+  // 淋濕的客人會去買傘或避雨
+  Core.give(s, D.BUILD.kasaSt.parts); s.phase = "plan";
+  var kasa = Core.build(s, "kasaSt", 16, 8).sid; s.phase = "open";
+  var w = walker(s, 2, 10, null, { dry: 90 });
+  assert.strictEqual(Sim.choose(s, w), kasa);
+  s.ware.kasa = 2; w.x = 17; w.y = 10; w.sid = kasa;
+  Sim.step(s);
+  assert.ok(w.kasa && w.need.dry === 0, "買到和傘");
+  // 強風：飛椅、摩天輪停駛
+  assert.deepStrictEqual(Sim.closedFor(s, "wind").sort(), ["chairs", "wheel"]);
+  assert.deepStrictEqual(Sim.closedFor(s, "sun"), []);
+  console.log("7. 天氣 OK");
+})();
