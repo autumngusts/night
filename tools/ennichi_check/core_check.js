@@ -188,3 +188,56 @@ function finishAll(s) { for (var k in s.structs) s.structs[k].build = 0; }
   assert.ok(Core.upgrade(s, cups.id, "drive"));
   console.log("4. 模組改裝 OK");
 })();
+
+// ---------------- 5. 客人：生成、尋路、選目的地 ----------------
+var Sim = window.PriTestEnnichiSim;
+function freshPark(seed) {
+  var s = Core.newGame({ seed: seed || 11 });
+  Core.give(s, D.BUILD.merry.parts);
+  Core.build(s, "merry", 4, 6);         // 入口 (6,10)
+  Core.build(s, "takoyakiSt", 10, 8);   // 入口 (11,10)
+  Core.build(s, "bench", 14, 9);        // 入口 (14,10)
+  finishAll(s);
+  return s;
+}
+function sidOf(s, type) { return +Object.keys(s.structs).filter(function (k) { return s.structs[k].type === type; })[0]; }
+(function () {
+  var s = freshPark();
+  var gate = Sim.distField(s, "gate");
+  assert.strictEqual(gate[Core.ti(5, 10)], 5); assert.strictEqual(gate[Core.ti(5, 5)], -1);
+  assert.strictEqual(Sim.distField(s, sidOf(s, "merry"))[Core.ti(0, 10)], 6);
+  assert.strictEqual(Sim.distField(s, "gate"), gate, "快取");
+  Core.setPath(s, 3, 11, true); assert.notStrictEqual(Sim.distField(s, "gate"), gate, "改地圖後重算");
+  // 來客數（第 1 天的天氣依種子而定 → 固定成晴天檢查公式）
+  s.weather[1] = "sun"; assert.strictEqual(Sim.arrivals(s), 30);
+  s.weather[1] = "rain"; assert.strictEqual(Sim.arrivals(s), Math.round(30 * 0.6));
+  s.day = 6; s.weather[6] = "sun"; s.rep = 100; assert.strictEqual(Sim.arrivals(s), Math.round(90 * 1.8));
+  s.day = 1; s.rep = 0; s.weather[1] = "sun";
+  var sch = Sim.spawnSchedule(s);
+  assert.strictEqual(sch.length, 30);
+  assert.ok(sch.every(function (m, i) { return m >= D.DAY_START && m <= D.LAST_ENTRY && (i === 0 || m >= sch[i - 1]); }));
+  s.today = { guests: 0, fees: 0, rev: 0, murmurs: [], topics: {}, closed: [], sales: {} };
+  var cash = s.cash, g = Sim.spawn(s);
+  assert.deepStrictEqual([g.x, g.y], [0, 10]); assert.strictEqual(s.cash, cash + s.fee);
+  assert.strictEqual(g.need.dry, 0); assert.strictEqual(g.kasa, false);
+  g.need = { fun: 0, hunger: 90, thirst: 0, toilet: 0, fatigue: 0, dry: 0 };
+  assert.strictEqual(s.structs[Sim.choose(s, g)].type, "takoyakiSt");
+  g.need = { fun: 0, hunger: 0, thirst: 0, toilet: 0, fatigue: 90, dry: 0 };
+  assert.strictEqual(s.structs[Sim.choose(s, g)].type, "bench");
+  g.need = { fun: 0, hunger: 0, thirst: 90, toilet: 0, fatigue: 0, dry: 0 };
+  assert.strictEqual(Sim.choose(s, g), null, "沒有汽水攤");
+  // 施工中、停駛的不選
+  g.need = { fun: 90, hunger: 0, thirst: 0, toilet: 0, fatigue: 0, dry: 0 };
+  s.structs[sidOf(s, "merry")].build = 1;
+  assert.strictEqual(s.structs[Sim.choose(s, g)].type, "shrine", "旋轉木馬施工中 → 只能去參拜");
+  s.structs[sidOf(s, "merry")].build = 0; s.today.closed = ["merry"];
+  assert.strictEqual(s.structs[Sim.choose(s, g)].type, "shrine", "停駛中");
+  s.today.closed = [];
+  g.need = { fun: 0, hunger: 90, thirst: 0, toilet: 0, fatigue: 0, dry: 0 };
+  g.sid = Sim.choose(s, g);
+  assert.ok(!Sim.moveToward(s, g, g.sid)); assert.strictEqual(g.x, 2);
+  for (var i = 0; i < 10 && !Sim.moveToward(s, g, g.sid); i++);
+  assert.deepStrictEqual([g.x, g.y], [11, 10]);
+  var h = g.need.hunger; Sim.needsTick(s, g); assert.ok(g.need.hunger > h);
+  console.log("5. 客人（生成、尋路、選目的地）OK");
+})();
