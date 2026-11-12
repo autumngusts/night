@@ -782,4 +782,10 @@ async function build(id, c) {
   console.log("wrote", path.relative(ROOT, out), (glb.length / 1024).toFixed(1) + " KB,", totalVerts, "verts");
 }
 
-build("sayo", SAYO).catch(function (e) { console.error(e); process.exit(1); });
+// Blender 版（tools/ennichi_blender/）沿用同一套五官貼圖與尺寸
+module.exports = {
+  SAYO: SAYO, rasterize: rasterize, faceSvg: faceSvg, eyeSvg: eyeSvg, lidSvg: lidSvg, mouthSvg: mouthSvg,
+  EYE: { H: EYE_H, X: EYE_X, Y: EYE_Y, LID_UP: LID_UP },
+};
+
+if (require.main === module) build("sayo", SAYO).catch(function (e) { console.error(e); process.exit(1); });

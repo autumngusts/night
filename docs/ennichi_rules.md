@@ -285,6 +285,22 @@
   * 皮膚的 MToon 陰影色要淡（`#f4d0c6`）、不加邊緣光，否則夜景大半在陰影裡，整張臉會變橘紅。
   * 看板圖集每拍一格都要先 `springBoneManager.reset()`，否則轉向後馬尾會被甩歪。
 
+### 8.1.1 Blender 版（🧪 2026-11-12）
+
+`tools/ennichi_blender/`：用背景執行的 Blender（5.3）＋VRM Add-on for Blender（4.10.5，擴充 id `vrm`）程式產生同一位小夜，
+輸出 `static_src/models/ennichi/sayo_blender.vrm`（約 45,000 頂點、2.9 MB）。樣本頁的「模型」鍵可切換程式版／Blender 版比較（看板圖集維持程式版）。
+
+* 建置：`node tools/ennichi_blender/build.js`（先用 `build_vrm.js` 的 SVG 畫五官貼圖，再呼叫 `blender -b -P build_sayo.py`）。`--no-cloth` 可跳過布料模擬。
+* 造型、骨架、權重、五官尺寸與程式版相同（數字共用），差別：
+  * 頭、手、頭髮、衣領、腰紐等套用一階 Catmull-Clark 細分：輪廓圓滑、沒有稜角。
+  * 大袖在 T-pose 下以上緣為固定點做布料模擬（36 格）後套用形狀，再依新位置重算權重。
+  * 表情是形狀鍵；MToon、表情綁定、彈簧骨與碰撞球都透過 Add-on 的屬性 API 設定後匯出 VRM 1.0。
+* 注意：
+  * VRM Add-on 的 `blender_version_max` 是「小於」：Blender 5.3 需要 Add-on 4.10.5 以上（4.10.3 只到 5.2）。
+  * 形狀鍵要用 `shape_key_add(from_mix=False)`，否則前一個形狀鍵會混進來（曾出現 aa 也閉眼）。
+  * 碰撞球的位置直接搬 Add-on 建立的 Empty（世界座標），不用 `shape.sphere.offset`（骨頭軸向容易搞錯）。
+* 安裝：`winget install BlenderFoundation.Blender`；Add-on：`blender -b --command extension install-file -r user_default -e <zip>`。
+
 ### 8.2 讓模型更細緻的做法比較 ❓
 
 | 做法 | 臉型 | 服裝 | 成本 | 適用 |

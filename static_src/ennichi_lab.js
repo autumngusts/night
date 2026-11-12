@@ -15,7 +15,10 @@
 
   var THREE_SRC = root.getAttribute("data-three-src");
   var VENDOR_SRC = root.getAttribute("data-vendor-src");
-  var MODEL_URL = root.getAttribute("data-model");
+  // 兩種模型：程式產生（tools/ennichi_model）與 Blender 產生（tools/ennichi_blender），可切換比較
+  var MODELS = { code: root.getAttribute("data-model"), blender: root.getAttribute("data-model-blender") };
+  var MODEL_URL = MODELS.code;
+  var modelKind = "code";
   var JIKAN = root.getAttribute("data-jikan");
 
   function t(key, params) { return window.I18N ? window.I18N.t(key, params) : key; }
@@ -219,6 +222,13 @@
   }
 
   function buildControls() {
+    if (MODELS.blender) {
+      controlsBox.appendChild(el("span", "en-ctl-label", t("en_ctl_model")));
+      ["code", "blender"].forEach(function (k) {
+        addButton(t("en_model_" + k), function () { switchModel(k); }, "en-btn-model-" + k);
+      });
+      syncModelButtons();
+    }
     controlsBox.appendChild(el("span", "en-ctl-label", t("en_ctl_sayo")));
     addButton(t("en_btn_happy"), function (b) { happy = !happy; b.classList.toggle("is-on", happy); }, "en-btn-happy");
     addButton(t("en_btn_talk"), function () { sayoSpeak(); }, "en-btn-talk");
@@ -475,11 +485,36 @@
   }
 
   // ---------------------------------------------------------------- VRM
-  function loadVrm() {
+  function loadVrm(url) {
     var loader = new V.GLTFLoader();
     loader.register(function (parser) { return new V.VRMLoaderPlugin(parser); });
     return new Promise(function (resolve, reject) {
-      loader.load(MODEL_URL, function (gltf) { resolve(gltf); }, null, reject);
+      loader.load(url || MODEL_URL, function (gltf) { resolve(gltf); }, null, reject);
+    });
+  }
+
+  // 近景的小夜換成另一種模型（看板圖集維持程式版，只換近景）
+  function switchModel(kind) {
+    if (kind === modelKind || !MODELS[kind]) return;
+    modelKind = kind;
+    syncModelButtons();
+    var t0 = performance.now(), bytes = 0;
+    fetch(MODELS[kind]).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+      bytes = buf.byteLength;
+      return loadVrm(MODELS[kind]);
+    }).then(function (gltf) {
+      if (sayo) {
+        scene.remove(sayo.scene);
+        V.VRMUtils.deepDispose(sayo.scene);
+      }
+      setupSayo(gltf, Math.round(performance.now() - t0), bytes);
+    }).catch(fail);
+  }
+
+  function syncModelButtons() {
+    ["code", "blender"].forEach(function (k) {
+      var b = document.getElementById("en-btn-model-" + k);
+      if (b) b.classList.toggle("is-on", modelKind === k);
     });
   }
 
@@ -518,10 +553,13 @@
   }
 
   function setupSayo(gltf, ms, bytes) {
+    var prev = sayo ? sayo.scene.position.clone() : null;
     sayo = gltf.userData.vrm;
     sayo.scene.traverse(function (o) { o.frustumCulled = false; });
     scene.add(sayo.scene);
-    sayo.scene.position.set(0, 0, 1.2);
+    if (prev) sayo.scene.position.copy(prev);
+    else sayo.scene.position.set(0, 0, 1.2);
+    setReport("model", t("en_model_" + modelKind));
     restPose(sayo);
     var verts = 0;
     sayo.scene.traverse(function (o) { if (o.isMesh && o.geometry) verts += o.geometry.attributes.position.count; });
@@ -926,7 +964,7 @@
 
   window.PriTestEnnichiLab = {
     _report: function () { return report; },
-    _state: function () { return { sayoMode: sayoMode, happy: happy, guests: guestCount, bubbles: bubbles.length, wall: wallList ? wallList.children.length : 0 }; },
+    _state: function () { return { model: modelKind, sayoMode: sayoMode, happy: happy, guests: guestCount, bubbles: bubbles.length, wall: wallList ? wallList.children.length : 0 }; },
   };
 
   window.addEventListener("i18n:change", function () {

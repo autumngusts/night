@@ -19,6 +19,7 @@ def build_ennichi_html() -> str:
     body = f"""    <div class="en-wrap">
       <div id="en-app" data-three-src="{three_src}" data-vendor-src="{vendor_src}"
            data-model="../static/models/ennichi/sayo.vrm"
+           data-model-blender="../static/models/ennichi/sayo_blender.vrm"
            data-jikan="../static/images/jikan/"></div>
     </div>
 """
