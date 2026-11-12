@@ -365,3 +365,32 @@ function walker(s, x, y, sid, need) {
   assert.strictEqual(mm.q[0], k.id, "回來直接排到最前面"); assert.strictEqual(k.ticket, null);
   console.log("8. 排隊屋台與整理券 OK");
 })();
+
+// ---------------- 8b. 整理券修正：未到時間不插隊、設施故障票作廢 ----------------
+(function () {
+  var t = freshPark(53); openToday(t);
+  var mm = t.structs[sidOf(t, "merry")];
+  Core.setTicket(t, mm.id, true);
+  mm.riders = [999]; mm.t = 30;
+  for (var i = 0; i < D.BUILD.merry.cap * D.TICKET_FACTOR; i++) { var q = walker(t, 6, 10, null, { fun: 90 }); q.state = "queue"; q.sid = mm.id; mm.q.push(q.id); }
+  var k = walker(t, 6, 10, mm.id, { fun: 90 });
+  Sim.step(t);
+  assert.ok(k.ticket, "拿到整理券");
+  // (a) 未到時間：choose 不會再選該設施；即使人在設施旁也不會插到最前面
+  for (i = 0; i < 20; i++) assert.notStrictEqual(Sim.choose(t, k), mm.id, "票未到時間不選該設施");
+  var front = mm.q[0];
+  k.sid = mm.id; k.x = 6; k.y = 10; k.state = "walk";
+  Sim.arrive(t, k);
+  assert.strictEqual(mm.q[0], front, "提早到不插隊"); assert.strictEqual(k.ticket, null);
+  // (b) 設施故障：票作廢，回到一般選擇
+  var u = freshPark(54); openToday(u);
+  var m2 = u.structs[sidOf(u, "merry")];
+  Core.setTicket(u, m2.id, true);
+  var h = walker(u, 6, 10, null, { fun: 90 });
+  h.ticket = { sid: m2.id, at: u.min - 1 };
+  m2.broken = true;
+  Sim.step(u);
+  assert.strictEqual(h.ticket, null, "設施故障 → 票作廢");
+  assert.notStrictEqual(h.sid, m2.id, "不再鎖定故障設施");
+  console.log("8b. 整理券修正 OK");
+})();

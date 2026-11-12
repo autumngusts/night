@@ -102,6 +102,7 @@
     for (var k in s.structs) {
       var st = s.structs[k];
       if (!isOpen(s, st) || kinds.indexOf(kindOf(st)) < 0) continue;
+      if (g.ticket && g.ticket.sid === st.id && s.min < g.ticket.at) continue; // 持票者未到時間不可再選該設施
       var d = distField(s, k)[Core.ti(g.x, g.y)];
       if (d < 0) continue;
       var score = prefScore(g, st) * 50 - d * 1.5 - st.q.length * 3 + Core.rnd(s) * 10;
@@ -214,7 +215,7 @@
     var k = kindOf(st);
     if (k === "ride") {
       var rb = D.BUILD[st.type];
-      if (g.ticket && g.ticket.sid === st.id) {
+      if (g.ticket && g.ticket.sid === st.id && s.min >= g.ticket.at) {
         st.q.unshift(g.id); g.ticket = null; g.state = "queue"; g.wait = 0;
         return;
       }
@@ -224,6 +225,7 @@
         if (chance(s, 0.2)) mm(s, g, "impression", "ticket", {});
         return;
       }
+      if (g.ticket && g.ticket.sid === st.id) g.ticket = null; // 提早到：照一般排隊，票作廢
       st.q.push(g.id); g.state = "queue"; g.wait = 0;
       return;
     }
@@ -326,7 +328,11 @@
       return;
     }
     if (g.skip > 0) { g.skip--; return; }
-    if (g.ticket && s.min >= g.ticket.at) g.sid = g.ticket.sid;
+    if (g.ticket) {
+      var tr = s.structs[g.ticket.sid];
+      if (!tr || !isOpen(s, tr)) g.ticket = null; // 設施已拆除／故障／停駛：票作廢
+      else if (s.min >= g.ticket.at) g.sid = g.ticket.sid;
+    }
     if (!g.sid) {
       g.sid = choose(s, g);
       if (!g.sid) {
