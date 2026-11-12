@@ -249,11 +249,18 @@
     try { var s = JSON.parse(str); return s && s.v === 1 ? s : null; } catch (e) { return null; }
   }
 
+  function setTicket(s, sid, on) {
+    var st = s.structs[sid];
+    if (!st || D.BUILD[st.type].kind !== "ride") return false;
+    st.ticket = !!on;
+    return true;
+  }
+
   window.PriTestEnnichiCore = {
     rnd: rnd, rint: rint, pickW: pickW, ti: ti, inMap: inMap, isPath: isPath, entranceOf: entranceOf,
     popLevel: popLevel, machineSlots: machineSlots, weatherOf: weatherOf,
     wareTotal: wareTotal, have: have, take: take, give: give, nearRide: nearRide,
-    newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath,
+    newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath, setTicket: setTicket,
     buy: buy, addMachine: addMachine, setRecipe: setRecipe, setPrice: setPrice, setFee: setFee,
     workshopStep: workshopStep, effStats: effStats, upgrade: upgrade,
     serialize: serialize, restore: restore,

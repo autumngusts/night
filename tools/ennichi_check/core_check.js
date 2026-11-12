@@ -334,3 +334,34 @@ function walker(s, x, y, sid, need) {
   assert.deepStrictEqual(Sim.closedFor(s, "sun"), []);
   console.log("7. 天氣 OK");
 })();
+
+// ---------------- 8. 排隊屋台與整理券 ----------------
+(function () {
+  var s = freshPark(51);
+  var merry = s.structs[sidOf(s, "merry")];
+  var qs = s.structs[Core.build(s, "qstall", 8, 9).sid];
+  assert.strictEqual(qs.link, merry.id);
+  openToday(s);
+  merry.riders = [999]; merry.t = 200; // 一直在運轉，隊伍不會前進
+  s.ware.ramune = 20;
+  var g = walker(s, 6, 10, merry.id, { thirst: 90, fun: 90 }); g.state = "queue"; merry.q = [g.id];
+  g.patience = 200; // 測試只看屋台販售，不讓客人因排隊太久離開
+  var p0 = g.patience;
+  for (var i = 0; i < 60 && g.need.thirst > 40; i++) Sim.step(s);
+  assert.ok(g.need.thirst <= 40, "排隊時跟屋台買了汽水");
+  assert.ok(g.patience > p0, "買到後耐心增加");
+  // 整理券
+  var t = freshPark(52); openToday(t);
+  var mm = t.structs[sidOf(t, "merry")];
+  assert.ok(Core.setTicket(t, mm.id, true)); assert.ok(!Core.setTicket(t, sidOf(t, "bench"), true), "只有遊樂設施");
+  mm.riders = [999]; mm.t = 30;
+  for (i = 0; i < D.BUILD.merry.cap * D.TICKET_FACTOR; i++) { var q = walker(t, 6, 10, null, { fun: 90 }); q.state = "queue"; q.sid = mm.id; mm.q.push(q.id); }
+  var k = walker(t, 6, 10, mm.id, { fun: 90 });
+  Sim.step(t);
+  assert.ok(k.ticket && k.ticket.sid === mm.id && k.state === "walk", "隊伍太長 → 拿整理券");
+  t.min = k.ticket.at;
+  k.x = 6; k.y = 10; k.sid = null;
+  Sim.step(t);
+  assert.strictEqual(mm.q[0], k.id, "回來直接排到最前面"); assert.strictEqual(k.ticket, null);
+  console.log("8. 排隊屋台與整理券 OK");
+})();

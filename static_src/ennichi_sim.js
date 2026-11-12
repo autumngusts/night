@@ -213,6 +213,17 @@
     if (!st || !isOpen(s, st)) { g.sid = null; return; }
     var k = kindOf(st);
     if (k === "ride") {
+      var rb = D.BUILD[st.type];
+      if (g.ticket && g.ticket.sid === st.id) {
+        st.q.unshift(g.id); g.ticket = null; g.state = "queue"; g.wait = 0;
+        return;
+      }
+      if (st.ticket && !g.ticket && st.q.length >= rb.cap * D.TICKET_FACTOR) {
+        g.ticket = { sid: st.id, at: s.min + Math.ceil(st.q.length / rb.cap) * rb.cycle };
+        g.sid = null;
+        if (chance(s, 0.2)) mm(s, g, "impression", "ticket", {});
+        return;
+      }
       st.q.push(g.id); g.state = "queue"; g.wait = 0;
       return;
     }
@@ -315,6 +326,7 @@
       return;
     }
     if (g.skip > 0) { g.skip--; return; }
+    if (g.ticket && s.min >= g.ticket.at) g.sid = g.ticket.sid;
     if (!g.sid) {
       g.sid = choose(s, g);
       if (!g.sid) {
@@ -326,10 +338,30 @@
     if (g.sid && moveToward(s, g, g.sid)) arrive(s, g);
   }
 
+  function qstallStep(s, st) {
+    var ride = st.link && s.structs[st.link];
+    if (st.build > 0 || !ride || !isOpen(s, ride)) return;
+    var b = D.BUILD[st.type];
+    ride.q.forEach(function (gid) {
+      var g = byId(s, gid);
+      if (!g || (g.need.hunger <= 40 && g.need.thirst <= 40) || !chance(s, 0.1)) return;
+      var order = b.sells.slice().sort(function (a, c) {
+        function v(id) { var f = D.ITEMS[id].fill || {}; return (f.thirst || 0) * g.need.thirst + (f.hunger || 0) * g.need.hunger; }
+        return v(c) - v(a);
+      });
+      if (sellOne(s, g, order)) {
+        g.patience += 5; g.hap += 2; clampHap(g);
+        if (chance(s, 0.1)) mm(s, g, "impression", "qstall", {});
+      }
+    });
+  }
+
   // 一遊戲分鐘：生客 → 遊樂設施運轉 → 客人行動 → 移除離場者
   function step(s) {
     while (s.today.spawn.length && s.today.spawn[0] <= s.min) { s.today.spawn.shift(); spawn(s); }
-    for (var k in s.structs) if (D.BUILD[s.structs[k].type].kind === "ride") rideStep(s, s.structs[k]);
+    var k;
+    for (k in s.structs) if (D.BUILD[s.structs[k].type].kind === "ride") rideStep(s, s.structs[k]);
+    for (k in s.structs) if (D.BUILD[s.structs[k].type].kind === "qstall") qstallStep(s, s.structs[k]);
     s.guests.forEach(function (g) { guestStep(s, g); });
     s.guests = s.guests.filter(function (g) {
       if (g.state !== "leave") return true;
@@ -343,6 +375,6 @@
     kindOf: kindOf, guestType: guestType, prefScore: prefScore, urgentNeed: urgentNeed, isOpen: isOpen,
     choose: choose, moveToward: moveToward, needsTick: needsTick, weatherNow: weatherNow, closedFor: closedFor,
     step: step, rideStep: rideStep, buyAt: buyAt, arrive: arrive, breakDown: breakDown, byId: byId, chance: chance, mm: mm,
-    clampHap: clampHap, guestStep: guestStep, finishGuest: finishGuest
+    qstallStep: qstallStep, clampHap: clampHap, guestStep: guestStep, finishGuest: finishGuest
   };
 })();
