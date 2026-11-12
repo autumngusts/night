@@ -86,15 +86,6 @@
   ];
   var MM_TYPES = ["impression", "complaint", "need", "recommend", "sns", "gossip", "season", "love", "rival"];
 
-  // 看板人物的服裝（top＝白衣材質、bottom＝緋袴材質、hair）
-  var OUTFITS = [
-    { top: "#2e3e6e", bottom: "#24305a", hair: "#3a2a20" },
-    { top: "#f4a6bc", bottom: "#7a3ea0", hair: "#6b3e26" },
-    { top: "#8fd0c0", bottom: "#3f7f74", hair: "#1e1a20" },
-    { top: "#fbfaf8", bottom: "#d42a3c", hair: "#2b2233" },
-  ];
-  var ATLAS_CELL = 192, ATLAS_DIRS = 8, ATLAS_FRAMES = 4;
-  var BILL_SIZE = 1.55; // 圖集一格對應的世界尺寸（正交相機的視野寬高）
   var STALLS = [C("たこ焼き", "たこ焼き"), C("金魚すくい", "金魚すくい"), C("わたあめ", "わたあめ"), C("射的", "射的"), C("りんご飴", "りんご飴"), C("焼きそば", "焼きそば"), C("お面", "お面"), C("かき氷", "かき氷")];
 
   // ---------------------------------------------------------------- 狀態
@@ -519,28 +510,11 @@
     });
   }
 
+  var Crowd = window.PriTestEnnichiCrowd;
+  function restPose(vrm) { Crowd.restPose(vrm); }
+  function walkPose(vrm, phase, amp) { Crowd.walkPose(vrm, phase, amp); }
+
   function bone(vrm, name) { return vrm.humanoid.getNormalizedBoneNode(name); }
-
-  function restPose(vrm) {
-    bone(vrm, "leftUpperArm").rotation.set(0, 0, -1.22);
-    bone(vrm, "rightUpperArm").rotation.set(0, 0, 1.22);
-    bone(vrm, "leftLowerArm").rotation.set(0, 0, -0.12);
-    bone(vrm, "rightLowerArm").rotation.set(0, 0, 0.12);
-    ["leftUpperLeg", "rightUpperLeg", "leftLowerLeg", "rightLowerLeg"].forEach(function (n) { bone(vrm, n).rotation.set(0, 0, 0); });
-    ["spine", "chest", "neck", "head"].forEach(function (n) { bone(vrm, n).rotation.set(0, 0, 0); });
-  }
-
-  // 走路姿勢：phase 0〜2π
-  function walkPose(vrm, phase, amp) {
-    var s = Math.sin(phase);
-    bone(vrm, "leftUpperLeg").rotation.x = -s * 0.45 * amp;
-    bone(vrm, "rightUpperLeg").rotation.x = s * 0.45 * amp;
-    bone(vrm, "leftLowerLeg").rotation.x = Math.max(0, s) * 0.55 * amp;
-    bone(vrm, "rightLowerLeg").rotation.x = Math.max(0, -s) * 0.55 * amp;
-    bone(vrm, "leftUpperArm").rotation.x = s * 0.35 * amp;
-    bone(vrm, "rightUpperArm").rotation.x = -s * 0.35 * amp;
-    bone(vrm, "spine").rotation.y = s * 0.08 * amp;
-  }
 
   function countMaterials(vrm) {
     var n = 0, seen = {};
@@ -628,139 +602,20 @@
   }
 
   // ---------------------------------------------------------------- 看板人物圖集
-  function recolor(vrm, outfit) {
-    vrm.scene.traverse(function (o) {
-      if (!o.isMesh) return;
-      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) {
-        var name = (m.name || "").split(" ")[0];
-        var hex = name === "white" ? outfit.top : name === "red" ? outfit.bottom : name === "hair" ? outfit.hair : null;
-        if (!hex) return;
-        var c = new THREE.Color(hex); // 色彩管理已開，set 十六進位時會自動轉成 linear
-        if (m.color) m.color.copy(c);
-        if (m.shadeColorFactor) m.shadeColorFactor.copy(c).multiplyScalar(0.55);
-      });
-    });
-  }
-
-  function buildAtlas(gltf) {
+  function makeAtlas(gltf) {
     var t0 = performance.now();
     guestVrm = gltf.userData.vrm;
-    var aScene = new THREE.Scene();
-    aScene.add(new THREE.HemisphereLight("#c8d0ff", "#4a3a30", 0.9));
-    var key = new THREE.DirectionalLight("#ffe2c0", 0.7);
-    key.position.set(1, 3, 4);
-    aScene.add(key);
-    aScene.add(guestVrm.scene);
-    guestVrm.scene.traverse(function (o) { o.frustumCulled = false; });
-
-    // 正交相機以身體中心（y=0.74）為準、略微俯視（約 11°），畫格寬高 = BILL_SIZE
-    var half = BILL_SIZE / 2;
-    var cam = new THREE.OrthographicCamera(-half, half, half, -half, 0.1, 20);
-    cam.position.set(0, 0.74 + 5 * Math.tan(0.2), 5);
-    cam.lookAt(0, 0.74, 0);
-
-    var cols = ATLAS_DIRS, rows = ATLAS_FRAMES * OUTFITS.length;
-    var rt = new THREE.WebGLRenderTarget(cols * ATLAS_CELL, rows * ATLAS_CELL, { depthBuffer: true });
-    rt.texture.generateMipmaps = false;
-    rt.texture.minFilter = THREE.LinearFilter;
-    rt.texture.magFilter = THREE.LinearFilter;
-
-    var prevClear = renderer.getClearColor(new THREE.Color()), prevAlpha = renderer.getClearAlpha();
-    renderer.setRenderTarget(rt);
-    renderer.setClearColor(0x000000, 0);
-    renderer.clear(true, true, true);
-    renderer.autoClear = false;
-    rt.scissorTest = true;
-    OUTFITS.forEach(function (outfit, v) {
-      recolor(guestVrm, outfit);
-      for (var f = 0; f < ATLAS_FRAMES; f++) {
-        restPose(guestVrm);
-        // 4 格：左腳在前、交錯、右腳在前、交錯
-        walkPose(guestVrm, f * Math.PI / 2 + Math.PI / 2, 1);
-        guestVrm.expressionManager.setValue("happy", v % 2 ? 0.6 : 0);
-        for (var d = 0; d < cols; d++) {
-          guestVrm.scene.rotation.y = d * Math.PI / 4;
-          // 彈簧骨（馬尾、袖子）記得上一格的世界座標：每格先把姿勢套上、再重設彈簧，否則轉向後頭髮會被甩歪
-          guestVrm.humanoid.update();
-          guestVrm.scene.updateMatrixWorld(true);
-          if (guestVrm.springBoneManager) guestVrm.springBoneManager.reset();
-          guestVrm.update(0);
-          var x = d * ATLAS_CELL, y = (v * ATLAS_FRAMES + f) * ATLAS_CELL;
-          rt.viewport.set(x, y, ATLAS_CELL, ATLAS_CELL);
-          rt.scissor.set(x, y, ATLAS_CELL, ATLAS_CELL);
-          renderer.setRenderTarget(rt);
-          renderer.clearDepth();
-          renderer.render(aScene, cam);
-        }
-      }
-    });
-    rt.scissorTest = false;
-    renderer.autoClear = true;
-    renderer.setRenderTarget(null);
-    renderer.setClearColor(prevClear, prevAlpha);
-    setReport("atlas", (cols * ATLAS_CELL) + "×" + (rows * ATLAS_CELL) + "，" + (cols * rows) + " " + t("en_cells") + "（" + Math.round(performance.now() - t0) + " ms）");
-    return rt.texture;
+    var tex = Crowd.buildAtlas(renderer, guestVrm);
+    var cols = Crowd.DIRS, rows = Crowd.FRAMES * Crowd.OUTFITS.length;
+    setReport("atlas", (cols * Crowd.CELL) + "×" + (rows * Crowd.CELL) + "，" + (cols * rows) + " " + t("en_cells") + "（" + Math.round(performance.now() - t0) + " ms）");
+    return tex;
   }
 
   function buildCrowd(atlasTex) {
     var maxN = 240;
-    var base = new THREE.PlaneGeometry(1, 1);
-    base.translate(0, 0.5, 0);
-    var geo = new THREE.InstancedBufferGeometry();
-    geo.index = base.index;
-    geo.setAttribute("position", base.attributes.position);
-    geo.setAttribute("uv", base.attributes.uv);
-    var iPos = new THREE.InstancedBufferAttribute(new Float32Array(maxN * 3), 3);
-    var iCell = new THREE.InstancedBufferAttribute(new Float32Array(maxN * 2), 2);
-    var iScale = new THREE.InstancedBufferAttribute(new Float32Array(maxN), 1);
-    iPos.setUsage(THREE.DynamicDrawUsage);
-    iCell.setUsage(THREE.DynamicDrawUsage);
-    geo.setAttribute("iPos", iPos);
-    geo.setAttribute("iCell", iCell);
-    geo.setAttribute("iScale", iScale);
-    geo.instanceCount = guestCount;
-    var mat = new THREE.ShaderMaterial({
-      uniforms: {
-        uMap: { value: atlasTex },
-        uGrid: { value: new THREE.Vector2(ATLAS_DIRS, ATLAS_FRAMES * OUTFITS.length) },
-        uSize: { value: BILL_SIZE },
-        uTint: { value: new THREE.Color("#c9cfee") },
-        uFog: { value: scene.fog.color },
-        uFogNear: { value: scene.fog.near },
-        uFogFar: { value: scene.fog.far },
-      },
-      vertexShader: [
-        "attribute vec3 iPos; attribute vec2 iCell; attribute float iScale;",
-        "uniform vec2 uGrid; uniform float uSize;",
-        "varying vec2 vUv; varying float vDepth;",
-        "void main() {",
-        "  vec3 right = normalize(vec3(viewMatrix[0][0], 0.0, viewMatrix[2][0]));",
-        "  vec3 wp = iPos + right * (position.x * uSize * iScale) + vec3(0.0, position.y * uSize * iScale, 0.0);",
-        "  vUv = (iCell + uv) / uGrid;",
-        "  vec4 mv = viewMatrix * vec4(wp, 1.0);",
-        "  vDepth = -mv.z;",
-        "  gl_Position = projectionMatrix * mv;",
-        "}",
-      ].join("\n"),
-      fragmentShader: [
-        "uniform sampler2D uMap; uniform vec3 uTint; uniform vec3 uFog; uniform float uFogNear; uniform float uFogFar;",
-        "varying vec2 vUv; varying float vDepth;",
-        "void main() {",
-        "  vec4 c = texture2D(uMap, vUv);",
-        "  if (c.a < 0.5) discard;",
-        // 圖集是不透明模型畫在透明黑底上，邊緣經線性取樣後等於「預乘 alpha」：除回去，邊緣才不會一圈黑點
-        "  c.rgb /= c.a;",
-        "  float f = smoothstep(uFogNear, uFogFar, vDepth);",
-        "  gl_FragColor = vec4(mix(c.rgb * uTint, uFog, f), 1.0);",
-        "}",
-      ].join("\n"),
-    });
-    crowd = new THREE.Mesh(geo, mat);
-    crowd.frustumCulled = false;
-    scene.add(crowd);
+    crowd = Crowd.create(scene, atlasTex, maxN);
+    crowd.count(guestCount);
     for (var i = 0; i < maxN; i++) guests.push(newGuest(i));
-    iScale.array.forEach(function (_, i) { iScale.array[i] = guests[i].scale; });
-    iScale.needsUpdate = true;
   }
 
   function randomSpot() {
@@ -770,13 +625,13 @@
 
   function newGuest(i) {
     var p = randomSpot();
-    var g = { id: i, x: p.x, z: p.z, h: Math.random() * Math.PI * 2, speed: 0.8 + Math.random() * 0.5, outfit: i % OUTFITS.length, phase: Math.random() * 4, scale: 0.9 + Math.random() * 0.16, wait: 0, target: randomSpot() };
+    var g = { id: i, x: p.x, z: p.z, h: Math.random() * Math.PI * 2, speed: 0.8 + Math.random() * 0.5, outfit: i % Crowd.OUTFITS.length, phase: Math.random() * 4, scale: 0.9 + Math.random() * 0.16, wait: 0, target: randomSpot() };
     return g;
   }
 
   function setGuestCount(n) {
     guestCount = n;
-    if (crowd) crowd.geometry.instanceCount = n;
+    if (crowd) crowd.count(n);
     [60, 120, 240].forEach(function (k) {
       var b = document.getElementById("en-btn-crowd-" + k);
       if (b) b.classList.toggle("is-on", k === n);
@@ -786,7 +641,6 @@
 
   function updateCrowd(dt, time) {
     if (!crowd) return;
-    var pos = crowd.geometry.attributes.iPos, cell = crowd.geometry.attributes.iCell;
     var camPos = camera.position;
     for (var i = 0; i < guestCount; i++) {
       var g = guests[i];
@@ -806,15 +660,11 @@
         }
       }
       // 方向：客人朝向 − 鏡頭方位角（四捨五入到 45°）
-      var a = Math.atan2(camPos.x - g.x, camPos.z - g.z);
-      var k = Math.round((g.h - a) / (Math.PI / 4));
-      k = ((k % 8) + 8) % 8;
+      var k = Crowd.dirIndex(g.h, camPos.x, camPos.z, g.x, g.z);
       var frame = walking ? Math.floor(time * g.speed * 4 + g.phase) % 4 : 1;
-      pos.setXYZ(i, g.x, 0.02, g.z);
-      cell.setXY(i, k, g.outfit * ATLAS_FRAMES + frame);
+      crowd.set(i, g.x, 0.02, g.z, k, g.outfit * Crowd.FRAMES + frame, g.scale);
     }
-    pos.needsUpdate = true;
-    cell.needsUpdate = true;
+    crowd.count(guestCount);
   }
 
   // ---------------------------------------------------------------- murmur
@@ -953,7 +803,7 @@
           return Promise.all([loadVrm(MODELS[modelKind]), loadVrm(MODELS.code)]);
         }).then(function (both) {
           setupSayo(both[0], Math.round(performance.now() - t0), bytes);
-          buildCrowd(buildAtlas(both[1]));
+          buildCrowd(makeAtlas(both[1]));
           var box = document.getElementById("en-loading");
           if (box) box.parentNode.removeChild(box);
           frame();

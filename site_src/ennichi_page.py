@@ -20,7 +20,7 @@ ENNICHI_SCRIPTS: tuple[str, ...] = (
     "ennichi_3d.js",
     "ennichi.js",
 )
-ENNICHI_LAB_SCRIPTS: tuple[str, ...] = ("ennichi_lab.js",)
+ENNICHI_LAB_SCRIPTS: tuple[str, ...] = ("ennichi_crowd.js", "ennichi_lab.js")
 
 
 def build_ennichi_html() -> str:
