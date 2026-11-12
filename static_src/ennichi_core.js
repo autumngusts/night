@@ -220,6 +220,30 @@
     });
   }
 
+  // ---- 改裝：大型設施的改裝槽（規格 §4.6）
+  function effStats(st) {
+    var b = D.BUILD[st.type];
+    var e = { thrill: b.thrill || 0, charm: b.charm || 0, photo: b.photo || 0, price: st.price || 0, wearMul: 1 };
+    for (var sl in st.mods) {
+      var f = b.slots[sl].eff;
+      for (var k in f) {
+        if (k === "wearMul") e.wearMul *= f[k];
+        else e[k] += f[k];
+      }
+    }
+    return e;
+  }
+
+  function upgrade(s, sid, slot) {
+    var st = s.structs[sid], b = st && D.BUILD[st.type], sl = b && b.slots && b.slots[slot];
+    if (!sl || s.phase !== "plan" || st.build > 0 || st.mods[slot]) return false;
+    var need = one(sl.mod, sl.n);
+    if (!have(s, need)) return false;
+    take(s, need);
+    st.mods[slot] = 1;
+    return true;
+  }
+
   function serialize(s) { return JSON.stringify(s); }
   function restore(str) {
     try { var s = JSON.parse(str); return s && s.v === 1 ? s : null; } catch (e) { return null; }
@@ -231,7 +255,7 @@
     wareTotal: wareTotal, have: have, take: take, give: give, nearRide: nearRide,
     newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath,
     buy: buy, addMachine: addMachine, setRecipe: setRecipe, setPrice: setPrice, setFee: setFee,
-    workshopStep: workshopStep,
+    workshopStep: workshopStep, effStats: effStats, upgrade: upgrade,
     serialize: serialize, restore: restore,
   };
 })();

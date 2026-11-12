@@ -155,3 +155,36 @@ var Core = window.PriTestEnnichiCore;
   assert.strictEqual(u.machines[0].t, null, "放不下產出就不開工");
   console.log("3. 工房 OK");
 })();
+
+// ---------------- 4. 模組改裝 ----------------
+function finishAll(s) { for (var k in s.structs) s.structs[k].build = 0; }
+(function () {
+  var s = Core.newGame({ seed: 8 });
+  Core.give(s, D.BUILD.merry.parts);
+  var merry = s.structs[Core.build(s, "merry", 4, 6).sid];
+  Core.give(s, { nightLanterns: 2, fastTurntable: 1 });
+  assert.ok(!Core.upgrade(s, merry.id, "light"), "施工中不能改裝");
+  finishAll(s);
+  var base = Core.effStats(merry);
+  assert.deepStrictEqual(base, { thrill: 1, charm: 3, photo: 2, price: 300, wearMul: 1 });
+  assert.ok(!Core.upgrade(s, merry.id, "deco"), "沒有金箔唐獅子");
+  assert.ok(!Core.upgrade(s, merry.id, "nope"), "沒有這個槽");
+  assert.ok(Core.upgrade(s, merry.id, "light"));
+  assert.ok(!s.ware.nightLanterns, "用掉 2 個夜光燈籠串");
+  assert.ok(!Core.upgrade(s, merry.id, "light"), "同一槽只能裝一次");
+  assert.ok(Core.upgrade(s, merry.id, "drive"));
+  var e = Core.effStats(merry);
+  assert.deepStrictEqual(e, { thrill: 2, charm: 4, photo: 3, price: 300, wearMul: 1.5 });
+  merry.price = 400; assert.strictEqual(Core.effStats(merry).price, 400);
+  Core.give(s, { goldLion: 2 }); assert.ok(Core.upgrade(s, merry.id, "deco"));
+  assert.strictEqual(Core.effStats(merry).price, 450, "金箔唐獅子 票價 +50");
+  // 營業中不能改裝：另蓋一座咖啡杯、完工後在營業中嘗試
+  Core.give(s, D.BUILD.cups.parts);
+  var cups = s.structs[Core.build(s, "cups", 16, 7).sid];
+  finishAll(s); Core.give(s, { fastTurntable: 1 });
+  s.phase = "open";
+  assert.ok(!Core.upgrade(s, cups.id, "drive"), "營業中不能改裝");
+  s.phase = "plan";
+  assert.ok(Core.upgrade(s, cups.id, "drive"));
+  console.log("4. 模組改裝 OK");
+})();
