@@ -4,7 +4,7 @@
 //   2. 看板人物群眾：開場把 VRM 從 8 方向 × 4 格走路 × 4 種服裝渲染成圖集，
 //      再用一個 InstancedBufferGeometry 畫出全部客人（1 draw call）
 //   3. murmur：客人頭上的氣泡＋側欄的 murmur 牆，點擊展開立繪
-//   4. 立繪比較：沿用 jikan 3 張＋新製（SVG 暫代）3 張
+//   4. 立繪：一律沿用 jikan 的頭像（工作人員 5 位＋常客 1 位）
 // 依賴：vendor/three.min.js（r149，全域 THREE）→ vendor/ennichi_vrm.js（PriTestEnnichiVendor）
 // ============================================================================
 (function () {
@@ -16,7 +16,6 @@
   var THREE_SRC = root.getAttribute("data-three-src");
   var VENDOR_SRC = root.getAttribute("data-vendor-src");
   var MODEL_URL = root.getAttribute("data-model");
-  var IMG = root.getAttribute("data-img");
   var JIKAN = root.getAttribute("data-jikan");
 
   function t(key, params) { return window.I18N ? window.I18N.t(key, params) : key; }
@@ -42,12 +41,13 @@
 
   // ---------------------------------------------------------------- 資料
   var PORTRAITS = [
-    { id: "sayo", src: IMG + "portrait_sayo.svg", origin: "new", name: C("小夜", "小夜"), role: C("神社巫女・青梅竹馬", "神社の巫女・幼なじみ") },
-    { id: "tetsuko", src: IMG + "portrait_tetsuko.svg", origin: "new", name: C("鐵子", "鉄子"), role: C("老師傅的孫女・機械宅", "親方の孫娘・メカオタク") },
-    { id: "renge", src: IMG + "portrait_renge.svg", origin: "new", name: C("蓮華", "蓮華"), role: C("和菓子店看板娘", "和菓子屋の看板娘") },
-    { id: "miu", src: JIKAN + "g_063.webp", origin: "jikan", name: C("美羽", "美羽"), role: C("宣傳・活動企劃", "宣伝・イベント企画") },
-    { id: "shizuku", src: JIKAN + "g_020.webp", origin: "jikan", name: C("雫", "雫"), role: C("只在夜晚出現的少女", "夜にだけ現れる少女") },
-    { id: "regular", src: JIKAN + "n_025.webp", origin: "jikan", name: C("小雛", "ひな"), role: C("常客・御守收集家", "常連・お守りコレクター") },
+    // 立繪一律沿用 jikan 的頭像（使用者指定 2026-11-12）
+    { id: "sayo", src: JIKAN + "n_022.webp", group: "staff", name: C("小夜", "小夜"), role: C("神社巫女・青梅竹馬", "神社の巫女・幼なじみ") },
+    { id: "tetsuko", src: JIKAN + "n_024.webp", group: "staff", name: C("鐵子", "鉄子"), role: C("老師傅的孫女・機械宅", "親方の孫娘・メカオタク") },
+    { id: "renge", src: JIKAN + "n_018.webp", group: "staff", name: C("蓮華", "蓮華"), role: C("和菓子店看板娘", "和菓子屋の看板娘") },
+    { id: "miu", src: JIKAN + "g_063.webp", group: "staff", name: C("美羽", "美羽"), role: C("宣傳・活動企劃", "宣伝・イベント企画") },
+    { id: "shizuku", src: JIKAN + "g_020.webp", group: "staff", name: C("雫", "雫"), role: C("只在夜晚出現的少女", "夜にだけ現れる少女") },
+    { id: "regular", src: JIKAN + "n_025.webp", group: "regular", name: C("小雛", "ひな"), role: C("常客・御守收集家", "常連・お守りコレクター") },
   ];
 
   var RIDES = [C("燈籠摩天輪", "灯籠観覧車"), C("唐獅子旋轉木馬", "唐獅子メリーゴーランド"), C("茶碗咖啡杯", "茶碗コーヒーカップ"), C("化け屋敷", "お化け屋敷"), C("狐狸列車", "きつね列車")];
@@ -154,10 +154,10 @@
     var sec = el("section", "en-portraits");
     sec.appendChild(el("h2", "en-h2", t("en_portraits_title")));
     sec.appendChild(el("p", "en-note", t("en_portraits_note")));
-    ["jikan", "new"].forEach(function (origin) {
-      sec.appendChild(el("h3", "en-h3", t("en_origin_" + origin)));
+    ["staff", "regular"].forEach(function (group) {
+      sec.appendChild(el("h3", "en-h3", t("en_group_" + group)));
       var row = el("div", "en-cards");
-      PORTRAITS.filter(function (p) { return p.origin === origin; }).forEach(function (p) {
+      PORTRAITS.filter(function (p) { return p.group === group; }).forEach(function (p) {
         var card = el("button", "en-card");
         card.type = "button";
         var img = el("img");
@@ -183,7 +183,7 @@
     box.appendChild(img);
     var body = el("div", "en-modal-body");
     body.appendChild(el("strong", "en-modal-name", L(p.name)));
-    body.appendChild(el("span", "en-modal-role", L(p.role) + "｜" + t("en_origin_" + p.origin)));
+    body.appendChild(el("span", "en-modal-role", L(p.role)));
     if (type) {
       body.appendChild(el("span", "en-mm-type en-mm-" + type, t("en_mm_" + type)));
       body.appendChild(el("p", "en-modal-text", text));
@@ -225,6 +225,12 @@
     addButton(t("en_btn_wave"), function () { sayoMode = sayoMode === "wave" ? "idle" : "wave"; syncModeButtons(); }, "en-btn-wave");
     addButton(t("en_btn_walk"), function () { sayoMode = sayoMode === "walk" ? "idle" : "walk"; syncModeButtons(); }, "en-btn-walk");
     addButton(t("en_btn_follow"), function (b) { follow = !follow; b.classList.toggle("is-on", follow); }, "en-btn-follow");
+    addButton(t("en_btn_closeup"), function () {
+      // 臉部特寫：看五官與服裝細節
+      var p = sayo ? sayo.scene.position : new THREE.Vector3(0, 0, 1.2);
+      controls.target.set(p.x, 1.2, p.z);
+      camera.position.set(p.x + 0.25, 1.28, p.z + 0.85);
+    }, "en-btn-closeup");
     controlsBox.appendChild(el("span", "en-ctl-label", t("en_ctl_view")));
     addButton(t("en_btn_bloom"), function (b) {
       bloomPass.enabled = !bloomPass.enabled;
@@ -271,7 +277,7 @@
     var moon = new THREE.DirectionalLight("#b8c4ff", 0.55);
     moon.position.set(-4, 8, 6);
     scene.add(moon);
-    var warm = new THREE.PointLight("#ffb062", 1.2, 9, 1.6);
+    var warm = new THREE.PointLight("#ffd2a0", 0.6, 9, 1.6); // 太強會把臉照成橘紅
     warm.position.set(0, 2.6, 0.5);
     scene.add(warm);
 
@@ -635,6 +641,10 @@
         guestVrm.expressionManager.setValue("happy", v % 2 ? 0.6 : 0);
         for (var d = 0; d < cols; d++) {
           guestVrm.scene.rotation.y = d * Math.PI / 4;
+          // 彈簧骨（馬尾、袖子）記得上一格的世界座標：每格先把姿勢套上、再重設彈簧，否則轉向後頭髮會被甩歪
+          guestVrm.humanoid.update();
+          guestVrm.scene.updateMatrixWorld(true);
+          if (guestVrm.springBoneManager) guestVrm.springBoneManager.reset();
           guestVrm.update(0);
           var x = d * ATLAS_CELL, y = (v * ATLAS_FRAMES + f) * ATLAS_CELL;
           rt.viewport.set(x, y, ATLAS_CELL, ATLAS_CELL);
