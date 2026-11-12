@@ -26,12 +26,14 @@ TEX_DIR = ARGS.get("tex", "")
 OUT = ARGS.get("out", "")
 CLOTH = ARGS.get("cloth", "1") == "1"
 
-SKIN = "#ffe9e0"
-SKIN_SHADE = "#f4d0c6"
-HAIR = "#231c2b"
-HAIR_SHADE = "#0f0a16"
-EYE_H, EYE_X, EYE_Y = 0.031, 0.049, 1.238
+# 臉與頭髮依立繪 jikan n_022（小夜）調整（2026-11-12 使用者指定「臉型重做，以一張立繪為代表貼近」）
+SKIN = "#ffece4"  # 與 face_textures.js 的 SAYO.skin 相同
+SKIN_SHADE = "#f4d2c8"
+HAIR = "#2b2024"
+HAIR_SHADE = "#120b10"
+EYE_H, EYE_X, EYE_Y = 0.036, 0.052, 1.232
 LID_UP = EYE_H * 0.357
+MOUTH_Y = 1.145
 EK = EYE_H / 0.028
 
 
@@ -170,25 +172,35 @@ def patch(x0, x1, y0, y1, nx, ny, z_at, mirror_u=False):
     return g
 
 
-# ---------------------------------------------------------------- 頭（雕塑過的臉型）
-HEAD_C = (0.0, 1.252, 0.0)
-HEAD_R = (0.150, 0.163, 0.148)
+# ---------------------------------------------------------------- 頭（依立繪 n_022 的雞蛋形臉）
+# 立繪的臉：臉頰圓、從顴骨以下快速收窄到小而尖的下巴；正面平、下巴略往前。
+# 以單位球的 y（-1 下巴〜1 頭頂）查表得到各高度的寬度與深度倍率。
+HEAD_C = (0.0, 1.25, 0.0)
+HEAD_R = (0.148, 0.158, 0.150)
+FACE_W = [(-1.0, 0.16), (-0.95, 0.30), (-0.86, 0.50), (-0.74, 0.70), (-0.6, 0.86), (-0.42, 0.95), (-0.2, 0.98), (0.0, 0.99), (0.3, 1.0), (1.0, 1.0)]
+FACE_D = [(-1.0, 0.62), (-0.85, 0.78), (-0.65, 0.84), (-0.4, 0.90), (-0.1, 0.93), (0.2, 0.95), (1.0, 1.0)]
+BACK_D = [(-1.0, 0.35), (-0.6, 0.68), (-0.3, 0.98), (0.2, 1.08), (1.0, 1.0)]
+
+
+def interp(tbl, v):
+    if v <= tbl[0][0]:
+        return tbl[0][1]
+    for (a, fa), (b, fb) in zip(tbl, tbl[1:]):
+        if v <= b:
+            t = (v - a) / (b - a)
+            t = t * t * (3 - 2 * t)
+            return fa + (fb - fa) * t
+    return tbl[-1][1]
 
 
 def sculpt_head(u, R, C):
-    x, y, z = u[0] * R[0], u[1] * R[1], u[2] * R[2]
-    if u[1] < 0.15:
-        t = min(1.0, (0.15 - u[1]) / 1.15)
-        x *= 1 - 0.40 * t ** 1.5
-        z *= (1 - 0.16 * t ** 1.3) if u[2] > 0 else (1 - 0.35 * t)
+    x = u[0] * R[0] * interp(FACE_W, u[1])
+    y = u[1] * R[1]
+    if u[1] < -0.7:
+        y -= 0.006 * ((-0.7 - u[1]) / 0.3) ** 1.5  # 下巴微尖（太長會變倒三角）
+    z = u[2] * R[2] * interp(FACE_D if u[2] > 0 else BACK_D, u[1])
     if u[2] > 0:
-        z *= 0.94
-    if u[2] < 0 and u[1] > -0.3:
-        z *= 1.07
-    if u[1] < -0.8:
-        y -= 0.006 * (-0.8 - u[1]) / 0.2
-    if u[2] > 0:
-        z += 0.0065 * math.exp(-((x / 0.010) ** 2 + ((y + 0.052) / 0.020) ** 2))
+        z += 0.006 * math.exp(-((x / 0.008) ** 2 + ((y + 0.045) / 0.016) ** 2))  # 小鼻子
     return (C[0] + x, C[1] + y, C[2] + z)
 
 
@@ -225,7 +237,8 @@ BONES = [
     ("rightUpperArm", "chest", (-0.10, 1.03, 0)), ("rightLowerArm", "rightUpperArm", (-0.29, 1.03, 0)), ("rightHand", "rightLowerArm", (-0.46, 1.03, 0)),
     ("leftUpperLeg", "hips", (0.075, 0.69, 0)), ("leftLowerLeg", "leftUpperLeg", (0.075, 0.39, 0)), ("leftFoot", "leftLowerLeg", (0.075, 0.07, 0)),
     ("rightUpperLeg", "hips", (-0.075, 0.69, 0)), ("rightLowerLeg", "rightUpperLeg", (-0.075, 0.39, 0)), ("rightFoot", "rightLowerLeg", (-0.075, 0.07, 0)),
-    ("hair1", "head", (0, 1.13, -0.15)), ("hair2", "hair1", (0, 1.02, -0.165)), ("hair3", "hair2", (0, 0.91, -0.17)), ("hair4", "hair3", (0, 0.80, -0.165)),
+    # 後面的長髮（彈簧骨）
+    ("hair1", "head", (0, 1.15, -0.165)), ("hair2", "hair1", (0, 1.0, -0.19)), ("hair3", "hair2", (0, 0.88, -0.2)), ("hair4", "hair3", (0, 0.76, -0.2)),
 ]
 for sx, side in ((1, "left"), (-1, "right")):
     for k, x in enumerate(SLEEVE_X):
@@ -248,15 +261,16 @@ def rigid(bone):
     return lambda p: [(bone, 1.0)]
 
 
-def ponytail_w(p):
-    ys, names = [1.13, 1.02, 0.91, 0.80], ["hair1", "hair2", "hair3", "hair4"]
+def back_hair_w(p):
+    # 後面的長髮：頭頂附近跟著頭，往下依序交給 hair1〜hair4（彈簧骨），擺動時順著彎
+    ys, names = [1.22, 1.15, 1.0, 0.88, 0.76], ["head", "hair1", "hair2", "hair3", "hair4"]
     if p[1] >= ys[0]:
-        return [("hair1", 1.0)]
-    for i in range(3):
+        return [("head", 1.0)]
+    for i in range(4):
         if p[1] >= ys[i + 1]:
             t = (ys[i] - p[1]) / (ys[i] - ys[i + 1])
             return [(names[i], 1 - t), (names[i + 1], t)]
-    return [("hair3", 1.0)]
+    return [("hair4", 1.0)]
 
 
 def sleeve_w(side):
@@ -343,34 +357,53 @@ def build_parts():
         cx = EYE_X * sx
         put("eye", patch(cx - EYE_H, cx + EYE_H, EYE_Y - EYE_H, EYE_Y + EYE_H, 16, 16, lambda x, y: surface_z(x, y) + 0.0012, sx < 0), "head", "eye", mesh="face")
         put("lid", patch(cx - EYE_H, cx + EYE_H, EYE_Y - EYE_H + LID_UP, EYE_Y + EYE_H + LID_UP, 16, 16, lambda x, y: surface_z(x, y) + 0.0019, sx < 0), "head", "lid", mesh="face")
-    put("mouth", patch(-0.022, 0.022, 1.128, 1.172, 12, 12, lambda x, y: surface_z(x, y) + 0.0012), "head", "mouth", mesh="face")
+    put("mouth", patch(-0.022, 0.022, MOUTH_Y - 0.022, MOUTH_Y + 0.022, 12, 12, lambda x, y: surface_z(x, y) + 0.0012), "head", "mouth", mesh="face")
 
-    # --- 頭髮
-    HC, HR = (0, 1.268, -0.008), (0.160, 0.163, 0.160)
+    # --- 頭髮（依立繪 n_022：黑長直、細瀏海有幾束垂到兩眼之間、長側髮、兩側紅緞帶的半綁髮）
+    HC, HR = (0, 1.262, -0.01), (0.162, 0.168, 0.164)
     cap = lathe(sphere_profile(36), 48).map(lambda u: sculpt_head(u, HR, HC))
-    cap.faces = [f for f in cap.faces if all((cap.pos[i][1] > 1.335 or cap.pos[i][2] < 0.03) and cap.pos[i][1] > 1.10 for i in f)]
+    cap.faces = [f for f in cap.faces if all((cap.pos[i][1] > 1.33 or cap.pos[i][2] < 0.03) and cap.pos[i][1] > 1.12 for i in f)]
     put("hair", cap, "head", subd=1)
     cap_out = lambda p, t=0: tuple((Vector(p) - Vector(HC)).normalized())
-    bangs = [(-0.125, 1.235), (-0.1, 1.275), (-0.075, 1.29), (-0.05, 1.30), (-0.025, 1.288), (0, 1.302), (0.025, 1.29), (0.05, 1.298), (0.075, 1.286), (0.1, 1.272), (0.125, 1.232)]
-    for x0, ty in bangs:
-        root = (x0 * 0.8, 1.405, surface_z(x0 * 0.8, 1.38) - 0.004)
-        mid = (x0, 1.345, surface_z(x0, 1.345) + 0.013)
-        tip = (x0 * 1.06, ty, surface_z(x0 * 1.06, ty) + 0.007)
-        put("hair", strand([root, mid, tip], lambda t: 0.05 * (1 - t) ** 0.7 + 0.003, lambda t: 0.008 * (1 - t) + 0.002, cap_out), "head", subd=1)
+    # 瀏海：前後兩層、彼此重疊，不露出額頭；中央一束垂到兩眼之間，兩端較長框住臉
+    jitter = [0.0, 0.012, -0.006, 0.008, -0.01, 0.004, 0.01, -0.004]
+    for layer, (n, lift, w0, back) in enumerate(((17, 0.0, 0.045, 0.0), (16, 0.022, 0.05, -0.004))):
+        for i in range(n):
+            x0 = -0.14 + i * (0.28 / (n - 1)) + (0.0 if layer == 0 else 0.0)
+            ty = 1.28 + jitter[i % len(jitter)] + lift
+            if abs(x0) < 0.012 and layer == 0:
+                ty = 1.215
+            if abs(x0) > 0.12:
+                ty = 1.20 + lift
+            root = (x0 * 0.8, 1.405, surface_z(x0 * 0.8, 1.38) - 0.004 + back)
+            mid = (x0, 1.34, surface_z(x0, 1.34) + 0.012 + back)
+            tip = (x0 * 1.05, ty, surface_z(x0 * 1.05, ty) + 0.008 + back)
+            put("hair", strand([root, mid, tip], lambda t, w0=w0: w0 * (1 - t) ** 1.2 + 0.001, lambda t: 0.007 * (1 - t) + 0.0015, cap_out), "head", subd=1)
     for sx in (1, -1):
-        put("hair", strand([(0.118 * sx, 1.35, 0.06), (0.142 * sx, 1.25, 0.07), (0.138 * sx, 1.14, 0.068), (0.122 * sx, 1.05, 0.055)],
-                           lambda t: 0.05 * (1 - t) ** 0.6 + 0.005, 0.01, cap_out), "head", subd=1)
-    for k in range(-3, 4):
+        # 側髮：耳前一束長到胸前、耳後一束
+        put("hair", strand([(0.125 * sx, 1.33, 0.06), (0.148 * sx, 1.20, 0.075), (0.15 * sx, 1.05, 0.07), (0.14 * sx, 0.92, 0.06)],
+                           lambda t: 0.055 * (1 - t) ** 0.7 + 0.006, 0.012, cap_out, samples=22), "head", subd=1)
+        put("hair", strand([(0.145 * sx, 1.32, 0.0), (0.165 * sx, 1.15, 0.01), (0.17 * sx, 0.98, 0.0), (0.16 * sx, 0.86, -0.01)],
+                           lambda t: 0.06 * (1 - t) ** 0.6 + 0.008, 0.014, cap_out, samples=22), "head", subd=1)
+        # 半綁髮的小撮＋紅緞帶（蝴蝶結：兩個圈＋兩條垂帶）
+        put("hair", strand([(0.09 * sx, 1.41, -0.06), (0.13 * sx, 1.37, -0.11), (0.15 * sx, 1.33, -0.13)],
+                           lambda t: 0.04 * (1 - t * 0.5), 0.016, cap_out, samples=12), "head", subd=1)
+        c = (0.155 * sx, 1.335, -0.122)
+        side = lambda p, t=0, sx=sx: (sx, 0, 0)
+        k = 1.6  # 立繪的緞帶很顯眼：蝴蝶結放大
+        for dz in (-1, 1):
+            loop = [c, (c[0], c[1] + 0.02 * k, c[2] + 0.012 * k * dz), (c[0], c[1] + 0.024 * k, c[2] + 0.032 * k * dz),
+                    (c[0], c[1] + 0.008 * k, c[2] + 0.038 * k * dz), (c[0], c[1] - 0.002 * k, c[2] + 0.02 * k * dz), c]
+            put("accent", strand(loop, 0.018, 0.003, side, samples=20, ring=6), "head", subd=1)
+        for dz, end_y in ((-1, 1.13), (1, 1.17)):
+            tail = [c, (c[0], c[1] - 0.06, c[2] + 0.016 * dz), (c[0] + 0.004 * sx, c[1] - 0.13, c[2] + 0.004 * dz), (c[0], end_y, c[2] + 0.018 * dz)]
+            put("accent", strand(tail, lambda t: 0.017 - 0.004 * t, 0.003, side, samples=20, ring=6), "head", subd=1)
+        put("accent", super_ellipsoid(c, (0.008, 0.014, 0.014), 0.6, 0.6, 8, 12), "head", subd=1)
+    # 後面的長髮：從頭頂垂到腰
+    for k in range(-4, 5):
         bx = k * 0.04
-        put("hair", strand([(bx * 0.8, 1.40, -0.06), (bx, 1.33, -0.16), (bx * 1.05, 1.22, -0.172), (bx * 0.6, 1.12, -0.158)],
-                           lambda t: 0.06 * (1 - t * 0.6), 0.014, cap_out, samples=14), "head", subd=1)
-    for n, dx in enumerate([-0.03, -0.012, 0.006, 0.024, 0.04]):
-        z0 = -0.152 - (n % 2) * 0.006
-        put("hair", strand([(dx * 0.5, 1.135, z0), (dx * 1.5, 1.04, z0 - 0.014), (dx * 1.3, 0.94, z0 - 0.02), (dx * 0.6, 0.80, z0 - 0.014)],
-                           lambda t: 0.05 * (1 - t) ** 0.5 + 0.004, 0.014, lambda p, t=0: (0, 0, -1), samples=20), ponytail_w, subd=1)
-    put("white", super_ellipsoid((0, 1.13, -0.166), (0.044, 0.02, 0.012), 0.5, 0.5, 10, 16), "hair1", subd=1)
-    for a, b in ((1.136, 1.128), (1.124, 1.132)):
-        put("red", strand([(-0.046, a, -0.17), (0, b, -0.181), (0.046, a, -0.17)], 0.006, 0.006, lambda p, t=0: (0, 0, -1), samples=10, ring=6), "hair1")
+        put("hair", strand([(bx * 0.7, 1.41, -0.05), (bx, 1.33, -0.165), (bx * 1.1, 1.18, -0.185), (bx * 1.15, 1.0, -0.2), (bx * 1.1, 0.82, -0.205), (bx * 0.9, 0.74, -0.2)],
+                           lambda t: 0.065 * (1 - 0.5 * t), 0.016, cap_out, samples=26), back_hair_w, subd=1)
 
     # --- 白衣＋交領
     put("white", lathe(TORSO_PROFILE, 40).map(lambda p: (p[0], p[1], p[2] * TORSO_Z)), torso_w, subd=1)
@@ -436,7 +469,7 @@ def morph(part, p):
         out["blink"] = move_to(p[0], cy + (p[1] - cy) * 0.05)
         out["happy"] = move_to(p[0], cy + 0.006 * EK + (p[1] - cy) * 0.05)
     elif part.role == "mouth":
-        my, mdx = 1.15, p[0] / 0.022
+        my, mdx = MOUTH_Y, p[0] / 0.022
         out["aa"] = move_to(p[0] * 0.85, my + (p[1] - my) * 5)
         out["happy"] = move_to(p[0] * 1.25, p[1] + 0.002 * mdx * mdx)
     return out
@@ -627,7 +660,7 @@ def load_image(name):
     return img
 
 
-def mtoon(name, color, shade, outline=0.0, tex=None, mask=False, shift=-0.05, rim=(0, 0, 0)):
+def mtoon(name, color, shade, outline=0.0, tex=None, mask=False, shift=-0.05, rim=(0, 0, 0), wrap="CLAMP_TO_EDGE"):
     m = bpy.data.materials.new(name)
     m.vrm_addon_extension.mtoon1.enabled = True
     g = m.vrm_addon_extension.mtoon1
@@ -650,8 +683,8 @@ def mtoon(name, color, shade, outline=0.0, tex=None, mask=False, shift=-0.05, ri
         g.pbr_metallic_roughness.base_color_texture.index.source = img
         mt.shade_multiply_texture.index.source = img
         for t in (g.pbr_metallic_roughness.base_color_texture.index, mt.shade_multiply_texture.index):
-            t.sampler.wrap_s = "CLAMP_TO_EDGE"
-            t.sampler.wrap_t = "CLAMP_TO_EDGE"
+            t.sampler.wrap_s = wrap
+            t.sampler.wrap_t = wrap
     if mask:
         g.alpha_mode = "MASK"
         g.alpha_cutoff = 0.5
@@ -667,7 +700,7 @@ def make_materials():
     mtoon("eye", (1, 1, 1), (0.88, 0.86, 0.9), tex="eye", mask=True, shift=-0.4)
     mtoon("lid", (1, 1, 1), ratio, tex="lid", mask=True)
     mtoon("mouth", (1, 1, 1), (0.9, 0.85, 0.85), tex="mouth", mask=True, shift=-0.4)
-    mtoon("hair", lin(HAIR), lin(HAIR_SHADE), outline=0.003, rim=(0.25, 0.22, 0.35))
+    mtoon("hair", (1, 1, 1), tuple(lin(HAIR_SHADE)[i] / max(lin(HAIR)[i], 1e-4) * 0.9 for i in range(3)), outline=0.003, tex="hair", rim=(0.25, 0.22, 0.35), wrap="REPEAT")
     mtoon("white", lin("#fbfaf8"), lin("#c3c5dc"), outline=0.003, rim=(0.2, 0.2, 0.25))
     mtoon("red", lin("#d22a3c"), lin("#801425"), outline=0.003, rim=(0.2, 0.1, 0.12))
     mtoon("accent", lin("#e0303f"), lin("#8a1626"), outline=0.002)
@@ -730,7 +763,7 @@ def setup_vrm(arm, face_obj):
             j.drag_force = drag
         if with_colliders:
             spring.add_collider_group().collider_group_uuid = group.uuid
-    add_spring("ponytail", ["hair1", "hair2", "hair3", "hair4"], 0.9, 0.35, 0.35, 0.03, True)
+    add_spring("backHair", ["hair1", "hair2", "hair3", "hair4"], 0.8, 0.3, 0.4, 0.04, True)
     for side in ("left", "right"):
         for k in range(3):
             add_spring(f"{side}Sleeve{k}", [f"{side}Sleeve{k}a", f"{side}Sleeve{k}b", f"{side}Sleeve{k}c"], 1.0, 0.25, 0.5, 0.035, False)

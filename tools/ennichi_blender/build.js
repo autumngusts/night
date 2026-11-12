@@ -1,6 +1,6 @@
 // ============================================================================
 // 緣日樂園：Blender 版 VRM 的建置入口（2026-11-12）
-//   1. 用 tools/ennichi_model/build_vrm.js 的 SVG 畫五官貼圖，經 Playwright 轉成 PNG（暫存資料夾）
+//   1. 用 face_textures.js（依立繪 n_022 畫的五官）的 SVG 畫貼圖，經 Playwright 轉成 PNG（暫存資料夾）
 //   2. 背景執行 Blender：blender -b -P build_sayo.py -- --tex <暫存> --out static_src/models/ennichi/sayo_blender.vrm
 // 前置：
 //   * Blender 4.2 以上（找不到時用環境變數 BLENDER 指定 blender.exe）
@@ -13,7 +13,8 @@ var fs = require("fs");
 var os = require("os");
 var path = require("path");
 var cp = require("child_process");
-var tex = require("../ennichi_model/build_vrm.js");
+var raster = require("../ennichi_model/build_vrm.js").rasterize;
+var tex = require("./face_textures.js");
 
 var ROOT = path.join(__dirname, "..", "..");
 var OUT = path.join(ROOT, "static_src", "models", "ennichi", "sayo_blender.vrm");
@@ -34,7 +35,7 @@ function findBlender() {
 (async function () {
   var dir = fs.mkdtempSync(path.join(os.tmpdir(), "ennichi-tex-"));
   var c = tex.SAYO;
-  var png = await tex.rasterize({ face: tex.faceSvg(c), eye: tex.eyeSvg(c), mouth: tex.mouthSvg(), lid: tex.lidSvg(c) });
+  var png = await raster({ face: tex.faceSvg(c), eye: tex.eyeSvg(c), mouth: tex.mouthSvg(), lid: tex.lidSvg(c), hair: tex.hairSvg(c) });
   Object.keys(png).forEach(function (k) { fs.writeFileSync(path.join(dir, k + ".png"), png[k]); });
   var args = ["-b", "-P", path.join(__dirname, "build_sayo.py"), "--", "--tex", dir, "--out", OUT, "--cloth", process.argv.indexOf("--no-cloth") >= 0 ? "0" : "1"];
   var blender = findBlender();

@@ -18,7 +18,8 @@
   // 兩種模型：程式產生（tools/ennichi_model）與 Blender 產生（tools/ennichi_blender），可切換比較
   var MODELS = { code: root.getAttribute("data-model"), blender: root.getAttribute("data-model-blender") };
   var MODEL_URL = MODELS.code;
-  var modelKind = "code";
+  // 近景預設用 Blender 版（依立繪重做的臉）；看板圖集用較輕的程式版
+  var modelKind = MODELS.blender ? "blender" : "code";
   var JIKAN = root.getAttribute("data-jikan");
 
   function t(key, params) { return window.I18N ? window.I18N.t(key, params) : key; }
@@ -947,9 +948,9 @@
         setReport("crowd", guestCount + "");
         var t0 = performance.now();
         var bytes = 0;
-        return fetch(MODEL_URL).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+        return fetch(MODELS[modelKind]).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
           bytes = buf.byteLength;
-          return Promise.all([loadVrm(), loadVrm()]);
+          return Promise.all([loadVrm(MODELS[modelKind]), loadVrm(MODELS.code)]);
         }).then(function (both) {
           setupSayo(both[0], Math.round(performance.now() - t0), bytes);
           buildCrowd(buildAtlas(both[1]));
