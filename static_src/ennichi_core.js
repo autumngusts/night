@@ -69,7 +69,7 @@
     D.START_MACHINES.forEach(function (m) {
       var rid = null;
       for (var r in D.RECIPES) if (D.RECIPES[r].m === m) { rid = r; break; }
-      s.machines.push({ type: m, rid: rid, t: null });
+      s.machines.push({ type: m, rid: rid, t: null, limit: null });
     });
     var wl = Object.keys(D.WEATHER).map(function (k) { return { id: k, w: D.WEATHER[k].w }; });
     s.weather.push("sun");
@@ -175,15 +175,29 @@
     var m = D.MACHINES[type];
     if (!m || s.phase !== "plan" || s.machines.length >= machineSlots(s) || s.cash < m.cost) return false;
     s.cash -= m.cost;
-    s.machines.push({ type: type, rid: null, t: null });
+    s.machines.push({ type: type, rid: null, t: null, limit: null });
     return true;
   }
 
+  // rid = null → 停機（回到待機）；加工中的那一批作廢
   function setRecipe(s, mi, rid) {
-    var m = s.machines[mi], r = D.RECIPES[rid];
-    if (!m || !r || r.m !== m.type) return false;
+    var m = s.machines[mi], r = rid === null ? null : D.RECIPES[rid];
+    if (!m || (rid !== null && (!r || r.m !== m.type))) return false;
     m.rid = rid; m.t = null;
     return true;
+  }
+
+  // 庫存上限：倉庫裡該配方產物 ≥ limit 時不開新工（待機），庫存降下來再自動開工。null／0 = 不限
+  function setLimit(s, mi, n) {
+    var m = s.machines[mi];
+    if (!m || (n != null && (n < 0 || n > D.WARE_CAP))) return false;
+    m.limit = n ? Math.floor(n) : null;
+    return true;
+  }
+  function overLimit(s, m, r) {
+    if (!m.limit) return false;
+    for (var k in r.out) if ((s.ware[k] || 0) >= m.limit) return true;
+    return false;
   }
 
   function setPrice(s, sid, price) {
@@ -208,7 +222,7 @@
         var inN = 0, outN = 0, k;
         for (k in r.in) inN += r.in[k];
         for (k in r.out) outN += r.out[k];
-        if (have(s, r.in) && wareTotal(s) - inN + outN <= D.WARE_CAP) { take(s, r.in); m.t = 0; }
+        if (!overLimit(s, m, r) && have(s, r.in) && wareTotal(s) - inN + outN <= D.WARE_CAP) { take(s, r.in); m.t = 0; }
         return;
       }
       m.t++;
@@ -272,7 +286,9 @@
     s.guests.forEach(function (g) { t.hapSum += g.hap; t.hapN++; t.left++; });
     s.guests = [];
     var avg = t.hapN ? Math.round(t.hapSum / t.hapN) : 0;
-    var delta = Math.round((avg - 55) * t.hapN / 40) + t.sns;
+    // 口碑：以平均心情為主（不再乘來客數），加上 SNS（有上限），整體每天限制在 ±REP.dayMax
+    var mood = t.hapN ? Math.round((avg - D.REP.base) * D.REP.mood) : 0;
+    var delta = Math.max(-D.REP.dayMax, Math.min(D.REP.dayMax, mood + Math.min(t.sns, D.REP.snsMax)));
     s.rep = Math.max(0, s.rep + delta);
     for (var k in s.structs) {
       var st = s.structs[k];
@@ -321,8 +337,9 @@
       case "path": ok = setPath(s, it.x, it.y, !!it.on); break;
       case "buy": ok = buy(s, it.item, it.n); break;
       case "machine": ok = addMachine(s, it.type); break;
-      // recipe／price／ticket 營業中也可調整（規格允許暫停設定），故不限 plan
+      // recipe／limit／price／ticket 營業中也可調整（規格允許暫停設定），故不限 plan
       case "recipe": ok = setRecipe(s, it.mi, it.rid); break;
+      case "limit": ok = setLimit(s, it.mi, it.n); break;
       case "price": ok = setPrice(s, it.sid, it.price); break;
       case "fee": ok = setFee(s, it.fee); break;
       case "repair": ok = repair(s, it.sid); break;
@@ -352,7 +369,7 @@
     popLevel: popLevel, machineSlots: machineSlots, weatherOf: weatherOf,
     wareTotal: wareTotal, have: have, take: take, give: give, nearRide: nearRide,
     newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath, setTicket: setTicket,
-    buy: buy, addMachine: addMachine, setRecipe: setRecipe, setPrice: setPrice, setFee: setFee,
+    buy: buy, addMachine: addMachine, setRecipe: setRecipe, setLimit: setLimit, setPrice: setPrice, setFee: setFee,
     workshopStep: workshopStep, effStats: effStats, upgrade: upgrade,
     openDay: openDay, tick: tick, closeDay: closeDay, repair: repair, nextDay: nextDay, seasonResult: seasonResult, applyIntent: applyIntent,
     serialize: serialize, restore: restore,

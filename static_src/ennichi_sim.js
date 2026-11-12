@@ -38,9 +38,22 @@
   }
 
   function isWeekend(day) { var w = day % 7; return w === 6 || w === 0; }
+  // 樂園容量：完工遊樂設施座位數 × perSeat ＋ 完工攤位／排隊屋台／設施數 × perShop ＋ base
+  function capacity(s) {
+    var c = D.CAPACITY, n = c.base;
+    for (var k in s.structs) {
+      var st = s.structs[k], b = D.BUILD[st.type];
+      if (st.build > 0) continue;
+      if (b.kind === "ride") n += b.cap * c.perSeat;
+      else if (b.kind === "stall" || b.kind === "qstall" || b.kind === "facility") n += c.perShop;
+    }
+    return n;
+  }
+  // 來客數：口碑決定想來的人數（週末 ×1.8），以樂園容量封頂，再乘天氣係數
   function arrivals(s) {
     var w = D.WEATHER[Core.weatherOf(s, s.day)];
-    return Math.round((30 + s.rep * 0.6) * (isWeekend(s.day) ? 1.8 : 1) * w.arrive);
+    var want = (30 + s.rep * 0.6) * (isWeekend(s.day) ? 1.8 : 1);
+    return Math.round(Math.min(want, capacity(s)) * w.arrive);
   }
   function spawnSchedule(s) {
     var n = arrivals(s), out = [];
@@ -56,7 +69,8 @@
       need: { fun: Core.rint(s, 30), hunger: Core.rint(s, 30), thirst: Core.rint(s, 30), toilet: Core.rint(s, 30), fatigue: Core.rint(s, 30), dry: 0 },
       hap: 60, cash: gt.cash[0] + Core.rint(s, gt.cash[1] - gt.cash[0] + 1), patience: gt.patience,
       wait: 0, t: 0, leaving: false, spent: 0, rides: 0, kasa: false, ticket: null,
-      skip: 0 // 下車後暫停選目的地的剩餘分鐘數
+      skip: 0, // 下車後暫停選目的地的剩餘分鐘數
+      ncd: 0 // 「找不到對應設施」抱怨的冷卻分鐘數
     };
     s.cash += s.fee; g.cash -= s.fee;
     if (s.today) { s.today.fees += s.fee; s.today.guests++; }
@@ -93,6 +107,13 @@
     return v < 30 ? "fun" : best;
   }
 
+  // 攤位對這位客人有沒有用：至少一樣商品有庫存且買得起
+  function stallUsable(s, g, st) {
+    var sells = D.BUILD[st.type].sells;
+    for (var i = 0; i < sells.length; i++) if ((s.ware[sells[i]] || 0) >= 1 && g.cash >= D.ITEMS[sells[i]].sell) return true;
+    return false;
+  }
+
   function isOpen(s, st) {
     return st.build === 0 && !st.broken && !(s.today && s.today.closed.indexOf(st.type) >= 0);
   }
@@ -103,6 +124,7 @@
       var st = s.structs[k];
       if (!isOpen(s, st) || kinds.indexOf(kindOf(st)) < 0) continue;
       if (g.ticket && g.ticket.sid === st.id && s.min < g.ticket.at) continue; // 持票者未到時間不可再選該設施
+      if (D.BUILD[st.type].kind === "stall" && !stallUsable(s, g, st)) continue; // 賣完或買不起的攤位不去
       var d = distField(s, k)[Core.ti(g.x, g.y)];
       if (d < 0) continue;
       var score = prefScore(g, st) * 50 - d * 1.5 - st.q.length * 3 + Core.rnd(s) * 10;
@@ -197,8 +219,15 @@
   function buyAt(s, g, st) {
     var b = D.BUILD[st.type], id = sellOne(s, g, b.sells);
     if (!id) {
-      g.hap -= 5; clampHap(g);
-      if (chance(s, 0.3)) mm(s, g, "complaint", "soldout", { food: D.ITEMS[b.sells[0]].name });
+      // 有貨但錢不夠 → 「太貴」（扣得少）；真的沒貨 → 「賣完」
+      var stocked = b.sells.filter(function (k) { return (s.ware[k] || 0) >= 1; });
+      if (stocked.length) {
+        g.hap -= D.MOOD.pricey; clampHap(g);
+        if (chance(s, 0.3)) mm(s, g, "complaint", "pricey", { food: D.ITEMS[stocked[0]].name });
+      } else {
+        g.hap -= D.MOOD.soldout; clampHap(g);
+        if (chance(s, 0.3)) mm(s, g, "complaint", "soldout", { food: D.ITEMS[b.sells[0]].name });
+      }
       return;
     }
     var it = D.ITEMS[id];
@@ -303,6 +332,7 @@
 
   function guestStep(s, g) {
     needsTick(s, g);
+    if (g.ncd > 0) g.ncd--;
     if (!g.leaving && (s.min >= D.DAY_END || g.hap < 15 || g.need.fatigue >= 100 || g.cash < 100)) {
       g.leaving = true;
       if (g.state === "queue") { leaveQueue(s, g); g.state = "walk"; }
@@ -340,7 +370,8 @@
       g.sid = choose(s, g);
       if (!g.sid) {
         var need = urgentNeed(g);
-        if (g.need[need] >= 70) { g.hap -= 3; clampHap(g); if (chance(s, 0.3)) mm(s, g, "need", need, {}); }
+        // 需求 ≥ 70 卻沒有對應設施：抱怨一次＋小扣分，之後冷卻 noFacilityCd 分鐘
+        if (g.need[need] >= 70 && !(g.ncd > 0)) { g.hap -= D.MOOD.noFacility; clampHap(g); mm(s, g, "need", need, {}); g.ncd = D.MOOD.noFacilityCd; }
         g.sid = shrineId(s); // 沒得選就去參拜
       }
     }
@@ -380,7 +411,7 @@
   }
 
   window.PriTestEnnichiSim = {
-    distField: distField, isWeekend: isWeekend, arrivals: arrivals, spawnSchedule: spawnSchedule, spawn: spawn,
+    distField: distField, isWeekend: isWeekend, capacity: capacity, arrivals: arrivals, stallUsable: stallUsable, spawnSchedule: spawnSchedule, spawn: spawn,
     kindOf: kindOf, guestType: guestType, prefScore: prefScore, urgentNeed: urgentNeed, isOpen: isOpen,
     choose: choose, moveToward: moveToward, needsTick: needsTick, weatherNow: weatherNow, closedFor: closedFor,
     step: step, rideStep: rideStep, buyAt: buyAt, arrive: arrive, breakDown: breakDown, byId: byId, chance: chance, mm: mm,

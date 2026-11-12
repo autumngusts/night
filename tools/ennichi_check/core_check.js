@@ -153,6 +153,26 @@ var Core = window.PriTestEnnichiCore;
   u.ware = { wood: D.WARE_CAP }; u.machines = [{ type: "saw", rid: "plank", t: null }];
   Core.workshopStep(u);
   assert.strictEqual(u.machines[0].t, null, "放不下產出就不開工");
+  // 停機：rid = null 回到待機，不取料（2026-11-12 使用者決定：機器要能停機）
+  var v = Core.newGame({ seed: 6 });
+  v.ware = { wood: 5 }; v.today = { made: {} };
+  v.machines = [{ type: "saw", rid: "plank", t: null, limit: null }];
+  assert.ok(Core.applyIntent(v, { a: "recipe", mi: 0, rid: null }).ok, "可以停機");
+  assert.strictEqual(v.machines[0].rid, null);
+  for (i = 0; i < 10; i++) Core.workshopStep(v);
+  assert.strictEqual(v.ware.wood, 5, "停機中不取料");
+  assert.ok(!Core.applyIntent(v, { a: "recipe", mi: 0 }).ok, "沒給 rid 不算停機");
+  assert.ok(!Core.applyIntent(v, { a: "recipe", mi: 9, rid: null }).ok, "機器不存在");
+  assert.strictEqual(Core.newGame({ seed: 6 }).machines[0].limit, null, "預設不限庫存");
+  // 庫存上限：產物 ≥ limit 就不開新工，降下來自動恢復
+  Core.applyIntent(v, { a: "recipe", mi: 0, rid: "plank" });
+  assert.ok(Core.applyIntent(v, { a: "limit", mi: 0, n: 4 }).ok);
+  for (i = 0; i < 20; i++) Core.workshopStep(v);
+  assert.strictEqual(v.ware.plank, 4, "做到 4 片就停"); assert.strictEqual(v.ware.wood, 3);
+  v.ware.plank = 1;
+  Core.workshopStep(v); assert.strictEqual(v.machines[0].t, 0, "庫存降下來 → 自動開工");
+  assert.ok(Core.applyIntent(v, { a: "limit", mi: 0, n: null }).ok); assert.strictEqual(v.machines[0].limit, null);
+  assert.ok(!Core.applyIntent(v, { a: "limit", mi: 0, n: -1 }).ok, "負數不行");
   console.log("3. 工房 OK");
 })();
 
@@ -209,9 +229,15 @@ function sidOf(s, type) { return +Object.keys(s.structs).filter(function (k) { r
   assert.strictEqual(Sim.distField(s, "gate"), gate, "快取");
   Core.setPath(s, 3, 11, true); assert.notStrictEqual(Sim.distField(s, "gate"), gate, "改地圖後重算");
   // 來客數（第 1 天的天氣依種子而定 → 固定成晴天檢查公式）
-  s.weather[1] = "sun"; assert.strictEqual(Sim.arrivals(s), 30);
-  s.weather[1] = "rain"; assert.strictEqual(Sim.arrivals(s), Math.round(30 * 0.6));
-  s.day = 6; s.weather[6] = "sun"; s.rep = 100; assert.strictEqual(Sim.arrivals(s), Math.round(90 * 1.8));
+  // 2026-11-12 起以樂園容量封頂（舊斷言「rep 100 週末 = 90 × 1.8」已過時：freshPark 的容量只有 96）
+  var cap = D.CAPACITY.base + D.BUILD.merry.cap * D.CAPACITY.perSeat + 2 * D.CAPACITY.perShop; // 旋轉木馬＋章魚燒攤＋長椅
+  assert.strictEqual(Sim.capacity(s), cap, "容量公式");
+  s.weather[1] = "sun"; assert.strictEqual(Sim.arrivals(s), Math.min(30, cap));
+  s.weather[1] = "rain"; assert.strictEqual(Sim.arrivals(s), Math.round(Math.min(30, cap) * 0.6));
+  s.day = 6; s.weather[6] = "sun"; s.rep = 100; assert.strictEqual(Sim.arrivals(s), Math.round(Math.min(90 * 1.8, cap)), "週末想來 162 人，被容量封頂");
+  s.weather[6] = "rain"; assert.strictEqual(Sim.arrivals(s), Math.round(cap * 0.6), "封頂後再乘天氣");
+  s.structs[sidOf(s, "merry")].build = 1; assert.strictEqual(Sim.capacity(s), cap - D.BUILD.merry.cap * D.CAPACITY.perSeat, "施工中的不算");
+  s.structs[sidOf(s, "merry")].build = 0;
   s.day = 1; s.rep = 0; s.weather[1] = "sun";
   var sch = Sim.spawnSchedule(s);
   assert.strictEqual(sch.length, 30);
@@ -221,6 +247,12 @@ function sidOf(s, type) { return +Object.keys(s.structs).filter(function (k) { r
   assert.deepStrictEqual([g.x, g.y], [0, 10]); assert.strictEqual(s.cash, cash + s.fee);
   assert.strictEqual(g.need.dry, 0); assert.strictEqual(g.kasa, false);
   g.need = { fun: 0, hunger: 90, thirst: 0, toilet: 0, fatigue: 0, dry: 0 };
+  // 2026-11-12 起 choose() 跳過沒貨或買不起的攤位 → 要先放章魚燒進倉庫
+  assert.strictEqual(Sim.choose(s, g), null, "章魚燒沒貨 → 不去章魚燒攤");
+  s.ware.takoyaki = 5;
+  var gc = g.cash; g.cash = D.ITEMS.takoyaki.sell - 1;
+  assert.strictEqual(Sim.choose(s, g), null, "買不起 → 不去");
+  g.cash = gc;
   assert.strictEqual(s.structs[Sim.choose(s, g)].type, "takoyakiSt");
   g.need = { fun: 0, hunger: 0, thirst: 0, toilet: 0, fatigue: 90, dry: 0 };
   assert.strictEqual(s.structs[Sim.choose(s, g)].type, "bench");
@@ -295,7 +327,30 @@ function walker(s, x, y, sid, need) {
   assert.strictEqual(t.today.rev, D.ITEMS.takoyaki.sell); assert.strictEqual(t.today.sales.takoyaki, 1);
   assert.ok(t.dirt >= 1, "附近沒有垃圾桶 → 髒亂");
   var c2 = walker(t, 11, 10, sidOf(t, "takoyakiSt"), { hunger: 90 });
-  var hap = c2.hap; Sim.step(t); assert.ok(c2.hap < hap, "賣完了心情下降");
+  var hap = c2.hap; Sim.step(t); assert.ok(Math.abs(c2.hap - (hap - D.MOOD.soldout)) < 0.1, "賣完了心情下降 soldout（容許髒亂的微小扣分）");
+  assert.strictEqual(t.ware.takoyaki || 0, 0);
+  // 買不起 ≠ 賣完：有貨但錢不夠 → 「太貴」，扣得比賣完少
+  t.ware.takoyaki = 3; t.guests = []; // 只留下這位客人，避免其他人買走
+  var c3 = walker(t, 11, 10, sidOf(t, "takoyakiSt"), { hunger: 90 }); c3.cash = 150;
+  hap = c3.hap; var cpm = t.today.murmurs.length, ctp = t.today.topics.soldout || 0;
+  for (i = 0; i < 20 && c3.sid; i++) Sim.step(t);
+  assert.strictEqual(t.ware.takoyaki, 3, "沒賣出");
+  assert.ok(Math.abs(c3.hap - (hap - D.MOOD.pricey)) < 0.1, "太貴：扣 pricey（容許髒亂的微小扣分）");
+  assert.ok(D.MOOD.pricey < D.MOOD.soldout);
+  assert.strictEqual(t.today.topics.soldout || 0, ctp, "不算賣完");
+  assert.ok(Murmur.TEMPLATES.complaint.pricey.length > 0);
+  // 需求 ≥ 70 但沒有對應設施（沒有汽水攤）：抱怨一次＋小扣分，冷卻期間不再扣
+  var n = walker(t, 3, 10, null, { thirst: 90 });
+  hap = n.hap; var nm = (t.today.topics.thirst || 0);
+  Sim.guestStep(t, n);
+  assert.ok(Math.abs(n.hap - (hap - D.MOOD.noFacility)) < 0.1, "第一次扣 noFacility");
+  assert.strictEqual(t.today.topics.thirst, nm + 1, "一定會說出需求");
+  assert.strictEqual(n.ncd, D.MOOD.noFacilityCd);
+  // 冷卻期間：每分鐘都找不到汽水攤，但不再抱怨（舊規則是每分鐘 −3）。客人會順路去參拜，所以用 murmur 次數驗證
+  for (i = 0; i < D.MOOD.noFacilityCd - 1; i++) { n.sid = null; n.skip = 0; n.need.thirst = 90; Sim.guestStep(t, n); }
+  assert.strictEqual(t.today.topics.thirst, nm + 1, "冷卻期間不再抱怨／扣分");
+  n.sid = null; n.skip = 0; n.need.thirst = 90; Sim.guestStep(t, n); Sim.guestStep(t, n);
+  assert.strictEqual(t.today.topics.thirst, nm + 2, "冷卻結束再抱怨一次");
   // 排隊太久
   var u = freshPark(23); openToday(u);
   var mm = u.structs[sidOf(u, "merry")]; mm.riders = [999]; mm.t = 50;
@@ -325,8 +380,9 @@ function walker(s, x, y, sid, need) {
   Core.give(s, D.BUILD.kasaSt.parts); s.phase = "plan";
   var kasa = Core.build(s, "kasaSt", 16, 8).sid; s.phase = "open";
   var w = walker(s, 2, 10, null, { dry: 90 });
+  s.ware.kasa = 2; // 2026-11-12 起 choose() 跳過沒貨的攤位，倉庫要先有和傘
   assert.strictEqual(Sim.choose(s, w), kasa);
-  s.ware.kasa = 2; w.x = 17; w.y = 10; w.sid = kasa;
+  w.x = 17; w.y = 10; w.sid = kasa;
   Sim.step(s);
   assert.ok(w.kasa && w.need.dry === 0, "買到和傘");
   // 強風：飛椅、摩天輪停駛
@@ -468,7 +524,21 @@ var Wish = window.PriTestEnnichiWish;
   var res = Core.seasonResult(s);
   assert.ok(res.guests >= sum.guests && res.level >= 1 && res.wishes >= 0);
   assert.strictEqual(Core.applyIntent(s, { a: "bogus" }).err, "unknown");
-  assert.strictEqual(sum.repDelta, Math.round((sum.avgHap - 55) * hapN1 / 40) + sum.sns, "口碑變化公式");
+  // 2026-11-12 起口碑以平均心情為主（舊公式乘上來客數會指數發散），SNS 有上限，整天限制在 ±dayMax
+  function repOf(avg, n, sns) {
+    var m = n ? Math.round((avg - D.REP.base) * D.REP.mood) : 0;
+    return Math.max(-D.REP.dayMax, Math.min(D.REP.dayMax, m + Math.min(sns, D.REP.snsMax)));
+  }
+  assert.strictEqual(sum.repDelta, repOf(sum.avgHap, hapN1, sum.sns), "口碑變化公式");
+  // 上限：極端心情與大量 SNS 也只動 ±dayMax，且與來客數無關
+  [[100, 5000, 999], [0, 5000, 0], [70, 10, 0], [70, 1000, 0]].forEach(function (c) {
+    var r = freshPark(34); Core.applyIntent(r, { a: "open" }); r.today.spawn = [];
+    r.today.hapSum = c[0] * c[1]; r.today.hapN = c[1]; r.today.sns = c[2];
+    var d = Core.closeDay(r).repDelta;
+    assert.strictEqual(d, repOf(c[0], c[1], c[2]));
+    assert.ok(Math.abs(d) <= D.REP.dayMax, "每天上限");
+  });
+  var r0 = freshPark(35); Core.applyIntent(r0, { a: "open" }); r0.today.spawn = []; assert.strictEqual(Core.closeDay(r0).repDelta, 0, "沒客人口碑不變");
   // 已知等待資料：waitSum 90 / waitN 3 → lastWait 30；非 open 時 closeDay 不動作
   var w1 = freshPark(32); assert.strictEqual(Core.closeDay(w1), null);
   Core.applyIntent(w1, { a: "open" }); var m1 = w1.structs[sidOf(w1, "merry")]; m1.waitSum = 90; m1.waitN = 3;

@@ -27,6 +27,12 @@
   D.OUTFITS = 4;
   D.QSTALL_RANGE = 3;
   D.TICKET_FACTOR = 2;
+  // 樂園容量（來客上限）＝ base ＋ 完工遊樂設施的座位數（cap 合計）× perSeat ＋ 完工攤位／排隊屋台／設施數 × perShop
+  D.CAPACITY = { base: 20, perSeat: 5, perShop: 8 };
+  // 口碑：每天 round((平均心情 − base) × mood) ＋ min(SNS, snsMax)，整體限制在 ±dayMax
+  D.REP = { base: 55, mood: 1, snsMax: 5, dayMax: 20 };
+  // 心情扣分：賣完、買不起（錢不夠）、需求 ≥ 70 卻沒有對應設施（每位客人冷卻 noFacilityCd 分鐘才再扣）
+  D.MOOD = { soldout: 5, pricey: 2, noFacility: 2, noFacilityCd: 30 };
 
   function mat(buy, zh, ja) { return { kind: "mat", buy: buy, name: C(zh, ja) }; }
   function part(zh, ja) { return { kind: "part", name: C(zh, ja) }; }
