@@ -202,8 +202,8 @@
 .en-g-chip.is-zero { opacity: .5; }
 .en-g-chip.is-on { border-color: var(--en-accent); box-shadow: inset 0 0 0 1px var(--en-accent); opacity: 1; }
 .en-g-chip:hover, .en-g-build:hover, .en-g-srow:hover { border-color: var(--en-accent); }
-.is-ok { color: #2f8a4a; }
-.is-ng { color: #c8282e; }
+.en-ok { color: #2f8a4a; }
+.en-ng { color: #c8282e; }
 
 .en-g-build {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; cursor: pointer;

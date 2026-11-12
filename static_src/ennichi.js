@@ -295,6 +295,8 @@
         threeState = "ok";
         el["stage-msg"].textContent = "";
       }, function (e) {
+        // init 可能已經建了一半才失敗：不再呼叫 3D API（否則每一影格 three.sync 都丟例外、小地圖也不再更新）
+        three = null;
         threeState = "error";
         el["stage-msg"].textContent = t("en_3d_error", { msg: e && e.message ? e.message : String(e) });
         el["stage-msg"].classList.add("is-error");
@@ -340,7 +342,7 @@
     var h = "";
     for (var k in parts) {
       var n = s.ware[k] || 0;
-      h += '<span class="' + (n >= parts[k] ? "is-ok" : "is-ng") + '">' + esc(itemName(k)) + " " + n + "/" + parts[k] + "</span>";
+      h += '<span class="' + (n >= parts[k] ? "en-ok" : "en-ng") + '">' + esc(itemName(k)) + " " + n + "/" + parts[k] + "</span>";
     }
     return h;
   }
@@ -357,7 +359,7 @@
       var ok = Core.have(s, b.parts) && s.cash >= b.cash && lv >= b.lv;
       h += '<button type="button" class="en-g-build' + (mode && mode.type === type ? " is-on" : "") + (ok ? "" : " is-short") + (b.large ? " is-large" : "") +
         '" data-build="' + type + '"><span class="en-g-build-name">' + esc(L(b.name)) + '</span><span class="en-g-build-meta">' + esc(meta) +
-        (lv < b.lv ? ' · <span class="is-ng">' + esc(t("en_need_lv", { n: b.lv })) + "</span>" : "") +
+        (lv < b.lv ? ' · <span class="en-ng">' + esc(t("en_need_lv", { n: b.lv })) + "</span>" : "") +
         '</span><span class="en-g-parts">' + partsHTML(b.parts) + "</span></button>";
     }
     setHTML(el["build-list"], h);
@@ -433,7 +435,7 @@
   function treeNode(id, qty, depth) {
     var it = D.ITEMS[id], r = D.RECIPES[id], n = s.ware[id] || 0;
     var h = '<li><button type="button" class="en-g-link" data-tree="' + id + '">' + esc(itemName(id)) + "</button>" + (qty ? " ×" + qty : "") +
-      ' <span class="' + (qty && n < qty ? "is-ng" : "is-ok") + '">' + esc(t("en_have", { n: n })) + "</span>";
+      ' <span class="' + (qty && n < qty ? "en-ng" : "en-ok") + '">' + esc(t("en_have", { n: n })) + "</span>";
     if (it.kind === "mat" || !r) h += ' <small>' + esc(t("en_tree_raw", { n: it.buy || 0 })) + "</small>";
     else {
       h += ' <small>' + esc(t("en_tree_line", { machine: L(D.MACHINES[r.m].name), t: r.t, n: r.out[id] })) + "</small>";
@@ -486,7 +488,7 @@
       row("★", "thrill " + e.thrill + " · charm " + e.charm + " · photo " + e.photo);
     }
     if (b.sells) row(t("en_tier_goods"), b.sells.map(itemName).join("、"));
-    setHTML(el["struct-info"], "<h4>" + esc(L(b.name)) + (st.broken ? ' <span class="is-ng">' + esc(t("en_broken")) + "</span>" : "") + '</h4><dl class="en-g-dl">' + rows.join("") + "</dl>");
+    setHTML(el["struct-info"], "<h4>" + esc(L(b.name)) + (st.broken ? ' <span class="en-ng">' + esc(t("en_broken")) + "</span>" : "") + '</h4><dl class="en-g-dl">' + rows.join("") + "</dl>");
     el["struct-ride"].hidden = !ride;
     if (ride) {
       if (document.activeElement !== el["price-input"]) el["price-input"].value = st.price;
@@ -499,7 +501,7 @@
       var slot = b.slots[sl], done = !!st.mods[sl], have = s.ware[slot.mod] || 0;
       hu += '<button type="button" class="en-g-upg' + (done ? " is-done" : "") + '" data-upgrade="' + sl + '"' + (done ? " disabled" : "") + "><b>" +
         esc(t("en_upgrade") + "：" + itemName(slot.mod)) + "</b><small>" + (done ? esc(t("en_upgraded")) :
-        '<span class="' + (have >= slot.n ? "is-ok" : "is-ng") + '">' + have + "/" + slot.n + "</span>") + "</small></button>";
+        '<span class="' + (have >= slot.n ? "en-ok" : "en-ng") + '">' + have + "/" + slot.n + "</span>") + "</small></button>";
     }
     setHTML(el["upgrade-list"], hu);
     el["btn-repair"].hidden = !ride;
@@ -516,7 +518,7 @@
     var h = '<ul class="en-g-wishes">';
     list.forEach(function (w) {
       var info;
-      if (w.done) info = '<span class="is-ok">' + esc(t("en_wish_done")) + "</span>";
+      if (w.done) info = '<span class="en-ok">' + esc(t("en_wish_done")) + "</span>";
       else {
         info = esc(t("en_wish_days", { n: Math.max(0, D.WISH.EXPIRE - (s.day - w.day)) }));
         if (w.kind === "sell") info = '<span class="en-g-bar"><i style="width:' + Math.min(100, Math.round(w.prog / w.n * 100)) + '%"></i></span> ' + w.prog + "/" + w.n + " · " + info;
@@ -716,8 +718,8 @@
       } else if (Date.now() - sideAt > 300) refreshSide();
       renderHud();
     }
+    if (mapDirty) drawMinimap(); // 先畫小地圖：就算 3D 出錯，2D 介面也照常更新
     if (three) three.sync(s, s.phase === "open" ? Math.min(1, acc / stepSec) : 1);
-    if (mapDirty) drawMinimap();
   }
 
   // ---------------------------------------------------------------- 開始
@@ -787,7 +789,7 @@
       if (!inp) return;
       var v = inp.value === "" ? null : parseInt(inp.value, 10), mi = +inp.getAttribute("data-limit");
       if (v !== null && isNaN(v)) return;
-      if ((s.machines[mi].limit || null) !== (v || null)) doIntent({ a: "limit", mi: mi, n: v }, true);
+      if ((s.machines[mi].limit || null) !== (v || null)) doIntent({ a: "limit", mi: mi, n: v || null }, true); // 0＝不限（送 null）
     });
 
     // 小地圖：點選＝放置／選取；步道模式可拖曳
