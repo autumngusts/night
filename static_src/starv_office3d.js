@@ -70,6 +70,7 @@
     var labelLayer = document.createElement("div");
     labelLayer.className = "sv-o3d-labels";
     host.appendChild(labelLayer);
+    var clipper = Stage.clip(host);   // 右下角短片（與演出共用，每 10 秒輪替大小）
 
     var scene = new T.Scene();
     var cam = new T.PerspectiveCamera(32, 1.5, 0.5, 160);
@@ -648,6 +649,7 @@
         n.style.left = p.left + "%"; n.style.top = p.top + "%";
         n.style.visibility = p.ok ? "" : "hidden";
       });
+      if (clipper) clipper.tick(tt);
       renderer.render(scene, cam);
     }
     function resume() { if (!running && !disposed) { running = true; last = 0; raf = requestAnimationFrame(frame); } }
@@ -665,6 +667,7 @@
         renderer.dispose();
         if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
         if (labelLayer.parentNode) labelLayer.parentNode.removeChild(labelLayer);
+        if (clipper) clipper.stop();
       },
       // 測試用：目前的場景摘要
       _debug: function () { return { worldKey: worldKey, peds: peds.length, cars: cars.length, figs: Object.keys(figs).length, fall: fall ? fall.spec.n : 0, led: !!led }; }

@@ -9,6 +9,8 @@
   var t = UI.t, el = UI.el;
   var KEY = "pritest-starv-stage";
   var END_CARD_MS = 4000;
+  // 3D 演出與日程街道圖每經過 CLIP_EVERY_S 秒，在右下角輪流顯示短片與圖片（#sv-app[data-clip-src]／[data-clip-img-src]）
+  var CLIP_EVERY_S = 10;
   var loading = null;
 
   function available() {
@@ -212,6 +214,77 @@
     return function () { clearTimeout(timer); };
   }
 
+  // ---------- 右下角短片／圖片（演出與日程街道圖共用） ----------
+  // 每 CLIP_EVERY_S 秒出現一次，影片（data-clip-src）與圖片（data-clip-img-src）輪流；
+  // 大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4。輪替順序全域共用。
+  // 依素材原始寬高比算出框的寬高，絕不拉伸；兩者都是透明底，所以不加底色。
+  var CLIP_AREAS = [1 / 16, 1 / 8, 1 / 4];
+  var CLIP_IMAGE_MS = 6000;            // 圖片停留時間（約等於影片長度）
+  var clipTurn = 0;
+  function clipAttr(name) { var app = document.getElementById("sv-app"); return (app && app.getAttribute(name)) || ""; }
+  function clip(host) {
+    var vsrc = clipAttr("data-clip-src"), isrc = clipAttr("data-clip-img-src");
+    if (!vsrc && !isrc) return null;
+    var count = 0, cur = null, imgTimer = 0, items = [];
+    if (vsrc) {
+      var v = document.createElement("video");
+      v.src = vsrc; v.muted = true; v.playsInline = true; v.preload = "auto";
+      v.setAttribute("playsinline", "");
+      v.addEventListener("ended", function () { v.hidden = true; });
+      v.addEventListener("error", function () { v.hidden = true; });
+      v.addEventListener("loadedmetadata", function () { if (cur === v) fit(v); });
+      items.push(v);
+    }
+    if (isrc) {
+      var im = document.createElement("img");
+      im.src = isrc; im.alt = "";
+      im.addEventListener("load", function () { if (cur === im) fit(im); });
+      im.addEventListener("error", function () { im.hidden = true; });
+      items.push(im);
+    }
+    items.forEach(function (n) { n.className = "sv-stage-clip"; n.setAttribute("data-act", "stage-clip"); n.hidden = true; host.appendChild(n); });
+    function aspect(n) {
+      var w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
+      return w && h ? w / h : 2 / 3;
+    }
+    function fit(n) {
+      var W = host.clientWidth, H = host.clientHeight, ar = aspect(n), area = +n.getAttribute("data-area") || CLIP_AREAS[0];
+      if (!W || !H) return;
+      var h = Math.sqrt(area * W * H / ar), w = h * ar;
+      if (h > H) { h = H; w = h * ar; }
+      if (w > W) { w = W; h = w / ar; }
+      n.style.width = w + "px"; n.style.height = h + "px";
+    }
+    function show() {
+      var n = items[(count - 1) % items.length];
+      items.forEach(function (o) { if (o !== n) { o.hidden = true; if (o.pause) o.pause(); } });
+      clearTimeout(imgTimer);
+      cur = n;
+      n.setAttribute("data-area", String(CLIP_AREAS[clipTurn % CLIP_AREAS.length]));
+      clipTurn++;
+      fit(n);
+      n.hidden = false;
+      if (n.tagName === "VIDEO") {
+        try { n.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
+        var pr = n.play();
+        if (pr && pr.catch) pr.catch(function () { n.hidden = true; });
+      } else {
+        imgTimer = setTimeout(function () { n.hidden = true; }, CLIP_IMAGE_MS);
+      }
+    }
+    return {
+      // tt：從開始經過的秒數；每跨過一個 CLIP_EVERY_S 的倍數就換下一個出現
+      tick: function (tt) { var n = Math.floor(tt / CLIP_EVERY_S); if (n > count) { count = n; show(); } },
+      stop: function () {
+        clearTimeout(imgTimer);
+        items.forEach(function (n) {
+          if (n.tagName === "VIDEO") { n.pause(); n.removeAttribute("src"); n.load(); }
+          if (n.parentNode) n.parentNode.removeChild(n);
+        });
+      }
+    };
+  }
+
   // ---------- 3D ----------
   function play3d(T, view, opts, onDone) {
     var q = quality(), plan = Spec.plan(opts);
@@ -241,10 +314,12 @@
       return r;
     });
     var start = performance.now(), raf = 0, stopped = false;
+    var clipper = clip(view);
     function frame() {
       if (stopped) return;
       var tt = (performance.now() - start) / 1000;
       if (tt >= plan.duration) { onDone(); return; }
+      if (clipper) clipper.tick(tt);
       var shot = plan.shots[plan.shots.length - 1];
       plan.shots.forEach(function (s) { if (tt >= s.start && tt < s.end) shot = s; });
       var c = Spec.camera(shot.kind, (tt - shot.start) / (shot.end - shot.start), xs[0], y0);
@@ -259,6 +334,7 @@
     return function () {
       stopped = true;
       cancelAnimationFrame(raf);
+      if (clipper) clipper.stop();
       scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
       renderer.dispose();
     };
@@ -301,5 +377,5 @@
   }
 
   // buildRig／resetPose 也給 3D 設施圖（starv_office3d.js）用，人物外觀與演出一致
-  window.PriTestStarvStage3D = { available: available, quality: quality, setQuality: setQuality, load: load, play: play, buildRig: buildRig, resetPose: resetPose };
+  window.PriTestStarvStage3D = { available: available, quality: quality, setQuality: setQuality, load: load, play: play, clip: clip, buildRig: buildRig, resetPose: resetPose };
 })();
