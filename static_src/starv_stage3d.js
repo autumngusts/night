@@ -9,7 +9,7 @@
   var t = UI.t, el = UI.el;
   var KEY = "pritest-starv-stage";
   var END_CARD_MS = 4000;
-  // 3D 演出與日程街道圖每經過 CLIP_EVERY_S 秒，在右下角播放一次短片（#sv-app[data-clip-src]）
+  // 3D 演出與日程街道圖每經過 CLIP_EVERY_S 秒，在右下角輪流顯示短片與圖片（#sv-app[data-clip-src]／[data-clip-img-src]）
   var CLIP_EVERY_S = 10;
   var loading = null;
 
@@ -214,46 +214,74 @@
     return function () { clearTimeout(timer); };
   }
 
-  // ---------- 右下角短片（演出與日程街道圖共用） ----------
-  // 每 CLIP_EVERY_S 秒播一次；大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4（全域共用輪替順序）。
-  // 依影片原始寬高比算出框的寬高，絕不拉伸；影片本身帶 alpha，所以不加底色。
+  // ---------- 右下角短片／圖片（演出與日程街道圖共用） ----------
+  // 每 CLIP_EVERY_S 秒出現一次，影片（data-clip-src）與圖片（data-clip-img-src）輪流；
+  // 大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4。輪替順序全域共用。
+  // 依素材原始寬高比算出框的寬高，絕不拉伸；兩者都是透明底，所以不加底色。
   var CLIP_AREAS = [1 / 16, 1 / 8, 1 / 4];
+  var CLIP_IMAGE_MS = 6000;            // 圖片停留時間（約等於影片長度）
   var clipTurn = 0;
-  function clipSrc() { var app = document.getElementById("sv-app"); return (app && app.getAttribute("data-clip-src")) || ""; }
+  function clipAttr(name) { var app = document.getElementById("sv-app"); return (app && app.getAttribute(name)) || ""; }
   function clip(host) {
-    var src = clipSrc();
-    if (!src) return null;
-    var v = document.createElement("video"), count = 0, area = CLIP_AREAS[0];
-    v.className = "sv-stage-clip";
-    v.src = src; v.muted = true; v.playsInline = true; v.preload = "auto";
-    v.setAttribute("playsinline", ""); v.setAttribute("data-act", "stage-clip");
-    v.hidden = true;
-    v.addEventListener("ended", function () { v.hidden = true; });
-    v.addEventListener("error", function () { v.hidden = true; });
-    host.appendChild(v);
-    function fit() {
-      var W = host.clientWidth, H = host.clientHeight, ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 2 / 3;
+    var vsrc = clipAttr("data-clip-src"), isrc = clipAttr("data-clip-img-src");
+    if (!vsrc && !isrc) return null;
+    var count = 0, cur = null, imgTimer = 0, items = [];
+    if (vsrc) {
+      var v = document.createElement("video");
+      v.src = vsrc; v.muted = true; v.playsInline = true; v.preload = "auto";
+      v.setAttribute("playsinline", "");
+      v.addEventListener("ended", function () { v.hidden = true; });
+      v.addEventListener("error", function () { v.hidden = true; });
+      v.addEventListener("loadedmetadata", function () { if (cur === v) fit(v); });
+      items.push(v);
+    }
+    if (isrc) {
+      var im = document.createElement("img");
+      im.src = isrc; im.alt = "";
+      im.addEventListener("load", function () { if (cur === im) fit(im); });
+      im.addEventListener("error", function () { im.hidden = true; });
+      items.push(im);
+    }
+    items.forEach(function (n) { n.className = "sv-stage-clip"; n.setAttribute("data-act", "stage-clip"); n.hidden = true; host.appendChild(n); });
+    function aspect(n) {
+      var w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
+      return w && h ? w / h : 2 / 3;
+    }
+    function fit(n) {
+      var W = host.clientWidth, H = host.clientHeight, ar = aspect(n), area = +n.getAttribute("data-area") || CLIP_AREAS[0];
       if (!W || !H) return;
       var h = Math.sqrt(area * W * H / ar), w = h * ar;
       if (h > H) { h = H; w = h * ar; }
       if (w > W) { w = W; h = w / ar; }
-      v.style.width = w + "px"; v.style.height = h + "px";
+      n.style.width = w + "px"; n.style.height = h + "px";
     }
-    v.addEventListener("loadedmetadata", fit);
     function show() {
-      area = CLIP_AREAS[clipTurn % CLIP_AREAS.length];
+      var n = items[(count - 1) % items.length];
+      items.forEach(function (o) { if (o !== n) { o.hidden = true; if (o.pause) o.pause(); } });
+      clearTimeout(imgTimer);
+      cur = n;
+      n.setAttribute("data-area", String(CLIP_AREAS[clipTurn % CLIP_AREAS.length]));
       clipTurn++;
-      v.setAttribute("data-area", String(area));
-      fit();
-      v.hidden = false;
-      try { v.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
-      var pr = v.play();
-      if (pr && pr.catch) pr.catch(function () { v.hidden = true; });
+      fit(n);
+      n.hidden = false;
+      if (n.tagName === "VIDEO") {
+        try { n.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
+        var pr = n.play();
+        if (pr && pr.catch) pr.catch(function () { n.hidden = true; });
+      } else {
+        imgTimer = setTimeout(function () { n.hidden = true; }, CLIP_IMAGE_MS);
+      }
     }
     return {
-      // tt：從開始經過的秒數；每跨過一個 CLIP_EVERY_S 的倍數就播一次
+      // tt：從開始經過的秒數；每跨過一個 CLIP_EVERY_S 的倍數就換下一個出現
       tick: function (tt) { var n = Math.floor(tt / CLIP_EVERY_S); if (n > count) { count = n; show(); } },
-      stop: function () { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode) v.parentNode.removeChild(v); }
+      stop: function () {
+        clearTimeout(imgTimer);
+        items.forEach(function (n) {
+          if (n.tagName === "VIDEO") { n.pause(); n.removeAttribute("src"); n.load(); }
+          if (n.parentNode) n.parentNode.removeChild(n);
+        });
+      }
     };
   }
 
