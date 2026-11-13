@@ -9,7 +9,7 @@
   var t = UI.t, el = UI.el;
   var KEY = "pritest-starv-stage";
   var END_CARD_MS = 4000;
-  // 3D 演出每經過 CLIP_EVERY_S 秒，在畫面右下角播放一次短片（#sv-app[data-clip-src]），大小為畫面的 1/16（寬高各 1/4）
+  // 3D 演出與日程街道圖每經過 CLIP_EVERY_S 秒，在右下角播放一次短片（#sv-app[data-clip-src]）
   var CLIP_EVERY_S = 10;
   var loading = null;
 
@@ -214,26 +214,45 @@
     return function () { clearTimeout(timer); };
   }
 
-  // ---------- 右下角短片 ----------
+  // ---------- 右下角短片（演出與日程街道圖共用） ----------
+  // 每 CLIP_EVERY_S 秒播一次；大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4（全域共用輪替順序）。
+  // 依影片原始寬高比算出框的寬高，絕不拉伸；影片本身帶 alpha，所以不加底色。
+  var CLIP_AREAS = [1 / 16, 1 / 8, 1 / 4];
+  var clipTurn = 0;
   function clipSrc() { var app = document.getElementById("sv-app"); return (app && app.getAttribute("data-clip-src")) || ""; }
-  function makeClip(view) {
+  function clip(host) {
     var src = clipSrc();
     if (!src) return null;
-    var v = document.createElement("video");
+    var v = document.createElement("video"), count = 0, area = CLIP_AREAS[0];
     v.className = "sv-stage-clip";
     v.src = src; v.muted = true; v.playsInline = true; v.preload = "auto";
     v.setAttribute("playsinline", ""); v.setAttribute("data-act", "stage-clip");
     v.hidden = true;
     v.addEventListener("ended", function () { v.hidden = true; });
     v.addEventListener("error", function () { v.hidden = true; });
-    view.appendChild(v);
+    host.appendChild(v);
+    function fit() {
+      var W = host.clientWidth, H = host.clientHeight, ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 2 / 3;
+      if (!W || !H) return;
+      var h = Math.sqrt(area * W * H / ar), w = h * ar;
+      if (h > H) { h = H; w = h * ar; }
+      if (w > W) { w = W; h = w / ar; }
+      v.style.width = w + "px"; v.style.height = h + "px";
+    }
+    v.addEventListener("loadedmetadata", fit);
+    function show() {
+      area = CLIP_AREAS[clipTurn % CLIP_AREAS.length];
+      clipTurn++;
+      v.setAttribute("data-area", String(area));
+      fit();
+      v.hidden = false;
+      try { v.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
+      var pr = v.play();
+      if (pr && pr.catch) pr.catch(function () { v.hidden = true; });
+    }
     return {
-      show: function () {
-        v.hidden = false;
-        try { v.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
-        var pr = v.play();
-        if (pr && pr.catch) pr.catch(function () { v.hidden = true; });
-      },
+      // tt：從開始經過的秒數；每跨過一個 CLIP_EVERY_S 的倍數就播一次
+      tick: function (tt) { var n = Math.floor(tt / CLIP_EVERY_S); if (n > count) { count = n; show(); } },
       stop: function () { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode) v.parentNode.removeChild(v); }
     };
   }
@@ -267,12 +286,12 @@
       return r;
     });
     var start = performance.now(), raf = 0, stopped = false;
-    var clip = makeClip(view), clipCount = 0;
+    var clipper = clip(view);
     function frame() {
       if (stopped) return;
       var tt = (performance.now() - start) / 1000;
       if (tt >= plan.duration) { onDone(); return; }
-      if (clip && Math.floor(tt / CLIP_EVERY_S) > clipCount) { clipCount = Math.floor(tt / CLIP_EVERY_S); clip.show(); }
+      if (clipper) clipper.tick(tt);
       var shot = plan.shots[plan.shots.length - 1];
       plan.shots.forEach(function (s) { if (tt >= s.start && tt < s.end) shot = s; });
       var c = Spec.camera(shot.kind, (tt - shot.start) / (shot.end - shot.start), xs[0], y0);
@@ -287,7 +306,7 @@
     return function () {
       stopped = true;
       cancelAnimationFrame(raf);
-      if (clip) clip.stop();
+      if (clipper) clipper.stop();
       scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
       renderer.dispose();
     };
@@ -330,5 +349,5 @@
   }
 
   // buildRig／resetPose 也給 3D 設施圖（starv_office3d.js）用，人物外觀與演出一致
-  window.PriTestStarvStage3D = { available: available, quality: quality, setQuality: setQuality, load: load, play: play, buildRig: buildRig, resetPose: resetPose };
+  window.PriTestStarvStage3D = { available: available, quality: quality, setQuality: setQuality, load: load, play: play, clip: clip, buildRig: buildRig, resetPose: resetPose };
 })();
