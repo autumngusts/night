@@ -219,7 +219,7 @@
   // 大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4。輪替順序全域共用。
   // 依素材原始寬高比算出框的寬高，絕不拉伸；兩者都是透明底，所以不加底色。
   var CLIP_AREAS = [1 / 16, 1 / 8, 1 / 4];
-  var CLIP_IMAGE_MS = 6000;            // 圖片停留時間（約等於影片長度）
+  var CLIP_IMAGE_MS = 6000;            // 圖片停留時間（動態 WebP 一輪約 3 秒，停留約兩輪）
   var clipTurn = 0;
   function clipAttr(name) { var app = document.getElementById("sv-app"); return (app && app.getAttribute(name)) || ""; }
   function clip(host) {
