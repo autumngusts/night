@@ -84,6 +84,43 @@ button {
   margin-top: 1.5rem;
 }
 
+.home-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.home-tab {
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  background: #fff;
+  color: inherit;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.home-tab:hover {
+  border-color: #2d6cdf;
+}
+
+.home-tab.is-active {
+  background: #2d6cdf;
+  border-color: #2d6cdf;
+  color: #fff;
+}
+
+.home-tab-hint {
+  margin-top: 1.5rem;
+  color: #888;
+}
+
+.home-tab-panel[hidden],
+.home-tab-hint[hidden] {
+  display: none;
+}
+
 .project-card {
   border: 1px solid #ddd;
   border-radius: 10px;
