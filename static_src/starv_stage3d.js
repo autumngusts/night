@@ -9,6 +9,8 @@
   var t = UI.t, el = UI.el;
   var KEY = "pritest-starv-stage";
   var END_CARD_MS = 4000;
+  // 3D 演出每經過 CLIP_EVERY_S 秒，在畫面右下角播放一次短片（#sv-app[data-clip-src]），大小為畫面的 1/16（寬高各 1/4）
+  var CLIP_EVERY_S = 10;
   var loading = null;
 
   function available() {
@@ -212,6 +214,30 @@
     return function () { clearTimeout(timer); };
   }
 
+  // ---------- 右下角短片 ----------
+  function clipSrc() { var app = document.getElementById("sv-app"); return (app && app.getAttribute("data-clip-src")) || ""; }
+  function makeClip(view) {
+    var src = clipSrc();
+    if (!src) return null;
+    var v = document.createElement("video");
+    v.className = "sv-stage-clip";
+    v.src = src; v.muted = true; v.playsInline = true; v.preload = "auto";
+    v.setAttribute("playsinline", ""); v.setAttribute("data-act", "stage-clip");
+    v.hidden = true;
+    v.addEventListener("ended", function () { v.hidden = true; });
+    v.addEventListener("error", function () { v.hidden = true; });
+    view.appendChild(v);
+    return {
+      show: function () {
+        v.hidden = false;
+        try { v.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
+        var pr = v.play();
+        if (pr && pr.catch) pr.catch(function () { v.hidden = true; });
+      },
+      stop: function () { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode) v.parentNode.removeChild(v); }
+    };
+  }
+
   // ---------- 3D ----------
   function play3d(T, view, opts, onDone) {
     var q = quality(), plan = Spec.plan(opts);
@@ -241,10 +267,12 @@
       return r;
     });
     var start = performance.now(), raf = 0, stopped = false;
+    var clip = makeClip(view), clipCount = 0;
     function frame() {
       if (stopped) return;
       var tt = (performance.now() - start) / 1000;
       if (tt >= plan.duration) { onDone(); return; }
+      if (clip && Math.floor(tt / CLIP_EVERY_S) > clipCount) { clipCount = Math.floor(tt / CLIP_EVERY_S); clip.show(); }
       var shot = plan.shots[plan.shots.length - 1];
       plan.shots.forEach(function (s) { if (tt >= s.start && tt < s.end) shot = s; });
       var c = Spec.camera(shot.kind, (tt - shot.start) / (shot.end - shot.start), xs[0], y0);
@@ -259,6 +287,7 @@
     return function () {
       stopped = true;
       cancelAnimationFrame(raf);
+      if (clip) clip.stop();
       scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
       renderer.dispose();
     };

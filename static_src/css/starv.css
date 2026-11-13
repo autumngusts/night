@@ -550,7 +550,9 @@
 .sv-stage-ui { position: absolute; left: 0; right: 0; top: 0; padding: 0.8rem 1rem; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent); }
 .sv-stage-title b { font-size: 1.15em; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); }
 .sv-stage-names { position: absolute; left: 1rem; bottom: -2.2rem; font-weight: 700; color: var(--sv-gold); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9); }
-.sv-stage-skip { position: absolute; right: 0.8rem; bottom: 0.8rem; }
+.sv-stage-skip { position: absolute; right: 0.8rem; bottom: 0.8rem; z-index: 2; }
+.sv-stage-clip { position: absolute; right: 0; bottom: 0; width: 25%; height: 25%; object-fit: contain; background: #000; z-index: 1; pointer-events: none; }
+.sv-stage-clip[hidden] { display: none; }
 .sv-stage-end {
   position: absolute;
   inset: 0;
