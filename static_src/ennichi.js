@@ -17,7 +17,7 @@
   if (!root) return;
   var D = window.PriTestEnnichiData, Core = window.PriTestEnnichiCore;
   var Murmur = window.PriTestEnnichiMurmur;
-  var M = D.MAP, CELL = 10, STEP_SEC = 0.4, SAVE_KEY = "pritest-ennichi-save";
+  var M = D.MAP, CELL = 20, STEP_SEC = 0.4, SAVE_KEY = "pritest-ennichi-save";
   var WICON = { sun: "☀", cloud: "☁", rain: "☂", wind: "🌀" };
   var NEEDS = ["fun", "hunger", "thirst", "toilet", "fatigue", "dry"];
   var TABS = ["area", "build", "work", "park", "wish", "murmur"];
@@ -27,6 +27,7 @@
   var s = null; // 遊戲狀態
   var speed = 1, lastSpeed = 1, acc = 0, lastT = 0;
   var area = 0; // 目前觀看的區域（D.AREAS 的索引；規格 §6.3.1）
+  var lastRot = 0; // 最後一次放置用的方向（換設施時沿用）
   var wins = {}, winZ = 20, modeHidBuild = false, mode = null, selSid = null, followGid = null, treeItem = null, mmFilter = "all";
   var hover = null, dragging = false, stageDown = null, lastMm = null;
   var three = null, threeState = "none";
@@ -89,7 +90,7 @@
   // 浮動視窗：標題列（可拖曳）＋關閉鈕＋內容
   function win(k, titleKey, body, extraCls) {
     return '<section class="en-g-win en-g-win-' + k + (extraCls ? " " + extraCls : "") + '" id="en-win-' + k + '" data-win="' + k + '" role="dialog" aria-labelledby="en-win-' + k + '-title" hidden>' +
-      '<header class="en-g-win-head" data-drag><b id="en-win-' + k + '-title" data-i18n="' + titleKey + '"></b>' +
+      '<header class="en-g-win-head" data-drag><span class="en-g-win-icon" aria-hidden="true">' + (DOCK_ICON[k] || "") + '</span><b id="en-win-' + k + '-title" data-i18n="' + titleKey + '"></b>' +
       '<button type="button" class="en-g-x" data-win-close="' + k + '" data-close-label>×</button></header>' +
       '<div class="en-g-win-body">' + body + "</div></section>";
   }
@@ -118,7 +119,8 @@
           "</div>" +
           '<div class="en-g-toprow"><div id="en-area-bar" class="en-g-areabar" role="tablist"></div><div id="en-forecast" class="en-g-forecast"></div></div>' +
         "</div>" +
-        '<div id="en-mode-bar" class="en-g-modebar" hidden><span id="en-mode-text"></span>' + btn("en-btn-mode-cancel", "en_cancel") + "</div>" +
+        '<div id="en-mode-bar" class="en-g-modebar" hidden><span id="en-mode-text"></span>' +
+          '<button type="button" id="en-btn-rotate" class="en-btn"><span aria-hidden="true">↻ </span><span data-i18n="en_rotate"></span> <kbd>R</kbd></button>' + btn("en-btn-mode-cancel", "en_cancel") + "</div>" +
         '<div id="en-toast" class="en-g-toast" role="status" hidden></div>' +
         '<div id="en-mapbox" class="en-g-mapbox">' +
           '<button type="button" id="en-btn-map" class="en-g-maphead" aria-expanded="true"><span data-i18n="en_map"></span><i aria-hidden="true"></i></button>' +
@@ -148,7 +150,7 @@
         win("murmur", "en_tab_murmur", '<div id="en-mm-filters" class="en-g-chips"></div><ul id="en-murmur-wall" class="en-wall"></ul>') +
         // 設施詳細（點 3D／小地圖上的設施，或樂園視窗的設施一覽）
         '<section id="en-struct-panel" class="en-g-win en-g-win-struct" role="dialog" aria-labelledby="en-struct-title" hidden>' +
-          '<header class="en-g-win-head" data-drag><b id="en-struct-title" data-i18n="en_struct_win"></b>' +
+          '<header class="en-g-win-head" data-drag><span class="en-g-win-icon" aria-hidden="true">🔧</span><b id="en-struct-title" data-i18n="en_struct_win"></b>' +
           '<button type="button" class="en-g-x" data-struct-close data-close-label>×</button></header>' +
           '<div class="en-g-win-body">' +
             '<div id="en-struct-info"></div>' +
@@ -167,7 +169,7 @@
         btn("en-btn-next-day", "en_next_day", "is-on") + "</div></div>" +
       '<div id="en-season-summary" class="en-modal" hidden><div class="en-modal-box en-g-sum"><div id="en-season-summary-body"></div>' +
         btn("en-btn-restart", "en_restart", "is-on") + "</div></div>";
-    ["en-area-bar", "en-area-list", "en-title-screen", "en-main", "en-stage", "en-stage-msg", "en-toast", "en-minimap", "en-mapbox", "en-btn-map", "en-mode-bar", "en-mode-text", "en-follow-panel", "en-forecast",
+    ["en-btn-rotate", "en-area-bar", "en-area-list", "en-title-screen", "en-main", "en-stage", "en-stage-msg", "en-toast", "en-minimap", "en-mapbox", "en-btn-map", "en-mode-bar", "en-mode-text", "en-follow-panel", "en-forecast",
       "en-hud-day", "en-hud-time", "en-hud-weather", "en-hud-cash", "en-hud-rep", "en-hud-guests",
       "en-btn-open", "en-btn-pause", "en-btn-continue", "en-path-note", "en-build-list", "en-machine-slots", "en-machine-list", "en-machine-add",
       "en-market", "en-ware-total", "en-warehouse", "en-recipe-tree", "en-fee-input", "en-struct-panel", "en-struct-info", "en-struct-ride",
@@ -257,7 +259,7 @@
   function tileClick(x, y, preferGuest) {
     if (!s || !Core.inMap(x, y)) return;
     if (Core.areaOf(y) !== area && !mode) { setArea(Core.areaOf(y)); return; } // 點到遠方的其他區域：移動過去
-    if (mode && mode.kind === "build") { doIntent({ a: "build", type: mode.type, x: x, y: y }); return; }
+    if (mode && mode.kind === "build") { doIntent({ a: "build", type: mode.type, x: x, y: y, rot: mode.rot }); return; }
     if (mode && mode.kind === "path") { pathAt(x, y); return; }
     var g = guestAt(x, y), sid = s.occ[Core.ti(x, y)];
     if (g && (preferGuest || !sid)) { follow(g.id); return; }
@@ -284,7 +286,7 @@
     hover = p;
     mapDirty = true;
     if (!three) return;
-    if (p && mode && mode.kind === "build") three.ghost(mode.type, p.x, p.y, Core.canBuild(s, mode.type, p.x, p.y).ok);
+    if (p && mode && mode.kind === "build") three.ghost(mode.type, p.x, p.y, Core.canBuild(s, mode.type, p.x, p.y, mode.rot).ok, mode.rot);
     else three.ghost(null);
   }
 
@@ -359,6 +361,14 @@
     refreshAll();
   }
 
+  // 放置中旋轉 90°（R 鍵或提示列的「↻」）：入口方向 下 → 左 → 上 → 右
+  function rotateMode() {
+    if (!mode || mode.kind !== "build") return;
+    mode.rot = lastRot = (mode.rot + 1) % 4;
+    setHover(hover);
+    renderModeBar();
+  }
+
   function setSpeed(n) {
     if (n > 0) lastSpeed = n;
     speed = n;
@@ -396,15 +406,16 @@
   }
 
   // ---------------------------------------------------------------- HUD
-  function statHTML(label, value) { return "<small>" + esc(label) + "</small><b>" + esc(value) + "</b>"; }
+  function statHTML(label, value, icon) { return (icon ? '<i aria-hidden="true">' + icon + "</i>" : "") + "<small>" + esc(label) + "</small><b>" + esc(value) + "</b>"; }
   function renderHud() {
     // 窄螢幕會隱藏 <small> 標籤，所以值本身要看得懂
-    setHTML(el["hud-day"], "<b>" + esc(t("en_day", { n: Math.min(s.day, D.SEASON_DAYS) })) + "</b><small>/" + D.SEASON_DAYS + "</small>");
-    setHTML(el["hud-time"], "<b>" + hhmm(s.min) + "</b>");
-    setHTML(el["hud-weather"], statHTML(t("en_weather"), weatherLabel(weatherId())));
-    setHTML(el["hud-cash"], statHTML(t("en_cash"), yen(s.cash)));
-    setHTML(el["hud-rep"], statHTML(t("en_rep"), "★ " + s.rep + " · " + t("en_level", { n: Core.popLevel(s) })));
-    setHTML(el["hud-guests"], statHTML(t("en_guests"), "👥 " + s.guests.length + (s.today && s.phase !== "plan" ? " / " + s.today.guests : "")));
+    setHTML(el["hud-day"], '<i aria-hidden="true">📅</i><b>' + esc(t("en_day", { n: Math.min(s.day, D.SEASON_DAYS) })) + "</b><small>/" + D.SEASON_DAYS + "</small>");
+    setHTML(el["hud-time"], '<i aria-hidden="true">🕘</i><b>' + hhmm(s.min) + "</b>" +
+      (s.phase === "open" ? '<span class="en-g-dayprog"><span style="width:' + Math.round(Math.min(1, (s.min - D.DAY_START) / (D.DAY_END - D.DAY_START)) * 100) + '%"></span></span>' : ""));
+    setHTML(el["hud-weather"], statHTML(t("en_weather"), L(D.WEATHER[weatherId()] ? D.WEATHER[weatherId()].name : null), WICON[weatherId()]));
+    setHTML(el["hud-cash"], statHTML(t("en_cash"), yen(s.cash), "💴"));
+    setHTML(el["hud-rep"], statHTML(t("en_rep"), s.rep + " · " + t("en_level", { n: Core.popLevel(s) }), "★"));
+    setHTML(el["hud-guests"], statHTML(t("en_guests"), s.guests.length + (s.today && s.phase !== "plan" ? " / " + s.today.guests : ""), "👥"));
   }
   function renderControls() {
     el["btn-open"].disabled = s.phase !== "plan";
@@ -459,7 +470,8 @@
     var bar = el["mode-bar"];
     if (!mode) { bar.hidden = true; return; }
     bar.hidden = false;
-    setText(el["mode-text"], mode.kind === "build" ? t("en_mode_build", { name: L(D.BUILD[mode.type].name) }) : t(mode.on ? "en_mode_path" : "en_mode_unpath"));
+    setText(el["mode-text"], mode.kind === "build" ? t("en_mode_build", { name: L(D.BUILD[mode.type].name), dir: t("en_dir_" + mode.rot) }) : t(mode.on ? "en_mode_path" : "en_mode_unpath"));
+    el["btn-rotate"].hidden = mode.kind !== "build";
   }
 
   // ---------------------------------------------------------------- 側欄：建造
@@ -486,7 +498,8 @@
         (b.ware ? " · " + t("en_infra_ware", { n: b.ware }) : "") + (b.slots && b.kind === "infra" ? " · " + t("en_infra_slots", { n: b.slots }) : "");
       var ok = Core.have(s, b.parts) && s.cash >= b.cash && lv >= b.lv;
       h = '<button type="button" class="en-g-build' + (mode && mode.type === type ? " is-on" : "") + (ok ? "" : " is-short") + (b.large ? " is-large" : "") + (b.area ? " is-ex" : "") +
-        '" data-build="' + type + '"><span class="en-g-build-name">' + esc(L(b.name)) + '</span><span class="en-g-build-meta">' + esc(meta) +
+        '" data-build="' + type + '"><span class="en-g-build-kind" style="background:' + (b.large ? "#c8343a" : KIND_COLOR[b.kind] || "#999") + '" aria-hidden="true">' + (KIND_ICON[b.kind] || "") +
+        '</span><span class="en-g-build-name">' + esc(L(b.name)) + '</span><span class="en-g-build-meta">' + esc(meta) +
         (lv < b.lv ? ' · <span class="en-ng">' + esc(t("en_need_lv", { n: b.lv })) + "</span>" : "") +
         '</span><span class="en-g-parts">' + partsHTML(b.parts) + "</span></button>";
       if (b.area) ex += h; else gen += h;
@@ -736,69 +749,97 @@
     }
   }
 
-  // ---------------------------------------------------------------- 小地圖
-  var KIND_COLOR = { shrine: "#9a3324", ride: "#e0703a", stall: "#e8b830", qstall: "#d49a20", facility: "#3f8fc8", deco: "#b0d080" };
-  var AREA_GROUND = { shrine: "#79a556", land: "#86b85e", factory: "#9a9a92", water: "#d8c690", theme: "#7c9c62" };
+  // ---------------------------------------------------------------- 小地圖（2026-11-14 重新繪製：2 倍解析度、圓角建物與圖示、步道邊框、湖面波紋）
+  var KIND_COLOR = { shrine: "#b23a2c", ride: "#e57a3c", stall: "#e8b830", qstall: "#d49a20", facility: "#3f8fc8", deco: "#8cc070", infra: "#7a8796" };
+  var KIND_ICON = { shrine: "⛩", ride: "🎠", stall: "🏮", qstall: "🍡", facility: "🪑", deco: "✿", infra: "🏭" };
+  var AREA_GROUND = { shrine: ["#78a557", "#7dab5c"], land: ["#86b85e", "#8fc066"], factory: ["#a3a39b", "#9b9b93"], water: ["#e2cf98", "#dcc890"], theme: ["#7c9c62", "#84a46a"] };
+  var AREA_PATH = { shrine: "#e0cfa4", land: "#ecdcb6", factory: "#6f7076", water: "#c09060", theme: "#c46a56" };
+  function rrect(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+    g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r);
+    g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y);
+    g.closePath();
+  }
   function drawMinimap() {
     var c = el.minimap, g = c.getContext("2d"), x, y, k, ar = D.AREAS[area], oy = area * M.H, open = Core.areaOpen(s, area);
-    g.fillStyle = AREA_GROUND[ar.id] || "#79a556";
-    g.fillRect(0, 0, c.width, c.height);
-    if (ar.lake) { g.fillStyle = "#4a90c8"; g.fillRect(ar.lake.x * CELL, ar.lake.y * CELL, ar.lake.w * CELL, ar.lake.h * CELL); }
-    g.fillStyle = "rgba(30,40,20,.45)";
-    if (ar.unlockX < M.W) g.fillRect(ar.unlockX * CELL, 0, (M.W - ar.unlockX) * CELL, c.height);
-    g.fillStyle = "#d8c49a";
-    for (y = 0; y < M.H; y++) for (x = 0; x < M.W; x++) if (s.tiles[Core.ti(x, y + oy)] === 1) g.fillRect(x * CELL, y * CELL, CELL, CELL);
-    g.strokeStyle = "rgba(0,0,0,.06)";
-    g.lineWidth = 1;
-    g.beginPath();
-    for (x = 1; x < M.W; x++) { g.moveTo(x * CELL + 0.5, 0); g.lineTo(x * CELL + 0.5, c.height); }
-    for (y = 1; y < M.H; y++) { g.moveTo(0, y * CELL + 0.5); g.lineTo(c.width, y * CELL + 0.5); }
-    g.stroke();
-    for (k in s.structs) {
-      if (Core.areaOf(s.structs[k].y) !== area) continue;
-      var st = s.structs[k], b = D.BUILD[st.type], px = st.x * CELL, py = (st.y - oy) * CELL, w = b.w * CELL, h = b.h * CELL;
-      g.fillStyle = b.large ? "#c8282e" : KIND_COLOR[b.kind] || "#999";
-      g.fillRect(px + 1, py + 1, w - 2, h - 2);
-      if (st.build > 0) { // 施工中：斜線
-        g.save();
-        g.beginPath(); g.rect(px + 1, py + 1, w - 2, h - 2); g.clip();
-        g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 2;
+    var gc = AREA_GROUND[ar.id] || AREA_GROUND.shrine, pc = AREA_PATH[ar.id] || AREA_PATH.shrine;
+    // 地面：細格棋盤
+    for (y = 0; y < M.H; y++) for (x = 0; x < M.W; x++) { g.fillStyle = gc[(x + y) % 2]; g.fillRect(x * CELL, y * CELL, CELL, CELL); }
+    if (ar.lake) {
+      var lk = ar.lake, lg = g.createLinearGradient(0, lk.y * CELL, 0, (lk.y + lk.h) * CELL);
+      lg.addColorStop(0, "#3b7fc0"); lg.addColorStop(1, "#5aa6dc");
+      g.fillStyle = lg; rrect(g, lk.x * CELL, lk.y * CELL, lk.w * CELL, lk.h * CELL, 8); g.fill();
+      g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 1.5;
+      for (y = lk.y + 1; y < lk.y + lk.h; y += 2) {
         g.beginPath();
-        for (var d = -h; d < w; d += 5) { g.moveTo(px + d, py + h); g.lineTo(px + d + h, py); }
+        for (x = lk.x * CELL + 6; x < (lk.x + lk.w) * CELL - 6; x += 4) g.lineTo(x, y * CELL + Math.sin(x * 0.25 + y) * 2);
         g.stroke();
-        g.restore();
+      }
+    }
+    if (ar.unlockX < M.W) { g.fillStyle = "rgba(30,40,20,.35)"; g.fillRect(ar.unlockX * CELL, 0, (M.W - ar.unlockX) * CELL, c.height); }
+    // 步道：先畫深色邊，再畫路面（相鄰格相連）
+    var paths = [];
+    for (y = 0; y < M.H; y++) for (x = 0; x < M.W; x++) if (s.tiles[Core.ti(x, y + oy)] === 1) paths.push([x, y]);
+    g.fillStyle = "rgba(60,45,30,.35)";
+    paths.forEach(function (p) { g.fillRect(p[0] * CELL - 1, p[1] * CELL - 1, CELL + 2, CELL + 2); });
+    g.fillStyle = pc;
+    paths.forEach(function (p) { g.fillRect(p[0] * CELL + 1, p[1] * CELL + 1, CELL - 2, CELL - 2); });
+    g.fillStyle = "rgba(255,255,255,.18)";
+    paths.forEach(function (p) { g.fillRect(p[0] * CELL + 1, p[1] * CELL + 1, CELL - 2, 3); });
+    // 建物：圓角＋陰影＋圖示＋入口點
+    g.textAlign = "center"; g.textBaseline = "middle";
+    for (k in s.structs) {
+      var st = s.structs[k];
+      if (Core.areaOf(st.y) !== area) continue;
+      var b = D.BUILD[st.type], dm = Core.dims(st.type, st.rot), px = st.x * CELL, py = (st.y - oy) * CELL, w = dm.w * CELL, h = dm.h * CELL;
+      g.fillStyle = "rgba(0,0,0,.22)"; rrect(g, px + 3, py + 4, w - 4, h - 4, 5); g.fill();
+      g.fillStyle = b.large ? "#c8343a" : KIND_COLOR[b.kind] || "#999"; rrect(g, px + 2, py + 2, w - 4, h - 4, 5); g.fill();
+      g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 1.5; g.stroke();
+      if (st.build > 0) { // 施工中：斜線
+        g.save(); rrect(g, px + 2, py + 2, w - 4, h - 4, 5); g.clip();
+        g.strokeStyle = "rgba(255,255,255,.6)"; g.lineWidth = 3; g.beginPath();
+        for (var d = -h; d < w; d += 9) { g.moveTo(px + d, py + h); g.lineTo(px + d + h, py); }
+        g.stroke(); g.restore();
+      }
+      if (Math.min(w, h) >= CELL * 2) { g.font = Math.min(w, h) * 0.45 + "px sans-serif"; g.fillText(KIND_ICON[b.kind] || "", px + w / 2, py + h / 2 + 1); }
+      if (st.type !== "shrine") {
+        var e = Core.entranceOf(st);
+        g.fillStyle = "#fff6c8"; g.beginPath(); g.arc(e.x * CELL + CELL / 2, (e.y - oy) * CELL + CELL / 2, 3, 0, Math.PI * 2); g.fill();
       }
       if (st.broken) {
-        g.strokeStyle = "#200"; g.lineWidth = 2;
-        g.beginPath(); g.moveTo(px + 2, py + 2); g.lineTo(px + w - 2, py + h - 2); g.moveTo(px + w - 2, py + 2); g.lineTo(px + 2, py + h - 2); g.stroke();
+        g.strokeStyle = "#fff"; g.lineWidth = 3; g.beginPath();
+        g.moveTo(px + 6, py + 6); g.lineTo(px + w - 6, py + h - 6); g.moveTo(px + w - 6, py + 6); g.lineTo(px + 6, py + h - 6); g.stroke();
       }
-      if (+k === selSid) { g.strokeStyle = "#fff"; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, w - 2, h - 2); }
+      if (+k === selSid) { g.strokeStyle = "#ffe14a"; g.lineWidth = 3; rrect(g, px + 1, py + 1, w - 2, h - 2, 6); g.stroke(); }
     }
-    g.fillStyle = "#c8282e";
-    g.fillRect(M.GATE.x * CELL, M.GATE.y * CELL - 2, 3, CELL + 4);
+    // 入口
+    g.fillStyle = "#c8282e"; rrect(g, 0, M.GATE.y * CELL - 4, 6, CELL + 8, 2); g.fill();
+    g.fillStyle = "#fff"; g.beginPath(); g.moveTo(9, M.GATE.y * CELL + 4); g.lineTo(15, M.GATE.y * CELL + CELL / 2); g.lineTo(9, M.GATE.y * CELL + CELL - 4); g.fill();
+    // 客人
     s.guests.forEach(function (gu) {
       if ((gu.area || 0) !== area) return;
       var on = gu.id === followGid;
-      g.fillStyle = on ? "#ffe14a" : "#ffffff";
-      g.strokeStyle = "#2b2230"; g.lineWidth = 1;
-      g.beginPath(); g.arc(gu.x * CELL + 5, (gu.y - oy) * CELL + 5, on ? 3.5 : 2.2, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = on ? "#ffe14a" : "#ffffff"; g.strokeStyle = "rgba(43,34,48,.8)"; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(gu.x * CELL + CELL / 2, (gu.y - oy) * CELL + CELL / 2, on ? 6 : 3.6, 0, Math.PI * 2); g.fill(); g.stroke();
     });
     if (!open) { // 未開放：整張蓋暗並寫上條件
       g.fillStyle = "rgba(20,16,28,.62)"; g.fillRect(0, 0, c.width, c.height);
-      g.fillStyle = "#fff"; g.font = "bold 22px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillStyle = "#fff"; g.font = "bold 36px sans-serif";
       g.fillText("🔒 " + t("en_area_need", { lv: ar.lv, cash: yen(ar.cash) }), c.width / 2, c.height / 2);
     }
     if (hover && mode && Core.areaOf(hover.y) === area) {
       var hy = hover.y - oy;
       if (mode.kind === "build") {
-        var bb = D.BUILD[mode.type], ok = Core.canBuild(s, mode.type, hover.x, hover.y).ok;
+        var hd = Core.dims(mode.type, mode.rot), ok = Core.canBuild(s, mode.type, hover.x, hover.y, mode.rot).ok;
         g.fillStyle = ok ? "rgba(64,208,96,.55)" : "rgba(224,64,64,.55)";
-        g.fillRect(hover.x * CELL, hy * CELL, bb.w * CELL, bb.h * CELL);
-        g.fillStyle = "rgba(255,255,255,.9)"; // 入口格
-        g.fillRect((hover.x + Math.floor(bb.w / 2)) * CELL + 3, (hy + bb.h) * CELL + 3, 4, 4);
+        rrect(g, hover.x * CELL, hy * CELL, hd.w * CELL, hd.h * CELL, 5); g.fill();
+        var he = Core.entranceAt(mode.type, hover.x, hover.y, mode.rot); // 入口格
+        g.fillStyle = "rgba(255,224,64,.9)"; g.fillRect(he.x * CELL + 4, (he.y - oy) * CELL + 4, CELL - 8, CELL - 8);
       } else {
-        g.strokeStyle = mode.on ? "#fff" : "#e04040"; g.lineWidth = 2;
-        g.strokeRect(hover.x * CELL + 1, hy * CELL + 1, CELL - 2, CELL - 2);
+        g.strokeStyle = mode.on ? "#fff" : "#e04040"; g.lineWidth = 3;
+        g.strokeRect(hover.x * CELL + 2, hy * CELL + 2, CELL - 4, CELL - 4);
       }
     }
     mapDirty = false;
@@ -903,6 +944,7 @@
     on($("en-btn-unpath"), "click", function () { setMode({ kind: "path", on: false }); });
     on($("en-btn-cancel"), "click", function () { setMode(null); });
     on($("en-btn-mode-cancel"), "click", function () { setMode(null); });
+    on(el["btn-rotate"], "click", rotateMode);
     on(el["btn-map"], "click", function () { setMapOpen(el.mapbox.classList.contains("is-min")); });
     on(el["btn-repair"], "click", function () { if (selSid) doIntent({ a: "repair", sid: selSid }); });
     on(el["btn-demolish"], "click", function () { if (selSid) doIntent({ a: "demolish", sid: selSid }); });
@@ -923,7 +965,7 @@
       if ((b = closest(e, "[data-area]"))) { var ai = +b.getAttribute("data-area"); if (Core.areaOpen(s, ai)) setArea(ai); else { setArea(ai); if (!wins.area) setTab("area"); } return; }
       if ((b = closest(e, "[data-area-go]"))) { setArea(+b.getAttribute("data-area-go")); return; }
       if ((b = closest(e, "[data-area-buy]"))) { doIntent({ a: "area", id: b.getAttribute("data-area-buy") }); return; }
-      if ((b = closest(e, "[data-build]"))) { var ty = b.getAttribute("data-build"); setMode(mode && mode.type === ty ? null : { kind: "build", type: ty }); return; }
+      if ((b = closest(e, "[data-build]"))) { var ty = b.getAttribute("data-build"); setMode(mode && mode.type === ty ? null : { kind: "build", type: ty, rot: lastRot }); return; }
       if ((b = closest(e, "[data-buy]"))) { doIntent({ a: "buy", item: b.getAttribute("data-buy"), n: 10 }); return; }
       if ((b = closest(e, "[data-machine]"))) { doIntent({ a: "machine", type: b.getAttribute("data-machine") }); return; }
       if ((b = closest(e, "[data-tree]"))) { treeItem = b.getAttribute("data-tree"); renderWarehouse(); renderTree(); return; }
@@ -987,6 +1029,7 @@
     window.addEventListener("i18n:change", function () { closeLabels(); refreshAll(); });
     // Esc：先結束放置模式，否則關掉最前面的視窗
     document.addEventListener("keydown", function (e) {
+      if ((e.key === "r" || e.key === "R") && mode && !/^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName || "")) { rotateMode(); return; }
       if (e.key !== "Escape" || !s) return;
       if (mode) { setMode(null); return; }
       var top = null, ws = el.main.querySelectorAll(".en-g-win:not([hidden])");
@@ -1004,6 +1047,7 @@
     _intent: function (it) { var r = doIntent(it, true); return { ok: r.ok, err: r.err }; },
     _speed: function () { return speed; },
     _area: function (a) { if (a != null) setArea(a); return area; },
+    _mode: function () { return mode; },
     _fast: undefined,
   };
   window.PriTestEnnichiGame = api;

@@ -50,9 +50,11 @@
     var a = Math.max(0, Math.min(D.AREAS.length - 1, Math.floor(y / M.H))), ly = y - a * M.H;
     return { x: (x + 0.5 - M.W / 2) * T, z: areaZ(a) + (ly + 0.5 - M.H / 2) * T };
   }
-  function footCenter(type, x, y) {
-    var b = D.BUILD[type] || { w: 1, h: 1 };
-    return tileToWorld(x + (b.w - 1) / 2, y + (b.h - 1) / 2);
+  // 方向（規格 §4.7）：模型一律以「入口朝 +z」組好，再依 rot 轉向（0 +z、1 −x、2 −z、3 +x）
+  var ROT_Y = [0, -Math.PI / 2, Math.PI, Math.PI / 2];
+  function footCenter(type, x, y, rot) {
+    var d = D.BUILD[type] ? Core.dims(type, rot) : { w: 1, h: 1 };
+    return tileToWorld(x + (d.w - 1) / 2, y + (d.h - 1) / 2);
   }
 
   // ---------------------------------------------------------------- 材質與小工具
@@ -254,6 +256,7 @@
       }
     });
 
+    buildScenery();
     buildTrees();
     buildAreas();
     var hw = M.W / 2 * T, hh = M.H / 2 * T;
@@ -631,6 +634,144 @@
     controls.target.x += dx * k; controls.target.z += dz * k;
     camera.position.x += dx * k; camera.position.z += dz * k;
     if (k === 1) camGoal = null;
+  }
+
+  // ---------------------------------------------------------------- 景觀（2026-11-14：地圖精美化）
+  // 天空漸層、遠山、雲跟著鏡頭走（不受霧影響）；草叢、小花、草坪條紋、步道路緣石隨地圖重建。
+  var skyDome = null, skyGeo = null, backdrop = null, clouds = [];
+  var decoMesh = null, decoVer = -1, decoState = null;
+
+  function paintSky(topHex, horizonHex) {
+    if (!skyGeo) return;
+    var pos = skyGeo.attributes.position, col = skyGeo.attributes.color, top = new THREE.Color(topHex), hor = new THREE.Color(horizonHex), c = new THREE.Color();
+    for (var i = 0; i < pos.count; i++) {
+      var h = Math.max(0, pos.getY(i) / 380); // 0 地平線 → 1 天頂
+      c.copy(hor).lerp(top, Math.pow(h, 0.55));
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
+    col.needsUpdate = true;
+  }
+
+  function buildScenery() {
+    skyGeo = new THREE.SphereGeometry(380, 32, 16);
+    skyGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(skyGeo.attributes.position.count * 3), 3));
+    skyDome = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+    skyDome.renderOrder = -10;
+    skyDome.frustumCulled = false;
+    scene.add(skyDome);
+    // 遠山（三層，越遠越淡）＋雲：放在 backdrop 群組裡跟著鏡頭平移
+    backdrop = new THREE.Group();
+    [[300, "#8aa8c8", 70, 46], [250, "#6f9070", 52, 40], [215, "#5a7a58", 34, 34]].forEach(function (layer, li) {
+      var n = layer[3], geo = new THREE.ConeGeometry(1, 1, 5);
+      geo.translate(0, 0.5, 0);
+      var m = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: layer[1], fog: false }), n);
+      for (var i = 0; i < n; i++) {
+        var a = i / n * Math.PI * 2 + li * 0.4, r = layer[0] + Math.sin(i * 7.3) * 12;
+        var h = layer[2] * (0.6 + 0.4 * Math.abs(Math.sin(i * 2.17 + li))), w = h * (1.3 + 0.4 * Math.abs(Math.cos(i * 3.1)));
+        tmpM.compose(tmpV.set(Math.cos(a) * r, -2, Math.sin(a) * r), tmpQ.setFromEuler(new THREE.Euler(0, i, 0)), tmpS.set(w, h, w));
+        m.setMatrixAt(i, tmpM);
+      }
+      m.frustumCulled = false;
+      m.renderOrder = -9;
+      backdrop.add(m);
+    });
+    var cloudMat = new THREE.MeshLambertMaterial({ color: "#ffffff", fog: false, flatShading: true });
+    for (var k = 0; k < 14; k++) {
+      var cg = new THREE.Group();
+      for (var j = 0; j < 4; j++) {
+        var puff = mesh(new THREE.IcosahedronGeometry(6 + (j % 2) * 3, 0), cloudMat, (j - 1.5) * 8, (j % 2) * 2.5, Math.sin(j * 2) * 3);
+        puff.scale.y = 0.6;
+        cg.add(puff);
+      }
+      var ca = k / 14 * Math.PI * 2;
+      cg.position.set(Math.cos(ca) * (150 + (k % 3) * 30), 70 + (k % 4) * 9, Math.sin(ca) * (150 + (k % 3) * 30));
+      cg.userData.speed = 0.008 + (k % 5) * 0.002;
+      clouds.push(cg);
+      backdrop.add(cg);
+    }
+    scene.add(backdrop);
+  }
+
+  function updateScenery(time) {
+    if (!skyDome) return;
+    skyDome.position.copy(camera.position);
+    backdrop.position.set(controls.target.x, 0, controls.target.z);
+    for (var i = 0; i < clouds.length; i++) {
+      var c = clouds[i], r = Math.sqrt(c.position.x * c.position.x + c.position.z * c.position.z), a = Math.atan2(c.position.z, c.position.x) + c.userData.speed * 0.016;
+      c.position.x = Math.cos(a) * r; c.position.z = Math.sin(a) * r;
+    }
+  }
+
+  // 每格的固定雜湊（0〜1）：草叢、花、色差不用 Math.random，地圖重建時位置不變
+  function hash01(x, y, k) { var n = Math.sin(x * 127.1 + y * 311.7 + k * 74.7) * 43758.5453; return n - Math.floor(n); }
+  var GRASS_AREAS = { shrine: 1, land: 1, theme: 1 };
+  function syncDecor(s) {
+    if (decoMesh && decoVer === s.mapVer && decoState === s) return;
+    decoVer = s.mapVer; decoState = s;
+    if (decoMesh) { decoMesh.forEach(function (m) { scene.remove(m); m.geometry.dispose(); if (!m.material.userData.shared) m.material.dispose(); m.dispose(); }); }
+    var tufts = [], flowers = [], stripes = [], curbs = [], x, y;
+    for (y = 0; y < M.WH; y++) for (x = 0; x < M.W; x++) {
+      var a = Core.areaOf(y), ar = D.AREAS[a], i = Core.ti(x, y), w = tileToWorld(x, y);
+      if (s.tiles[i] === 1) {
+        // 路緣石：步道和非步道（同一區）相鄰的邊
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          var nx = x + d[0], ny = y + d[1];
+          if (Core.inMap(nx, ny) && Core.areaOf(ny) === a && s.tiles[Core.ti(nx, ny)] === 1) return;
+          curbs.push([w.x + d[0] * (T / 2 - 0.05), w.z + d[1] * (T / 2 - 0.05), d[0] !== 0]);
+        });
+        continue;
+      }
+      if (GRASS_AREAS[ar.id] && (ar.id !== "shrine" || x < ar.unlockX)) {
+        if ((ar.id === "land" || ar.id === "theme") && x % 2 === 0) stripes.push(w); // 草坪修剪條紋
+        if (s.occ[i] || Core.isWater(x, y)) continue;
+        var n = Math.floor(hash01(x, y, 1) * 3);
+        for (var k = 0; k < n; k++) tufts.push([w.x + (hash01(x, y, k + 2) - 0.5) * 1.6, w.z + (hash01(x, y, k + 7) - 0.5) * 1.6, 0.6 + hash01(x, y, k + 11) * 0.7]);
+        if (hash01(x, y, 19) < 0.09) flowers.push([w.x + (hash01(x, y, 23) - 0.5) * 1.2, w.z + (hash01(x, y, 29) - 0.5) * 1.2, hash01(x, y, 31)]);
+      } else if (ar.id === "water" && !s.occ[i] && !Core.isWater(x, y) && hash01(x, y, 37) < 0.05) {
+        flowers.push([w.x, w.z, -1]); // 沙灘上的貝殼
+      }
+    }
+    var list = [], col = new THREE.Color();
+    var tg = new THREE.ConeGeometry(0.12, 0.42, 4); tg.translate(0, 0.21, 0);
+    var tm = new THREE.InstancedMesh(tg, new THREE.MeshLambertMaterial({ color: "#ffffff" }), Math.max(1, tufts.length * 3));
+    var ti = 0;
+    tufts.forEach(function (t) {
+      for (var b = 0; b < 3; b++) {
+        tmpQ.setFromEuler(new THREE.Euler((b - 1) * 0.35, b * 2.1, (b - 1) * 0.25));
+        tmpM.compose(tmpV.set(t[0] + (b - 1) * 0.08, 0, t[1] + (b % 2) * 0.06), tmpQ, tmpS.set(t[2], t[2], t[2]));
+        tm.setMatrixAt(ti, tmpM);
+        tm.setColorAt(ti++, col.setHSL(0.27 + t[2] * 0.04, 0.5, 0.28 + b * 0.04));
+      }
+    });
+    tm.count = ti;
+    list.push(tm);
+    var fg = new THREE.SphereGeometry(0.11, 6, 5); fg.translate(0, 0.16, 0);
+    var fm = new THREE.InstancedMesh(fg, new THREE.MeshLambertMaterial({ color: "#ffffff" }), Math.max(1, flowers.length * 3));
+    var fi = 0, FCOL = ["#ff8ab0", "#ffe060", "#ffffff", "#b890ff", "#ff7050"];
+    flowers.forEach(function (f) {
+      var shell = f[2] < 0;
+      for (var b = 0; b < (shell ? 1 : 3); b++) {
+        tmpM.compose(tmpV.set(f[0] + (b - 1) * 0.2, shell ? -0.1 : 0, f[1] + (b % 2) * 0.18), tmpQ.identity(), tmpS.set(1, shell ? 0.5 : 1, 1));
+        fm.setMatrixAt(fi, tmpM);
+        fm.setColorAt(fi++, col.set(shell ? "#f4e4d4" : FCOL[Math.floor(f[2] * FCOL.length) % FCOL.length]));
+      }
+    });
+    fm.count = fi;
+    list.push(fm);
+    var sm = new THREE.InstancedMesh(new THREE.PlaneGeometry(T, T), new THREE.MeshLambertMaterial({ color: "#ffffff", transparent: true, opacity: 0.09, depthWrite: false }), Math.max(1, stripes.length));
+    stripes.forEach(function (w, i) { tmpQ.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)); tmpM.compose(tmpV.set(w.x, 0.006, w.z), tmpQ, tmpS.set(1, 1, 1)); sm.setMatrixAt(i, tmpM); });
+    sm.count = stripes.length;
+    list.push(sm);
+    var cm = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 0.09, 0.1), lam("#8c8a84"), Math.max(1, curbs.length));
+    curbs.forEach(function (c, i) { tmpQ.setFromEuler(new THREE.Euler(0, c[2] ? Math.PI / 2 : 0, 0)); tmpM.compose(tmpV.set(c[0], 0.045, c[1]), tmpQ, tmpS.set(1, 1, 1)); cm.setMatrixAt(i, tmpM); });
+    cm.count = curbs.length;
+    list.push(cm);
+    list.forEach(function (m) {
+      m.frustumCulled = false;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      scene.add(m);
+    });
+    decoMesh = list;
   }
 
   // ---------------------------------------------------------------- 共用造型
@@ -1050,8 +1191,8 @@
     // 朝向連結的遊樂設施
     var ride = st.link && s.structs[st.link];
     if (ride) {
-      var me = footCenter(st.type, st.x, st.y), to = footCenter(ride.type, ride.x, ride.y);
-      body.rotation.y = Math.atan2(to.x - me.x, to.z - me.z);
+      var me = footCenter(st.type, st.x, st.y, st.rot), to = footCenter(ride.type, ride.x, ride.y, ride.rot);
+      body.rotation.y = Math.atan2(to.x - me.x, to.z - me.z) - ROT_Y[st.rot || 0]; // 扣掉群組本身的轉向
     }
     return g;
   }
@@ -1572,7 +1713,7 @@
   function windStop(st) { return D.WEATHER[weather] && D.WEATHER[weather].stop && D.BUILD[st.type].wind && !(st.build > 0); }
 
   function structSig(st) {
-    return [st.type, st.x, st.y, st.build > 0 ? st.build : 0, Object.keys(st.mods || {}).sort().join(","), st.broken ? 1 : 0, st.link || 0, windStop(st) ? 1 : 0].join("|");
+    return [st.type, st.x, st.y, st.rot || 0, st.build > 0 ? st.build : 0, Object.keys(st.mods || {}).sort().join(","), st.broken ? 1 : 0, st.link || 0, windStop(st) ? 1 : 0].join("|");
   }
 
   function makeStruct(st, s) {
@@ -1593,8 +1734,9 @@
     }
     // 設施內的 InstancedMesh（燈泡、枕木、支柱…）也一樣：以群組原點裁切會在畫面邊緣整組消失
     g.traverse(function (o) { if (o.isInstancedMesh) o.frustumCulled = false; });
-    var c = footCenter(st.type, st.x, st.y);
+    var c = footCenter(st.type, st.x, st.y, st.rot);
     g.position.set(c.x, 0, c.z);
+    g.rotation.y = ROT_Y[st.rot || 0];
     g.userData.footW = b.w * T;
     return g;
   }
@@ -1639,6 +1781,7 @@
     return { x: (((gid * 37) % 11) / 10 - 0.5) * 1.2, z: (((gid * 53) % 13) / 12 - 0.5) * 1.2 };
   }
 
+  var QUEUE_DIR = [[0, 1], [-1, 0], [0, -1], [1, 0]]; // 入口朝向（rot）→ 隊伍往外延伸的方向
   function computeSnap(s) {
     var out = {}, list = [], qi = {}, k;
     for (k in s.structs) {
@@ -1652,9 +1795,10 @@
         // 沿入口往外排成一列（每人 0.6 m），面向設施
         var e = Core.entranceOf(q.st);
         p = tileToWorld(e.x, e.y);
-        rec.x = p.x;
-        rec.z = p.z - T / 2 + 0.3 + q.i * 0.6;
-        rec.face = Math.PI;
+        var od = QUEUE_DIR[q.st.type === "shrine" ? 1 : (q.st.rot || 0)], off = -T / 2 + 0.3 + q.i * 0.6; // 依入口方向往外排
+        rec.x = p.x + od[0] * off;
+        rec.z = p.z + od[1] * off;
+        rec.face = Math.atan2(-od[0], -od[1]);
       } else {
         p = tileToWorld(g.x, g.y);
         rec.x = p.x + j.x;
@@ -1789,10 +1933,10 @@
 
   // ---------------------------------------------------------------- 天氣
   var SKY = {
-    sun: { sky: "#8ec9f0", hemi: 0.65, sun: 0.8, ground: 1 },
-    cloud: { sky: "#a7afb8", hemi: 0.62, sun: 0.3, ground: 0.9 },
-    rain: { sky: "#66707c", hemi: 0.52, sun: 0.12, ground: 0.62 },
-    wind: { sky: "#9cc3e0", hemi: 0.65, sun: 0.7, ground: 1 },
+    sun: { sky: "#a9d6f2", top: "#3c86d8", hemi: 0.65, sun: 0.8, ground: 1 },
+    cloud: { sky: "#b3bac2", top: "#7d8894", hemi: 0.62, sun: 0.3, ground: 0.9 },
+    rain: { sky: "#6c7682", top: "#3e4652", hemi: 0.52, sun: 0.12, ground: 0.62 },
+    wind: { sky: "#b0d2ea", top: "#4f94d4", hemi: 0.65, sun: 0.7, ground: 1 },
   };
   function setWeather(id) {
     weather = SKY[id] ? id : "sun";
@@ -1800,6 +1944,7 @@
     var c = SKY[weather];
     scene.background.set(c.sky);
     scene.fog.color.set(c.sky);
+    paintSky(c.top, c.sky); // 地平線顏色＝霧的顏色，遠處地面自然融進天空
     hemi.intensity = c.hemi;
     sunLight.intensity = c.sun;
     groundMats.forEach(function (g) { g.mat.color.set(g.hex).multiplyScalar(c.ground); });
@@ -1825,6 +1970,7 @@
   }
 
   // ---------------------------------------------------------------- 迴圈
+  var IDLE_SPEED = 0.25;
   function updateStructs(dt, time) {
     var s = cur, windy = weather === "wind";
     for (var k in recs) {
@@ -1833,7 +1979,9 @@
       if (ud.sway) for (var i = 0; i < ud.sway.length; i++) swayOne(ud.sway[i], time, windy);
       if (!ud.update || !st) continue;
       var running = !st.broken && !(st.build > 0) && st.t > 0 && st.riders && st.riders.length > 0;
-      var target = running ? (st.mods && st.mods.drive ? 1.5 : 1) : 0; // drive：轉速 ×1.5
+      // 空車、開園前也慢速試運轉（使用者指定 2026-11-14：設施動畫隨時看得到）；故障、施工中、強風停駛則停止
+      var idle = !st.broken && !(st.build > 0) && !windStop(st) ? IDLE_SPEED : 0;
+      var target = running ? (st.mods && st.mods.drive ? 1.5 : 1) : idle; // drive：轉速 ×1.5
       if (st.broken) rec.speed = 0; // 故障：動畫停止
       else rec.speed += (target - rec.speed) * Math.min(1, dt * 1.5);
       ud.update(dt * rec.speed, time, rec.speed, dt);
@@ -1868,6 +2016,7 @@
     updateRain(dt);
     if (rain) rain.position.set(controls.target.x, 0, controls.target.z); // 雨跟著鏡頭
     for (var e = 0; e < envUpdates.length; e++) envUpdates[e](time);
+    updateScenery(time);
     updateCam(dt);
     updateFollow(dt);
     controls.update();
@@ -1906,6 +2055,7 @@
     alphaV = alpha == null ? 1 : Math.max(0, Math.min(1, alpha));
     syncAreas(s);
     syncPaths(s);
+    syncDecor(s);
     syncStructs(s);
     syncEma(s);
     var key = s.day + ":" + s.phase + ":" + s.min;
@@ -1940,20 +2090,45 @@
     return null;
   }
 
-  function ghost(type, x, y, ok) {
+  // 放置預覽：半透明的實際模型（依方向轉）＋腳下綠／紅色底板＋黃色入口格
+  var ghostModel = null, ghostType = null, ghostMats = [];
+  function makeGhostModel(type) {
+    var fake = { id: 0, type: type, x: 0, y: 0, rot: 0, mods: {}, build: 0, broken: false, q: [], riders: [], t: 0, link: null };
+    var g = (BUILDERS[type] || buildSmall)(fake, { structs: {} });
+    ghostMats = [];
+    g.traverse(function (o) {
+      if (o.isInstancedMesh) o.frustumCulled = false;
+      if (!o.material) return;
+      var list = Array.isArray(o.material) ? o.material : [o.material];
+      var cl = list.map(function (m) { var c = m.clone(); c.transparent = true; c.opacity = 0.55; c.depthWrite = false; c.userData = {}; ghostMats.push(c); return c; });
+      o.material = Array.isArray(o.material) ? cl : cl[0];
+    });
+    return g;
+  }
+  function ghost(type, x, y, ok, rot) {
     if (!ghostGroup) return;
     if (type == null) { ghostGroup.visible = false; return; }
-    var b = D.BUILD[type], w = b ? b.w : 1, h = b ? b.h : 1;
-    var c = tileToWorld(x + (w - 1) / 2, y + (h - 1) / 2);
+    rot = (rot | 0) % 4;
+    var b = D.BUILD[type], d = b ? Core.dims(type, rot) : { w: 1, h: 1 };
+    var c = tileToWorld(x + (d.w - 1) / 2, y + (d.h - 1) / 2);
     var bx = ghostGroup.userData.box, door = ghostGroup.userData.door;
-    bx.scale.set(w * T - 0.1, 0.6, h * T - 0.1);
-    bx.position.set(c.x, 0.3, c.z);
+    bx.scale.set(d.w * T - 0.1, 0.08, d.h * T - 0.1);
+    bx.position.set(c.x, 0.06, c.z);
     bx.material.color.set(ok ? "#40d060" : "#e04040");
-    // 入口格（建物下方中央）
+    if (ghostType !== type) {
+      if (ghostModel) { ghostGroup.remove(ghostModel); disposeTree(ghostModel); ghostModel = null; }
+      ghostType = type;
+      if (b) { ghostModel = makeGhostModel(type); ghostGroup.add(ghostModel); }
+    }
+    if (ghostModel) {
+      ghostModel.position.set(c.x, 0.02, c.z);
+      ghostModel.rotation.y = ROT_Y[rot];
+      for (var i = 0; i < ghostMats.length; i++) ghostMats[i].opacity = ok ? 0.6 : 0.3;
+    }
     door.visible = !!b && b.kind !== "shrine";
     if (door.visible) {
-      var e = tileToWorld(x + Math.floor(w / 2), y + h);
-      door.position.set(e.x, 0.06, e.z);
+      var e = Core.entranceAt(type, x, y, rot), ew = tileToWorld(e.x, e.y);
+      door.position.set(ew.x, 0.08, ew.z);
     }
     ghostGroup.visible = true;
   }

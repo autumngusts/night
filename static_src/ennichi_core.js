@@ -45,10 +45,24 @@
     return n;
   }
   function wareCap(s) { return D.WARE_CAP + infraSum(s, "ware"); }
+  // 方向 rot（2026-11-14，規格 §4.7）：入口朝 0 下（+y）、1 左（−x）、2 上（−y）、3 右（+x）。
+  //   rot 為奇數時佔地的寬高對調；(x, y) 一律是佔地的左上角。
+  function dims(type, rot) {
+    var b = D.BUILD[type];
+    return (rot | 0) % 2 ? { w: b.h, h: b.w } : { w: b.w, h: b.h };
+  }
+  function entranceAt(type, x, y, rot) {
+    var d = dims(type, rot);
+    switch ((rot | 0) % 4) {
+      case 1: return { x: x - 1, y: y + Math.floor(d.h / 2) };
+      case 2: return { x: x + Math.floor(d.w / 2), y: y - 1 };
+      case 3: return { x: x + d.w, y: y + Math.floor(d.h / 2) };
+      default: return { x: x + Math.floor(d.w / 2), y: y + d.h };
+    }
+  }
   function entranceOf(st) {
-    var b = D.BUILD[st.type];
     if (st.type === "shrine") return { x: st.x - 1, y: M.GATE.y }; // 本殿的入口在參道盡頭
-    return { x: st.x + Math.floor(b.w / 2), y: st.y + b.h };
+    return entranceAt(st.type, st.x, st.y, st.rot);
   }
   function popLevel(s) {
     var lv = 1;
@@ -96,13 +110,13 @@
     return s;
   }
 
-  function place(s, type, x, y) {
-    var b = D.BUILD[type], sid = s.nextId++;
+  function place(s, type, x, y, rot) {
+    var b = D.BUILD[type], sid = s.nextId++, d = dims(type, rot);
     s.structs[sid] = {
       id: sid, type: type, x: x, y: y, wear: 0, broken: false, price: b.price || 0, q: [], riders: [], t: 0, fixes: 0,
-      build: b.days || 0, mods: {}, ticket: false, link: null, waitSum: 0, waitN: 0, lastWait: 0,
+      build: b.days || 0, mods: {}, ticket: false, link: null, waitSum: 0, waitN: 0, lastWait: 0, rot: (rot | 0) % 4,
     };
-    for (var yy = y; yy < y + b.h; yy++) for (var xx = x; xx < x + b.w; xx++) s.occ[ti(xx, yy)] = sid;
+    for (var yy = y; yy < y + d.h; yy++) for (var xx = x; xx < x + d.w; xx++) s.occ[ti(xx, yy)] = sid;
     s.mapVer++;
     return sid;
   }
@@ -118,21 +132,22 @@
     return best;
   }
 
-  function canBuild(s, type, x, y) {
+  function canBuild(s, type, x, y, rot) {
     var b = D.BUILD[type];
     if (!b || type === "shrine") return { ok: false, err: "bounds" };
     if (s.phase !== "plan") return { ok: false, err: "phase" };
     if (popLevel(s) < b.lv) return { ok: false, err: "level" };
-    if (!inMap(x, y) || !inMap(x + b.w - 1, y + b.h - 1)) return { ok: false, err: "bounds" };
+    var d = dims(type, rot), e = entranceAt(type, x, y, rot);
+    if (!inMap(x, y) || !inMap(x + d.w - 1, y + d.h - 1)) return { ok: false, err: "bounds" };
     var a = areaOf(y), ar = D.AREAS[a];
-    if (Math.floor((y + b.h) / M.H) !== a) return { ok: false, err: "bounds" }; // 本體與入口（本體正下方）都要在同一區
-    if (!areaOpen(s, a) || x + b.w > ar.unlockX) return { ok: false, err: "locked" };
+    // 本體與入口都要在同一區（入口在地圖外或別區都不行）
+    if (Math.floor((y + d.h - 1) / M.H) !== a || !inMap(e.x, e.y) || Math.floor(e.y / M.H) !== a || e.y < 0) return { ok: false, err: "bounds" };
+    if (!areaOpen(s, a) || x + d.w > ar.unlockX) return { ok: false, err: "locked" };
     if (b.area && b.area !== ar.id) return { ok: false, err: "area" };
-    for (var yy = y; yy < y + b.h; yy++) for (var xx = x; xx < x + b.w; xx++) {
+    for (var yy = y; yy < y + d.h; yy++) for (var xx = x; xx < x + d.w; xx++) {
       if (s.occ[ti(xx, yy)] || s.tiles[ti(xx, yy)] === 1) return { ok: false, err: "occupied" };
       if (isWater(xx, yy) !== !!b.water) return { ok: false, err: b.water ? "needwater" : "water" };
     }
-    var e = { x: x + Math.floor(b.w / 2), y: y + b.h };
     if (!isPath(s, e.x, e.y) || s.occ[ti(e.x, e.y)]) return { ok: false, err: "entrance" };
     if (b.kind === "qstall" && !nearRide(s, e)) return { ok: false, err: "noride" };
     if (!have(s, b.parts)) return { ok: false, err: "parts" };
@@ -140,13 +155,13 @@
     return { ok: true, err: null };
   }
 
-  function build(s, type, x, y) {
-    var c = canBuild(s, type, x, y);
+  function build(s, type, x, y, rot) {
+    var c = canBuild(s, type, x, y, rot);
     if (!c.ok) return c;
     var b = D.BUILD[type];
     take(s, b.parts);
     s.cash -= b.cash;
-    var sid = place(s, type, x, y);
+    var sid = place(s, type, x, y, rot);
     if (b.kind === "qstall") s.structs[sid].link = nearRide(s, entranceOf(s.structs[sid]));
     // 新蓋遊樂設施：附近原本沒連結（設施被拆掉）的排隊屋台重新連上
     if (b.kind === "ride") for (var j in s.structs) {
@@ -159,8 +174,8 @@
   function demolish(s, sid) {
     var st = s.structs[sid];
     if (!st || st.type === "shrine" || s.phase !== "plan") return false;
-    var b = D.BUILD[st.type];
-    for (var yy = st.y; yy < st.y + b.h; yy++) for (var xx = st.x; xx < st.x + b.w; xx++) s.occ[ti(xx, yy)] = 0;
+    var b = D.BUILD[st.type], d = dims(st.type, st.rot);
+    for (var yy = st.y; yy < st.y + d.h; yy++) for (var xx = st.x; xx < st.x + d.w; xx++) s.occ[ti(xx, yy)] = 0;
     s.cash += Math.floor(b.cash * D.REFUND);
     if (st.build > 0) for (var k in b.parts) give(s, one(k, Math.floor(b.parts[k] * D.REFUND)));
     delete s.structs[sid];
@@ -385,7 +400,7 @@
   function applyIntent(s, it) {
     var ok, Wish = window.PriTestEnnichiWish;
     switch (it && it.a) {
-      case "build": var r = build(s, it.type, it.x, it.y); if (r.ok && Wish) Wish.check(s); return r;
+      case "build": var r = build(s, it.type, it.x, it.y, it.rot); if (r.ok && Wish) Wish.check(s); return r;
       case "demolish": ok = demolish(s, it.sid); break;
       case "path": ok = setPath(s, it.x, it.y, !!it.on); break;
       case "buy": ok = buy(s, it.item, it.n); break;
@@ -426,7 +441,7 @@
   }
 
   window.PriTestEnnichiCore = {
-    rnd: rnd, rint: rint, pickW: pickW, ti: ti, inMap: inMap, isPath: isPath, entranceOf: entranceOf,
+    rnd: rnd, rint: rint, pickW: pickW, ti: ti, inMap: inMap, isPath: isPath, entranceOf: entranceOf, dims: dims, entranceAt: entranceAt,
     areaOf: areaOf, areaIndex: areaIndex, areaOpen: areaOpen, gateOf: gateOf, isWater: isWater, wareCap: wareCap,
     canUnlock: canUnlock, unlockArea: unlockArea,
     popLevel: popLevel, machineSlots: machineSlots, weatherOf: weatherOf,

@@ -378,6 +378,101 @@ body.en-body .en-wrap { max-width: none; height: 100%; margin: 0; padding: 0; }
 .en-g-topics { margin: 0; padding-left: 20px; font-size: .9rem; }
 .en-g-sum > .en-btn { align-self: flex-end; padding: 8px 20px; }
 
+/* ---------------------------------------------------------------- 簡潔現代風（使用者指定 2026-11-14）
+   原則：毛玻璃浮動面板、統一圓角（面板 16／按鈕 10）、柔和雙層陰影、圖示＋數值的資訊層級、
+   主要動作用強調色、次要動作用中性色；只覆寫外觀，不改選擇器（測試共用）。 */
+.en-wrap {
+  --en-glass: rgba(255, 255, 255, .8); --en-line: rgba(30, 20, 40, .1); --en-soft: rgba(30, 20, 40, .05);
+  --en-shadow: 0 1px 2px rgba(15, 12, 30, .08), 0 10px 28px rgba(15, 12, 30, .16);
+  --en-accent: #d8343c; --en-r: 16px; --en-rb: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  .en-wrap { --en-glass: rgba(28, 24, 34, .82); --en-line: rgba(255, 255, 255, .1); --en-soft: rgba(255, 255, 255, .06); --en-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px rgba(0, 0, 0, .5); }
+}
+#en-game { font-size: .9rem; letter-spacing: .01em; }
+#en-game .en-btn {
+  border: 1px solid var(--en-line); background: var(--en-panel); color: var(--en-ink); border-radius: var(--en-rb);
+  padding: 6px 12px; font-size: .82rem; font-weight: 600; line-height: 1.2; transition: background .12s, border-color .12s, transform .08s;
+}
+#en-game .en-btn:hover:not(:disabled) { border-color: var(--en-accent); }
+#en-game .en-btn:active:not(:disabled) { transform: translateY(1px); }
+#en-game .en-btn.is-on, #en-game .en-g-open:not(:disabled) { background: var(--en-accent); border-color: var(--en-accent); color: #fff; }
+#en-game button:focus-visible { outline: 2px solid var(--en-accent); outline-offset: 2px; }
+.en-g-hud, .en-g-areabar, .en-g-fc-day, .en-g-mapbox, .en-g-dock { backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4); }
+
+.en-g-hud { border-radius: var(--en-r); padding: 6px 8px 6px 10px; }
+.en-g-hud-stats { gap: 4px; align-items: center; }
+.en-g-stat { align-items: center; gap: 6px; padding: 3px 10px 3px 4px; }
+.en-g-stat + .en-g-stat { box-shadow: -1px 0 0 var(--en-line); padding-left: 10px; }
+.en-g-stat i {
+  font-style: normal; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--en-soft); font-size: .8rem;
+}
+.en-g-stat small { font-size: .68rem; color: var(--en-sub); }
+.en-g-stat b { font-size: .95rem; font-weight: 700; }
+.en-g-dayprog { display: inline-block; width: 48px; height: 4px; border-radius: 2px; background: var(--en-line); overflow: hidden; }
+.en-g-dayprog span { display: block; height: 100%; background: var(--en-accent); }
+.en-g-hud-ctl { gap: 4px; align-items: center; }
+.en-g-hud-ctl .en-g-speed { min-width: 40px; padding: 6px 8px; }
+
+.en-g-fc-title { font-size: .75rem; font-weight: 600; }
+.en-g-fc-day { padding: 4px 12px; border-color: var(--en-line); }
+.en-g-areabar { padding: 3px; border-radius: 999px; }
+.en-g-areabtn { padding: 5px 12px; font-weight: 600; transition: background .12s; }
+.en-g-areabtn.is-on { box-shadow: 0 2px 8px rgba(216, 52, 60, .35); }
+
+.en-g-modebar { background: rgba(24, 20, 32, .92); color: #fff; border-radius: 999px; padding: 6px 6px 6px 16px; font-weight: 600; backdrop-filter: blur(8px); }
+#en-game .en-g-modebar .en-btn { background: rgba(255, 255, 255, .12); border-color: transparent; color: #fff; }
+#en-game .en-g-modebar .en-btn:hover { background: rgba(255, 255, 255, .22); }
+.en-g-modebar kbd { font: 600 .68rem/1 ui-monospace, monospace; padding: 2px 5px; border-radius: 4px; background: rgba(255, 255, 255, .2); }
+.en-g-toast { border-radius: 999px; padding: 8px 18px; background: rgba(24, 20, 32, .92); backdrop-filter: blur(8px); }
+
+.en-g-mapbox { border-radius: var(--en-r); padding: 6px 8px 8px; width: 300px; }
+.en-g-maphead { font-weight: 600; font-size: .72rem; letter-spacing: .04em; }
+#en-minimap { border-radius: 10px; image-rendering: auto; box-shadow: inset 0 0 0 1px var(--en-line); }
+
+.en-g-dock { border-radius: 20px; padding: 6px; gap: 2px; }
+.en-g-dockbtn { position: relative; min-width: 66px; padding: 6px 8px 5px; border-radius: 14px; border: 0; font-weight: 600; color: var(--en-sub); transition: background .12s, color .12s; }
+.en-g-dockbtn:hover { background: var(--en-soft); color: var(--en-ink); }
+.en-g-dockbtn.is-on { background: var(--en-soft); color: var(--en-accent); border: 0; }
+.en-g-dockbtn.is-on::after { content: ""; position: absolute; left: 50%; bottom: 1px; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px; background: var(--en-accent); }
+.en-g-dockicon { font-size: 1.3rem; }
+
+.en-g-win { border-radius: var(--en-r); border-color: var(--en-line); }
+.en-g-win-head { padding: 10px 8px 10px 12px; border-bottom-color: var(--en-line); }
+.en-g-win-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: var(--en-soft); font-size: .95rem; flex: none; }
+.en-g-win-head > b { font-size: 1rem; font-weight: 700; }
+.en-g-win-body { padding: 6px 14px 14px; }
+.en-g-win-build { width: 360px; }
+.en-g-x { width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 1.15rem; }
+.en-g-x:hover { background: var(--en-soft); }
+#en-game .en-h3 {
+  margin: 14px 0 8px; padding-top: 10px; border-top: 1px solid var(--en-line);
+  font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--en-sub);
+}
+#en-game .en-g-win-body > .en-h3:first-child { border-top: 0; padding-top: 0; }
+.en-g-list { gap: 6px; }
+
+.en-g-build {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 10px; row-gap: 1px; align-items: center;
+  border-radius: 12px; padding: 8px 10px; border-color: var(--en-line); background: var(--en-panel); transition: border-color .12s, box-shadow .12s;
+}
+.en-g-build:hover { box-shadow: 0 2px 10px rgba(15, 12, 30, .08); }
+.en-g-build-kind {
+  grid-row: 1 / span 3; width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1rem; color: #fff; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12);
+}
+.en-g-build.is-large .en-g-build-name::before { content: ""; }
+.en-g-build.is-ex { border-color: #e2b84a; background: linear-gradient(0deg, rgba(226, 184, 74, .08), rgba(226, 184, 74, .08)), var(--en-panel); }
+.en-g-build.is-short { opacity: .72; }
+.en-g-build-name { font-size: .9rem; }
+.en-g-parts span { padding: 1px 6px; border-radius: 6px; background: var(--en-soft); }
+.en-g-chip { border-radius: 8px; padding: 4px 9px; border-color: var(--en-line); }
+.en-g-srow, .en-g-upg { border-radius: 10px; padding: 7px 10px; border-color: var(--en-line); }
+.en-g-area { border-radius: 14px; border-color: var(--en-line); background: var(--en-panel); padding: 10px 12px; }
+.en-g-area-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--en-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+.en-g-bar { height: 6px; border-radius: 3px; }
+
 /* 窄螢幕：HUD 縮小、dock 貼底、視窗變成底部抽屜 */
 @media (max-width: 859.98px) {
   body.en-body > .site-header { padding: .35rem .75rem; }
@@ -387,6 +482,13 @@ body.en-body .en-wrap { max-width: none; height: 100%; margin: 0; padding: 0; }
   .en-g-hud-stats { gap: 2px 8px; }
   .en-g-stat small { display: none; }
   .en-g-stat b { font-size: .78rem; }
+  .en-g-stat { padding: 2px 6px 2px 2px; gap: 3px; }
+  .en-g-stat + .en-g-stat { padding-left: 6px; }
+  .en-g-stat i { display: none; } /* 窄螢幕：省略圖示，HUD 維持兩行 */
+  .en-g-dayprog { display: none; }
+  .en-g-win-build { width: auto; }
+  .en-g-mapbox { width: 176px; }
+  .en-g-modebar kbd { display: none; }
   .en-g-hud-ctl .en-btn { padding: 4px 9px; font-size: .78rem; }
   .en-g-forecast { font-size: .74rem; }
   .en-g-fc-title { display: none; }
@@ -397,7 +499,7 @@ body.en-body .en-wrap { max-width: none; height: 100%; margin: 0; padding: 0; }
   .en-g-dock { left: 0; right: 0; bottom: 0; transform: none; justify-content: space-around; border-radius: 0; border-width: 1px 0 0; padding: 3px 2px; }
   .en-g-dockbtn { min-width: 0; flex: 1 1 0; padding: 3px 2px; font-size: .68rem; }
   .en-g-dockicon { font-size: 1.1rem; }
-  .en-g-mapbox { right: 6px; bottom: auto; top: var(--en-top); width: 176px; padding: 3px 4px 4px; }
+  .en-g-mapbox { right: 6px; top: auto; bottom: calc(var(--en-dock) + 8px); width: 176px; padding: 3px 4px 4px; } /* 窄螢幕：dock 上方右側 */
   .en-g-mapbox.is-min { width: auto; }
   .en-g-win {
     left: 0 !important; right: 0 !important; top: auto !important; bottom: var(--en-dock) !important;

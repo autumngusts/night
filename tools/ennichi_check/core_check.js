@@ -756,3 +756,46 @@ var Wish = window.PriTestEnnichiWish;
   assert.strictEqual(back.tiles.length, D.MAP.W * D.MAP.WH); assert.ok(back.areas.shrine);
   console.log("12. 多張地圖（區域解鎖、建造限制、獨立入園、工廠區加成、舊存檔）OK");
 })();
+
+// ---------------- 13. 設施方向（rot，規格 §4.7，2026-11-14）----------------
+(function () {
+  var s = Core.newGame({ seed: 91 }), i;
+  // 入口朝向：0 下、1 左、2 上、3 右；奇數方向寬高對調
+  assert.deepStrictEqual(Core.dims("foxTrain", 1), { w: 4, h: 6 }, "狐狸小火車轉 90° 寬高對調");
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 0), { x: 6, y: 7 });
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 1), { x: 4, y: 6 });
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 2), { x: 6, y: 4 });
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 3), { x: 7, y: 6 });
+  // 參道（y = 10）上方蓋入口朝下的、下方蓋入口朝上的
+  var up = Core.build(s, "takoyakiSt", 4, 11, 2);
+  assert.ok(up.ok, "入口朝上的攤位蓋在參道下方 " + up.err);
+  assert.deepStrictEqual(Core.entranceOf(s.structs[up.sid]), { x: 5, y: 10 });
+  assert.strictEqual(s.occ[Core.ti(4, 12)], up.sid, "佔地");
+  // 入口朝左：垂直步道 x = 8，設施放在右邊
+  for (i = 11; i < 16; i++) Core.setPath(s, 8, i, true);
+  var left = Core.build(s, "kingyo", 9, 12, 1);
+  assert.ok(left.ok, "入口朝左 " + left.err);
+  assert.deepStrictEqual(Core.entranceOf(s.structs[left.sid]), { x: 8, y: 13 });
+  // 入口不在步道上 → entrance；入口朝外（地圖外）→ bounds
+  assert.strictEqual(Core.canBuild(s, "kingyo", 12, 12, 3).err, "entrance");
+  assert.strictEqual(Core.canBuild(s, "kingyo", 0, 12, 1).err, "bounds", "入口在地圖外");
+  // 拆除時清空轉過的佔地
+  Core.give(s, D.BUILD.foxTrain.parts);
+  s.rep = D.POP_LEVELS[1]; s.cash = 1e7; Core.applyIntent(s, { a: "area", id: "land" });
+  var H = D.MAP.H;
+  Core.setPath(s, 7, H + 7, true); Core.setPath(s, 7, H + 8, true); Core.setPath(s, 7, H + 9, true);
+  var ft = Core.applyIntent(s, { a: "build", type: "foxTrain", x: 3, y: H + 4, rot: 3 });
+  assert.ok(ft.ok, "陸地樂園蓋入口朝右的狐狸小火車 " + ft.err);
+  var st = s.structs[ft.sid];
+  assert.strictEqual(st.rot, 3);
+  assert.deepStrictEqual(Core.entranceOf(st), { x: 7, y: H + 7 }, "朝右的入口（佔地 4×6）");
+  assert.ok(Core.demolish(s, ft.sid));
+  for (var yy = H + 4; yy < H + 10; yy++) for (var xx = 3; xx < 7; xx++) assert.strictEqual(s.occ[Core.ti(xx, yy)], 0, "拆除後清空");
+  // 客人走得到轉向設施的入口
+  finishAll(s);
+  openToday(s);
+  var g = walker(s, 1, 10, left.sid, { fun: 90 });
+  for (i = 0; i < 30 && g.state === "walk"; i++) Sim.guestStep(s, g);
+  assert.notStrictEqual(g.state, "walk", "客人走到入口朝左的金魚撈");
+  console.log("13. 設施方向（佔地、入口、拆除、尋路）OK");
+})();
