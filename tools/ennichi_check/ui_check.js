@@ -4,6 +4,7 @@
 //   node tools/ennichi_check/ui_check.js
 // 流程：標題 → 新遊戲 → 小地圖放置章魚燒攤 → 墊旋轉木馬的模組後放置（施工中）→ 市場買料 → 配方樹
 //       → 開園 4 倍速跑完一天 → 日結算 → 下一天（旋轉木馬完工）→ 改裝、整理券、修理 → 繪馬牆
+//       → 區域視窗買下陸地樂園、放碰碰車、區域列切換（2026-11-14）
 //       → 重新整理後「繼續」讀回同一天 → 手機寬度無橫向捲動。
 // 觸發一律 dispatchEvent；小地圖是靜態 canvas，用 page.mouse 點格子。
 //
@@ -116,12 +117,34 @@ function sidOf(s, type) { return Object.keys(s.structs).filter(function (k) { re
   await act(page, "#en-tab-wish");
   assert.ok((await page.$$("#en-wish-board [data-wish]")).length >= 1, "繪馬牆有願望");
 
+  // 多張地圖（規格 §6.3.1）：從「區域」視窗買下陸地樂園 → 自動移過去 → 在小地圖放碰碰車 → 區域列切回境內
+  await page.evaluate(function () { var s = window.PriTestEnnichiGame._state(); s.rep = window.PriTestEnnichiData.POP_LEVELS[1]; s.cash = 1e6; });
+  await act(page, "#en-tab-area");
+  await act(page, "[data-area-buy=\"land\"]");
+  s = await st(page);
+  assert.ok(s.areas.land, "買下陸地樂園");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestEnnichiGame._area(); }), 1, "買下後移到陸地樂園");
+  await page.evaluate(function () { var D = window.PriTestEnnichiData; window.PriTestEnnichiCore.give(window.PriTestEnnichiGame._state(), D.BUILD.bumper.parts); });
+  await act(page, "#en-win-area [data-win-close]");
+  await act(page, "#en-tab-build");
+  assert.ok(await page.$("[data-build=\"bumper\"]"), "陸地樂園的建造清單有碰碰車");
+  assert.ok(!(await page.$("[data-build=\"coaster\"]")), "其他區域的專屬設施不列出");
+  await act(page, "[data-build=\"bumper\"]"); await clickTile(page, 3, 6);
+  s = await st(page);
+  var bsid = sidOf(s, "bumper");
+  assert.ok(bsid && s.structs[bsid].y === 20 + 6, "碰碰車蓋在陸地樂園（世界 y = 20 + 6）");
+  await act(page, "#en-btn-mode-cancel");
+  await act(page, "[data-area=\"0\"]");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestEnnichiGame._area(); }), 0, "區域列切回境內");
+  await page.screenshot({ path: path.join(SHOTS, "areas.png") });
+
   // 讀檔
   await page.reload();
   await act(page, "#en-btn-continue");
   await page.waitForSelector("#en-hud", { timeout: 60000 });
   s = await st(page);
   assert.strictEqual(s.day, 2, "讀回第 2 天");
+  assert.ok(s.areas.land, "讀回已解鎖的區域");
 
   // 手機寬度（新的瀏覽器環境沒有存檔 → 新遊戲）
   var m = await (await browser.newContext(pw.devices["iPhone 13"])).newPage();

@@ -20,12 +20,13 @@
   var M = D.MAP, CELL = 10, STEP_SEC = 0.4, SAVE_KEY = "pritest-ennichi-save";
   var WICON = { sun: "☀", cloud: "☁", rain: "☂", wind: "🌀" };
   var NEEDS = ["fun", "hunger", "thirst", "toilet", "fatigue", "dry"];
-  var TABS = ["build", "work", "park", "wish", "murmur"];
-  var DOCK_ICON = { build: "🔨", work: "⚙", park: "🎡", wish: "⛩", murmur: "💬" };
+  var TABS = ["area", "build", "work", "park", "wish", "murmur"];
+  var DOCK_ICON = { area: "🗺", build: "🔨", work: "⚙", park: "🎡", wish: "⛩", murmur: "💬" };
   var NARROW = 860; // 未滿此寬度：視窗改成底部抽屜、不能拖曳
 
   var s = null; // 遊戲狀態
   var speed = 1, lastSpeed = 1, acc = 0, lastT = 0;
+  var area = 0; // 目前觀看的區域（D.AREAS 的索引；規格 §6.3.1）
   var wins = {}, winZ = 20, modeHidBuild = false, mode = null, selSid = null, followGid = null, treeItem = null, mmFilter = "all";
   var hover = null, dragging = false, stageDown = null, lastMm = null;
   var three = null, threeState = "none";
@@ -115,7 +116,7 @@
               '<button type="button" id="en-btn-speed-4" class="en-btn en-g-speed" data-speed="4">×4</button>' +
             "</div>" +
           "</div>" +
-          '<div id="en-forecast" class="en-g-forecast"></div>' +
+          '<div class="en-g-toprow"><div id="en-area-bar" class="en-g-areabar" role="tablist"></div><div id="en-forecast" class="en-g-forecast"></div></div>' +
         "</div>" +
         '<div id="en-mode-bar" class="en-g-modebar" hidden><span id="en-mode-text"></span>' + btn("en-btn-mode-cancel", "en_cancel") + "</div>" +
         '<div id="en-toast" class="en-g-toast" role="status" hidden></div>' +
@@ -124,6 +125,8 @@
           '<canvas id="en-minimap" width="' + M.W * CELL + '" height="' + M.H * CELL + '"></canvas>' +
         "</div>" +
         '<nav class="en-g-dock" role="toolbar">' + dock + "</nav>" +
+        // 區域（購買、前往）
+        win("area", "en_area_title", '<p class="en-note" data-i18n="en_area_note"></p><div id="en-area-list" class="en-g-list"></div>') +
         // 建造
         win("build", "en_tab_build",
           '<div class="en-g-row">' + btn("en-btn-path", "en_path") + btn("en-btn-unpath", "en_unpath") + btn("en-btn-cancel", "en_cancel") + "</div>" +
@@ -164,7 +167,7 @@
         btn("en-btn-next-day", "en_next_day", "is-on") + "</div></div>" +
       '<div id="en-season-summary" class="en-modal" hidden><div class="en-modal-box en-g-sum"><div id="en-season-summary-body"></div>' +
         btn("en-btn-restart", "en_restart", "is-on") + "</div></div>";
-    ["en-title-screen", "en-main", "en-stage", "en-stage-msg", "en-toast", "en-minimap", "en-mapbox", "en-btn-map", "en-mode-bar", "en-mode-text", "en-follow-panel", "en-forecast",
+    ["en-area-bar", "en-area-list", "en-title-screen", "en-main", "en-stage", "en-stage-msg", "en-toast", "en-minimap", "en-mapbox", "en-btn-map", "en-mode-bar", "en-mode-text", "en-follow-panel", "en-forecast",
       "en-hud-day", "en-hud-time", "en-hud-weather", "en-hud-cash", "en-hud-rep", "en-hud-guests",
       "en-btn-open", "en-btn-pause", "en-btn-continue", "en-path-note", "en-build-list", "en-machine-slots", "en-machine-list", "en-machine-add",
       "en-market", "en-ware-total", "en-warehouse", "en-recipe-tree", "en-fee-input", "en-struct-panel", "en-struct-info", "en-struct-ride",
@@ -195,13 +198,15 @@
     if (planOnly[it.a] && s.phase !== "plan") return "phase";
     if (it.a === "path" && it.on) {
       if (!Core.inMap(it.x, it.y)) return "bounds";
-      if (it.x >= M.UNLOCK_X) return "locked";
+      var pa = Core.areaOf(it.y);
+      if (!Core.areaOpen(s, pa) || it.x >= D.AREAS[pa].unlockX) return "locked";
+      if (Core.isWater(it.x, it.y)) return "water";
       if (s.occ[Core.ti(it.x, it.y)] || s.tiles[Core.ti(it.x, it.y)] === 1) return "occupied";
       if (s.cash < D.PATH_COST) return "cash";
     }
     if (it.a === "buy") {
       if (s.cash < D.ITEMS[it.item].buy * it.n) return "cash";
-      if (Core.wareTotal(s) + it.n > D.WARE_CAP) return "full";
+      if (Core.wareTotal(s) + it.n > Core.wareCap(s)) return "full";
     }
     if (it.a === "machine" && D.MACHINES[it.type] && s.cash < D.MACHINES[it.type].cost) return "cash";
     if (it.a === "repair" || it.a === "upgrade") return "parts";
@@ -217,6 +222,7 @@
       if (it.a === "open") { acc = 0; lastMm = null; syncWeather(); }
       if (it.a === "next") { syncWeather(); lastMm = null; }
       if (it.a === "demolish" && it.sid === selSid) selSid = null;
+      if (it.a === "area") { toast(t("en_area_bought", { name: L(D.AREAS[Core.areaIndex(it.id)].name) })); setArea(Core.areaIndex(it.id)); }
       save();
     }
     mapDirty = true;
@@ -250,6 +256,7 @@
 
   function tileClick(x, y, preferGuest) {
     if (!s || !Core.inMap(x, y)) return;
+    if (Core.areaOf(y) !== area && !mode) { setArea(Core.areaOf(y)); return; } // 點到遠方的其他區域：移動過去
     if (mode && mode.kind === "build") { doIntent({ a: "build", type: mode.type, x: x, y: y }); return; }
     if (mode && mode.kind === "path") { pathAt(x, y); return; }
     var g = guestAt(x, y), sid = s.occ[Core.ti(x, y)];
@@ -267,6 +274,7 @@
   function follow(gid) {
     followGid = gid;
     if (gid != null) toFront(el["follow-panel"]);
+    if (gid && s) for (var i = 0; i < s.guests.length; i++) if (s.guests[i].id === gid && (s.guests[i].area || 0) !== area) setArea(s.guests[i].area || 0, true);
     if (three) three.focusGuest(gid ? gid : null); // gid 0 = 小夜（不是客人，不移動鏡頭）
     mapDirty = true;
     renderFollow();
@@ -339,6 +347,18 @@
     on(el.main, "pointercancel", end);
   }
 
+  // 切換觀看的區域：3D 鏡頭移過去、小地圖與各視窗只顯示該區
+  function setArea(a, keepFollow) {
+    if (a < 0 || a >= D.AREAS.length) return;
+    area = a;
+    hover = null;
+    if (selSid && s && s.structs[selSid] && Core.areaOf(s.structs[selSid].y) !== a) selSid = null;
+    if (!keepFollow && followGid) follow(null);
+    if (three) { three.ghost(null); three.setArea(a); }
+    mapDirty = true;
+    refreshAll();
+  }
+
   function setSpeed(n) {
     if (n > 0) lastSpeed = n;
     speed = n;
@@ -359,6 +379,7 @@
         var api3 = window.PriTestEnnichi3D;
         var p = api3.init(el.stage, { modelUrl: root.getAttribute("data-model"), crowdModelUrl: root.getAttribute("data-model-crowd") });
         three = api3; // 場景在 init 內同步建好，模型載入期間就可以 sync
+        three.setArea(area, true);
         syncWeather();
         return p;
       })
@@ -401,6 +422,39 @@
     }
     setHTML(el.forecast, h);
   }
+  function areaGuests(a) { var n = 0; s.guests.forEach(function (g) { if ((g.area || 0) === a) n++; }); return n; }
+  function areaStructs(a) { var n = 0; for (var k in s.structs) if (Core.areaOf(s.structs[k].y) === a) n++; return n; }
+  function renderAreaBar() {
+    var h = "";
+    D.AREAS.forEach(function (ar, a) {
+      var open = Core.areaOpen(s, a);
+      h += '<button type="button" class="en-g-areabtn' + (a === area ? " is-on" : "") + (open ? "" : " is-locked") + '" data-area="' + a + '" role="tab" aria-selected="' + (a === area) + '" title="' + esc(L(ar.name)) + '">' +
+        '<span aria-hidden="true">' + (open ? ar.icon : "🔒") + "</span><span class=\"en-g-areaname\">" + esc(L(ar.name)) + "</span></button>";
+    });
+    setHTML(el["area-bar"], h);
+  }
+  function renderAreas() {
+    var lv = Core.popLevel(s), h = "";
+    D.AREAS.forEach(function (ar, a) {
+      var open = Core.areaOpen(s, a), info, act;
+      if (open) {
+        info = '<span class="en-ok">' + esc(t("en_area_open")) + "</span> · " + esc(t("en_area_stat", { n: areaStructs(a), g: areaGuests(a) }));
+        act = a === area ? '<span class="en-g-here">' + esc(t("en_area_here")) + "</span>" :
+          '<button type="button" class="en-btn" data-area-go="' + a + '">' + esc(t("en_area_go")) + "</button>";
+      } else {
+        var c = Core.canUnlock(s, ar.id);
+        info = '<span class="' + (lv >= ar.lv && s.cash >= ar.cash ? "en-ok" : "en-ng") + '">' + esc(t("en_area_need", { lv: ar.lv, cash: yen(ar.cash) })) + "</span>";
+        act = '<button type="button" class="en-btn is-on" data-area-buy="' + ar.id + '"' + (c.ok ? "" : " disabled") + ">" + esc(t("en_area_buy", { cash: yen(ar.cash) })) + "</button>" +
+          '<button type="button" class="en-btn" data-area-go="' + a + '">' + esc(t("en_area_go")) + "</button>";
+      }
+      var ex = [];
+      for (var k in D.BUILD) if (D.BUILD[k].area === ar.id) ex.push(L(D.BUILD[k].name));
+      h += '<div class="en-g-area' + (a === area ? " is-on" : "") + '"><div class="en-g-area-icon" aria-hidden="true">' + ar.icon + '</div><div class="en-g-area-main"><b>' + esc(L(ar.name)) + "</b><small>" + info + "</small>" +
+        (ex.length ? '<small class="en-g-area-ex">' + esc(ex.join("・")) + "</small>" : "") + '</div><div class="en-g-area-act">' + act + "</div></div>";
+    });
+    setHTML(el["area-list"], h);
+  }
+
   function renderModeBar() {
     var bar = el["mode-bar"];
     if (!mode) { bar.hidden = true; return; }
@@ -422,18 +476,24 @@
     el["path-note"].textContent = t("en_path_cost", { n: D.PATH_COST });
     $("en-btn-path").classList.toggle("is-on", !!(mode && mode.kind === "path" && mode.on));
     $("en-btn-unpath").classList.toggle("is-on", !!(mode && mode.kind === "path" && !mode.on));
-    var lv = Core.popLevel(s), h = "";
+    var lv = Core.popLevel(s), h = "", ar = D.AREAS[area], ex = "", gen = "";
+    if (!Core.areaOpen(s, area)) { setHTML(el["build-list"], '<p class="en-note en-ng">' + esc(t("en_err_locked")) + "</p>"); return; }
     for (var type in D.BUILD) {
       if (type === "shrine") continue;
       var b = D.BUILD[type];
-      var meta = b.w + "×" + b.h + " · " + yen(b.cash) + (b.days ? " · " + t("en_build_days", { n: b.days }) : "");
+      if (b.area && b.area !== ar.id) continue; // 其他區域的專屬設施不列出
+      var meta = b.w + "×" + b.h + " · " + yen(b.cash) + (b.days ? " · " + t("en_build_days", { n: b.days }) : "") +
+        (b.ware ? " · " + t("en_infra_ware", { n: b.ware }) : "") + (b.slots && b.kind === "infra" ? " · " + t("en_infra_slots", { n: b.slots }) : "");
       var ok = Core.have(s, b.parts) && s.cash >= b.cash && lv >= b.lv;
-      h += '<button type="button" class="en-g-build' + (mode && mode.type === type ? " is-on" : "") + (ok ? "" : " is-short") + (b.large ? " is-large" : "") +
+      h = '<button type="button" class="en-g-build' + (mode && mode.type === type ? " is-on" : "") + (ok ? "" : " is-short") + (b.large ? " is-large" : "") + (b.area ? " is-ex" : "") +
         '" data-build="' + type + '"><span class="en-g-build-name">' + esc(L(b.name)) + '</span><span class="en-g-build-meta">' + esc(meta) +
         (lv < b.lv ? ' · <span class="en-ng">' + esc(t("en_need_lv", { n: b.lv })) + "</span>" : "") +
         '</span><span class="en-g-parts">' + partsHTML(b.parts) + "</span></button>";
+      if (b.area) ex += h; else gen += h;
     }
-    setHTML(el["build-list"], h);
+    setHTML(el["build-list"], (ar.lake ? '<p class="en-note">' + esc(t("en_area_lake")) + "</p>" : "") +
+      (ex ? '<h3 class="en-h3">' + esc(ar.icon + " " + t("en_area_exclusive")) + '</h3><div class="en-g-list">' + ex + '</div><h3 class="en-h3">' + esc(t("en_tab_build")) + "</h3>" : "") +
+      '<div class="en-g-list">' + gen + "</div>");
   }
 
   // ---------------------------------------------------------------- 側欄：工房
@@ -460,7 +520,7 @@
       for (var rid in D.RECIPES) if (D.RECIPES[rid].m === m.type) opts += '<option value="' + rid + '"' + (m.rid === rid ? " selected" : "") + ">" + esc(recipeLabel(rid)) + "</option>";
       h += '<div class="en-g-mach"><div class="en-g-mach-head"><b>' + esc(L(D.MACHINES[m.type].name)) + '</b><div class="en-g-prog" data-progress="' + i + '"></div></div>' +
         '<select data-recipe="' + i + '" aria-label="' + esc(t("en_recipe")) + '">' + opts + "</select>" +
-        '<label class="en-g-limit"><span>' + esc(t("en_limit")) + '</span><input type="number" min="0" max="' + D.WARE_CAP + '" data-limit="' + i +
+        '<label class="en-g-limit"><span>' + esc(t("en_limit")) + '</span><input type="number" min="0" max="' + Core.wareCap(s) + '" data-limit="' + i +
         '" placeholder="' + esc(t("en_unlimited")) + '" value="' + (m.limit || "") + '"></label></div>';
     });
     setHTML(el["machine-list"], h);
@@ -489,7 +549,7 @@
     return "goods";
   }
   function renderWarehouse() {
-    setText(el["ware-total"], t("en_ware_total", { n: Core.wareTotal(s), cap: D.WARE_CAP }));
+    setText(el["ware-total"], t("en_ware_total", { n: Core.wareTotal(s), cap: Core.wareCap(s) }));
     var groups = { "0": [], "1": [], "2": [], "3": [], upgrade: [], goods: [] };
     for (var id in D.ITEMS) groups[tierKey(id)].push(id);
     var h = "";
@@ -529,12 +589,14 @@
     if (st.broken) return t("en_broken");
     if (s.today && s.phase === "open" && s.today.closed && s.today.closed.indexOf(st.type) >= 0) return t("en_wind_stop");
     if (b.kind === "ride") return t("en_wear") + " " + Math.round(st.wear) + "%";
+    if (b.ware) return t("en_infra_ware", { n: b.ware });
+    if (b.kind === "infra") return t("en_infra_slots", { n: b.slots });
     return "";
   }
   function renderPark() {
     if (document.activeElement !== el["fee-input"]) el["fee-input"].value = s.fee;
     el["fee-input"].disabled = s.phase !== "plan";
-    var h = "", ids = Object.keys(s.structs).map(Number).sort(function (a, b) { return a - b; });
+    var h = "", ids = Object.keys(s.structs).map(Number).filter(function (k) { return Core.areaOf(s.structs[k].y) === area; }).sort(function (a, b) { return a - b; });
     if (selSid && !s.structs[selSid]) selSid = null;
     ids.forEach(function (sid) {
       var st = s.structs[sid], stt = structStatus(st);
@@ -676,14 +738,16 @@
 
   // ---------------------------------------------------------------- 小地圖
   var KIND_COLOR = { shrine: "#9a3324", ride: "#e0703a", stall: "#e8b830", qstall: "#d49a20", facility: "#3f8fc8", deco: "#b0d080" };
+  var AREA_GROUND = { shrine: "#79a556", land: "#86b85e", factory: "#9a9a92", water: "#d8c690", theme: "#7c9c62" };
   function drawMinimap() {
-    var c = el.minimap, g = c.getContext("2d"), x, y, k;
-    g.fillStyle = "#79a556";
+    var c = el.minimap, g = c.getContext("2d"), x, y, k, ar = D.AREAS[area], oy = area * M.H, open = Core.areaOpen(s, area);
+    g.fillStyle = AREA_GROUND[ar.id] || "#79a556";
     g.fillRect(0, 0, c.width, c.height);
+    if (ar.lake) { g.fillStyle = "#4a90c8"; g.fillRect(ar.lake.x * CELL, ar.lake.y * CELL, ar.lake.w * CELL, ar.lake.h * CELL); }
     g.fillStyle = "rgba(30,40,20,.45)";
-    g.fillRect(M.UNLOCK_X * CELL, 0, (M.W - M.UNLOCK_X) * CELL, c.height);
+    if (ar.unlockX < M.W) g.fillRect(ar.unlockX * CELL, 0, (M.W - ar.unlockX) * CELL, c.height);
     g.fillStyle = "#d8c49a";
-    for (y = 0; y < M.H; y++) for (x = 0; x < M.W; x++) if (s.tiles[Core.ti(x, y)] === 1) g.fillRect(x * CELL, y * CELL, CELL, CELL);
+    for (y = 0; y < M.H; y++) for (x = 0; x < M.W; x++) if (s.tiles[Core.ti(x, y + oy)] === 1) g.fillRect(x * CELL, y * CELL, CELL, CELL);
     g.strokeStyle = "rgba(0,0,0,.06)";
     g.lineWidth = 1;
     g.beginPath();
@@ -691,7 +755,8 @@
     for (y = 1; y < M.H; y++) { g.moveTo(0, y * CELL + 0.5); g.lineTo(c.width, y * CELL + 0.5); }
     g.stroke();
     for (k in s.structs) {
-      var st = s.structs[k], b = D.BUILD[st.type], px = st.x * CELL, py = st.y * CELL, w = b.w * CELL, h = b.h * CELL;
+      if (Core.areaOf(s.structs[k].y) !== area) continue;
+      var st = s.structs[k], b = D.BUILD[st.type], px = st.x * CELL, py = (st.y - oy) * CELL, w = b.w * CELL, h = b.h * CELL;
       g.fillStyle = b.large ? "#c8282e" : KIND_COLOR[b.kind] || "#999";
       g.fillRect(px + 1, py + 1, w - 2, h - 2);
       if (st.build > 0) { // 施工中：斜線
@@ -712,21 +777,28 @@
     g.fillStyle = "#c8282e";
     g.fillRect(M.GATE.x * CELL, M.GATE.y * CELL - 2, 3, CELL + 4);
     s.guests.forEach(function (gu) {
+      if ((gu.area || 0) !== area) return;
       var on = gu.id === followGid;
       g.fillStyle = on ? "#ffe14a" : "#ffffff";
       g.strokeStyle = "#2b2230"; g.lineWidth = 1;
-      g.beginPath(); g.arc(gu.x * CELL + 5, gu.y * CELL + 5, on ? 3.5 : 2.2, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath(); g.arc(gu.x * CELL + 5, (gu.y - oy) * CELL + 5, on ? 3.5 : 2.2, 0, Math.PI * 2); g.fill(); g.stroke();
     });
-    if (hover && mode) {
+    if (!open) { // 未開放：整張蓋暗並寫上條件
+      g.fillStyle = "rgba(20,16,28,.62)"; g.fillRect(0, 0, c.width, c.height);
+      g.fillStyle = "#fff"; g.font = "bold 22px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("🔒 " + t("en_area_need", { lv: ar.lv, cash: yen(ar.cash) }), c.width / 2, c.height / 2);
+    }
+    if (hover && mode && Core.areaOf(hover.y) === area) {
+      var hy = hover.y - oy;
       if (mode.kind === "build") {
         var bb = D.BUILD[mode.type], ok = Core.canBuild(s, mode.type, hover.x, hover.y).ok;
         g.fillStyle = ok ? "rgba(64,208,96,.55)" : "rgba(224,64,64,.55)";
-        g.fillRect(hover.x * CELL, hover.y * CELL, bb.w * CELL, bb.h * CELL);
+        g.fillRect(hover.x * CELL, hy * CELL, bb.w * CELL, bb.h * CELL);
         g.fillStyle = "rgba(255,255,255,.9)"; // 入口格
-        g.fillRect((hover.x + Math.floor(bb.w / 2)) * CELL + 3, (hover.y + bb.h) * CELL + 3, 4, 4);
+        g.fillRect((hover.x + Math.floor(bb.w / 2)) * CELL + 3, (hy + bb.h) * CELL + 3, 4, 4);
       } else {
         g.strokeStyle = mode.on ? "#fff" : "#e04040"; g.lineWidth = 2;
-        g.strokeRect(hover.x * CELL + 1, hover.y * CELL + 1, CELL - 2, CELL - 2);
+        g.strokeRect(hover.x * CELL + 1, hy * CELL + 1, CELL - 2, CELL - 2);
       }
     }
     mapDirty = false;
@@ -735,6 +807,8 @@
     var r = el.minimap.getBoundingClientRect();
     if (!r.width || !r.height) return null;
     var x = Math.floor((e.clientX - r.left) / r.width * M.W), y = Math.floor((e.clientY - r.top) / r.height * M.H);
+    if (y < 0 || y >= M.H) return null;
+    y += area * M.H; // 小地圖只畫目前區域 → 換成世界座標
     return Core.inMap(x, y) ? { x: x, y: y } : null;
   }
 
@@ -742,6 +816,8 @@
   function refreshSide() {
     if (!s) return;
     sideAt = Date.now();
+    renderAreaBar();
+    if (wins.area) renderAreas();
     if (wins.build || mode) renderBuildList();
     if (wins.work) renderWork();
     if (wins.park) renderPark();
@@ -799,12 +875,12 @@
     s = ns;
     el["title-screen"].hidden = true;
     el.main.hidden = false;
-    mode = null; selSid = null; followGid = null; treeItem = null; hover = null; acc = 0;
+    mode = null; selSid = null; followGid = null; treeItem = null; hover = null; acc = 0; area = 0;
     closeAllWins();
     speed = 1; lastSpeed = 1;
     var arr = s.today ? s.today.murmurs : [];
     lastMm = arr.length ? arr[arr.length - 1] : null;
-    if (three) three.focusGuest(null);
+    if (three) { three.focusGuest(null); three.setArea(0, true); }
     start3D();
     syncWeather();
     refreshAll();
@@ -844,6 +920,9 @@
     on(root, "click", function (e) {
       var b;
       if ((b = closest(e, "[data-tab]"))) { setTab(b.getAttribute("data-tab")); return; }
+      if ((b = closest(e, "[data-area]"))) { var ai = +b.getAttribute("data-area"); if (Core.areaOpen(s, ai)) setArea(ai); else { setArea(ai); if (!wins.area) setTab("area"); } return; }
+      if ((b = closest(e, "[data-area-go]"))) { setArea(+b.getAttribute("data-area-go")); return; }
+      if ((b = closest(e, "[data-area-buy]"))) { doIntent({ a: "area", id: b.getAttribute("data-area-buy") }); return; }
       if ((b = closest(e, "[data-build]"))) { var ty = b.getAttribute("data-build"); setMode(mode && mode.type === ty ? null : { kind: "build", type: ty }); return; }
       if ((b = closest(e, "[data-buy]"))) { doIntent({ a: "buy", item: b.getAttribute("data-buy"), n: 10 }); return; }
       if ((b = closest(e, "[data-machine]"))) { doIntent({ a: "machine", type: b.getAttribute("data-machine") }); return; }
@@ -924,6 +1003,7 @@
     _state: function () { return s; },
     _intent: function (it) { var r = doIntent(it, true); return { ok: r.ok, err: r.err }; },
     _speed: function () { return speed; },
+    _area: function (a) { if (a != null) setArea(a); return area; },
     _fast: undefined,
   };
   window.PriTestEnnichiGame = api;

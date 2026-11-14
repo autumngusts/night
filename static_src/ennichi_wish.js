@@ -29,7 +29,8 @@
     var lv = Core.popLevel(s);
     for (var t in D.BUILD) {
       var b = D.BUILD[t];
-      if ((b.kind === "ride" || b.kind === "stall") && b.lv <= lv && !have[t]) out.push({ kind: "build", target: t, n: 0, text: fill(T.build, { name: b.name }) });
+      // 專屬設施：該區解鎖後才會出現在願望裡
+      if ((b.kind === "ride" || b.kind === "stall") && b.lv <= lv && !have[t] && (!b.area || Core.areaOpen(s, Core.areaIndex(b.area)))) out.push({ kind: "build", target: t, n: 0, text: fill(T.build, { name: b.name }) });
     }
     ["takoyaki", "ringoame", "wataame", "ramune"].forEach(function (id) {
       out.push({ kind: "sell", target: id, n: D.WISH.SELL_N, text: fill(T.sell, { name: D.ITEMS[id].name, n: D.WISH.SELL_N }) });
