@@ -1,7 +1,9 @@
 // ============================================================================
 // 緣日樂園：遊戲畫面（window.PriTestEnnichiGame）。
 //   * 規則全部在 ennichi_core.js／ennichi_sim.js：玩家操作一律走 Core.applyIntent(s, {a: ...})，這裡只負責
-//     畫面（標題、HUD、天氣預報、側欄五個分頁、小地圖、跟拍、日結算、季末）與時間推進。
+//     畫面（標題、HUD、天氣預報、dock 與浮動視窗、小地圖、跟拍、日結算、季末）與時間推進。
+//   * 版面（2026-11-14）：只留上方導覽列，3D 舞台滿版；操作一律在浮在舞台上的視窗（建造／工房／樂園／繪馬／murmur、
+//     設施詳細、跟拍）。寬螢幕可拖曳標題列、可同時開多個；寬度 < 860px 改成一次一個的底部抽屜。
 //   * 時間：營業中每真實 0.4 秒推進「速度」遊戲分鐘（實作上每 0.4／速度 秒推進 1 分鐘，速率相同、3D 內插較順）；
 //     測試可設 _fast，改成每 0.4 秒推進 max(速度, _fast) 分鐘。3D 以 requestAnimationFrame 內插（sync(s, alpha)）。
 //   * 3D：進入遊戲時才動態載入 three.min.js → ennichi_vrm.js，再 PriTestEnnichi3D.init；
@@ -19,10 +21,12 @@
   var WICON = { sun: "☀", cloud: "☁", rain: "☂", wind: "🌀" };
   var NEEDS = ["fun", "hunger", "thirst", "toilet", "fatigue", "dry"];
   var TABS = ["build", "work", "park", "wish", "murmur"];
+  var DOCK_ICON = { build: "🔨", work: "⚙", park: "🎡", wish: "⛩", murmur: "💬" };
+  var NARROW = 860; // 未滿此寬度：視窗改成底部抽屜、不能拖曳
 
   var s = null; // 遊戲狀態
   var speed = 1, lastSpeed = 1, acc = 0, lastT = 0;
-  var tab = "build", mode = null, selSid = null, followGid = null, treeItem = null, mmFilter = "all";
+  var wins = {}, winZ = 20, modeHidBuild = false, mode = null, selSid = null, followGid = null, treeItem = null, mmFilter = "all";
   var hover = null, dragging = false, stageDown = null, lastMm = null;
   var three = null, threeState = "none";
   var toastTimer = null, sideAt = 0, mapDirty = true;
@@ -81,9 +85,17 @@
   // ---------------------------------------------------------------- 骨架
   function btn(id, key, cls) { return '<button type="button" id="' + id + '" class="en-btn' + (cls ? " " + cls : "") + '" data-i18n="' + key + '"></button>'; }
   function stat(id) { return '<span class="en-g-stat" id="' + id + '"></span>'; }
+  // 浮動視窗：標題列（可拖曳）＋關閉鈕＋內容
+  function win(k, titleKey, body, extraCls) {
+    return '<section class="en-g-win en-g-win-' + k + (extraCls ? " " + extraCls : "") + '" id="en-win-' + k + '" data-win="' + k + '" role="dialog" aria-labelledby="en-win-' + k + '-title" hidden>' +
+      '<header class="en-g-win-head" data-drag><b id="en-win-' + k + '-title" data-i18n="' + titleKey + '"></b>' +
+      '<button type="button" class="en-g-x" data-win-close="' + k + '" data-close-label>×</button></header>' +
+      '<div class="en-g-win-body">' + body + "</div></section>";
+  }
   function buildSkeleton() {
-    var tabs = TABS.map(function (k) {
-      return '<button type="button" class="en-g-tab" id="en-tab-' + k + '" data-tab="' + k + '" role="tab" data-i18n="en_tab_' + k + '"></button>';
+    var dock = TABS.map(function (k) {
+      return '<button type="button" class="en-g-dockbtn" id="en-tab-' + k + '" data-tab="' + k + '" aria-pressed="false">' +
+        '<span class="en-g-dockicon" aria-hidden="true">' + DOCK_ICON[k] + '</span><span data-i18n="en_tab_' + k + '"></span></button>';
     }).join("");
     root.innerHTML =
       '<section id="en-title-screen" class="en-g-title">' +
@@ -91,65 +103,68 @@
         '<p class="en-lead" data-i18n="en_title_lead"></p>' +
         '<div class="en-g-title-btns">' + btn("en-btn-new", "en_new", "is-on") + btn("en-btn-continue", "en_continue") + "</div>" +
       "</section>" +
+      // 遊戲畫面：3D 舞台滿版，HUD、小地圖、dock、各種視窗都浮在舞台上
       '<section id="en-main" class="en-g-main" hidden>' +
-        '<div id="en-hud" class="en-g-hud">' +
-          '<div class="en-g-hud-stats">' + stat("en-hud-day") + stat("en-hud-time") + stat("en-hud-weather") + stat("en-hud-cash") + stat("en-hud-rep") + stat("en-hud-guests") + "</div>" +
-          '<div class="en-g-hud-ctl">' + btn("en-btn-open", "en_open", "en-g-open") + btn("en-btn-pause", "en_pause") +
-            '<button type="button" id="en-btn-speed-1" class="en-btn en-g-speed" data-speed="1">×1</button>' +
-            '<button type="button" id="en-btn-speed-2" class="en-btn en-g-speed" data-speed="2">×2</button>' +
-            '<button type="button" id="en-btn-speed-4" class="en-btn en-g-speed" data-speed="4">×4</button>' +
+        '<div id="en-stage" class="en-g-stage"><div id="en-stage-msg" class="en-g-stage-msg"></div></div>' +
+        '<div class="en-g-top">' +
+          '<div id="en-hud" class="en-g-hud">' +
+            '<div class="en-g-hud-stats">' + stat("en-hud-day") + stat("en-hud-time") + stat("en-hud-weather") + stat("en-hud-cash") + stat("en-hud-rep") + stat("en-hud-guests") + "</div>" +
+            '<div class="en-g-hud-ctl">' + btn("en-btn-open", "en_open", "en-g-open") + btn("en-btn-pause", "en_pause") +
+              '<button type="button" id="en-btn-speed-1" class="en-btn en-g-speed" data-speed="1">×1</button>' +
+              '<button type="button" id="en-btn-speed-2" class="en-btn en-g-speed" data-speed="2">×2</button>' +
+              '<button type="button" id="en-btn-speed-4" class="en-btn en-g-speed" data-speed="4">×4</button>' +
+            "</div>" +
           "</div>" +
+          '<div id="en-forecast" class="en-g-forecast"></div>' +
         "</div>" +
-        '<div id="en-forecast" class="en-g-forecast"></div>' +
-        '<div class="en-g-layout">' +
-          '<div class="en-g-left">' +
-            '<div id="en-stage" class="en-g-stage"><div id="en-stage-msg" class="en-g-stage-msg"></div></div>' +
-            '<div id="en-toast" class="en-g-toast" role="status" hidden></div>' +
+        '<div id="en-mode-bar" class="en-g-modebar" hidden><span id="en-mode-text"></span>' + btn("en-btn-mode-cancel", "en_cancel") + "</div>" +
+        '<div id="en-toast" class="en-g-toast" role="status" hidden></div>' +
+        '<div id="en-mapbox" class="en-g-mapbox">' +
+          '<button type="button" id="en-btn-map" class="en-g-maphead" aria-expanded="true"><span data-i18n="en_map"></span><i aria-hidden="true"></i></button>' +
+          '<canvas id="en-minimap" width="' + M.W * CELL + '" height="' + M.H * CELL + '"></canvas>' +
+        "</div>" +
+        '<nav class="en-g-dock" role="toolbar">' + dock + "</nav>" +
+        // 建造
+        win("build", "en_tab_build",
+          '<div class="en-g-row">' + btn("en-btn-path", "en_path") + btn("en-btn-unpath", "en_unpath") + btn("en-btn-cancel", "en_cancel") + "</div>" +
+          '<p class="en-note" id="en-path-note"></p><div id="en-build-list" class="en-g-list"></div>') +
+        // 工房
+        win("work", "en_tab_work",
+          '<h3 class="en-h3"><span data-i18n="en_machines"></span> <small id="en-machine-slots"></small></h3><div id="en-machine-list"></div>' +
+          '<h3 class="en-h3" data-i18n="en_add_machine"></h3><div id="en-machine-add" class="en-g-chips"></div>' +
+          '<h3 class="en-h3" data-i18n="en_market"></h3><div id="en-market" class="en-g-chips"></div>' +
+          '<h3 class="en-h3"><span data-i18n="en_warehouse"></span> <small id="en-ware-total"></small></h3><div id="en-warehouse"></div>' +
+          '<h3 class="en-h3" data-i18n="en_recipe_tree"></h3><div id="en-recipe-tree" class="en-g-tree"></div>') +
+        // 樂園（入園費＋設施一覽；點設施開「設施詳細」視窗）
+        win("park", "en_tab_park",
+          '<label class="en-g-field"><span data-i18n="en_fee"></span> <input id="en-fee-input" type="number" min="0" max="2000" step="10" inputmode="numeric"></label>' +
+          '<h3 class="en-h3" data-i18n="en_structs"></h3><div id="en-struct-list" class="en-g-list"></div>') +
+        // 繪馬
+        win("wish", "en_wish_title", '<div id="en-wish-board"></div>') +
+        // murmur
+        win("murmur", "en_tab_murmur", '<div id="en-mm-filters" class="en-g-chips"></div><ul id="en-murmur-wall" class="en-wall"></ul>') +
+        // 設施詳細（點 3D／小地圖上的設施，或樂園視窗的設施一覽）
+        '<section id="en-struct-panel" class="en-g-win en-g-win-struct" role="dialog" aria-labelledby="en-struct-title" hidden>' +
+          '<header class="en-g-win-head" data-drag><b id="en-struct-title" data-i18n="en_struct_win"></b>' +
+          '<button type="button" class="en-g-x" data-struct-close data-close-label>×</button></header>' +
+          '<div class="en-g-win-body">' +
+            '<div id="en-struct-info"></div>' +
+            '<div class="en-g-row" id="en-struct-ride">' +
+              '<label class="en-g-field"><span data-i18n="en_price"></span> <input id="en-price-input" type="number" min="0" max="2000" step="10" inputmode="numeric"></label>' +
+              '<button type="button" id="en-ticket-toggle" class="en-btn" aria-pressed="false"></button>' +
+            "</div>" +
+            '<div id="en-upgrade-list" class="en-g-list"></div>' +
+            '<div class="en-g-row">' + btn("en-btn-repair", "en_repair") + btn("en-btn-demolish", "en_demolish", "en-g-danger") + "</div>" +
           "</div>" +
-          '<aside class="en-g-side">' +
-            '<div class="en-g-mapbox"><canvas id="en-minimap" width="' + M.W * CELL + '" height="' + M.H * CELL + '"></canvas>' +
-              '<div id="en-mode-bar" class="en-g-modebar" hidden></div></div>' +
-            '<div id="en-follow-panel" class="en-g-box en-g-follow" hidden></div>' +
-            '<div class="en-g-tabs" role="tablist">' + tabs + "</div>" +
-            // 建造
-            '<div class="en-g-panel" data-panel="build">' +
-              '<div class="en-g-row">' + btn("en-btn-path", "en_path") + btn("en-btn-unpath", "en_unpath") + btn("en-btn-cancel", "en_cancel") + "</div>" +
-              '<p class="en-note" id="en-path-note"></p><div id="en-build-list" class="en-g-list"></div>' +
-            "</div>" +
-            // 工房
-            '<div class="en-g-panel" data-panel="work" hidden>' +
-              '<h3 class="en-h3"><span data-i18n="en_machines"></span> <small id="en-machine-slots"></small></h3><div id="en-machine-list"></div>' +
-              '<h3 class="en-h3" data-i18n="en_add_machine"></h3><div id="en-machine-add" class="en-g-chips"></div>' +
-              '<h3 class="en-h3" data-i18n="en_market"></h3><div id="en-market" class="en-g-chips"></div>' +
-              '<h3 class="en-h3"><span data-i18n="en_warehouse"></span> <small id="en-ware-total"></small></h3><div id="en-warehouse"></div>' +
-              '<h3 class="en-h3" data-i18n="en_recipe_tree"></h3><div id="en-recipe-tree" class="en-g-tree"></div>' +
-            "</div>" +
-            // 樂園
-            '<div class="en-g-panel" data-panel="park" hidden>' +
-              '<label class="en-g-field"><span data-i18n="en_fee"></span> <input id="en-fee-input" type="number" min="0" max="2000" step="10" inputmode="numeric"></label>' +
-              '<div id="en-struct-panel" class="en-g-box" hidden>' +
-                '<div id="en-struct-info"></div>' +
-                '<div class="en-g-row" id="en-struct-ride">' +
-                  '<label class="en-g-field"><span data-i18n="en_price"></span> <input id="en-price-input" type="number" min="0" max="2000" step="10" inputmode="numeric"></label>' +
-                  '<button type="button" id="en-ticket-toggle" class="en-btn" aria-pressed="false"></button>' +
-                "</div>" +
-                '<div id="en-upgrade-list" class="en-g-list"></div>' +
-                '<div class="en-g-row">' + btn("en-btn-repair", "en_repair") + btn("en-btn-demolish", "en_demolish", "en-g-danger") + "</div>" +
-              "</div>" +
-              '<h3 class="en-h3" data-i18n="en_structs"></h3><div id="en-struct-list" class="en-g-list"></div>' +
-            "</div>" +
-            // 繪馬
-            '<div class="en-g-panel" data-panel="wish" hidden><h3 class="en-h3" data-i18n="en_wish_title"></h3><div id="en-wish-board"></div></div>' +
-            // murmur
-            '<div class="en-g-panel" data-panel="murmur" hidden><div id="en-mm-filters" class="en-g-chips"></div><ul id="en-murmur-wall" class="en-wall"></ul></div>' +
-          "</aside>" +
-        "</div>" +
+        "</section>" +
+        // 跟拍（點客人或 murmur）
+        '<section id="en-follow-panel" class="en-g-win en-g-win-follow" role="dialog" hidden></section>' +
       "</section>" +
       '<div id="en-day-summary" class="en-modal" hidden><div class="en-modal-box en-g-sum"><div id="en-day-summary-body"></div>' +
         btn("en-btn-next-day", "en_next_day", "is-on") + "</div></div>" +
       '<div id="en-season-summary" class="en-modal" hidden><div class="en-modal-box en-g-sum"><div id="en-season-summary-body"></div>' +
         btn("en-btn-restart", "en_restart", "is-on") + "</div></div>";
-    ["en-title-screen", "en-main", "en-stage", "en-stage-msg", "en-toast", "en-minimap", "en-mode-bar", "en-follow-panel", "en-forecast",
+    ["en-title-screen", "en-main", "en-stage", "en-stage-msg", "en-toast", "en-minimap", "en-mapbox", "en-btn-map", "en-mode-bar", "en-mode-text", "en-follow-panel", "en-forecast",
       "en-hud-day", "en-hud-time", "en-hud-weather", "en-hud-cash", "en-hud-rep", "en-hud-guests",
       "en-btn-open", "en-btn-pause", "en-btn-continue", "en-path-note", "en-build-list", "en-machine-slots", "en-machine-list", "en-machine-add",
       "en-market", "en-ware-total", "en-warehouse", "en-recipe-tree", "en-fee-input", "en-struct-panel", "en-struct-info", "en-struct-ride",
@@ -157,6 +172,12 @@
       "en-mm-filters", "en-murmur-wall", "en-day-summary", "en-day-summary-body", "en-season-summary", "en-season-summary-body"
     ].forEach(function (id) { el[id.replace(/^en-/, "")] = $(id); });
     if (window.I18N) window.I18N.applyI18n();
+    closeLabels();
+    if (window.innerWidth < NARROW) setMapOpen(false); // 手機：小地圖預設收合
+  }
+  function closeLabels() {
+    var xs = root.querySelectorAll("[data-close-label]");
+    for (var i = 0; i < xs.length; i++) xs[i].setAttribute("aria-label", t("en_close"));
   }
 
   // ---------------------------------------------------------------- 操作
@@ -203,14 +224,16 @@
     return r;
   }
 
+  // 放置／鋪路模式中先收起建造視窗（讓出畫面），取消模式時再打開
   function setMode(m) {
     mode = m;
     hover = null;
     if (three) three.ghost(null);
     mapDirty = true;
+    if (m && wins.build) { modeHidBuild = true; showWin("build", false); }
+    else if (!m && modeHidBuild) { modeHidBuild = false; showWin("build", true); }
     renderModeBar();
     renderBuildList();
-    if (m && window.innerWidth < 860 && el.minimap.scrollIntoView) el.minimap.scrollIntoView({ block: "nearest" });
   }
 
   function pathAt(x, y) {
@@ -236,13 +259,14 @@
 
   function selectStruct(sid) {
     selSid = sid;
-    setTab("park");
     mapDirty = true;
-    if (el["struct-panel"].scrollIntoView) el["struct-panel"].scrollIntoView({ block: "nearest" });
+    if (s && s.structs[sid]) toFront(el["struct-panel"]);
+    refreshSide();
   }
 
   function follow(gid) {
     followGid = gid;
+    if (gid != null) toFront(el["follow-panel"]);
     if (three) three.focusGuest(gid ? gid : null); // gid 0 = 小夜（不是客人，不移動鏡頭）
     mapDirty = true;
     renderFollow();
@@ -256,16 +280,63 @@
     else three.ghost(null);
   }
 
+  // ---------------------------------------------------------------- 浮動視窗
+  function toFront(node) { if (node) node.style.zIndex = String(++winZ); }
+  function showWin(k, open) {
+    // 窄螢幕的視窗是同高的底部抽屜：一次只開一個 dock 視窗
+    if (open && window.innerWidth < NARROW) TABS.forEach(function (n) { if (n !== k && wins[n]) showWin(n, false); });
+    wins[k] = !!open;
+    var w = $("en-win-" + k), b = $("en-tab-" + k);
+    w.hidden = !open;
+    if (open) toFront(w);
+    b.classList.toggle("is-on", !!open);
+    b.setAttribute("aria-pressed", open ? "true" : "false");
+  }
+  // dock 按鈕：關著→打開；開著但被蓋住→拉到最前面；已在最前面→關閉
   function setTab(k) {
-    tab = k;
-    TABS.forEach(function (n) {
-      var b = $("en-tab-" + n);
-      b.classList.toggle("is-on", n === k);
-      b.setAttribute("aria-selected", n === k ? "true" : "false");
-    });
-    var ps = root.querySelectorAll(".en-g-panel");
-    for (var i = 0; i < ps.length; i++) ps[i].hidden = ps[i].getAttribute("data-panel") !== k;
+    if (k === "build" && mode) setMode(null); // 放置中按「建造」＝結束放置、回到建造視窗
+    var w = $("en-win-" + k);
+    if (wins[k] && +w.style.zIndex === winZ) showWin(k, false);
+    else showWin(k, true);
+    if (k === "build") modeHidBuild = false;
     refreshSide();
+  }
+  function closeAllWins() {
+    TABS.forEach(function (k) { showWin(k, false); });
+    modeHidBuild = false;
+  }
+  function setMapOpen(open) {
+    el.mapbox.classList.toggle("is-min", !open);
+    el["btn-map"].setAttribute("aria-expanded", open ? "true" : "false");
+    mapDirty = true;
+  }
+  // 標題列拖曳（只在寬螢幕；位置以 left/top 存在 inline style，限制在遊戲畫面內）
+  function bindDrag() {
+    var cur = null;
+    on(el.main, "pointerdown", function (e) {
+      var w = closest(e, ".en-g-win");
+      if (!w) return;
+      toFront(w);
+      var h = closest(e, "[data-drag]");
+      if (!h || closest(e, "button") || window.innerWidth < NARROW) return;
+      var r = w.getBoundingClientRect(), pr = el.main.getBoundingClientRect();
+      cur = { w: w, dx: e.clientX - r.left, dy: e.clientY - r.top, pr: pr };
+      w.style.right = "auto"; w.style.bottom = "auto";
+      w.style.left = (r.left - pr.left) + "px"; w.style.top = (r.top - pr.top) + "px";
+      w.classList.add("is-drag");
+      if (h.setPointerCapture && e.pointerId != null) { try { h.setPointerCapture(e.pointerId); } catch (er) { /* 合成事件 */ } }
+      e.preventDefault();
+    });
+    on(el.main, "pointermove", function (e) {
+      if (!cur) return;
+      var pr = cur.pr, ww = cur.w.offsetWidth;
+      var x = Math.max(80 - ww, Math.min(pr.width - 80, e.clientX - pr.left - cur.dx));
+      var y = Math.max(0, Math.min(pr.height - 40, e.clientY - pr.top - cur.dy));
+      cur.w.style.left = x + "px"; cur.w.style.top = y + "px";
+    });
+    function end() { if (cur) { cur.w.classList.remove("is-drag"); cur = null; } }
+    on(el.main, "pointerup", end);
+    on(el.main, "pointercancel", end);
   }
 
   function setSpeed(n) {
@@ -334,7 +405,7 @@
     var bar = el["mode-bar"];
     if (!mode) { bar.hidden = true; return; }
     bar.hidden = false;
-    setText(bar, mode.kind === "build" ? t("en_mode_build", { name: L(D.BUILD[mode.type].name) }) : t(mode.on ? "en_mode_path" : "en_mode_unpath"));
+    setText(el["mode-text"], mode.kind === "build" ? t("en_mode_build", { name: L(D.BUILD[mode.type].name) }) : t(mode.on ? "en_mode_path" : "en_mode_unpath"));
   }
 
   // ---------------------------------------------------------------- 側欄：建造
@@ -471,7 +542,6 @@
         esc(L(D.BUILD[st.type].name)) + "</span><small>" + esc(stt) + "</small></button>";
     });
     setHTML(el["struct-list"], h);
-    renderStructPanel();
   }
   function renderStructPanel() {
     var p = el["struct-panel"], st = selSid && s.structs[selSid];
@@ -558,7 +628,8 @@
     var mine = (s.today ? s.today.murmurs : []).filter(function (m) { return (m.gid || 0) === followGid; }).slice(-4).reverse();
     var photo = g ? g.photo : (mine[0] ? mine[0].photo : null);
     var name = followGid === 0 ? t("en_sayo") : (g ? L(window.PriTestEnnichiSim.guestType(g).name) : "") + " #" + followGid;
-    var h = '<div class="en-g-follow-head">' + avatar(photo) + "<b>" + esc(t("en_follow") + "：" + name) + '</b><button type="button" class="en-g-x" data-follow-close aria-label="close">×</button></div>';
+    var h = '<header class="en-g-win-head en-g-follow-head" data-drag>' + avatar(photo) + "<b>" + esc(t("en_follow") + "：" + name) +
+      '</b><button type="button" class="en-g-x" data-follow-close aria-label="' + esc(t("en_close")) + '">×</button></header><div class="en-g-win-body">';
     if (g) {
       h += '<div class="en-g-needs"><span>' + esc(t("en_hap")) + '</span><span class="en-g-bar is-hap"><i style="width:' + Math.round(g.hap) + '%"></i></span><em>' + Math.round(g.hap) + "</em>";
       NEEDS.forEach(function (k) {
@@ -568,7 +639,7 @@
       h += "</div>";
     } else if (followGid !== 0) h += '<p class="en-note">' + esc(t("en_left")) + "</p>";
     if (mine.length) h += '<ul class="en-wall">' + mine.map(mmItem).join("") + "</ul>";
-    setHTML(p, h);
+    setHTML(p, h + "</div>");
   }
 
   // ---------------------------------------------------------------- 結算
@@ -671,11 +742,12 @@
   function refreshSide() {
     if (!s) return;
     sideAt = Date.now();
-    if (tab === "build") renderBuildList();
-    else if (tab === "work") renderWork();
-    else if (tab === "park") renderPark();
-    else if (tab === "wish") renderWish();
-    else renderMurmur();
+    if (wins.build || mode) renderBuildList();
+    if (wins.work) renderWork();
+    if (wins.park) renderPark();
+    if (wins.wish) renderWish();
+    if (wins.murmur) renderMurmur();
+    renderStructPanel();
     renderFollow();
   }
   function refreshAll() {
@@ -728,13 +800,13 @@
     el["title-screen"].hidden = true;
     el.main.hidden = false;
     mode = null; selSid = null; followGid = null; treeItem = null; hover = null; acc = 0;
+    closeAllWins();
     speed = 1; lastSpeed = 1;
     var arr = s.today ? s.today.murmurs : [];
     lastMm = arr.length ? arr[arr.length - 1] : null;
     if (three) three.focusGuest(null);
     start3D();
     syncWeather();
-    setTab(tab);
     refreshAll();
     save();
   }
@@ -750,10 +822,12 @@
     on(el["btn-pause"], "click", function () { setSpeed(speed > 0 ? 0 : lastSpeed); });
     [1, 2, 4].forEach(function (n) { on($("en-btn-speed-" + n), "click", function () { setSpeed(n); }); });
     on($("en-btn-next-day"), "click", function () { doIntent({ a: "next" }); });
-    on($("en-btn-restart"), "click", function () { setTab("build"); newGame(); });
+    on($("en-btn-restart"), "click", newGame);
     on($("en-btn-path"), "click", function () { setMode({ kind: "path", on: true }); });
     on($("en-btn-unpath"), "click", function () { setMode({ kind: "path", on: false }); });
     on($("en-btn-cancel"), "click", function () { setMode(null); });
+    on($("en-btn-mode-cancel"), "click", function () { setMode(null); });
+    on(el["btn-map"], "click", function () { setMapOpen(el.mapbox.classList.contains("is-min")); });
     on(el["btn-repair"], "click", function () { if (selSid) doIntent({ a: "repair", sid: selSid }); });
     on(el["btn-demolish"], "click", function () { if (selSid) doIntent({ a: "demolish", sid: selSid }); });
     on(el["ticket-toggle"], "click", function () { var st = selSid && s.structs[selSid]; if (st) doIntent({ a: "ticket", sid: selSid, on: !st.ticket }); });
@@ -778,6 +852,8 @@
       if ((b = closest(e, "[data-upgrade]"))) { if (selSid) doIntent({ a: "upgrade", sid: selSid, slot: b.getAttribute("data-upgrade") }); return; }
       if ((b = closest(e, "[data-mm-filter]"))) { mmFilter = b.getAttribute("data-mm-filter"); renderMurmur(); return; }
       if ((b = closest(e, "[data-follow-close]"))) { follow(null); return; }
+      if ((b = closest(e, "[data-win-close]"))) { showWin(b.getAttribute("data-win-close"), false); return; }
+      if ((b = closest(e, "[data-struct-close]"))) { selSid = null; mapDirty = true; refreshSide(); return; }
       if ((b = closest(e, ".en-bubble[data-gid], .en-wall-item[data-gid]"))) { follow(+b.getAttribute("data-gid")); return; }
     });
     on(root, "change", function (e) {
@@ -828,8 +904,19 @@
       if (!hover || !p || hover.x !== p.x || hover.y !== p.y) setHover(p);
     });
 
-    window.addEventListener("i18n:change", function () { refreshAll(); });
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && mode) setMode(null); });
+    bindDrag();
+    window.addEventListener("i18n:change", function () { closeLabels(); refreshAll(); });
+    // Esc：先結束放置模式，否則關掉最前面的視窗
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || !s) return;
+      if (mode) { setMode(null); return; }
+      var top = null, ws = el.main.querySelectorAll(".en-g-win:not([hidden])");
+      for (var i = 0; i < ws.length; i++) if (!top || +ws[i].style.zIndex > +top.style.zIndex) top = ws[i];
+      if (!top) return;
+      if (top === el["struct-panel"]) { selSid = null; mapDirty = true; refreshSide(); }
+      else if (top === el["follow-panel"]) follow(null);
+      else showWin(top.getAttribute("data-win"), false);
+    });
   }
 
   // ---------------------------------------------------------------- 測試用
@@ -841,6 +928,7 @@
   };
   window.PriTestEnnichiGame = api;
 
+  document.body.classList.add("en-body"); // 滿版：只留上方導覽列（css/ennichi.css 的 body.en-body）
   buildSkeleton();
   el["btn-continue"].disabled = !loadSave();
   bind();
