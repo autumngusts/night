@@ -25,19 +25,51 @@
 
   // ---- 地圖
   function ti(x, y) { return y * M.W + x; }
-  function inMap(x, y) { return x >= 0 && y >= 0 && x < M.W && y < M.H; }
+  // 世界座標：區域 a 佔第 a×H〜a×H+H−1 列（D.AREAS，規格 §6.3.1）
+  function inMap(x, y) { return x >= 0 && y >= 0 && x < M.W && y < M.WH; }
   function isPath(s, x, y) { return inMap(x, y) && s.tiles[ti(x, y)] === 1; }
+  function areaOf(y) { return Math.max(0, Math.min(D.AREAS.length - 1, Math.floor(y / M.H))); }
+  function areaIndex(id) { for (var i = 0; i < D.AREAS.length; i++) if (D.AREAS[i].id === id) return i; return -1; }
+  function areaOpen(s, a) { var ar = D.AREAS[a]; return !!(ar && s.areas && s.areas[ar.id]); }
+  function gateOf(a) { return { x: M.GATE.x, y: (a || 0) * M.H + M.GATE.y }; }
+  // 湖面（水樂園）：不能鋪步道，只能蓋 water 設施
+  function isWater(x, y) {
+    if (!inMap(x, y)) return false;
+    var a = areaOf(y), lk = D.AREAS[a].lake, ly = y - a * M.H;
+    return !!lk && x >= lk.x && x < lk.x + lk.w && ly >= lk.y && ly < lk.y + lk.h;
+  }
+  // 倉庫上限與機器槽：工廠區的倉庫棟、機器棚（完工的才算）
+  function infraSum(s, key) {
+    var n = 0;
+    for (var k in s.structs) { var st = s.structs[k], b = D.BUILD[st.type]; if (b.kind === "infra" && !(st.build > 0)) n += b[key] || 0; }
+    return n;
+  }
+  function wareCap(s) { return D.WARE_CAP + infraSum(s, "ware"); }
+  // 方向 rot（2026-11-14，規格 §4.7）：入口朝 0 下（+y）、1 左（−x）、2 上（−y）、3 右（+x）。
+  //   rot 為奇數時佔地的寬高對調；(x, y) 一律是佔地的左上角。
+  function dims(type, rot) {
+    var b = D.BUILD[type];
+    return (rot | 0) % 2 ? { w: b.h, h: b.w } : { w: b.w, h: b.h };
+  }
+  function entranceAt(type, x, y, rot) {
+    var d = dims(type, rot);
+    switch ((rot | 0) % 4) {
+      case 1: return { x: x - 1, y: y + Math.floor(d.h / 2) };
+      case 2: return { x: x + Math.floor(d.w / 2), y: y - 1 };
+      case 3: return { x: x + d.w, y: y + Math.floor(d.h / 2) };
+      default: return { x: x + Math.floor(d.w / 2), y: y + d.h };
+    }
+  }
   function entranceOf(st) {
-    var b = D.BUILD[st.type];
     if (st.type === "shrine") return { x: st.x - 1, y: M.GATE.y }; // 本殿的入口在參道盡頭
-    return { x: st.x + Math.floor(b.w / 2), y: st.y + b.h };
+    return entranceAt(st.type, st.x, st.y, st.rot);
   }
   function popLevel(s) {
     var lv = 1;
     for (var i = 0; i < D.POP_LEVELS.length; i++) if (s.rep >= D.POP_LEVELS[i]) lv = i + 1;
     return lv;
   }
-  function machineSlots(s) { return D.MACHINE_SLOTS + (popLevel(s) - 1) * D.MACHINE_SLOTS_PER_LV; }
+  function machineSlots(s) { return D.MACHINE_SLOTS + (popLevel(s) - 1) * D.MACHINE_SLOTS_PER_LV + infraSum(s, "slots"); }
   function weatherOf(s, day) { return s.weather[day] || "sun"; }
 
   // ---- 倉庫
@@ -57,12 +89,12 @@
     var s = {
       v: 1, seed: opt.seed | 0, rs: opt.seed | 0,
       day: 1, phase: "plan", min: D.DAY_START, cash: D.START_CASH, rep: 0, fee: D.ENTRY_FEE,
-      tiles: [], occ: [], structs: {}, nextId: 1, mapVer: 1,
+      tiles: [], occ: [], structs: {}, nextId: 1, mapVer: 1, areas: { shrine: 1 },
       ware: {}, machines: [], guests: [], nextGid: 1,
       weather: [], wishes: [], nextWish: 1, wishesDoneTotal: 0,
       dirt: 0, today: null, history: [], photos: [],
     };
-    for (var i = 0; i < M.W * M.H; i++) { s.tiles.push(0); s.occ.push(0); }
+    for (var i = 0; i < M.W * M.WH; i++) { s.tiles.push(0); s.occ.push(0); }
     for (var x = 0; x < M.SHRINE.x; x++) s.tiles[ti(x, M.GATE.y)] = 1;
     place(s, "shrine", M.SHRINE.x, M.SHRINE.y);
     give(s, D.START_WARE);
@@ -78,39 +110,44 @@
     return s;
   }
 
-  function place(s, type, x, y) {
-    var b = D.BUILD[type], sid = s.nextId++;
+  function place(s, type, x, y, rot) {
+    var b = D.BUILD[type], sid = s.nextId++, d = dims(type, rot);
     s.structs[sid] = {
       id: sid, type: type, x: x, y: y, wear: 0, broken: false, price: b.price || 0, q: [], riders: [], t: 0, fixes: 0,
-      build: b.days || 0, mods: {}, ticket: false, link: null, waitSum: 0, waitN: 0, lastWait: 0,
+      build: b.days || 0, mods: {}, ticket: false, link: null, waitSum: 0, waitN: 0, lastWait: 0, rot: (rot | 0) % 4,
     };
-    for (var yy = y; yy < y + b.h; yy++) for (var xx = x; xx < x + b.w; xx++) s.occ[ti(xx, yy)] = sid;
+    for (var yy = y; yy < y + d.h; yy++) for (var xx = x; xx < x + d.w; xx++) s.occ[ti(xx, yy)] = sid;
     s.mapVer++;
     return sid;
   }
 
   function nearRide(s, pos) {
-    var best = 0, bd = 1e9;
+    var best = 0, bd = 1e9, a = areaOf(pos.y);
     for (var k in s.structs) {
       var st = s.structs[k];
-      if (D.BUILD[st.type].kind !== "ride") continue;
+      if (D.BUILD[st.type].kind !== "ride" || areaOf(st.y) !== a) continue;
       var e = entranceOf(st), d = Math.abs(e.x - pos.x) + Math.abs(e.y - pos.y);
       if (d <= D.QSTALL_RANGE && d < bd) { bd = d; best = st.id; }
     }
     return best;
   }
 
-  function canBuild(s, type, x, y) {
+  function canBuild(s, type, x, y, rot) {
     var b = D.BUILD[type];
     if (!b || type === "shrine") return { ok: false, err: "bounds" };
     if (s.phase !== "plan") return { ok: false, err: "phase" };
     if (popLevel(s) < b.lv) return { ok: false, err: "level" };
-    if (!inMap(x, y) || !inMap(x + b.w - 1, y + b.h - 1)) return { ok: false, err: "bounds" };
-    if (x + b.w > M.UNLOCK_X) return { ok: false, err: "locked" };
-    for (var yy = y; yy < y + b.h; yy++) for (var xx = x; xx < x + b.w; xx++) {
+    var d = dims(type, rot), e = entranceAt(type, x, y, rot);
+    if (!inMap(x, y) || !inMap(x + d.w - 1, y + d.h - 1)) return { ok: false, err: "bounds" };
+    var a = areaOf(y), ar = D.AREAS[a];
+    // 本體與入口都要在同一區（入口在地圖外或別區都不行）
+    if (Math.floor((y + d.h - 1) / M.H) !== a || !inMap(e.x, e.y) || Math.floor(e.y / M.H) !== a || e.y < 0) return { ok: false, err: "bounds" };
+    if (!areaOpen(s, a) || x + d.w > ar.unlockX) return { ok: false, err: "locked" };
+    if (b.area && b.area !== ar.id) return { ok: false, err: "area" };
+    for (var yy = y; yy < y + d.h; yy++) for (var xx = x; xx < x + d.w; xx++) {
       if (s.occ[ti(xx, yy)] || s.tiles[ti(xx, yy)] === 1) return { ok: false, err: "occupied" };
+      if (isWater(xx, yy) !== !!b.water) return { ok: false, err: b.water ? "needwater" : "water" };
     }
-    var e = { x: x + Math.floor(b.w / 2), y: y + b.h };
     if (!isPath(s, e.x, e.y) || s.occ[ti(e.x, e.y)]) return { ok: false, err: "entrance" };
     if (b.kind === "qstall" && !nearRide(s, e)) return { ok: false, err: "noride" };
     if (!have(s, b.parts)) return { ok: false, err: "parts" };
@@ -118,13 +155,13 @@
     return { ok: true, err: null };
   }
 
-  function build(s, type, x, y) {
-    var c = canBuild(s, type, x, y);
+  function build(s, type, x, y, rot) {
+    var c = canBuild(s, type, x, y, rot);
     if (!c.ok) return c;
     var b = D.BUILD[type];
     take(s, b.parts);
     s.cash -= b.cash;
-    var sid = place(s, type, x, y);
+    var sid = place(s, type, x, y, rot);
     if (b.kind === "qstall") s.structs[sid].link = nearRide(s, entranceOf(s.structs[sid]));
     // 新蓋遊樂設施：附近原本沒連結（設施被拆掉）的排隊屋台重新連上
     if (b.kind === "ride") for (var j in s.structs) {
@@ -137,8 +174,8 @@
   function demolish(s, sid) {
     var st = s.structs[sid];
     if (!st || st.type === "shrine" || s.phase !== "plan") return false;
-    var b = D.BUILD[st.type];
-    for (var yy = st.y; yy < st.y + b.h; yy++) for (var xx = st.x; xx < st.x + b.w; xx++) s.occ[ti(xx, yy)] = 0;
+    var b = D.BUILD[st.type], d = dims(st.type, st.rot);
+    for (var yy = st.y; yy < st.y + d.h; yy++) for (var xx = st.x; xx < st.x + d.w; xx++) s.occ[ti(xx, yy)] = 0;
     s.cash += Math.floor(b.cash * D.REFUND);
     if (st.build > 0) for (var k in b.parts) give(s, one(k, Math.floor(b.parts[k] * D.REFUND)));
     delete s.structs[sid];
@@ -153,14 +190,16 @@
   }
 
   function setPath(s, x, y, on) {
-    if (s.phase !== "plan" || !inMap(x, y) || x >= M.UNLOCK_X) return false;
-    var i = ti(x, y);
+    if (s.phase !== "plan" || !inMap(x, y)) return false;
+    var a = areaOf(y);
+    if (!areaOpen(s, a) || x >= D.AREAS[a].unlockX || isWater(x, y)) return false;
+    var i = ti(x, y), g = gateOf(a);
     if (s.occ[i]) return false;
     if (on) {
       if (s.tiles[i] === 1 || s.cash < D.PATH_COST) return false;
       s.tiles[i] = 1; s.cash -= D.PATH_COST;
     } else {
-      if (s.tiles[i] !== 1 || isEntranceTile(s, x, y) || (y === M.GATE.y && x === M.GATE.x)) return false;
+      if (s.tiles[i] !== 1 || isEntranceTile(s, x, y) || (y === g.y && x === g.x)) return false;
       s.tiles[i] = 0;
     }
     s.mapVer++;
@@ -170,7 +209,7 @@
   function buy(s, item, n) {
     var it = D.ITEMS[item];
     if (!it || it.kind !== "mat" || n <= 0 || s.phase !== "plan") return false;
-    if (s.cash < it.buy * n || wareTotal(s) + n > D.WARE_CAP) return false;
+    if (s.cash < it.buy * n || wareTotal(s) + n > wareCap(s)) return false;
     s.cash -= it.buy * n;
     give(s, one(item, n));
     return true;
@@ -198,7 +237,7 @@
   // （2026-11-13 起只接受 null 或 1〜WARE_CAP 的有限數字；0、NaN、字串一律拒絕）
   function setLimit(s, mi, n) {
     var m = s.machines[mi];
-    if (!m || (n !== null && (!isNum(n) || n < 1 || n > D.WARE_CAP))) return false;
+    if (!m || (n !== null && (!isNum(n) || n < 1 || n > wareCap(s)))) return false;
     m.limit = n === null ? null : Math.floor(n);
     return true;
   }
@@ -223,6 +262,7 @@
 
   // ---- 工房：每遊戲分鐘一次。每台機器每分鐘只做一件事（待機→取料開工／加工中→推進、完成產出）
   function workshopStep(s) {
+    var cap = wareCap(s);
     s.machines.forEach(function (m) {
       var r = m.rid && D.RECIPES[m.rid];
       if (!r) return;
@@ -230,7 +270,7 @@
         var inN = 0, outN = 0, k;
         for (k in r.in) inN += r.in[k];
         for (k in r.out) outN += r.out[k];
-        if (!overLimit(s, m, r) && have(s, r.in) && wareTotal(s) - inN + outN <= D.WARE_CAP) { take(s, r.in); m.t = 0; }
+        if (!overLimit(s, m, r) && have(s, r.in) && wareTotal(s) - inN + outN <= cap) { take(s, r.in); m.t = 0; }
         return;
       }
       m.t++;
@@ -323,6 +363,26 @@
     return true;
   }
 
+  // 解鎖區域（規格 §6.3.1）：開園前、人氣等級與資金足夠；入口那一列整列鋪好步道（湖面除外）
+  function canUnlock(s, id) {
+    var a = areaIndex(id), ar = D.AREAS[a];
+    if (!ar || areaOpen(s, a)) return { ok: false, err: "rejected" };
+    if (s.phase !== "plan") return { ok: false, err: "phase" };
+    if (popLevel(s) < ar.lv) return { ok: false, err: "level" };
+    if (s.cash < ar.cash) return { ok: false, err: "cash" };
+    return { ok: true, err: null };
+  }
+  function unlockArea(s, id) {
+    var c = canUnlock(s, id);
+    if (!c.ok) return c;
+    var a = areaIndex(id), ar = D.AREAS[a], g = gateOf(a);
+    s.cash -= ar.cash;
+    s.areas[id] = 1;
+    for (var x = 0; x < ar.unlockX; x++) if (!isWater(x, g.y) && !s.occ[ti(x, g.y)]) s.tiles[ti(x, g.y)] = 1;
+    s.mapVer++;
+    return { ok: true, err: null };
+  }
+
   function nextDay(s) {
     if (s.phase !== "close") return false;
     s.day++;
@@ -340,7 +400,7 @@
   function applyIntent(s, it) {
     var ok, Wish = window.PriTestEnnichiWish;
     switch (it && it.a) {
-      case "build": var r = build(s, it.type, it.x, it.y); if (r.ok && Wish) Wish.check(s); return r;
+      case "build": var r = build(s, it.type, it.x, it.y, it.rot); if (r.ok && Wish) Wish.check(s); return r;
       case "demolish": ok = demolish(s, it.sid); break;
       case "path": ok = setPath(s, it.x, it.y, !!it.on); break;
       case "buy": ok = buy(s, it.item, it.n); break;
@@ -355,6 +415,7 @@
       case "ticket": ok = setTicket(s, it.sid, it.on); break;
       case "open": ok = openDay(s); break;
       case "next": ok = nextDay(s); break;
+      case "area": return unlockArea(s, it.id);
       default: return { ok: false, err: "unknown" };
     }
     return { ok: ok, err: ok ? null : "rejected" };
@@ -362,7 +423,14 @@
 
   function serialize(s) { return JSON.stringify(s); }
   function restore(str) {
-    try { var s = JSON.parse(str); return s && s.v === 1 ? s : null; } catch (e) { return null; }
+    try { var s = JSON.parse(str); return s && s.v === 1 ? migrate(s) : null; } catch (e) { return null; }
+  }
+  // 舊存檔（只有境內一張地圖）：補齊世界大小的格子與區域旗標
+  function migrate(s) {
+    if (!s.areas) s.areas = { shrine: 1 };
+    while (s.tiles.length < M.W * M.WH) s.tiles.push(0);
+    while (s.occ.length < M.W * M.WH) s.occ.push(0);
+    return s;
   }
 
   function setTicket(s, sid, on) {
@@ -373,7 +441,9 @@
   }
 
   window.PriTestEnnichiCore = {
-    rnd: rnd, rint: rint, pickW: pickW, ti: ti, inMap: inMap, isPath: isPath, entranceOf: entranceOf,
+    rnd: rnd, rint: rint, pickW: pickW, ti: ti, inMap: inMap, isPath: isPath, entranceOf: entranceOf, dims: dims, entranceAt: entranceAt,
+    areaOf: areaOf, areaIndex: areaIndex, areaOpen: areaOpen, gateOf: gateOf, isWater: isWater, wareCap: wareCap,
+    canUnlock: canUnlock, unlockArea: unlockArea,
     popLevel: popLevel, machineSlots: machineSlots, weatherOf: weatherOf,
     wareTotal: wareTotal, have: have, take: take, give: give, nearRide: nearRide,
     newGame: newGame, canBuild: canBuild, build: build, demolish: demolish, setPath: setPath, setTicket: setTicket,

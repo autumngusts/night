@@ -11,6 +11,19 @@
 
   // 地圖：32×20 格（1 格 = 2 m）。入口在左邊中央，參道一路通到右邊的神社本殿；x ≥ UNLOCK_X 是 v2 擴張用地
   D.MAP = { W: 32, H: 20, TILE: 2, GATE: { x: 0, y: 10 }, UNLOCK_X: 22, SHRINE: { x: 26, y: 8, w: 4, h: 4 } };
+
+  // 區域（規格 §6.3.1，使用者指定 2026-11-14）：每區一張 32×20 的地圖，各自有入口與客流（客人不跨區）。
+  //   世界座標：區域 a 佔第 a×H〜a×H+H−1 列（Core.areaOf(y) = floor(y / H)）；入口都在左邊中央（本地 y = GATE.y）。
+  //   lv／cash：解鎖條件（人氣等級＋資金；依 tools/ennichi_check/sim.js 的季中現金量級訂定：Lv2 約第 3 天、現金 15 萬）；unlockX：可建設的 x 上限（境內的 x ≥ 22 是參道與本殿）；
+  //   lake：湖面（本地座標，不能鋪步道、只能蓋 water 設施）；base：樂園容量的基本值（新區沒蓋東西就沒有客人）。
+  D.AREAS = [
+    { id: "shrine", icon: "⛩", lv: 1, cash: 0, unlockX: 22, base: 20, name: C("緣日境內", "縁日境内") },
+    { id: "land", icon: "🎠", lv: 2, cash: 80000, unlockX: 32, base: 0, name: C("陸地樂園", "ランドパーク") },
+    { id: "factory", icon: "🏭", lv: 2, cash: 40000, unlockX: 32, base: 0, name: C("工廠區", "工場エリア") },
+    { id: "water", icon: "🌊", lv: 3, cash: 250000, unlockX: 32, base: 0, lake: { x: 5, y: 2, w: 22, h: 8 }, name: C("水樂園", "ウォーターパーク") },
+    { id: "theme", icon: "🎢", lv: 4, cash: 600000, unlockX: 32, base: 0, name: C("主題樂園", "テーマパーク") },
+  ];
+  D.MAP.WH = D.MAP.H * D.AREAS.length; // 世界總列數
   D.DAY_START = 540; // 9:00
   D.DAY_END = 1020; // 17:00 閉園（客人開始離場）
   D.LAST_ENTRY = 900; // 15:00 以後不再進場
@@ -66,6 +79,8 @@
     // 改裝模組（4）
     nightLanterns: upg("夜光燈籠串", "夜光提灯つなぎ"), fastTurntable: upg("高速迴轉台", "高速回転台"),
     goldLion: upg("金箔唐獅子", "金箔唐獅子"), glassCabin: upg("全景玻璃車廂", "パノラマゴンドラ"),
+    // 第三層：各區專屬設施的模組（2026-11-14）
+    rail: mod("軌道段", "レール"), car: mod("車體", "車体"), slide: mod("滑道段", "スライダー"), boat: mod("天鵝船體", "スワンボート"),
     // 商品（7）
     takoyaki: { kind: "food", sell: 300, fill: { hunger: 45 }, name: C("章魚燒", "たこ焼き") },
     ringoame: { kind: "food", sell: 250, fill: { hunger: 15, fun: 10 }, name: C("蘋果糖", "りんご飴") },
@@ -108,6 +123,9 @@
     // 改裝模組
     nightLanterns: R("paper", { lanterns: 1, bulb: 2, paint: 1 }, 1, 6), fastTurntable: R("assembly", { turntable: 1, motor: 1, gear: 2 }, 1, 8),
     goldLion: R("lacquer", { lion: 1, paint: 2 }, 1, 8), glassCabin: R("glass", { cabin: 1, pane: 2 }, 1, 6),
+    // 各區專屬模組
+    rail: R("weld", { frame: 1, chain: 1 }, 2, 6), car: R("assembly", { frame: 1, seat: 2, motor: 1 }, 1, 8),
+    slide: R("assembly", { pole: 2, frame: 1, paint: 1 }, 1, 6), boat: R("wood", { carving: 1, seat: 1, paint: 1 }, 1, 6),
     // 商品
     takoyaki: R("griddle", { flour: 1, octopus: 1 }, 6, 5), ringoame: R("sweets", { sugar: 1, apple: 1 }, 4, 4),
     wataame: R("sweets", { sugar: 1 }, 5, 3), ramune: R("sweets", { pane: 1, sugar: 1 }, 6, 4),
@@ -149,6 +167,34 @@
       cap: 24, cycle: 10, price: 500, thrill: 1, charm: 2, photo: 3, wear: 3, fix: { chain: 2, bulb: 4 },
       slots: { cabin: slot("glassCabin", 8, { photo: 1, price: 100 }), light: slot("nightLanterns", 4, { charm: 1 }) },
       name: C("燈籠摩天輪", "灯籠観覧車") },
+    // 各區專屬設施（area：只能蓋在該區；water：整個本體都要在湖面上、入口接岸邊步道；splash：晴天更受歡迎）
+    bumper: { kind: "ride", large: true, area: "land", days: 1, w: 4, h: 4, cash: 600, lv: 2, parts: { car: 6, lanterns: 2 },
+      cap: 12, cycle: 3, price: 300, thrill: 2, charm: 2, photo: 1, wear: 5, fix: { gear: 2, seat: 1 },
+      slots: { light: slot("nightLanterns", 2, { charm: 1, photo: 1 }) },
+      name: C("人力車碰碰車", "人力車バンパーカー") },
+    foxTrain: { kind: "ride", large: true, area: "land", days: 2, w: 6, h: 4, cash: 800, lv: 2, parts: { car: 4, rail: 8, lanterns: 2 },
+      cap: 16, cycle: 6, price: 300, thrill: 1, charm: 3, photo: 2, wear: 3, fix: { chain: 2 },
+      slots: { light: slot("nightLanterns", 2, { charm: 1, photo: 1 }) },
+      name: C("狐狸小火車", "きつね列車") },
+    tour: { kind: "ride", area: "factory", w: 4, h: 3, cash: 500, lv: 2, parts: { frame: 2, gear: 4, pane: 4, seat: 4 },
+      cap: 10, cycle: 6, price: 200, thrill: 1, charm: 1, photo: 2, wear: 2, fix: { gear: 2 }, name: C("工廠見學館", "工場見学館") },
+    warehouse: { kind: "infra", area: "factory", w: 3, h: 3, cash: 600, lv: 2, parts: { frame: 2, sheet: 4, plank: 6 }, ware: 150, name: C("倉庫棟", "倉庫棟") },
+    shed: { kind: "infra", area: "factory", w: 3, h: 3, cash: 500, lv: 2, parts: { frame: 2, plank: 6, canvas: 2 }, slots: 3, name: C("機器棚", "機械小屋") },
+    waterSlide: { kind: "ride", large: true, area: "water", water: true, splash: true, days: 2, w: 4, h: 4, cash: 900, lv: 3, parts: { slide: 6, tower: 1 },
+      cap: 8, cycle: 2, price: 400, thrill: 3, charm: 1, photo: 2, wear: 4, fix: { pole: 1, gear: 1 }, slots: {},
+      name: C("滑水道", "ウォータースライダー") },
+    swanBoat: { kind: "ride", large: true, area: "water", water: true, splash: true, days: 1, w: 3, h: 3, cash: 500, lv: 3, parts: { boat: 4 },
+      cap: 8, cycle: 5, price: 300, thrill: 0, charm: 3, photo: 3, wear: 2, fix: { seat: 1 },
+      slots: { light: slot("nightLanterns", 2, { charm: 1, photo: 1 }) },
+      name: C("天鵝船", "スワンボート") },
+    coaster: { kind: "ride", large: true, area: "theme", wind: true, days: 3, w: 8, h: 5, cash: 2000, lv: 4, parts: { rail: 12, car: 3, hub: 1 },
+      cap: 12, cycle: 4, price: 600, thrill: 5, charm: 1, photo: 2, wear: 4, fix: { chain: 2, gear: 2 },
+      slots: { drive: slot("fastTurntable", 1, { thrill: 1, wearMul: 1.5 }), light: slot("nightLanterns", 4, { charm: 1, photo: 1 }) },
+      name: C("天狗雲霄飛車", "天狗コースター") },
+    dropTower: { kind: "ride", large: true, area: "theme", wind: true, days: 2, w: 3, h: 3, cash: 1200, lv: 4, parts: { tower: 2, car: 2, hub: 1 },
+      cap: 8, cycle: 3, price: 500, thrill: 4, charm: 0, photo: 2, wear: 4, fix: { chain: 2 },
+      slots: { light: slot("nightLanterns", 2, { photo: 1 }) },
+      name: C("風神自由落體", "風神フリーフォール") },
     // 參道緣日區（一般設施：第二層以下）
     kingyo: { kind: "ride", w: 2, h: 2, cash: 100, lv: 1, parts: { plank: 4, pane: 2 }, cap: 4, cycle: 3, price: 200, thrill: 0, charm: 2, photo: 1, wear: 2, fix: { plank: 2 }, name: C("金魚撈", "金魚すくい") },
     shateki: { kind: "ride", w: 2, h: 2, cash: 100, lv: 1, parts: { plank: 4, gear: 2 }, cap: 3, cycle: 2, price: 200, thrill: 1, charm: 1, photo: 0, wear: 2, fix: { plank: 2 }, name: C("射擊攤", "射的") },

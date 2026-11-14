@@ -17,7 +17,8 @@ var D = window.PriTestEnnichiData;
 (function () {
   var items = Object.keys(D.ITEMS), recipes = Object.keys(D.RECIPES);
   assert.strictEqual(Object.keys(D.MACHINES).length, 17, "機器 17 種");
-  assert.strictEqual(recipes.length, 40, "配方 40 條");
+  // 2026-11-14：各區專屬模組（軌道段、車體、滑道段、天鵝船體）+4 條（舊值 40）
+  assert.strictEqual(recipes.length, 44, "配方 44 條");
   assert.strictEqual(items.filter(function (k) { return D.ITEMS[k].kind === "mat"; }).length, 14, "原料 14 種");
   recipes.forEach(function (rid) {
     var r = D.RECIPES[rid];
@@ -61,7 +62,8 @@ var D = window.PriTestEnnichiData;
     }
     if (b.kind === "stall") { stalls++; b.sells.forEach(function (k) { assert.ok(["food", "drink", "goods"].indexOf(D.ITEMS[k].kind) >= 0, t + " 賣的不是商品：" + k); }); }
   });
-  assert.strictEqual(rides, 8, "遊樂設施 8 種（規格 §10）"); assert.strictEqual(large, 4, "大型設施 4 種"); assert.strictEqual(stalls, 5, "攤位 5 種");
+  // 2026-11-14：各區專屬設施（規格 §6.3.1）遊樂設施 +7、其中大型 +6（舊值 8／4）
+  assert.strictEqual(rides, 15, "遊樂設施 15 種"); assert.strictEqual(large, 10, "大型設施 10 種"); assert.strictEqual(stalls, 5, "攤位 5 種");
   assert.ok(D.BUILD.qstall && D.BUILD.qstall.kind === "qstall" && D.BUILD.shelter.serves === "shelter");
   function sumW(list) { return list.reduce(function (a, g) { return a + g.w; }, 0); }
   assert.ok(Math.abs(sumW(D.GUESTS) - 1) < 1e-9, "客群權重合計 1");
@@ -387,7 +389,8 @@ function walker(s, x, y, sid, need) {
   Sim.step(s);
   assert.ok(w.kasa && w.need.dry === 0, "買到和傘");
   // 強風：飛椅、摩天輪停駛
-  assert.deepStrictEqual(Sim.closedFor(s, "wind").sort(), ["chairs", "wheel"]);
+  // 2026-11-14：主題樂園的雲霄飛車、自由落體也是強風停駛（舊值只有 chairs／wheel）
+  assert.deepStrictEqual(Sim.closedFor(s, "wind").sort(), ["chairs", "coaster", "dropTower", "wheel"]);
   assert.deepStrictEqual(Sim.closedFor(s, "sun"), []);
   console.log("7. 天氣 OK");
 })();
@@ -515,7 +518,7 @@ var Wish = window.PriTestEnnichiWish;
   assert.ok(Core.applyIntent(s, { a: "upgrade", sid: merry.id, slot: "light" }).ok);
   assert.ok(Core.applyIntent(s, { a: "ticket", sid: merry.id, on: true }).ok);
   Core.applyIntent(s, { a: "open" });
-  assert.deepStrictEqual(s.today.closed.sort(), ["chairs", "wheel"]);
+  assert.deepStrictEqual(s.today.closed.sort(), ["chairs", "coaster", "dropTower", "wheel"]); // 2026-11-14：+主題樂園的強風停駛設施
   // 決定性
   function run(seed) { var t = freshPark(seed); Core.applyIntent(t, { a: "open" }); Core.tick(t, 600); return Core.serialize(t); }
   assert.strictEqual(run(77), run(77));
@@ -674,4 +677,125 @@ var Wish = window.PriTestEnnichiWish;
   var nm = Core.build(q, "merry", 4, 6); assert.ok(nm.ok, "重蓋旋轉木馬 " + nm.err);
   assert.strictEqual(qs.link, nm.sid, "重蓋後排隊屋台重新連上");
   console.log("11. 最終審查修正（參拜、入園費、容量、輸入檢查、躲雨抱怨、排隊屋台）OK");
+})();
+
+// ---------------- 12. 多張地圖：區域解鎖、各區建造限制、各區獨立入園（規格 §6.3.1，2026-11-14）----------------
+(function () {
+  var H = D.MAP.H, s = freshPark(90), i;
+  function ai(id) { return Core.areaIndex(id); }
+  function Y(id, ly) { return ai(id) * H + ly; } // 區域本地 y → 世界 y
+  assert.strictEqual(s.tiles.length, D.MAP.W * D.MAP.WH, "格子涵蓋全部區域");
+  assert.ok(Core.areaOpen(s, 0) && !Core.areaOpen(s, ai("land")), "開局只有境內");
+  // 解鎖條件：人氣等級＋資金
+  s.cash = 1e7; s.rep = 0;
+  assert.strictEqual(Core.applyIntent(s, { a: "area", id: "land" }).err, "level", "人氣不夠");
+  s.rep = D.POP_LEVELS[1]; s.cash = D.AREAS[ai("land")].cash - 1;
+  assert.strictEqual(Core.applyIntent(s, { a: "area", id: "land" }).err, "cash", "錢不夠");
+  s.cash = 1e7;
+  assert.ok(Core.applyIntent(s, { a: "area", id: "land" }).ok, "解鎖陸地樂園");
+  assert.strictEqual(s.cash, 1e7 - D.AREAS[ai("land")].cash);
+  assert.ok(!Core.applyIntent(s, { a: "area", id: "land" }).ok, "不能重複解鎖");
+  var lg = Core.gateOf(ai("land"));
+  for (i = 0; i < D.MAP.W; i++) assert.ok(Core.isPath(s, i, lg.y), "入口列整列鋪好 " + i);
+  // 未解鎖的區域不能鋪路、不能蓋
+  assert.ok(!Core.setPath(s, 3, Y("factory", 5), true), "未解鎖不能鋪路");
+  // 專屬設施只能蓋在該區
+  Core.give(s, D.BUILD.bumper.parts); Core.give(s, D.BUILD.bumper.parts);
+  assert.strictEqual(Core.canBuild(s, "bumper", 4, 6).err, "area", "碰碰車不能蓋在境內");
+  assert.ok(Core.build(s, "bumper", 4, Y("land", 6)).ok, "碰碰車蓋在陸地樂園");
+  assert.ok(Core.build(s, "takoyakiSt", 10, Y("land", 8)).ok, "一般設施各區都能蓋");
+  // 本體跨到下一區、入口落在下一區 → 不行
+  Core.setPath(s, 6, Y("land", 19), true);
+  assert.strictEqual(Core.canBuild(s, "kingyo", 5, Y("land", 18)).err, "bounds", "入口不能在別區");
+  // 步道不跨區：境內最下面一列和陸地樂園第一列相連也走不過去
+  Core.setPath(s, 2, H - 1, true); Core.setPath(s, 2, H, true);
+  assert.strictEqual(Sim.distField(s, "gate")[Core.ti(2, H)], -1, "境內的入口走不到陸地樂園");
+  // 容量依區計算；新區 base 0
+  finishAll(s);
+  var la = ai("land");
+  assert.strictEqual(Sim.capacity(s, la), D.BUILD.bumper.cap * D.CAPACITY.perSeat + D.CAPACITY.perShop, "陸地樂園的容量只算該區");
+  assert.strictEqual(Sim.arrivals(s, ai("factory")), 0, "未解鎖區域沒有客人");
+  // 各區獨立入園：陸地樂園的客人從自己的入口進來，只選該區的設施
+  openToday(s); s.today.weather = "sun";
+  var g = Sim.spawn(s, la);
+  assert.strictEqual(g.area, la); assert.strictEqual(g.y, lg.y); assert.strictEqual(g.x, lg.x);
+  g.need.fun = 90;
+  for (i = 0; i < 20; i++) { var c = Sim.choose(s, g); if (c) assert.strictEqual(Core.areaOf(s.structs[c].y), la, "只選同區設施"); }
+  g.leaving = true; g.x = 8; g.y = lg.y;
+  for (i = 0; i < 20 && g.state !== "leave"; i++) Sim.guestStep(s, g);
+  assert.strictEqual(g.state, "leave", "走回自己區域的入口離場");
+  // 時刻表包含各區
+  s.phase = "plan"; s.today = null;
+  var sch = Sim.spawnSchedule(s);
+  assert.ok(sch.some(function (e) { return typeof e === "object" && e.a === la; }), "時刻表有陸地樂園的客人");
+  for (i = 1; i < sch.length; i++) assert.ok((typeof sch[i] === "number" ? sch[i] : sch[i].t) >= (typeof sch[i - 1] === "number" ? sch[i - 1] : sch[i - 1].t), "時刻表依時間排序");
+
+  // 水樂園：water 設施整個在湖上、一般設施不能蓋在湖上、湖面不能鋪路
+  s.rep = D.POP_LEVELS[2]; s.cash = 1e7;
+  assert.ok(Core.applyIntent(s, { a: "area", id: "water" }).ok);
+  var wa = ai("water"), lk = D.AREAS[wa].lake;
+  assert.ok(Core.isWater(lk.x, Y("water", lk.y)) && !Core.isWater(lk.x, Y("water", lk.y + lk.h)));
+  assert.ok(!Core.setPath(s, lk.x + 1, Y("water", lk.y + 1), true), "湖面不能鋪路");
+  Core.give(s, D.BUILD.swanBoat.parts);
+  assert.strictEqual(Core.canBuild(s, "swanBoat", 1, Y("water", 7)).err, "needwater", "天鵝船要在湖上");
+  assert.ok(Core.build(s, "swanBoat", 8, Y("water", lk.y + lk.h - 3)).ok, "天鵝船蓋在湖邊（入口接入口列步道）");
+  assert.strictEqual(Core.canBuild(s, "kingyo", 12, Y("water", lk.y + lk.h - 2)).err, "water", "一般設施不能蓋在湖上");
+
+  // 工廠區：倉庫棟加倉庫上限、機器棚加機器槽（完工後才算）
+  assert.ok(Core.applyIntent(s, { a: "area", id: "factory" }).ok);
+  var cap0 = Core.wareCap(s), slots0 = Core.machineSlots(s);
+  Core.give(s, D.BUILD.warehouse.parts); Core.give(s, D.BUILD.shed.parts);
+  assert.ok(Core.build(s, "warehouse", 3, Y("factory", 7)).ok); assert.ok(Core.build(s, "shed", 8, Y("factory", 7)).ok);
+  assert.strictEqual(Core.wareCap(s), cap0 + D.BUILD.warehouse.ware); assert.strictEqual(Core.machineSlots(s), slots0 + D.BUILD.shed.slots);
+  assert.strictEqual(Sim.capacity(s, ai("factory")), 0, "倉庫棟、機器棚不增加樂園容量");
+
+  // 舊存檔：只有境內的格子 → 讀檔時補齊
+  var old = Core.newGame({ seed: 5 }); delete old.areas;
+  old.tiles = old.tiles.slice(0, D.MAP.W * H); old.occ = old.occ.slice(0, D.MAP.W * H);
+  var back = Core.restore(JSON.stringify(old));
+  assert.strictEqual(back.tiles.length, D.MAP.W * D.MAP.WH); assert.ok(back.areas.shrine);
+  console.log("12. 多張地圖（區域解鎖、建造限制、獨立入園、工廠區加成、舊存檔）OK");
+})();
+
+// ---------------- 13. 設施方向（rot，規格 §4.7，2026-11-14）----------------
+(function () {
+  var s = Core.newGame({ seed: 91 }), i;
+  // 入口朝向：0 下、1 左、2 上、3 右；奇數方向寬高對調
+  assert.deepStrictEqual(Core.dims("foxTrain", 1), { w: 4, h: 6 }, "狐狸小火車轉 90° 寬高對調");
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 0), { x: 6, y: 7 });
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 1), { x: 4, y: 6 });
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 2), { x: 6, y: 4 });
+  assert.deepStrictEqual(Core.entranceAt("kingyo", 5, 5, 3), { x: 7, y: 6 });
+  // 參道（y = 10）上方蓋入口朝下的、下方蓋入口朝上的
+  var up = Core.build(s, "takoyakiSt", 4, 11, 2);
+  assert.ok(up.ok, "入口朝上的攤位蓋在參道下方 " + up.err);
+  assert.deepStrictEqual(Core.entranceOf(s.structs[up.sid]), { x: 5, y: 10 });
+  assert.strictEqual(s.occ[Core.ti(4, 12)], up.sid, "佔地");
+  // 入口朝左：垂直步道 x = 8，設施放在右邊
+  for (i = 11; i < 16; i++) Core.setPath(s, 8, i, true);
+  var left = Core.build(s, "kingyo", 9, 12, 1);
+  assert.ok(left.ok, "入口朝左 " + left.err);
+  assert.deepStrictEqual(Core.entranceOf(s.structs[left.sid]), { x: 8, y: 13 });
+  // 入口不在步道上 → entrance；入口朝外（地圖外）→ bounds
+  assert.strictEqual(Core.canBuild(s, "kingyo", 12, 12, 3).err, "entrance");
+  assert.strictEqual(Core.canBuild(s, "kingyo", 0, 12, 1).err, "bounds", "入口在地圖外");
+  // 拆除時清空轉過的佔地
+  Core.give(s, D.BUILD.foxTrain.parts);
+  s.rep = D.POP_LEVELS[1]; s.cash = 1e7; Core.applyIntent(s, { a: "area", id: "land" });
+  var H = D.MAP.H;
+  Core.setPath(s, 7, H + 7, true); Core.setPath(s, 7, H + 8, true); Core.setPath(s, 7, H + 9, true);
+  var ft = Core.applyIntent(s, { a: "build", type: "foxTrain", x: 3, y: H + 4, rot: 3 });
+  assert.ok(ft.ok, "陸地樂園蓋入口朝右的狐狸小火車 " + ft.err);
+  var st = s.structs[ft.sid];
+  assert.strictEqual(st.rot, 3);
+  assert.deepStrictEqual(Core.entranceOf(st), { x: 7, y: H + 7 }, "朝右的入口（佔地 4×6）");
+  assert.ok(Core.demolish(s, ft.sid));
+  for (var yy = H + 4; yy < H + 10; yy++) for (var xx = 3; xx < 7; xx++) assert.strictEqual(s.occ[Core.ti(xx, yy)], 0, "拆除後清空");
+  // 客人走得到轉向設施的入口
+  finishAll(s);
+  openToday(s);
+  var g = walker(s, 1, 10, left.sid, { fun: 90 });
+  for (i = 0; i < 30 && g.state === "walk"; i++) Sim.guestStep(s, g);
+  assert.notStrictEqual(g.state, "walk", "客人走到入口朝左的金魚撈");
+  console.log("13. 設施方向（佔地、入口、拆除、尋路）OK");
 })();

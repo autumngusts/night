@@ -9,8 +9,11 @@
   var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   var cache = { ver: -1, s: null, f: {} };
 
+  // 各區獨立入園（規格 §6.3.1）：入口的距離場 key 是 "gate"（境內）或 "gate<區號>"
+  function gateKey(a) { return a ? "gate" + a : "gate"; }
   function targetOf(s, key) {
     if (key === "gate") return M.GATE;
+    if (typeof key === "string" && key.indexOf("gate") === 0) return Core.gateOf(+key.slice(4));
     if (typeof key === "string" && key.charAt(0) === "t") { var i = +key.slice(1); return { x: i % M.W, y: Math.floor(i / M.W) }; } // 閒逛目標格（"t" + 格子索引）
     var st = s.structs[key];
     return st ? Core.entranceOf(st) : null;
@@ -20,17 +23,18 @@
   function distField(s, key) {
     if (cache.s !== s || cache.ver !== s.mapVer) cache = { ver: s.mapVer, s: s, f: {} };
     if (cache.f[key]) return cache.f[key];
-    var f = new Int16Array(M.W * M.H);
+    var f = new Int16Array(M.W * M.WH);
     for (var i = 0; i < f.length; i++) f[i] = -1;
     var t = targetOf(s, key);
     if (t && Core.isPath(s, t.x, t.y)) {
       var qx = [t.x], qy = [t.y], h = 0;
       f[Core.ti(t.x, t.y)] = 0;
+      var ta = Core.areaOf(t.y); // 步道不跨區（相鄰兩區的邊界列不相連）
       while (h < qx.length) {
         var x = qx[h], y = qy[h++], d = f[Core.ti(x, y)];
         for (var k = 0; k < 4; k++) {
           var nx = x + DIRS[k][0], ny = y + DIRS[k][1];
-          if (Core.isPath(s, nx, ny) && f[Core.ti(nx, ny)] < 0) { f[Core.ti(nx, ny)] = d + 1; qx.push(nx); qy.push(ny); }
+          if (Core.isPath(s, nx, ny) && Core.areaOf(ny) === ta && f[Core.ti(nx, ny)] < 0) { f[Core.ti(nx, ny)] = d + 1; qx.push(nx); qy.push(ny); }
         }
       }
     }
@@ -41,11 +45,13 @@
   function isWeekend(day) { var w = day % 7; return w === 6 || w === 0; }
   // 樂園容量：base ＋ 完工遊樂設施座位數 × perSeat ＋ 完工攤位／排隊屋台數 × perShop ＋ 完工設施容量 × perFacSeat
   // （設施依 cap 加權，cap 0 的垃圾桶不算；規格 §5.4.1）
-  function capacity(s) {
-    var c = D.CAPACITY, n = c.base;
+  //   區域 a（預設境內）：base 依區域（新區沒蓋東西就是 0），只算該區的建物
+  function capacity(s, a) {
+    a = a || 0;
+    var c = D.CAPACITY, n = a ? D.AREAS[a].base : c.base;
     for (var k in s.structs) {
       var st = s.structs[k], b = D.BUILD[st.type];
-      if (st.build > 0) continue;
+      if (st.build > 0 || Core.areaOf(st.y) !== a) continue;
       if (b.kind === "ride") n += b.cap * c.perSeat;
       else if (b.kind === "stall" || b.kind === "qstall") n += c.perShop;
       else if (b.kind === "facility" && b.cap > 0) n += b.cap * c.perFacSeat;
@@ -58,22 +64,35 @@
     return Math.max(D.FEE.min, Math.min(1, f));
   }
   // 來客數：口碑決定想來的人數（週末 ×1.8），以樂園容量封頂，再乘天氣係數與入園費係數
-  function arrivals(s) {
+  //   各區各自計算（想來的人數相同，以該區容量封頂）；未解鎖的區域 0 人
+  function arrivals(s, a) {
+    a = a || 0;
+    if (!Core.areaOpen(s, a) && a) return 0;
     var w = D.WEATHER[Core.weatherOf(s, s.day)];
     var want = (30 + s.rep * 0.6) * (isWeekend(s.day) ? 1.8 : 1);
-    return Math.round(Math.min(want, capacity(s)) * w.arrive * feeFactor(s));
+    return Math.round(Math.min(want, capacity(s, a)) * w.arrive * feeFactor(s));
   }
+  // 生客時刻表：境內的客人是數字（分鐘），其他區是 { t, a }
+  function spawnTime(e) { return typeof e === "number" ? e : e.t; }
   function spawnSchedule(s) {
-    var n = arrivals(s), out = [];
-    for (var i = 0; i < n; i++) out.push(D.DAY_START + Core.rint(s, D.LAST_ENTRY - D.DAY_START + 1));
-    return out.sort(function (a, b) { return a - b; });
+    var out = [];
+    for (var a = 0; a < D.AREAS.length; a++) {
+      if (!Core.areaOpen(s, a) && a) continue;
+      var n = arrivals(s, a);
+      for (var i = 0; i < n; i++) {
+        var t = D.DAY_START + Core.rint(s, D.LAST_ENTRY - D.DAY_START + 1);
+        out.push(a ? { t: t, a: a } : t);
+      }
+    }
+    return out.sort(function (x, y) { return spawnTime(x) - spawnTime(y); });
   }
 
-  function spawn(s) {
-    var gt = Core.pickW(s, D.GUESTS), id = s.nextGid++;
+  function spawn(s, a) {
+    a = a || 0;
+    var gt = Core.pickW(s, D.GUESTS), id = s.nextGid++, gate = Core.gateOf(a);
     var g = {
       id: id, type: gt.id, outfit: Core.rint(s, D.OUTFITS), photo: s.photos[id % s.photos.length],
-      x: M.GATE.x, y: M.GATE.y, state: "walk", sid: null,
+      x: gate.x, y: gate.y, area: a, state: "walk", sid: null,
       need: { fun: Core.rint(s, 30), hunger: Core.rint(s, 30), thirst: Core.rint(s, 30), toilet: Core.rint(s, 30), fatigue: Core.rint(s, 30), dry: 0 },
       hap: 60, cash: gt.cash[0] + Core.rint(s, gt.cash[1] - gt.cash[0] + 1), patience: gt.patience,
       wait: 0, t: 0, leaving: false, spent: 0, rides: 0, kasa: false, ticket: null,
@@ -103,11 +122,13 @@
 
   function guestType(g) { for (var i = 0; i < D.GUESTS.length; i++) if (D.GUESTS[i].id === g.type) return D.GUESTS[i]; return D.GUESTS[0]; }
 
-  function prefScore(g, st) {
+  function prefScore(g, st, s) {
     var b = D.BUILD[st.type], p = guestType(g).pref;
     if (b.kind === "ride" || b.kind === "shrine") {
-      var e = Core.effStats(st);
-      return (e.thrill * p.thrill + e.charm * p.charm + e.photo * p.photo) / 3;
+      var e = Core.effStats(st), v = (e.thrill * p.thrill + e.charm * p.charm + e.photo * p.photo) / 3;
+      // 水上設施（splash）：晴天 +0.6、雨天 −0.6（規格 §6.3.1）
+      if (b.splash && s && s.today) v += s.today.weather === "sun" ? 0.6 : s.today.weather === "rain" ? -0.6 : 0;
+      return v;
     }
     if (kindOf(st) === "goods") return 0.5 + p.photo;
     return 1;
@@ -132,22 +153,23 @@
 
   function choose(s, g) {
     var need = urgentNeed(g), kinds = D.NEED_TO[need], best = null, bestScore = -1e9;
+    var ga = g.area || 0;
     for (var k in s.structs) {
       var st = s.structs[k];
-      if (!isOpen(s, st) || kinds.indexOf(kindOf(st)) < 0) continue;
+      if (Core.areaOf(st.y) !== ga || !isOpen(s, st) || kinds.indexOf(kindOf(st)) < 0) continue;
       if (g.ticket && g.ticket.sid === st.id && s.min < g.ticket.at) continue; // 持票者未到時間不可再選該設施
       if (D.BUILD[st.type].kind === "stall" && !stallUsable(s, g, st)) continue; // 賣完或買不起的攤位不去
       if (g.prayed && D.BUILD[st.type].kind === "shrine") continue; // 今天已經參拜過
       var d = distField(s, k)[Core.ti(g.x, g.y)];
       if (d < 0) continue;
-      var score = prefScore(g, st) * 50 - d * 1.5 - st.q.length * 3 + Core.rnd(s) * 10;
+      var score = prefScore(g, st, s) * 50 - d * 1.5 - st.q.length * 3 + Core.rnd(s) * 10;
       if (score > bestScore) { bestScore = score; best = st.id; }
     }
     // 沒地方躲雨：與「找不到對應設施」共用冷卻 g.ncd，避免每分鐘洗版
     if (!best && need === "dry" && !(g.ncd > 0) && Core.rnd(s) < 0.3) { mm(s, g, "complaint", "rain", {}); g.ncd = D.MOOD.noFacilityCd; }
     if (need === "fun" && s.today && s.today.closed.length && Core.rnd(s) < 0.1) {
       var ct = s.today.closed[Core.rint(s, s.today.closed.length)];
-      for (var j in s.structs) if (s.structs[j].type === ct) { mm(s, g, "complaint", "wind", { ride: D.BUILD[ct].name }); break; }
+      for (var j in s.structs) if (s.structs[j].type === ct && Core.areaOf(s.structs[j].y) === ga) { mm(s, g, "complaint", "wind", { ride: D.BUILD[ct].name }); break; }
     }
     return best;
   }
@@ -198,7 +220,7 @@
   function nearTrash(s, x, y) {
     for (var k in s.structs) {
       var st = s.structs[k];
-      if (st.type === "trash" && st.build === 0 && Math.abs(st.x - x) + Math.abs(st.y - y) <= 5) return true;
+      if (st.type === "trash" && st.build === 0 && Core.areaOf(st.y) === Core.areaOf(y) && Math.abs(st.x - x) + Math.abs(st.y - y) <= 5) return true;
     }
     return false;
   }
@@ -207,7 +229,7 @@
     var j = 0;
     for (var k in s.structs) {
       var st = s.structs[k], b = D.BUILD[st.type];
-      if (b.kind === "deco" && Math.abs(st.x - g.x) <= 2 && Math.abs(st.y - g.y) <= 2) j += b.joy;
+      if (b.kind === "deco" && Core.areaOf(st.y) === (g.area || 0) && Math.abs(st.x - g.x) <= 2 && Math.abs(st.y - g.y) <= 2) j += b.joy;
     }
     return j;
   }
@@ -310,7 +332,7 @@
       st.riders.forEach(function (gid) {
         var g = byId(s, gid);
         if (!g) return;
-        var p = prefScore(g, st);
+        var p = prefScore(g, st, s);
         g.need.fun = Math.max(0, g.need.fun - 45 - 10 * p);
         g.hap += 6 + 8 * p - 4 * Math.min(1, g.wait / g.patience); clampHap(g);
         g.rides++; g.state = "walk"; g.sid = null; g.skip = 1; // 下車這一分鐘不立刻重選（否則同一分鐘又排回同一設施）
@@ -375,7 +397,7 @@
     }
     g.hap += decoJoy(s, g); clampHap(g);
     if (g.leaving) {
-      if (moveToward(s, g, "gate")) g.state = "leave";
+      if (moveToward(s, g, gateKey(g.area))) g.state = "leave";
       return;
     }
     if (g.skip > 0) { g.skip--; return; }
@@ -401,7 +423,7 @@
   // 閒逛：走向隨機一格與入口相連的步道，到了再換一格
   function wander(s, g) {
     if (g.wt == null) {
-      var gate = distField(s, "gate"), cand = [];
+      var gate = distField(s, gateKey(g.area)), cand = [];
       for (var i = 0; i < gate.length; i++) if (gate[i] >= 0) cand.push(i);
       if (!cand.length) return;
       g.wt = cand[Core.rint(s, cand.length)];
@@ -429,7 +451,7 @@
 
   // 一遊戲分鐘：生客 → 遊樂設施運轉 → 客人行動 → 移除離場者
   function step(s) {
-    while (s.today.spawn.length && s.today.spawn[0] <= s.min) { s.today.spawn.shift(); spawn(s); }
+    while (s.today.spawn.length && spawnTime(s.today.spawn[0]) <= s.min) { var e = s.today.spawn.shift(); spawn(s, typeof e === "number" ? 0 : e.a); }
     var k;
     for (k in s.structs) if (D.BUILD[s.structs[k].type].kind === "ride") rideStep(s, s.structs[k]);
     for (k in s.structs) if (D.BUILD[s.structs[k].type].kind === "qstall") qstallStep(s, s.structs[k]);
@@ -442,7 +464,7 @@
   }
 
   window.PriTestEnnichiSim = {
-    distField: distField, isWeekend: isWeekend, capacity: capacity, feeFactor: feeFactor, arrivals: arrivals, wander: wander, stallUsable: stallUsable, spawnSchedule: spawnSchedule, spawn: spawn,
+    distField: distField, gateKey: gateKey, isWeekend: isWeekend, capacity: capacity, feeFactor: feeFactor, arrivals: arrivals, wander: wander, stallUsable: stallUsable, spawnSchedule: spawnSchedule, spawn: spawn,
     kindOf: kindOf, guestType: guestType, prefScore: prefScore, urgentNeed: urgentNeed, isOpen: isOpen,
     choose: choose, moveToward: moveToward, needsTick: needsTick, weatherNow: weatherNow, closedFor: closedFor,
     step: step, rideStep: rideStep, buyAt: buyAt, arrive: arrive, breakDown: breakDown, byId: byId, chance: chance, mm: mm,
