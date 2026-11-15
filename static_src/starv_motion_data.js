@@ -18,27 +18,30 @@
   var D = root.PriTestStarvData;
   var T = D.T;
 
-  function move(name, src, still) { return { name: T(name), src: src || "", still: still || "" }; }
+  // anim：同一動作的動態 WebP（Safari／iOS 不支援 VP9 透明 webm，或 webm 載入失敗時改用）；ms：一輪的長度（毫秒）
+  function move(name, src, still, anim, ms) { return { name: T(name), src: src || "", still: still || "", anim: anim || "", ms: ms || 0 }; }
+  // 正式素材：images/starv/motion/<id>.webp（靜止圖）、<id>_<n>.webm／.webp（動作 n）
+  function mv(id, n, name) { var p = "images/starv/motion/" + id + "_" + n; return move(name, p + ".webm", "", p + ".webp", [0, 2976, 3968, 4960][n]); }
   function starter(id, name, desc, color, icon, still, moves) {
     return { id: id, name: T(name), desc: T(desc), color: color, icon: icon, still: still || "", moves: moves };
   }
 
   D.MOTION = {
     STARTERS: [
-      starter("s1", "御三家・歌|御三家・歌", "以歌聲打動人心的新人。|歌声で心をつかむ新人。", "#ff5fa8", "🎤", "", [
-        move("動作 1|モーション 1", ""),
-        move("動作 2|モーション 2", ""),
-        move("動作 3|モーション 3", "")
+      starter("s1", "御三家・歌|御三家・歌", "以歌聲打動人心的新人。|歌声で心をつかむ新人。", "#ff5fa8", "🎤", "images/starv/motion/s1.webp", [
+        mv("s1", 1, "動作 1|モーション 1"),
+        mv("s1", 2, "動作 2|モーション 2"),
+        mv("s1", 3, "動作 3|モーション 3")
       ]),
-      starter("s2", "御三家・舞|御三家・舞", "以舞步點亮舞台的新人。|ダンスでステージを照らす新人。", "#7c4dff", "🕺", "", [
-        move("動作 1|モーション 1", ""),
-        move("動作 2|モーション 2", ""),
-        move("動作 3|モーション 3", "")
+      starter("s2", "御三家・舞|御三家・舞", "以舞步點亮舞台的新人。|ダンスでステージを照らす新人。", "#7c4dff", "🕺", "images/starv/motion/s2.webp", [
+        mv("s2", 1, "動作 1|モーション 1"),
+        mv("s2", 2, "動作 2|モーション 2"),
+        mv("s2", 3, "動作 3|モーション 3")
       ]),
-      starter("s3", "御三家・演|御三家・演", "以演技說故事的新人。|演技で物語を語る新人。", "#e0b04a", "🎬", "", [
-        move("動作 1|モーション 1", ""),
-        move("動作 2|モーション 2", ""),
-        move("動作 3|モーション 3", "")
+      starter("s3", "御三家・演|御三家・演", "以演技說故事的新人。|演技で物語を語る新人。", "#e0b04a", "🎬", "images/starv/motion/s3.webp", [
+        mv("s3", 1, "動作 1|モーション 1"),
+        mv("s3", 2, "動作 2|モーション 2"),
+        mv("s3", 3, "動作 3|モーション 3")
       ])
     ],
     // 解鎖階段（每一局＝每個紀元各自判定；已解鎖的動作永久保留）

@@ -108,7 +108,8 @@
         UI.btn(t("sv_debug_skip", { n: 7 }), function () { App.skip(7); }, "", { "data-act": "debug-skip-7" }),
         UI.btn(t("sv_debug_skip", { n: 30 }), function () { App.skip(30); }, "", { "data-act": "debug-skip-30" }),
         UI.btn(t("sv_debug_event"), function () { App.act(function (s) { Core.triggerRandomEvent(s); }); }, "", { "data-act": "debug-event" }),
-        UI.btn(t("sv_debug_awards"), function () { App.act(function (s) { Core.holdAwards(s); }); }, "", { "data-act": "debug-awards" })
+        UI.btn(t("sv_debug_awards"), function () { App.act(function (s) { Core.holdAwards(s); }); }, "", { "data-act": "debug-awards" }),
+        window.PriTestStarvMotionUI ? UI.btn(t("sv_motion_test"), function () { window.PriTestStarvMotionUI.openTest(); }, "", { "data-act": "debug-motion-test" }) : null
       ])
     ]);
   }
