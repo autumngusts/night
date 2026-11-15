@@ -107,12 +107,45 @@
     return box;
   }
 
-  function play(s, i, onClose) {
+  // ---- 畫面上顯示的動作（「設為預設」）----
+  // st.codex.motion.show ＝ "s1-2"（御三家 ID-動作編號）：3D 演出、公司內部右下角與本命彈出都播這個動作。
+  // 沒設定或已失效（還沒解鎖）時：本局選的御三家目前最高的動作。
+  function preferred(st) {
+    var m = st && Motion.ensure(st);
+    if (!m) return null;
+    var p = /^(\w+)-(\d)$/.exec(m.show || ""), s = p && M.BY_ID[p[1]], n = p ? +p[2] : 0;
+    if (s && n >= 1 && n <= m.lv[s.id]) return { s: s, n: n };
+    s = m.pick && M.BY_ID[m.pick];
+    return s && m.lv[s.id] ? { s: s, n: m.lv[s.id] } : null;
+  }
+  function isPreferred(st, s, i) { var p = preferred(st); return !!p && p.s === s && p.n === i + 1; }
+
+  // 圖鑑的預覽視窗：播放所選動作，按「設為預設」才會換成畫面上顯示的動作
+  // opts.st()：讀狀態；opts.setDefault(id)：寫入（動圖測試面板傳入只改假狀態的版本）；opts.onClose
+  function play(s, i, opts) {
+    opts = opts || {};
     UI.openModal(function (box, close) {
       box.appendChild(UI.modalHead(UI.L(s.name) + "・" + UI.L(s.moves[i].name), close));
       box.appendChild(clip(s, i, true));
       box.appendChild(el("p", { class: "sv-small sv-muted", text: UI.L(s.desc) }));
-    }, { cls: "sv-motion-modal", onClose: onClose });
+      if (!opts.setDefault) return;
+      var row = el("div", { class: "sv-row sv-row-end" });
+      function drawBtn() {
+        row.innerHTML = "";
+        var on = isPreferred(opts.st(), s, i);
+        row.appendChild(on
+          ? el("span", { class: "sv-chip sv-chip-title", "data-act": "motion-default-on", text: t("sv_motion_default_on") })
+          : UI.btn(t("sv_motion_default_set"), function () { opts.setDefault(s.id + "-" + (i + 1)); drawBtn(); }, "sv-btn-primary", { "data-act": "motion-default-set" }));
+      }
+      drawBtn();
+      box.appendChild(row);
+    }, { cls: "sv-motion-modal", onClose: opts.onClose });
+  }
+  function hallPlayOpts(App) {
+    return {
+      st: function () { return App.st(); },
+      setDefault: App.readOnly && App.readOnly() ? null : function (id) { App.act(function (x) { var m = Motion.ensure(x); if (m) m.show = id; return null; }); }
+    };
   }
 
   function lockText(st, s, i) {
@@ -123,8 +156,9 @@
     return t("sv_motion_need_next");
   }
 
-  // onPlay：點動作時改呼叫它（動圖測試面板本身是視窗，要先關掉再開播放視窗）
-  function galleryView(st, onPlay) {
+  // 殿堂子分頁呼叫 galleryView(st, App)；動圖測試面板另外傳 ctx.onPlay（面板本身是視窗，要先關掉再開預覽視窗）
+  function galleryView(st, App, ctx) {
+    var onPlay = ctx && ctx.onPlay;
     var m = Motion.ensure(st), stg = Motion.stage(st);
     var next = stg === 1 ? t("sv_motion_next_award") : stg === 2 ? t("sv_motion_next_mid", { lv: M.midLevel }) : stg === 3 ? t("sv_motion_next_done") : t("sv_motion_next_pick");
     return el("div", {}, [
@@ -140,8 +174,10 @@
             el("span", { class: "sv-chip", text: lv + " / " + Motion.MAX })
           ]),
           el("div", { class: "sv-motion-moves" }, s.moves.map(function (mv, i) {
-            if (i < lv) return el("button", { type: "button", class: "sv-motion-move", "data-act": "motion-" + s.id + "-" + (i + 1), onclick: function () { if (onPlay) onPlay(s, i); else play(s, i); } },
-              [clip(s, i, false), el("span", { class: "sv-small", text: "▶ " + UI.L(mv.name) })]);
+            var def = i < lv && isPreferred(st, s, i);
+            if (i < lv) return el("button", { type: "button", class: "sv-motion-move" + (def ? " sv-motion-default" : ""), "data-act": "motion-" + s.id + "-" + (i + 1),
+              onclick: function () { if (onPlay) onPlay(s, i); else play(s, i, App ? hallPlayOpts(App) : null); } },
+              [clip(s, i, false), el("span", { class: "sv-small", text: (def ? "★ " : "▶ ") + UI.L(mv.name) })]);
             return el("div", { class: "sv-motion-move sv-motion-locked" }, [
               el("div", { class: "sv-motion-clip" }, [el("span", { class: "sv-motion-ph-icon", text: "🔒" })]),
               el("span", { class: "sv-small sv-muted", text: lockText(st, s, i) })
@@ -251,8 +287,8 @@
   function showPartner() {
     var st = appRef && appRef.st();
     if (!st || popup.node) return false;
-    var m = Motion.ensure(st), s = m && m.pick && M.BY_ID[m.pick], lv = s ? m.lv[s.id] : 0;
-    return playPopup(s, lv);
+    var p = preferred(st);
+    return p ? playPopup(p.s, p.n) : false;
   }
   // 在右下角播放 s 的動作 lv（1〜3）；本命彈出與動圖測試面板共用
   function playPopup(s, lv) {
@@ -340,6 +376,7 @@
     M.STARTERS.forEach(function (s) { lv[s.id] = n; });
     return { era: 1, company: { level: M.midLevel }, awards: { history: [{}] }, codex: { motion: { lv: lv, pick: pick || null, pickEra: 1, picks: [] } } };
   }
+  var testState = fakeState("s1", Motion.MAX);
   function openTest() {
     UI.openModal(function (box, close) {
       box.appendChild(UI.modalHead(t("sv_motion_test"), close));
@@ -355,7 +392,11 @@
         }))));
       });
       box.appendChild(el("h3", { text: t("sv_motion_test_gallery") }));
-      box.appendChild(galleryView(fakeState("s1", Motion.MAX), function (s, i) { close(); play(s, i, function () { setTimeout(openTest, 0); }); }));
+      var f = testState;
+      box.appendChild(galleryView(f, null, { onPlay: function (s, i) {
+        close();
+        play(s, i, { st: function () { return f; }, setDefault: function (id) { f.codex.motion.show = id; }, onClose: function () { setTimeout(openTest, 0); } });
+      } }));
     }, { cls: "sv-motion-modal" });
   }
   if (/[?&]motiontest=1(&|$)/.test(location.search)) setTimeout(openTest, 300);
@@ -377,7 +418,24 @@
     UI.toast("🎞️ " + t("sv_motion_toast", { name: s ? UI.L(s.name) : "", n: n.length }), "gold");
   });
 
+  // Stage.clip（3D 演出與公司內部右下角）用：目前要顯示的御三家動作，與 motionX 是否可以出現
+  function clipSource() {
+    var st = appRef && appRef.st(), p = preferred(st);
+    if (!p) return null;
+    var src = moveSrc(p.s, p.n - 1), anim = moveAnim(p.s, p.n - 1);
+    if (!src && !anim) return null;
+    return { id: p.s.id + "-" + p.n, video: PREFER_ANIM && anim ? "" : src, img: anim, ms: p.s.moves[p.n - 1].ms || 4000 };
+  }
+  function extraClipAllowed() {
+    var st = appRef && appRef.st(), m = st && Motion.ensure(st);
+    return !!m && M.STARTERS.some(function (s) { return m.lv[s.id] >= Motion.MAX; });
+  }
+
   window.PriTestStarvMotionUI = {
+    clipSource: clipSource,
+    preferAnim: PREFER_ANIM,
+    extraClipAllowed: extraClipAllowed,
+    preferred: function () { return preferred(appRef && appRef.st()); },
     openPicker: openPicker,
     showPartner: showPartner,
     closePartner: closePopup,

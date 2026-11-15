@@ -771,6 +771,7 @@
 .sv-motion-moves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
 .sv-motion-move { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.25rem; border-radius: 10px; background: var(--sv-glass); border: 1px solid var(--sv-line); color: inherit; font: inherit; cursor: pointer; min-width: 0; text-align: center; }
 .sv-motion-move:hover { background: var(--sv-glass-strong); }
+.sv-motion-default { border-color: var(--sv-motion-color, #ffd76a); box-shadow: 0 0 0 2px var(--sv-motion-color, #ffd76a) inset; }
 .sv-motion-locked { cursor: default; opacity: 0.7; }
 .sv-motion-clip { position: relative; width: 100%; aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; border-radius: 8px; overflow: hidden;
   background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--sv-motion-color, var(--sv-purple)) 45%, transparent), rgba(0, 0, 0, 0.35)); }

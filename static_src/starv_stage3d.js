@@ -9,7 +9,7 @@
   var t = UI.t, el = UI.el;
   var KEY = "pritest-starv-stage";
   var END_CARD_MS = 4000;
-  // 3D 演出與日程街道圖每經過 CLIP_EVERY_S 秒，在右下角輪流顯示短片與圖片（#sv-app[data-clip-src]／[data-clip-img-src]）
+  // 3D 演出與公司內部每經過 CLIP_EVERY_S 秒，在右下角輪流顯示御三家動作與 motionX（見下方 clip()）
   var CLIP_EVERY_S = 10;
   var loading = null;
 
@@ -214,35 +214,31 @@
     return function () { clearTimeout(timer); };
   }
 
-  // ---------- 右下角短片／圖片（演出與日程街道圖共用） ----------
-  // 每 CLIP_EVERY_S 秒出現一次，影片（data-clip-src）與圖片（data-clip-img-src）輪流；
-  // 大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4。輪替順序全域共用。
-  // 依素材原始寬高比算出框的寬高，絕不拉伸；兩者都是透明底，所以不加底色。
+  // ---------- 右下角短片／圖片（3D 演出與公司內部共用） ----------
+  // 每 CLIP_EVERY_S 秒出現一次，依序輪流：
+  //   ・御三家：圖鑑「設為預設」的動作（沒設定時＝本局選的御三家最高的動作；starv_motion_ui.js 的 clipSource()）
+  //     大小依序輪替為畫面面積的 1/16 → 1/8 → 1/4（輪替順序全域共用）；Safari／iOS 用動態 WebP，webm 失敗也退回 WebP
+  //   ・motionX（#sv-app[data-clip-src]／[data-clip-img-src] 的和風女性）：任一位御三家解鎖動作 3 後才出現，一律最小（1/16）
+  // 每次出現時才重新讀來源，所以在殿堂改了預設，下一輪就換。依素材原始寬高比算框，絕不拉伸；素材是透明底，不加底色。
   var CLIP_AREAS = [1 / 16, 1 / 8, 1 / 4];
-  var CLIP_IMAGE_MS = 6000;            // 圖片停留時間（動態 WebP 一輪約 3 秒，停留約兩輪）
+  var CLIP_IMAGE_MS = 6000;            // motionX 圖片停留時間（動態 WebP 一輪約 3 秒，停留約兩輪）
+  var CLIP_LOOPS = 2;                  // 御三家動作播兩輪
   var clipTurn = 0;
   function clipAttr(name) { var app = document.getElementById("sv-app"); return (app && app.getAttribute(name)) || ""; }
+  function clipSources() {
+    var MUI = window.PriTestStarvMotionUI, out = [];
+    var p = MUI && MUI.clipSource ? MUI.clipSource() : null;
+    if (p) out.push({ key: "partner", video: p.video, img: p.img, ms: p.ms * CLIP_LOOPS, loops: CLIP_LOOPS });
+    if (!MUI || !MUI.extraClipAllowed || MUI.extraClipAllowed()) {
+      var vsrc = clipAttr("data-clip-src"), isrc = clipAttr("data-clip-img-src");
+      if (MUI && MUI.preferAnim && isrc) vsrc = "";   // Safari／iOS：透明 webm 會變黑底，只用 WebP 版
+      if (vsrc) out.push({ key: "x-video", video: vsrc, img: "", ms: 0, loops: 1, small: true });
+      if (isrc) out.push({ key: "x-img", video: "", img: isrc, ms: CLIP_IMAGE_MS, loops: 1, small: true });
+    }
+    return out;
+  }
   function clip(host) {
-    var vsrc = clipAttr("data-clip-src"), isrc = clipAttr("data-clip-img-src");
-    if (!vsrc && !isrc) return null;
-    var count = 0, cur = null, imgTimer = 0, items = [];
-    if (vsrc) {
-      var v = document.createElement("video");
-      v.src = vsrc; v.muted = true; v.playsInline = true; v.preload = "auto";
-      v.setAttribute("playsinline", "");
-      v.addEventListener("ended", function () { v.hidden = true; });
-      v.addEventListener("error", function () { v.hidden = true; });
-      v.addEventListener("loadedmetadata", function () { if (cur === v) fit(v); });
-      items.push(v);
-    }
-    if (isrc) {
-      var im = document.createElement("img");
-      im.src = isrc; im.alt = "";
-      im.addEventListener("load", function () { if (cur === im) fit(im); });
-      im.addEventListener("error", function () { im.hidden = true; });
-      items.push(im);
-    }
-    items.forEach(function (n) { n.className = "sv-stage-clip"; n.setAttribute("data-act", "stage-clip"); n.hidden = true; host.appendChild(n); });
+    var count = 0, cur = null, timer = 0;
     function aspect(n) {
       var w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
       return w && h ? w / h : 2 / 3;
@@ -255,33 +251,63 @@
       if (w > W) { w = W; h = w / ar; }
       n.style.width = w + "px"; n.style.height = h + "px";
     }
-    function show() {
-      var n = items[(count - 1) % items.length];
-      items.forEach(function (o) { if (o !== n) { o.hidden = true; if (o.pause) o.pause(); } });
-      clearTimeout(imgTimer);
+    function drop() {
+      clearTimeout(timer);
+      var n = cur;
+      cur = null;
+      if (!n) return;
+      if (n.tagName === "VIDEO") { try { n.pause(); n.removeAttribute("src"); n.load(); } catch (e) { /* 忽略 */ } }
+      if (n.parentNode) n.parentNode.removeChild(n);
+    }
+    function mount(n, area) {
+      n.className = "sv-stage-clip";
+      n.setAttribute("data-act", "stage-clip");
+      n.setAttribute("data-area", String(area));
       cur = n;
-      n.setAttribute("data-area", String(CLIP_AREAS[clipTurn % CLIP_AREAS.length]));
-      clipTurn++;
+      host.appendChild(n);
       fit(n);
-      n.hidden = false;
-      if (n.tagName === "VIDEO") {
-        try { n.currentTime = 0; } catch (e) { /* 尚未載入 metadata */ }
-        var pr = n.play();
-        if (pr && pr.catch) pr.catch(function () { n.hidden = true; });
-      } else {
-        imgTimer = setTimeout(function () { n.hidden = true; }, CLIP_IMAGE_MS);
-      }
+    }
+    function showImg(src, ms, area, key) {
+      var im = document.createElement("img");
+      im.alt = ""; im.setAttribute("data-clip", key);
+      im.addEventListener("load", function () { if (cur === im) { fit(im); clearTimeout(timer); timer = setTimeout(function () { if (cur === im) drop(); }, ms); } });
+      im.addEventListener("error", function () { if (cur === im) drop(); });
+      mount(im, area);
+      im.src = src;
+    }
+    function showVideo(x, area) {
+      var v = document.createElement("video"), plays = 0;
+      v.muted = true; v.playsInline = true; v.preload = "auto";
+      v.setAttribute("playsinline", ""); v.setAttribute("data-clip", x.key);
+      v.addEventListener("loadedmetadata", function () { if (cur === v) fit(v); });
+      v.addEventListener("ended", function () {
+        if (cur !== v) return;
+        if (++plays < x.loops) { try { v.currentTime = 0; } catch (e) { /* 忽略 */ } var pr2 = v.play(); if (pr2 && pr2.catch) pr2.catch(drop); }
+        else drop();
+      });
+      v.addEventListener("error", function () {   // webm 播不了 → 有動態 WebP 就改用
+        if (cur !== v) return;
+        drop();
+        if (x.img) showImg(x.img, x.ms || CLIP_IMAGE_MS, area, x.key);
+      });
+      mount(v, area);
+      v.src = x.video;
+      var pr = v.play();
+      if (pr && pr.catch) pr.catch(function () { if (cur === v && !x.img) drop(); });
+    }
+    function show() {
+      var list = clipSources();
+      drop();
+      if (!list.length) return;
+      var x = list[(count - 1) % list.length];
+      var area = x.small ? CLIP_AREAS[0] : CLIP_AREAS[clipTurn++ % CLIP_AREAS.length];
+      if (x.video) showVideo(x, area);
+      else if (x.img) showImg(x.img, x.ms || CLIP_IMAGE_MS, area, x.key);
     }
     return {
       // tt：從開始經過的秒數；每跨過一個 CLIP_EVERY_S 的倍數就換下一個出現
       tick: function (tt) { var n = Math.floor(tt / CLIP_EVERY_S); if (n > count) { count = n; show(); } },
-      stop: function () {
-        clearTimeout(imgTimer);
-        items.forEach(function (n) {
-          if (n.tagName === "VIDEO") { n.pause(); n.removeAttribute("src"); n.load(); }
-          if (n.parentNode) n.parentNode.removeChild(n);
-        });
-      }
+      stop: drop
     };
   }
 
