@@ -2,6 +2,7 @@
 // ・開局（新存檔、新紀元、舊存檔第一次載入）彈出御三家選擇視窗
 // ・殿堂分頁的「動圖」子分頁：3 位 × 3 個動作，已解鎖的可以播放 webm（src 空白時顯示佔位畫面）
 // ・解鎖時跳出提示
+// ・本命彈出：一般遊戲中每 1 分鐘在遊戲畫面右下角播放本命最高等級的動作兩輪（不擋操作）
 // ・解鎖等級另外鏡射到 localStorage["pritest-starv-motion"]：按「重新開始」清掉存檔後，新存檔仍保留已解鎖的動作
 (function () {
   "use strict";
@@ -37,19 +38,43 @@
   }
 
   function moveSrc(s, i) { var mv = s.moves[i]; return mv && mv.src ? BASE + mv.src : ""; }
+  function asset(p) { return p ? BASE + p : ""; }
+
+  // 影片元素離開畫面前先停止下載：同一個 webm 同時被兩個 <video> 讀取時，
+  // 不支援 Range 的伺服器（本機 http.server）會讓後面那個一直卡在載入中
+  function unloadVideo(v) { try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e) { /* 忽略 */ } }
+  function unloadVideos(root) { Array.prototype.forEach.call(root.querySelectorAll("video"), unloadVideo); }
+
+  // 靜止圖：still → 圖片；沒有 still 但允許用第一格且有動作 1 的 webm → 影片第一格（不播放）；都沒有 → 圖示
+  function still(s, path, useFirstFrame) {
+    if (path) {
+      var img = el("img", { class: "sv-motion-still", src: asset(path), alt: "", loading: "lazy" });
+      img.addEventListener("error", function () { img.replaceWith(el("span", { class: "sv-motion-ph-icon", text: s.icon })); });
+      return img;
+    }
+    var src = useFirstFrame ? moveSrc(s, 0) : "";
+    if (src) {
+      var v = el("video", { class: "sv-motion-still", src: src + "#t=0.1", muted: "", playsinline: "", preload: "metadata" });
+      v.muted = true;
+      v.addEventListener("error", function () { v.replaceWith(el("span", { class: "sv-motion-ph-icon", text: s.icon })); });
+      return v;
+    }
+    return el("span", { class: "sv-motion-ph-icon", text: s.icon });
+  }
 
   // 動作畫面：大畫面（播放視窗）有 src 就自動循環播放，沒有 src 或載入失敗就顯示「動畫準備中」；
-  // 縮圖只放圖示（有影片時加 ▶），不建立 <video>：圖鑑一次 9 格，全部預載太重
+  // 縮圖只放靜止圖（動作的 still → 角色的 still → 圖示），有影片時加 ▶，不建立會播放的 <video>
   function clip(s, i, big) {
     var box = el("div", { class: "sv-motion-clip" + (big ? " sv-motion-clip-big" : ""), style: "--sv-motion-color:" + s.color });
     var src = moveSrc(s, i);
+    var stillPath = (s.moves[i] && s.moves[i].still) || s.still;
     function placeholder() {
       box.innerHTML = "";
-      box.appendChild(el("span", { class: "sv-motion-ph-icon", text: s.icon }));
-      if (big) box.appendChild(el("span", { class: "sv-small", text: t("sv_motion_pending") }));
+      box.appendChild(still(s, stillPath, false));
+      if (big) box.appendChild(el("span", { class: "sv-small sv-motion-pending", text: t("sv_motion_pending") }));
     }
     if (!big) {
-      box.appendChild(el("span", { class: "sv-motion-ph-icon", text: s.icon }));
+      box.appendChild(still(s, stillPath, false));
       if (src) box.appendChild(el("span", { class: "sv-motion-play", text: "▶" }));
       else box.title = t("sv_motion_pending");
       return box;
@@ -107,45 +132,139 @@
   }
 
   // ---- 開局選擇 ----
+  // 第 1 步：三張卡片（靜止圖）；第 2 步：點進去先看動作 1，再按「確定選擇」或「返回」
   var picking = false;
   function openPicker(App) {
     picking = true;
-    var chosen = null;
+    var detail = null;
     UI.openModal(function (box, close) {
-      var st = App.st();
-      box.appendChild(el("h2", { class: "sv-modal-title", text: t("sv_motion_pick_title") }));
-      box.appendChild(el("p", { class: "sv-small", text: t(st.era > 1 || Motion.total(st) ? "sv_motion_pick_again" : "sv_motion_pick_intro") }));
-      var cards = el("div", { class: "sv-motion-grid" });
-      var ok = UI.btn(t("sv_motion_pick_ok"), function () {
-        if (!chosen) return;
-        var err = App.act(function (s) { return Motion.choose(s, chosen); });
-        if (err && err !== "motionPicked") { UI.toast(t("sv_err_" + err), "bad"); return; }
-        close();
-      }, "sv-btn-primary sv-btn-big", { "data-act": "motion-pick-ok", disabled: "" });
-      M.STARTERS.forEach(function (s) {
+      function draw() {
+        unloadVideos(box);
+        box.innerHTML = "";
+        var st = App.st();
+        if (detail) drawDetail(st, M.BY_ID[detail]); else drawList(st);
+      }
+      function lvChip(st, s) {
         var lv = Motion.level(st, s.id);
-        var card = el("button", { type: "button", class: "sv-card sv-motion-card sv-motion-choice", style: "--sv-motion-color:" + s.color, "data-act": "motion-pick-" + s.id,
-          onclick: function () {
-            chosen = s.id;
-            Array.prototype.forEach.call(cards.children, function (n) { n.classList.toggle("sv-motion-picked", n === card); });
-            ok.disabled = false;
-          } }, [
-          clip(s, 0, false),
-          el("b", { text: s.icon + " " + UI.L(s.name) }),
-          el("span", { class: "sv-small sv-muted", text: UI.L(s.desc) }),
-          lv ? el("span", { class: "sv-chip", text: lv >= Motion.MAX ? t("sv_motion_done") : t("sv_motion_have", { n: lv, max: Motion.MAX }) }) : null
-        ]);
-        cards.appendChild(card);
-      });
-      box.appendChild(cards);
-      box.appendChild(el("p", { class: "sv-small sv-muted", text: t("sv_motion_pick_rule", { lv: M.midLevel }) }));
-      box.appendChild(el("div", { class: "sv-row sv-row-end" }, [ok]));
+        return lv ? el("span", { class: "sv-chip", text: lv >= Motion.MAX ? t("sv_motion_done") : t("sv_motion_have", { n: lv, max: Motion.MAX }) }) : null;
+      }
+      function drawList(st) {
+        box.appendChild(el("h2", { class: "sv-modal-title", text: t("sv_motion_pick_title") }));
+        box.appendChild(el("p", { class: "sv-small", text: t(st.era > 1 || Motion.total(st) ? "sv_motion_pick_again" : "sv_motion_pick_intro") }));
+        box.appendChild(el("div", { class: "sv-motion-grid" }, M.STARTERS.map(function (s) {
+          return el("button", { type: "button", class: "sv-card sv-motion-card sv-motion-choice", style: "--sv-motion-color:" + s.color, "data-act": "motion-pick-" + s.id,
+            onclick: function () { detail = s.id; draw(); } }, [
+            el("div", { class: "sv-motion-clip sv-motion-portrait", style: "--sv-motion-color:" + s.color }, [still(s, s.still, true)]),
+            el("b", { text: s.icon + " " + UI.L(s.name) }),
+            el("span", { class: "sv-small sv-muted", text: UI.L(s.desc) }),
+            lvChip(st, s),
+            el("span", { class: "sv-small sv-motion-peek", text: t("sv_motion_pick_peek") })
+          ]);
+        })));
+        box.appendChild(el("p", { class: "sv-small sv-muted", text: t("sv_motion_pick_rule", { lv: M.midLevel }) }));
+      }
+      function drawDetail(st, s) {
+        box.appendChild(el("h2", { class: "sv-modal-title", text: s.icon + " " + UI.L(s.name) + "・" + UI.L(s.moves[0].name) }));
+        box.appendChild(clip(s, 0, true));
+        box.appendChild(el("p", { class: "sv-small", text: UI.L(s.desc) }));
+        var chip = lvChip(st, s);
+        if (chip) box.appendChild(el("p", {}, [chip]));
+        box.appendChild(el("p", { class: "sv-small sv-muted", text: t("sv_motion_pick_confirm_q", { name: UI.L(s.name) }) }));
+        box.appendChild(el("div", { class: "sv-row sv-row-end" }, [
+          UI.btn(t("sv_motion_pick_back"), function () { detail = null; draw(); }, "sv-btn-ghost", { "data-act": "motion-pick-back" }),
+          UI.btn(t("sv_motion_pick_ok_name", { name: UI.L(s.name) }), function () {
+            var err = App.act(function (x) { return Motion.choose(x, s.id); });
+            if (err && err !== "motionPicked") { UI.toast(t("sv_err_" + err), "bad"); return; }
+            unloadVideos(box);
+            close();
+          }, "sv-btn-primary sv-btn-big", { "data-act": "motion-pick-ok" })
+        ]));
+      }
+      draw();
     }, { cls: "sv-motion-modal", locked: true, onClose: function () { picking = false; } });
   }
+
+  // ---- 本命彈出 ----
+  // 一般遊戲中每隔 M.popupEveryMs（現實時間），在「遊戲畫面目前看得到的範圍」右下角播放本命目前最高等級的動作，
+  // 播 M.popupLoops 輪後關閉。面積最多佔可見範圍的 M.popupArea，pointer-events: none 不擋操作。
+  // 掛在 body（#sv-app 每次重畫都會清空）；有視窗開著、3D 演出的右下角短片正在顯示時順延；分頁在背景時不播。
+  var appRef = null;
+  var popup = { node: null, last: Date.now(), plays: 0 };
+  function visibleRect() {
+    var app = document.getElementById("sv-app");
+    if (!app) return null;
+    var r = app.getBoundingClientRect();
+    var L = Math.max(r.left, 0), R = Math.min(r.right, window.innerWidth), T = Math.max(r.top, 0), B = Math.min(r.bottom, window.innerHeight);
+    return R - L >= 120 && B - T >= 120 ? { r: R, b: B, w: R - L, h: B - T } : null;
+  }
+  function fitPopup() {
+    var v = popup.node, box = visibleRect();
+    if (!v) return;
+    if (!box) { v.style.visibility = "hidden"; return; }
+    var ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 2 / 3;
+    var h = Math.sqrt(M.popupArea * box.w * box.h / ar), w = h * ar;   // 面積 ＝ popupArea × 可見範圍
+    if (h > box.h * 0.75) { h = box.h * 0.75; w = h * ar; }
+    if (w > box.w * 0.6) { w = box.w * 0.6; h = w / ar; }
+    v.style.width = w + "px"; v.style.height = h + "px";
+    v.style.left = (box.r - w - 8) + "px"; v.style.top = (box.b - h - 8) + "px";
+    v.style.visibility = v.videoWidth ? "" : "hidden";
+  }
+  function closePopup() {
+    var v = popup.node;
+    popup.node = null;
+    popup.last = Date.now();
+    window.removeEventListener("scroll", fitPopup, true);
+    window.removeEventListener("resize", fitPopup);
+    if (!v) return;
+    v.classList.add("sv-motion-popup-out");
+    setTimeout(function () { unloadVideo(v); if (v.parentNode) v.parentNode.removeChild(v); }, 400);
+  }
+  function showPartner() {
+    var st = appRef && appRef.st();
+    if (!st || popup.node) return false;
+    var m = Motion.ensure(st), s = m && m.pick && M.BY_ID[m.pick], lv = s ? m.lv[s.id] : 0;
+    var src = lv ? moveSrc(s, lv - 1) : "";
+    popup.last = Date.now();
+    if (!src) return false;   // 還沒有 webm：略過這一輪
+    var v = el("video", { class: "sv-motion-popup", src: src, muted: "", playsinline: "", preload: "auto", "data-act": "motion-popup", "data-move": s.id + "-" + lv, "aria-hidden": "true" });
+    v.muted = true;
+    popup.node = v;
+    popup.plays = 0;
+    v.addEventListener("loadedmetadata", fitPopup);
+    v.addEventListener("ended", function () {
+      if (popup.node !== v) return;
+      popup.plays++;
+      if (popup.plays < M.popupLoops) {
+        try { v.currentTime = 0; } catch (e) { /* 忽略 */ }
+        var p = v.play();
+        if (p && p.catch) p.catch(closePopup);
+      } else closePopup();
+    });
+    v.addEventListener("error", function () { if (popup.node === v) closePopup(); });
+    document.body.appendChild(v);
+    window.addEventListener("scroll", fitPopup, true);
+    window.addEventListener("resize", fitPopup);
+    fitPopup();
+    var pr = v.play();
+    if (pr && pr.catch) pr.catch(function () { if (popup.node === v) closePopup(); });
+    return true;
+  }
+  function stageClipShowing() { return !!document.querySelector(".sv-stage-clip:not([hidden])"); }
+  setInterval(function () {
+    if (popup.node) return;
+    var st = appRef && appRef.st();
+    if (!st || appRef.readOnly() || document.visibilityState === "hidden") return;
+    if (Date.now() - popup.last < M.popupEveryMs) return;
+    if (UI.modalIsOpen() || stageClipShowing()) return;   // 順延到下一次檢查（每秒）
+    showPartner();
+  }, 1000);
+  // 切到背景：收起並重新計時，回來後再等滿 1 分鐘
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") { if (popup.node) closePopup(); else popup.last = Date.now(); } });
 
   // 每次重畫都會經過：同步鏡射；需要選擇時排入選擇視窗（唯讀中不問）
   UI.addExtra(function (App) {
     var st = App.st();
+    appRef = App;
     if (!st) return null;
     syncMirror(App);
     if (!picking && !App.readOnly() && Motion.needsPick(st)) setTimeout(function () { if (!picking && Motion.needsPick(App.st())) openPicker(App); }, 0);
@@ -171,6 +290,8 @@
 
   window.PriTestStarvMotionUI = {
     openPicker: openPicker,
+    showPartner: showPartner,
+    closePartner: closePopup,
     open: function (App) { if (window.PriTestStarvHallView) window.PriTestStarvHallView.open(App, "motion"); }
   };
 })();

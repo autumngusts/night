@@ -781,5 +781,18 @@
 .sv-motion-play { position: absolute; right: 0.3rem; bottom: 0.2rem; font-size: 0.8em; color: var(--sv-gold); }
 .sv-motion-clip-big .sv-motion-ph-icon { font-size: 4em; }
 .sv-motion-choice { align-items: center; text-align: center; color: inherit; font: inherit; cursor: pointer; }
-.sv-motion-choice .sv-motion-clip { max-width: 9rem; }
+
 .sv-motion-modal { width: min(42rem, 100%); }
+
+/* 靜止圖、選擇畫面兩步驟、本命彈出（starv_motion_ui.js） */
+.sv-motion-still { width: 100%; height: 100%; object-fit: contain; display: block; }
+.sv-motion-portrait { aspect-ratio: 3 / 4; max-width: 11rem; }
+.sv-motion-peek { color: var(--sv-gold); }
+.sv-motion-pending { position: absolute; bottom: 0.6rem; left: 0; right: 0; text-align: center; }
+.sv-motion-popup { position: fixed; z-index: 900; pointer-events: none; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45)); animation: sv-motion-pop-in 0.35s ease-out; }
+.sv-motion-popup-out { opacity: 0; transition: opacity 0.35s ease; }
+@keyframes sv-motion-pop-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sv-motion-popup { animation: none; } }
+.sv-motion-modal .sv-motion-grid { grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+.sv-motion-modal .sv-motion-portrait { width: 100%; }
+.sv-motion-modal .sv-motion-clip-big .sv-motion-video { max-height: 55vh; }
