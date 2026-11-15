@@ -153,10 +153,21 @@
       c.appendChild(el("div", { class: "sv-subtabs" }, SUBS.map(function (k) {
         return UI.btn(t("sv_hall_sub_" + k), function () { view.sub = k; view.confirm = false; App.render(); }, view.sub === k ? "sv-btn-primary" : "sv-btn-ghost", { "data-act": "hall-sub-" + k });
       })));
-      var body = { hall: hallView, codex: codexView, ach: achView, timeline: timelineView, era: eraView }[view.sub];
+      var body = { hall: hallView, codex: codexView, ach: achView, timeline: timelineView, era: eraView }[view.sub] || extraSubs[view.sub] || hallView;
       c.appendChild(body(st, App));
     }
   });
+
+  // 擴充模組加子分頁（例：starv_motion_ui.js 的動圖圖鑑）：插在 after 指定的子分頁後面；標籤用 sv_hall_sub_<id>
+  var extraSubs = {};
+  window.PriTestStarvHallView = {
+    addSub: function (id, render, after) {
+      extraSubs[id] = render;
+      var i = SUBS.indexOf(after);
+      SUBS.splice(i >= 0 ? i + 1 : SUBS.length, 0, id);
+    },
+    open: function (App, id) { view.sub = id; view.confirm = false; App.goTab("hall"); }
+  };
 
   // 頂部列：目前的稱號
   UI.addTopItem(function (App) {

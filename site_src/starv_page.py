@@ -35,6 +35,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_events_14.js",
     "starv_events_15.js",
     "starv_plus_data.js",
+    "starv_motion_data.js",
     "starv_awards_data.js",
     "starv_projects.js",
     "starv_projects_1.js",
@@ -43,6 +44,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_achievements_1.js",
     "starv_achievements_2.js",
     "starv_achievements_3.js",
+    "starv_achievements_4.js",
     "starv_roster.js",
     "starv_roster_1.js",
     "starv_roster_2.js",
@@ -54,6 +56,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_roster_rivals_2.js",
     "starv_core.js",
     "starv_plus.js",
+    "starv_motion.js",
     "starv_store.js",
     "starv_cloud.js",
     "starv_avatar.js",
@@ -77,6 +80,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_cloud_ui.js",
     "starv_log.js",
     "starv_plus_ui.js",
+    "starv_motion_ui.js",
     "starv.js",
 )
 
@@ -84,7 +88,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
 def build_starv_html() -> str:
     three_src = asset_url("../static/", "vendor/three.min.js")
     body = f"""    <div class="sv-root">
-      <div id="sv-app" data-three-src="{three_src}" data-img="../static/images/jikan/" data-clip-src="../static/images/starv/stage_clip.webm" data-clip-img-src="../static/images/starv/stage_clip.webp"></div>
+      <div id="sv-app" data-three-src="{three_src}" data-img="../static/images/jikan/" data-motion-base="../static/" data-clip-src="../static/images/starv/stage_clip.webm" data-clip-img-src="../static/images/starv/stage_clip.webp"></div>
     </div>
 """
     return page_shell(

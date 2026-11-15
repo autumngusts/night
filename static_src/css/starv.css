@@ -760,3 +760,26 @@
 .sv-plus-strats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.4rem; }
 .sv-plus-clutch { margin-bottom: 0.6rem; }
 .sv-plus-bell { background: linear-gradient(135deg, rgba(255, 214, 107, 0.35), rgba(255, 95, 168, 0.3)); }
+
+/* ---- 動圖圖鑑「御三家」（starv_motion_ui.js） ---- */
+.sv-motion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr)); gap: 0.6rem; margin: 0.5rem 0; }
+.sv-motion-card { display: flex; flex-direction: column; gap: 0.45rem; border-top: 3px solid var(--sv-motion-color, var(--sv-purple)); }
+.sv-motion-picked { box-shadow: 0 0 0 2px var(--sv-motion-color, var(--sv-gold)), 0 0 18px rgba(255, 214, 107, 0.25); }
+.sv-motion-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.sv-motion-icon { font-size: 1.4em; }
+.sv-motion-head b { white-space: nowrap; }
+.sv-motion-moves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
+.sv-motion-move { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.25rem; border-radius: 10px; background: var(--sv-glass); border: 1px solid var(--sv-line); color: inherit; font: inherit; cursor: pointer; min-width: 0; text-align: center; }
+.sv-motion-move:hover { background: var(--sv-glass-strong); }
+.sv-motion-locked { cursor: default; opacity: 0.7; }
+.sv-motion-clip { position: relative; width: 100%; aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; border-radius: 8px; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--sv-motion-color, var(--sv-purple)) 45%, transparent), rgba(0, 0, 0, 0.35)); }
+.sv-motion-clip-big { aspect-ratio: auto; min-height: 16rem; }
+.sv-motion-clip-big .sv-motion-video { height: auto; max-height: 70vh; }
+.sv-motion-video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.sv-motion-ph-icon { font-size: 1.8em; }
+.sv-motion-play { position: absolute; right: 0.3rem; bottom: 0.2rem; font-size: 0.8em; color: var(--sv-gold); }
+.sv-motion-clip-big .sv-motion-ph-icon { font-size: 4em; }
+.sv-motion-choice { align-items: center; text-align: center; color: inherit; font: inherit; cursor: pointer; }
+.sv-motion-choice .sv-motion-clip { max-width: 9rem; }
+.sv-motion-modal { width: min(42rem, 100%); }
