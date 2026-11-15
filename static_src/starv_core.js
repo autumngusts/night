@@ -1929,6 +1929,11 @@
   api.newEra = newEra;
   api.setTitle = setTitle;
   api.ACH_TYPES = Object.keys(ACH_CHECKS);
+  // 擴充模組登記新的成就判定類型（例：starv_motion.js 的 motions／motionFull）；fn(st) 回傳數值，與 cond.n 比較
+  api.achCheck = function (type, fn) {
+    if (!ACH_CHECKS[type]) api.ACH_TYPES.push(type);
+    ACH_CHECKS[type] = fn;
+  };
   api.startProject = startProject;
   api.assignStage = assignStage;
   api.abortProject = abortProject;

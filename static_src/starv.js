@@ -160,7 +160,8 @@
     setReadOnly: function (b) { readOnly = !!b; if (!readOnly) dirty = true; },
     readOnly: function () { return readOnly; },
     onChange: function (fn) { changeHooks.push(fn); },
-    reset: function () { Store.clear(); location.reload(); },
+    // 先放掉 st：reload 會觸發 pagehide → saveNow()，不放掉的話剛清掉的存檔會被寫回去
+    reset: function () { st = null; Store.clear(); location.reload(); },
     skip: function (days) { act(function (s) { Core.advance(s, days); }); }
   };
   window.PriTestStarv = { state: function () { return st; }, app: App };

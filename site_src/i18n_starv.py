@@ -675,6 +675,40 @@ STARV_ZH.update({k: zh for k, zh, _ in _PLUS_ROWS})
 STARV_JA.update({k: ja for k, _, ja in _PLUS_ROWS})
 STARV_EN.update({k: ja for k, _, ja in _PLUS_ROWS})
 
+# 動圖圖鑑「御三家」（starv_motion_ui.js；規格 docs/superpowers/specs/2026-11-15-starv-motion-codex.md）
+_MOTION_ROWS = [
+    ("sv_hall_sub_motion", "動圖", "モーション"),
+    ("sv_motion_summary", "已解鎖動作 {n} / {total}", "解放済みモーション {n} / {total}"),
+    ("sv_motion_pending", "動畫準備中", "アニメ準備中"),
+    ("sv_motion_partner", "本局夥伴", "今回の相棒"),
+    ("sv_motion_pick_now", "本局夥伴：{name}", "今回の相棒：{name}"),
+    ("sv_motion_next_pick", "下一步：選擇本局的御三家", "次：今回の御三家を選ぶ"),
+    ("sv_motion_next_award", "下一步：第 1 年頒獎典禮後解鎖新動作", "次：1 年目の授賞式のあとに新しいモーションを解放"),
+    ("sv_motion_next_mid", "下一步：公司升到 Lv{lv} 後解鎖新動作", "次：事務所 Lv{lv} で新しいモーションを解放"),
+    ("sv_motion_next_done", "本局的動作已全部解鎖；其他御三家的動作 3 要在下一局選它才拿得到", "今回のモーションはすべて解放。ほかの御三家のモーション 3 は次のプレイで選ぶと手に入る"),
+    ("sv_motion_need_pick", "開局選擇後解鎖", "最初に選ぶと解放"),
+    ("sv_motion_need_award", "第 1 年頒獎典禮後", "1 年目の授賞式のあと"),
+    ("sv_motion_need_mid", "公司 Lv{lv} 後", "事務所 Lv{lv} のあと"),
+    ("sv_motion_need_next", "下一局選它才能解鎖", "次のプレイで選ぶと解放"),
+    ("sv_motion_pick_title", "選擇你的御三家", "御三家を選ぼう"),
+    ("sv_motion_pick_intro", "三位新人裡選一位當本局夥伴，馬上解鎖第 1 個動圖。", "3 人の新人から今回の相棒を 1 人選ぶと、すぐに最初のモーションが解放される。"),
+    ("sv_motion_pick_again", "新的一局開始了。這次選誰當夥伴？已解鎖的動作都會保留。", "新しいプレイが始まった。今回の相棒は誰にする？解放済みのモーションはそのまま残る。"),
+    ("sv_motion_pick_rule", "第 1 年頒獎典禮後：夥伴動作 2、其他兩位動作 1。公司 Lv{lv}：夥伴動作 3、其他兩位動作 2。其他兩位的動作 3 要在之後的局選它們。", "1 年目の授賞式のあと：相棒はモーション 2、ほかの 2 人はモーション 1。事務所 Lv{lv}：相棒はモーション 3、ほかの 2 人はモーション 2。ほかの 2 人のモーション 3 は次以降のプレイで選ぶと手に入る。"),
+    ("sv_motion_pick_peek", "點擊查看動作 1", "タップでモーション 1 を見る"),
+    ("sv_motion_pick_back", "← 返回", "← 戻る"),
+    ("sv_motion_pick_confirm_q", "要選 {name} 當本局夥伴嗎？選定後本局不能更改。", "{name} を今回の相棒にする？決めたら今回は変更できない。"),
+    ("sv_motion_pick_ok_name", "確定選擇 {name}", "{name} に決定"),
+    ("sv_motion_have", "已解鎖 {n} / {max}", "解放済み {n} / {max}"),
+    ("sv_motion_done", "已全部解鎖", "コンプリート"),
+    ("sv_motion_toast", "動圖圖鑑：{name} 等 {n} 個動作解鎖！", "モーション図鑑：{name} ほか {n} 個のモーションを解放！"),
+    ("sv_log_motion_unlock", "🎞️ 動圖解鎖：{name}「{move}」", "🎞️ モーション解放：{name}「{move}」"),
+    ("sv_err_noStarter", "沒有這位御三家", "その御三家はいない"),
+    ("sv_err_motionPicked", "本局已經選過了", "今回はもう選んでいる"),
+]
+STARV_ZH.update({k: zh for k, zh, _ in _MOTION_ROWS})
+STARV_JA.update({k: ja for k, _, ja in _MOTION_ROWS})
+STARV_EN.update({k: ja for k, _, ja in _MOTION_ROWS})
+
 STARV_ZH.update({
     "project_starv_name": "明星經紀 starV",
     "project_starv_desc": "放置型經紀公司經營：抽卡招募藝人，安排上課、訓練與工作，培養 16 種方向的明星",
