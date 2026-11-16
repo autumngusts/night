@@ -1,0 +1,155 @@
+/* ===================== 九華（kyuka） ===================== */
+/* 夜櫻的深色畫面（固定，不跟隨淺色主題），只用 ky- 前綴。手機直式優先，桌機置中最寬 46rem。 */
+.ky-wrap {
+  --ky-bg: #16111b;
+  --ky-panel: #211a28;
+  --ky-panel-2: #2a2133;
+  --ky-line: rgba(236, 200, 220, 0.2);
+  --ky-text: #f3e9ef;
+  --ky-muted: rgba(243, 233, 239, 0.6);
+  --ky-gold: #e2b54a;
+  --ky-rose: #e05a8a;
+  --ky-bud: rgba(170, 160, 180, 0.28);
+  --ky-g0: #e0628f;   /* 魅 */
+  --ky-g1: #e6943a;   /* 身 */
+  --ky-g2: #3fb39f;   /* 心 */
+  --ky-N: #9aa0a6;
+  --ky-R: #4a9be0;
+  --ky-SR: #b06ae0;
+  --ky-SSR: #e8b64a;
+  --ky-UR: #ff7ab8;
+  position: relative;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 50% 0%, #3a2034 0%, var(--ky-bg) 60%);
+  color: var(--ky-text);
+  font-family: "Noto Serif TC", "Noto Serif JP", "Yu Mincho", serif;
+  min-height: 70vh;
+}
+.ky-wrap button { font: inherit; color: inherit; cursor: pointer; }
+.ky-wrap button:disabled { opacity: 0.4; cursor: default; }
+.ky-wrap button:focus-visible { outline: 2px solid var(--ky-gold); outline-offset: 2px; }
+.ky-small { font-size: 0.82em; }
+.ky-muted { color: var(--ky-muted); }
+.ky-center { text-align: center; margin: 0.8rem 0; }
+.ky-empty { text-align: center; color: var(--ky-muted); padding: 2rem 0; }
+
+.ky-tabs { display: flex; gap: 0.3rem; margin-bottom: 0.8rem; }
+.ky-tab { flex: 1; padding: 0.5rem 0.2rem; border: 1px solid var(--ky-line); border-radius: 10px; background: var(--ky-panel); }
+.ky-tab.ky-on { border-color: var(--ky-gold); color: var(--ky-gold); background: var(--ky-panel-2); }
+
+.ky-btn { padding: 0.55rem 1rem; border-radius: 10px; border: 1px solid var(--ky-line); background: var(--ky-panel-2); }
+.ky-btn-main { background: linear-gradient(180deg, #d04a7a, #8a2350); border-color: #f09ab8; font-weight: bold; }
+.ky-btn-danger { background: linear-gradient(180deg, #6a1a1a, #3a0a0a); border-color: #c04040; }
+.ky-link { background: none; border: none; color: var(--ky-muted); text-decoration: underline; font-size: 0.85rem; padding: 0.3rem; }
+.ky-danger { color: #ff8b80; }
+.ky-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ky-chip { padding: 0.2rem 0.7rem; border-radius: 999px; border: 1px solid var(--ky-line); background: transparent; font-size: 0.85rem; }
+.ky-chip.ky-on { background: var(--ky-gold); border-color: var(--ky-gold); color: #2a1a0a; }
+.ky-bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+
+/* 招募 */
+.ky-banner { text-align: center; padding: 1rem 0.5rem; border-radius: 12px; background: linear-gradient(180deg, rgba(224, 98, 143, 0.15), transparent); border: 1px solid var(--ky-line); margin-bottom: 0.8rem; }
+.ky-banner-title {
+  font-size: 2.2rem; font-weight: bold; letter-spacing: 0.2em;
+  background: linear-gradient(180deg, #fff0f6, #f09ab8 55%, #b0386a);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.ky-rates { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem; margin: 0.6rem 0; }
+.ky-rate { font-size: 0.8rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid var(--ky-c, var(--ky-line)); }
+.ky-pull-btns { display: flex; justify-content: center; gap: 0.6rem; margin: 0.6rem 0 0.3rem; }
+.ky-pull-btns .ky-btn { min-width: 8rem; }
+
+.ky-r-N { --ky-c: var(--ky-N); }
+.ky-r-R { --ky-c: var(--ky-R); }
+.ky-r-SR { --ky-c: var(--ky-SR); }
+.ky-r-SSR { --ky-c: var(--ky-SSR); }
+.ky-r-UR { --ky-c: var(--ky-UR); }
+
+/* 卡片 */
+.ky-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.6rem; }
+.ky-card {
+  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0.1rem;
+  padding: 0 0 0.45rem; border-radius: 12px; overflow: hidden; text-align: center;
+  background: var(--ky-panel); border: 2px solid var(--ky-c);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.ky-r-SSR.ky-card { box-shadow: 0 0 12px rgba(232, 182, 74, 0.55); }
+.ky-r-UR.ky-card { border-color: transparent; background: linear-gradient(var(--ky-panel), var(--ky-panel)) padding-box, linear-gradient(135deg, #ff7ab8, #ffd36a, #7ad8ff, #c08aff) border-box; box-shadow: 0 0 16px rgba(255, 122, 184, 0.6); }
+.ky-card-img { position: relative; display: block; aspect-ratio: 1; overflow: hidden; background: #000; }
+.ky-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ky-rar { position: absolute; top: 4px; left: 4px; font-size: 0.72rem; font-weight: bold; padding: 0 0.4rem; border-radius: 6px; background: var(--ky-c); color: #140c12; }
+.ky-card-crest { position: absolute; right: 2px; bottom: 2px; width: 48%; max-width: 72px; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9)); }
+.ky-card-crest .ky-crest { width: 100%; height: 100%; }
+.ky-card-name { font-weight: bold; font-size: 0.95rem; margin-top: 0.15rem; }
+.ky-card-type { font-size: 0.82rem; color: var(--ky-gold); }
+.ky-card-lv { font-size: 0.72rem; color: var(--ky-muted); }
+.ky-grid-pull .ky-card { animation: ky-in 0.5s ease-out both; }
+@keyframes ky-in { from { opacity: 0; transform: translateY(14px) scale(0.92); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ky-grid-pull .ky-card { animation: none; } }
+
+/* 花紋 */
+.ky-crest { display: block; width: 100%; height: auto; overflow: visible; }
+.ky-crest-key { font-size: 15px; fill: var(--ky-text); font-family: "Noto Serif TC", "Noto Serif JP", serif; }
+.ky-crest-val { font-size: 10px; fill: var(--ky-muted); }
+
+/* 對話框與詳細 */
+.ky-modal-bg { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; background: rgba(0, 0, 0, 0.65); padding: 1rem 0.5rem; }
+.ky-modal { width: 100%; max-width: 30rem; background: var(--ky-bg); border: 1px solid var(--ky-gold); border-radius: 14px; padding: 1rem; color: var(--ky-text); font-family: "Noto Serif TC", "Noto Serif JP", "Yu Mincho", serif;
+  --ky-bg: #16111b; --ky-panel: #211a28; --ky-panel-2: #2a2133; --ky-line: rgba(236, 200, 220, 0.2); --ky-text: #f3e9ef; --ky-muted: rgba(243, 233, 239, 0.6);
+  --ky-gold: #e2b54a; --ky-bud: rgba(170, 160, 180, 0.28); --ky-g0: #e0628f; --ky-g1: #e6943a; --ky-g2: #3fb39f;
+  --ky-N: #9aa0a6; --ky-R: #4a9be0; --ky-SR: #b06ae0; --ky-SSR: #e8b64a; --ky-UR: #ff7ab8; }
+.ky-detail { display: flex; flex-direction: column; gap: 0.8rem; }
+.ky-detail-head { display: flex; gap: 0.7rem; align-items: center; }
+.ky-face { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; border: 2px solid var(--ky-c); flex-shrink: 0; }
+.ky-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ky-detail-name { font-size: 1.4rem; font-weight: bold; }
+.ky-rar-inline { font-size: 0.75rem; padding: 0 0.4rem; border-radius: 6px; background: var(--ky-c); color: #140c12; vertical-align: middle; }
+.ky-detail-crest { max-width: 300px; width: 100%; margin: 0 auto; }
+.ky-type { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
+.ky-type-name { font-size: 1.9rem; font-weight: bold; letter-spacing: 0.1em; color: var(--ky-gold); text-shadow: 0 0 12px rgba(226, 181, 74, 0.45); }
+.ky-groups { display: flex; flex-direction: column; gap: 0.6rem; }
+.ky-group { background: var(--ky-panel); border-radius: 10px; padding: 0.5rem 0.7rem; }
+.ky-group-head { display: flex; align-items: center; gap: 0.4rem; font-weight: bold; margin-bottom: 0.2rem; }
+.ky-sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.ky-lock-note { margin-left: auto; font-weight: normal; font-size: 0.78rem; color: var(--ky-muted); }
+.ky-stat { display: grid; grid-template-columns: 1.4em minmax(0, 1fr) 2em 4.8em; gap: 0.5rem; align-items: center; font-size: 0.9rem; }
+.ky-stat-k { font-size: 1.05rem; }
+.ky-stat-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.ky-stat-bar i { display: block; height: 100%; border-radius: 4px; }
+.ky-stat-bar.ky-locked { background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.06) 0 6px, transparent 6px 12px); }
+.ky-stat-v { text-align: right; font-variant-numeric: tabular-nums; }
+.ky-stat-g { font-size: 0.8rem; color: var(--ky-muted); white-space: nowrap; }
+.ky-row { background: var(--ky-panel); border-radius: 10px; padding: 0.6rem 0.7rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.ky-row-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3rem; font-size: 0.9rem; }
+.ky-row p { margin: 0; }
+.ky-aff { position: relative; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.ky-aff-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #f09ab8, #e0628f); border-radius: 5px; }
+.ky-aff-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ky-gold); }
+.ky-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.ky-btns .ky-btn { flex: 1; min-width: 6rem; }
+.ky-log { color: var(--ky-gold); }
+.ky-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ky-tag { font-size: 0.85rem; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--ky-panel-2); border: 1px solid var(--ky-line); }
+.ky-tag b { font-weight: normal; color: var(--ky-muted); margin-right: 0.35rem; }
+.ky-detail-foot { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.ky-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+
+/* 說明 */
+.ky-rules { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 1rem; align-items: start; background: var(--ky-panel); border-radius: 12px; padding: 0.8rem; line-height: 1.7; }
+.ky-rules ol { margin: 0; padding-left: 1.2rem; }
+.ky-rules-crest p { margin: 0.3rem 0 0; text-align: center; }
+.ky-t81 { overflow-x: auto; margin-top: 0.8rem; }
+.ky-t81 table { border-collapse: separate; border-spacing: 2px; font-size: 0.82rem; }
+.ky-t81 th { color: var(--ky-muted); font-weight: normal; padding: 0.2rem 0.3rem; }
+.ky-t81 td { background: var(--ky-panel); border-radius: 6px; padding: 0.25rem 0.4rem; white-space: nowrap; text-align: center; }
+.ky-t81 td.ky-pure { background: rgba(226, 181, 74, 0.2); color: var(--ky-gold); }
+
+@media (max-width: 34rem) {
+  .ky-wrap { border-radius: 0; padding: 0.5rem; }
+  .ky-rules { grid-template-columns: 1fr; }
+  .ky-rules-crest { max-width: 220px; margin: 0 auto; }
+  .ky-banner-title { font-size: 1.8rem; }
+}

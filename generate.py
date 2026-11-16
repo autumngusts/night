@@ -48,6 +48,7 @@ from site_src.phone_page import PHONE_SCRIPTS, build_phone_html
 from site_src.tour_page import TOUR_SCRIPTS, build_tour_html
 from site_src.ennichi_page import ENNICHI_LAB_SCRIPTS, ENNICHI_SCRIPTS, build_ennichi_html, build_ennichi_lab_html
 from site_src.tama_page import TAMA_SCRIPTS, build_tama_html
+from site_src.kyuka_page import KYUKA_SCRIPTS, build_kyuka_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -86,6 +87,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "phone": ("ph_",),
     "ennichi": ("en_",),
     "tama": ("tm_",),
+    "kyuka": ("ky_",),
 }
 
 
@@ -199,6 +201,7 @@ def build_static_assets() -> None:
         *ENNICHI_SCRIPTS,
         *ENNICHI_LAB_SCRIPTS,
         *TAMA_SCRIPTS,
+        *KYUKA_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -377,11 +380,14 @@ def build_pages() -> None:
     tama_dir = DIST_DIR / "tama"
     tama_dir.mkdir(parents=True, exist_ok=True)
     (tama_dir / "index.html").write_text(build_tama_html(), encoding="utf-8")
+    kyuka_dir = DIST_DIR / "kyuka"
+    kyuka_dir.mkdir(parents=True, exist_ok=True)
+    (kyuka_dir / "index.html").write_text(build_kyuka_html(), encoding="utf-8")
 
 
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "shutter", "nest", "maou", "isle", "phone", "ennichi", "tama", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "shutter", "nest", "maou", "isle", "phone", "ennichi", "tama", "kyuka", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
