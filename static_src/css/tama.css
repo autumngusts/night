@@ -1,0 +1,239 @@
+/* ===================== 百鬼轉珠（tama） ===================== */
+/* 遊戲固定是夜晚的深色畫面（不跟隨淺色主題），只用 tm- 前綴。手機直式優先，桌機置中最寬 30rem。 */
+.tm-wrap {
+  --tm-bg: #120d14;
+  --tm-panel: #1e1520;
+  --tm-line: rgba(232, 196, 120, 0.22);
+  --tm-text: #f1e6d2;
+  --tm-muted: rgba(241, 230, 210, 0.62);
+  --tm-gold: #e8c46a;
+  --tm-red: #e0503a;
+  --tm-good: #8fd88a;
+  --tm-fire: #f0603a;
+  --tm-water: #3a9af0;
+  --tm-wood: #4ac04a;
+  --tm-light: #f0c830;
+  --tm-dark: #a050e0;
+  position: relative;
+  max-width: 30rem;
+  margin: 0 auto;
+  color: var(--tm-text);
+  background: var(--tm-bg);
+  border-radius: 12px;
+  padding: 0.75rem;
+  font-family: "Noto Serif TC", "Noto Serif JP", "Yu Mincho", serif;
+  -webkit-user-select: none;
+  user-select: none;
+  min-height: 70vh;
+}
+.tm-wrap button { cursor: pointer; font: inherit; color: inherit; }
+.tm-wrap button:disabled { cursor: default; }
+.tm-small { font-size: 0.82em; }
+.tm-muted { color: var(--tm-muted); }
+.tm-good { color: var(--tm-good); }
+.tm-center { text-align: center; margin: 0.6rem 0; }
+.tm-star { color: var(--tm-gold); letter-spacing: -0.1em; }
+
+/* 屬性色 */
+.tm-a-fire { --tm-attr: var(--tm-fire); }
+.tm-a-water { --tm-attr: var(--tm-water); }
+.tm-a-wood { --tm-attr: var(--tm-wood); }
+.tm-a-light { --tm-attr: var(--tm-light); }
+.tm-a-dark { --tm-attr: var(--tm-dark); }
+
+/* 按鈕 */
+.tm-btn {
+  display: block; width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--tm-line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2c2030, #1c141e);
+  font-size: 1.05rem;
+}
+.tm-btn:hover { border-color: var(--tm-gold); }
+.tm-btn-main { background: linear-gradient(180deg, #c8402a, #7a1a12); border-color: #f0a060; font-weight: bold; letter-spacing: 0.1em; }
+.tm-btn-danger { background: linear-gradient(180deg, #5a1a1a, #2a0a0a); border-color: #c04040; }
+.tm-link { background: none; border: none; color: var(--tm-muted); text-decoration: underline; font-size: 0.85rem; padding: 0.4rem; }
+.tm-back { background: rgba(0, 0, 0, 0.35); border: 1px solid var(--tm-line); border-radius: 8px; padding: 0.25rem 0.6rem; font-size: 0.9rem; }
+
+.tm-topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 0.6rem; }
+.tm-topbar > :first-child { justify-self: start; }
+.tm-h2 { margin: 0; font-size: 1.15rem; color: var(--tm-gold); letter-spacing: 0.1em; }
+
+/* 頭像 */
+.tm-face {
+  display: inline-block; position: relative;
+  border-radius: 50%; overflow: hidden;
+  border: 2px solid var(--tm-attr, #888);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 10px color-mix(in srgb, var(--tm-attr, #888) 50%, transparent);
+  background: #000; vertical-align: middle; flex-shrink: 0;
+}
+.tm-face img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.tm-face-xs { width: 28px; height: 28px; border-width: 1.5px; }
+.tm-face-sm { width: 44px; height: 44px; }
+.tm-face-md { width: 64px; height: 64px; }
+.tm-face-xl { width: 150px; height: 150px; border-width: 3px; }
+.tm-face-shadow img { filter: brightness(0) opacity(0.6); }
+.tm-face-new { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 8px var(--tm-gold); }
+
+/* 首頁 */
+.tm-home { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; padding: 1rem 0.5rem; background: radial-gradient(ellipse at 50% 20%, #3a1a2a 0%, transparent 70%); border-radius: 10px; }
+.tm-logo { text-align: center; }
+.tm-logo-main {
+  font-size: 2.6rem; font-weight: bold; letter-spacing: 0.15em;
+  background: linear-gradient(180deg, #fff2c0, #e8a83a 60%, #b05a1a);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 #3a0a0a) drop-shadow(0 0 12px rgba(232, 120, 60, 0.5));
+}
+.tm-logo-sub { color: var(--tm-muted); font-size: 0.9rem; letter-spacing: 0.2em; }
+.tm-home-leader { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.tm-home-team { display: flex; gap: 0.35rem; }
+.tm-home-stat { font-size: 0.85rem; color: var(--tm-muted); }
+.tm-menu { display: flex; flex-direction: column; gap: 0.55rem; width: 100%; max-width: 18rem; }
+
+/* 關卡選擇 */
+.tm-tabs { display: flex; gap: 0.3rem; margin-bottom: 0.5rem; }
+.tm-tab { flex: 1; padding: 0.45rem 0.2rem; border: 1px solid var(--tm-line); border-radius: 8px 8px 0 0; background: #1a121c; font-size: 0.88rem; }
+.tm-tab-on { background: #3a2230; border-color: var(--tm-gold); color: var(--tm-gold); }
+.tm-stages { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem; border-radius: 10px; }
+.tm-stage {
+  position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-areas: "id foes" "meta rec";
+  align-items: center; gap: 0.3rem 0.6rem; text-align: left;
+  padding: 0.6rem 0.7rem; border: 1px solid var(--tm-line); border-radius: 10px; background: rgba(20, 12, 20, 0.82);
+}
+.tm-stage:hover:not(:disabled) { border-color: var(--tm-gold); }
+.tm-stage-id { grid-area: id; font-size: 1.2rem; font-weight: bold; color: var(--tm-gold); }
+.tm-stage-foes { grid-area: foes; display: flex; gap: 0.2rem; flex-wrap: wrap; }
+.tm-stage-meta { grid-area: meta; font-size: 0.78rem; color: var(--tm-muted); }
+.tm-stage-rec { grid-area: rec; display: flex; gap: 0.25rem; align-items: center; justify-content: flex-end; }
+.tm-check { color: var(--tm-good); font-size: 0.9rem; }
+.tm-locked { opacity: 0.45; }
+.tm-lock { position: absolute; right: 0.6rem; top: 0.5rem; }
+.tm-mini { display: inline-block; width: 30px; height: 30px; border-radius: 6px; background: rgba(0, 0, 0, 0.35); border-bottom: 2px solid var(--tm-attr); }
+.tm-mini .tm-art { width: 100%; height: 100%; }
+.tm-stage-team { display: flex; align-items: center; gap: 0.3rem; margin-top: 0.6rem; flex-wrap: wrap; }
+
+/* 章節背景 */
+.tm-bg-dusk { background: linear-gradient(180deg, #4a2440 0%, #8a3a3a 38%, #2a1a2a 70%, #120d14 100%); }
+.tm-bg-temple { background: radial-gradient(circle at 78% 12%, #f4f0d8 0, #f4f0d8 18px, rgba(244, 240, 216, 0.18) 34px, transparent 70px), linear-gradient(180deg, #14183a 0%, #232a50 45%, #120d14 100%); }
+.tm-bg-castle { background: linear-gradient(180deg, #3a0a0a 0%, #6a1a12 30%, #2a0a12 65%, #0d0608 100%); }
+
+/* 隊伍編成 */
+.tm-slots { display: flex; justify-content: space-between; gap: 0.3rem; }
+.tm-slot { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.35rem 0.1rem 0.25rem; border: 1px solid var(--tm-line); border-radius: 10px; background: #1c141e; }
+.tm-slot-on { border-color: var(--tm-gold); box-shadow: 0 0 10px rgba(232, 196, 106, 0.5); }
+.tm-slot .tm-face-md { width: min(15vw, 58px); height: min(15vw, 58px); }
+.tm-slot-lv { font-size: 0.75rem; }
+.tm-slot-leader { position: absolute; top: -0.5rem; left: 50%; transform: translateX(-50%); font-size: 0.65rem; background: var(--tm-red); padding: 0 0.35rem; border-radius: 6px; white-space: nowrap; }
+.tm-team-info { margin: 0.6rem 0; padding: 0.55rem 0.7rem; background: var(--tm-panel); border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+.tm-pool { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 0.4rem; }
+.tm-pick { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; background: none; border: none; padding: 0.2rem 0; }
+.tm-pick-lv { font-size: 0.7rem; color: var(--tm-muted); }
+.tm-pick-in .tm-face { opacity: 0.55; }
+.tm-pick-no { position: absolute; top: 0; right: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--tm-gold); color: #2a1a0a; font-size: 0.7rem; font-weight: bold; line-height: 18px; }
+
+/* 角色一覽 */
+.tm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; }
+.tm-card { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.5rem 0.2rem; background: var(--tm-panel); border: 1px solid var(--tm-line); border-radius: 10px; text-align: center; }
+.tm-card-name { font-weight: bold; }
+.tm-card-lock { opacity: 0.7; }
+.tm-hero-detail { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; text-align: center; }
+.tm-hero-name { font-size: 1.3rem; font-weight: bold; }
+.tm-attr-tag { font-size: 0.75rem; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--tm-attr); color: #fff; vertical-align: middle; }
+.tm-stat { border-collapse: collapse; font-size: 0.85rem; margin: 0.2rem 0; }
+.tm-stat th { color: var(--tm-muted); font-weight: normal; padding: 0.1rem 0.4rem; text-align: right; }
+.tm-stat td { padding: 0.1rem 0.6rem 0.1rem 0.2rem; text-align: left; }
+.tm-skill { width: 100%; text-align: left; padding: 0.45rem 0.6rem; background: rgba(0, 0, 0, 0.3); border-radius: 8px; font-size: 0.88rem; line-height: 1.5; }
+
+/* 說明 */
+.tm-rules { background: var(--tm-panel); border-radius: 10px; padding: 0.8rem 1rem; line-height: 1.65; }
+.tm-rules ol { padding-left: 1.2rem; margin: 0.5rem 0; }
+.tm-orb-row { display: flex; gap: 0.35rem; justify-content: center; }
+.tm-orb-chip { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; color: #fff; font-weight: bold; text-shadow: 0 1px 2px #000; }
+
+/* 對話框 */
+.tm-modal-bg { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); padding: 1rem; }
+.tm-modal { width: 100%; max-width: 24rem; max-height: 90vh; overflow: auto; background: #21172a; border: 1px solid var(--tm-gold); border-radius: 14px; padding: 1rem; color: var(--tm-text); font-family: "Noto Serif TC", "Noto Serif JP", "Yu Mincho", serif; }
+.tm-modal-btns { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.8rem; }
+.tm-skillpop { display: flex; gap: 0.7rem; align-items: center; line-height: 1.5; }
+
+/* 結算 */
+.tm-result { text-align: center; }
+.tm-result-title { font-size: 2rem; font-weight: bold; color: var(--tm-gold); letter-spacing: 0.2em; text-shadow: 0 0 12px rgba(232, 196, 106, 0.6); }
+.tm-result-lose .tm-result-title { color: #c07070; text-shadow: none; }
+.tm-ups { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.6rem 0; }
+.tm-up { display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem; align-items: center; text-align: left; font-size: 0.9rem; }
+.tm-new-title { margin-top: 0.6rem; color: var(--tm-gold); font-weight: bold; }
+.tm-new { display: flex; gap: 0.6rem; align-items: center; text-align: left; margin-top: 0.4rem; padding: 0.4rem; border-radius: 10px; background: rgba(232, 196, 106, 0.12); animation: tm-glow 1.6s ease-in-out infinite alternate; }
+@keyframes tm-glow { from { box-shadow: 0 0 0 rgba(232, 196, 106, 0); } to { box-shadow: 0 0 14px rgba(232, 196, 106, 0.6); } }
+
+/* ---------------- 戰鬥 ---------------- */
+.tm-wrap-battle { padding: 0; overflow: hidden; }
+.tm-battle { position: relative; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; }
+.tm-bt-top { display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.6rem 0; font-size: 0.9rem; }
+.tm-bt-stage { color: var(--tm-gold); text-shadow: 0 1px 2px #000; }
+.tm-enemies { display: flex; justify-content: center; align-items: flex-end; gap: 0.3rem; min-height: 9.5rem; padding: 0.3rem 0.4rem 0.4rem; }
+.tm-enemy {
+  position: relative; flex: 0 1 31%; display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  background: none; border: none; padding: 0.4rem 0 0; transition: opacity 0.35s, transform 0.35s;
+}
+.tm-enemy-art { width: 100%; max-width: 6.2rem; aspect-ratio: 1; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6)); }
+.tm-boss { flex-basis: 70%; }
+.tm-boss .tm-enemy-art { max-width: 10rem; }
+.tm-art { width: 100%; height: 100%; display: block; }
+.tm-enemy-name { font-size: 0.75rem; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.tm-dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--tm-attr); margin-right: 0.2rem; vertical-align: middle; }
+.tm-enemy-cd { position: absolute; top: 0; left: 0; font-size: 0.7rem; background: rgba(0, 0, 0, 0.65); border-radius: 6px; padding: 0 0.3rem; z-index: 1; }
+.tm-target-mark { position: absolute; top: -0.3rem; left: 50%; transform: translateX(-50%); color: var(--tm-red); font-size: 1rem; z-index: 1; animation: tm-bob 0.8s ease-in-out infinite alternate; }
+@keyframes tm-bob { from { transform: translate(-50%, 0); } to { transform: translate(-50%, 4px); } }
+.tm-ebar { width: 90%; height: 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.6); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.2); }
+.tm-ebar-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--tm-attr), #fff); transition: width 0.25s; }
+.tm-dead { opacity: 0; transform: scale(0.7); pointer-events: none; }
+
+.tm-banner { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font-size: 1.4rem; font-weight: bold; color: var(--tm-gold); text-shadow: 0 2px 0 #3a0a0a, 0 0 12px #000; opacity: 0; pointer-events: none; z-index: 5; }
+.tm-banner-on { animation: tm-banner 1.1s ease-out; }
+@keyframes tm-banner { 0% { opacity: 0; transform: scale(1.4); } 18% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+.tm-team { display: flex; justify-content: space-between; gap: 0.25rem; padding: 0.3rem 0.4rem; background: rgba(0, 0, 0, 0.45); }
+.tm-mem { position: relative; flex: 1; background: none; border: none; padding: 0; display: flex; justify-content: center; }
+.tm-face-mem { width: min(16vw, 62px); height: min(16vw, 62px); }
+.tm-mem-cd { position: absolute; right: 2px; bottom: 0; min-width: 1.2rem; font-size: 0.72rem; background: rgba(0, 0, 0, 0.75); border-radius: 8px; padding: 0 0.2rem; }
+.tm-mem-go { position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; background: var(--tm-gold); color: #2a1a0a; font-weight: bold; border-radius: 6px; padding: 0 0.3rem; white-space: nowrap; }
+.tm-mem-ready .tm-face { animation: tm-ready 0.9s ease-in-out infinite alternate; }
+@keyframes tm-ready { from { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 4px var(--tm-gold); } to { box-shadow: 0 0 0 2px var(--tm-gold), 0 0 16px var(--tm-gold); } }
+.tm-mem-lead { position: absolute; top: -2px; left: 4px; font-size: 0.62rem; font-weight: bold; background: var(--tm-red); border-radius: 4px; padding: 0 0.2rem; }
+
+.tm-hp { position: relative; height: 14px; margin: 0.25rem 0.5rem 0; border-radius: 7px; background: rgba(0, 0, 0, 0.6); overflow: visible; border: 1px solid rgba(255, 255, 255, 0.2); }
+.tm-hp-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, #3ab05a, #9ae07a); transition: width 0.3s; }
+.tm-hp-low { background: linear-gradient(90deg, #c03a2a, #f08a4a); }
+.tm-hp-text { position: absolute; inset: 0; text-align: center; font-size: 0.68rem; line-height: 12px; text-shadow: 0 1px 2px #000; }
+.tm-time { height: 6px; margin: 0.25rem 0.5rem 0.35rem; border-radius: 3px; background: rgba(0, 0, 0, 0.6); overflow: hidden; }
+.tm-time-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #e8c46a, #fff4c0); }
+
+.tm-board { width: 100%; line-height: 0; }
+.tm-canvas { display: block; margin: 0 auto; touch-action: none; }
+.tm-canvas-off { filter: brightness(0.75); }
+
+/* 演出 */
+.tm-float { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-weight: bold; font-size: 1.15rem; pointer-events: none; z-index: 3; white-space: nowrap; color: #fff; text-shadow: 0 2px 0 #000, 0 0 6px #000; animation: tm-float 1.05s ease-out forwards; }
+@keyframes tm-float { 0% { opacity: 0; transform: translate(-50%, 6px) scale(0.7); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -26px) scale(1); } }
+.tm-f-fire { color: #ffb08a; } .tm-f-water { color: #9ad4ff; } .tm-f-wood { color: #a8f0a0; } .tm-f-light { color: #fff08a; } .tm-f-dark { color: #e0b0ff; }
+.tm-f-weak { font-size: 1.5rem; }
+.tm-f-resist { font-size: 0.95rem; opacity: 0.8; }
+.tm-f-heal { color: #8af08a; top: -1.4rem; }
+.tm-f-hurt { color: #ff6a5a; top: -1.4rem; }
+.tm-shake { animation: tm-shake 0.3s; }
+@keyframes tm-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.tm-hop { animation: tm-hop 0.3s; }
+@keyframes tm-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.tm-lunge { animation: tm-lunge 0.4s; }
+@keyframes tm-lunge { 0%, 100% { transform: translateY(0) scale(1); } 40% { transform: translateY(14px) scale(1.12); } }
+.tm-quake { animation: tm-quake 0.4s; }
+@keyframes tm-quake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(3px, 0); } }
+.tm-targeted .tm-enemy-art { filter: drop-shadow(0 0 6px var(--tm-red)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6)); }
+
+@media (max-width: 30rem) {
+  .tm-wrap { border-radius: 0; padding: 0.5rem; }
+  .tm-wrap-battle { padding: 0; }
+  .tm-logo-main { font-size: 2.2rem; }
+}
