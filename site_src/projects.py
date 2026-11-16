@@ -202,6 +202,14 @@ PROJECTS = [
         # 使用者指定 2026-11-16：只在 test 分頁顯示、不能點進去，要自己在網址列輸入 /tama 進入
         "link": False,
     },
+    {
+        "id": "kyuka",
+        "href": "kyuka/index.html",
+        "name_key": "project_kyuka_name",
+        "desc_key": "project_kyuka_desc",
+        # 使用者指定 2026-11-16：試作頁比照百鬼轉珠，只顯示、不能點，要自己輸入 /kyuka 進入
+        "link": False,
+    },
 ]
 
 # 首頁的分類標籤（使用者指定 2026-11-13）：一開始不顯示任何遊戲，按下標籤才依此順序列出。
@@ -212,6 +220,6 @@ PROJECT_TABS = [
     {"id": "v1_0j", "label": "v1.0j", "projects": ("utau",)},
     {"id": "v1_5", "label": "v1.5", "projects": ("yukimura", "reiwa", "jomon", "starv", "wanren", "jikan", "denshi")},
     {"id": "v2_0", "label": "v2.0", "projects": ("sennyu", "ennichi")},
-    {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone", "tama")},
+    {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone", "tama", "kyuka")},
     {"id": "abandoned", "label_key": "home_tab_abandoned", "projects": ("fist", "zombie", "natsu")},
 ]
