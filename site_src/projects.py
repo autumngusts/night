@@ -199,6 +199,8 @@ PROJECTS = [
         "href": "tama/index.html",
         "name_key": "project_tama_name",
         "desc_key": "project_tama_desc",
+        # 使用者指定 2026-11-16：只在 test 分頁顯示、不能點進去，要自己在網址列輸入 /tama 進入
+        "link": False,
     },
 ]
 

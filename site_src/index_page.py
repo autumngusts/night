@@ -36,6 +36,12 @@ _TAB_SCRIPT = """    <script>
 
 
 def _card(project: dict) -> str:
+    # "link": False 的專案只顯示卡片、不放連結（要自己在網址列輸入網址進入）
+    if project.get("link", True) is False:
+        return f"""      <div class="project-card project-card-nolink" aria-disabled="true">
+        <h2 data-i18n="{project['name_key']}"></h2>
+        <p data-i18n="{project['desc_key']}"></p>
+      </div>"""
     return f"""      <a class="project-card" href="{project['href']}">
         <h2 data-i18n="{project['name_key']}"></h2>
         <p data-i18n="{project['desc_key']}"></p>

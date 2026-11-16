@@ -133,6 +133,15 @@ button {
   border-color: #2d6cdf;
 }
 
+/* 只顯示、不能點的專案卡片（projects.py 的 "link": False） */
+.project-card-nolink {
+  cursor: default;
+}
+
+.project-card-nolink:hover {
+  border-color: #ddd;
+}
+
 .project-card h2 {
   margin: 0 0 0.4rem 0;
   font-size: 1.1rem;
