@@ -193,6 +193,8 @@ PROJECTS = [
         "href": "ennichi/index.html",
         "name_key": "project_ennichi_name",
         "desc_key": "project_ennichi_desc",
+        # 使用者指定 2026-11-17：先關閉入口，只顯示、不能點，要自己輸入 /ennichi 進入
+        "link": False,
     },
     {
         "id": "tama",
