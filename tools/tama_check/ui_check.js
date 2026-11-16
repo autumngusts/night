@@ -110,10 +110,11 @@ function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   // 把妖怪生命改成 1，轉 2 次打完 2 波
   for (var w = 0; w < 2; w++) {
     await page.evaluate(function () { window.PriTestTama.state().battle.enemies.forEach(function (e) { e.hp = 1; }); });
-    // 先在盤面上排出保證消除的 3 顆
+    // 先在盤面上排出保證消除的一排
     await page.evaluate(function () {
       var b = window.PriTestTama.state().battle.board;
-      b[4][0] = "water"; b[4][1] = "water"; b[4][2] = "fire"; b[3][2] = "water";
+      // 橫排 5 顆水珠＝全體攻擊（3 顆只打目標，2 隻妖怪時會剩下一隻）
+      b[4][0] = "water"; b[4][1] = "water"; b[4][2] = "fire"; b[4][3] = "water"; b[4][4] = "water"; b[3][2] = "water";
     });
     await page.evaluate(function () { window.PriTestTama.syncBoard(); });
     await dragPath([[3, 2], [4, 2]]);
