@@ -240,5 +240,77 @@ test("敵人回合：倒數 −1、歸零攻擊並重置；冰彗印記倒數 +1
   assert.ok(Combat.enemyTurn(b).lose);
 });
 
+// ---------------- 物理（matter.js） ----------------
+var Physics = load("shedan_physics.js");
+function world(enemies, heroPos) {
+  var b = battle(["ignis", "rime", "volta", "nox"], enemies);
+  var w = Physics.create({ Matter: Matter, battle: b, heroPos: heroPos });
+  return { b: b, w: w };
+}
+function runShot(w, maxSteps) {
+  var evs = [];
+  for (var i = 0; i < (maxSteps || 5000); i++) {
+    var e = Physics.step(w);
+    evs = evs.concat(e);
+    if (e.some(function (x) { return x.type === "stop"; })) break;
+  }
+  return evs;
+}
+
+test("物理：朝敵人射出產生 hit 事件（含速度與步數），最後一定停止", function () {
+  var s = world([["ore_crawler", 270, 300]], [{ x: 270, y: 800 }, { x: 120, y: 860 }, { x: 420, y: 860 }, { x: 270, y: 900 }]);
+  Physics.launch(s.w, 0, 0, -K.SPEED_MAX);
+  var evs = runShot(s.w);
+  var hits = evs.filter(function (e) { return e.type === "hit"; });
+  assert.ok(hits.length >= 1, "至少撞到一次");
+  assert.strictEqual(hits[0].enemy, s.b.enemies[0].uid);
+  assert.ok(hits[0].speed > K.SPEED_MAX * 0.5, "撞擊時仍有速度 " + hits[0].speed);
+  assert.ok(evs[evs.length - 1].type === "stop", "最後停止");
+  var p = Physics.heroPos(s.w, 0);
+  assert.ok(p.x > 0 && p.x < K.FIELD_W && p.y > 0 && p.y < K.FIELD_H);
+});
+
+test("物理：最大速度斜射不會穿出場地；隊友是感應區（穿過去、產生 ally 事件）", function () {
+  var s = world([], [{ x: 270, y: 800 }, { x: 270, y: 500 }, { x: 60, y: 900 }, { x: 480, y: 900 }]);
+  Physics.launch(s.w, 0, K.SPEED_MAX * 0.6, -K.SPEED_MAX * 0.8);
+  var out = false, ally = false;
+  for (var i = 0; i < 3000; i++) {
+    var evs = Physics.step(s.w);
+    if (evs.some(function (e) { return e.type === "ally"; })) ally = true;
+    var p = Physics.heroPos(s.w, 0);
+    if (p.x < 0 || p.x > K.FIELD_W || p.y < 0 || p.y > K.FIELD_H) out = true;
+    if (evs.some(function (e) { return e.type === "stop"; })) break;
+  }
+  assert.ok(!out, "沒有穿牆");
+  var s2 = world([], [{ x: 270, y: 800 }, { x: 270, y: 500 }, { x: 60, y: 900 }, { x: 480, y: 900 }]);
+  Physics.launch(s2.w, 0, 0, -K.SPEED_MAX);
+  var evs2 = runShot(s2.w);
+  assert.ok(evs2.some(function (e) { return e.type === "ally" && e.ally === 1; }), "撞到隊友 1 產生 ally");
+  var p1 = Physics.heroPos(s2.w, 1);
+  assert.strictEqual(p1.x, 270); assert.strictEqual(p1.y, 500);
+  void ally;
+});
+
+test("物理：移除敵人後不再撞到；moveEnemy 移動剛體", function () {
+  var s = world([["ore_crawler", 270, 300]], [{ x: 270, y: 800 }, { x: 120, y: 860 }, { x: 420, y: 860 }, { x: 60, y: 900 }]);
+  Physics.removeEnemy(s.w, s.b.enemies[0].uid);
+  Physics.launch(s.w, 0, 0, -K.SPEED_MAX);
+  var evs = runShot(s.w);
+  assert.strictEqual(evs.filter(function (e) { return e.type === "hit"; }).length, 0);
+  var s2 = world([["ore_crawler", 270, 300]], null);
+  Physics.moveEnemy(s2.w, s2.b.enemies[0].uid, 100, 200);
+  var body = s2.w.enemyBodies[s2.b.enemies[0].uid];
+  assert.strictEqual(Math.round(body.position.x), 100);
+  assert.strictEqual(Math.round(body.position.y), 200);
+});
+
+test("物理：停止判定有時間上限（SHOT_MAX_STEPS）", function () {
+  var s = world([], null);
+  Physics.launch(s.w, 0, K.SPEED_MAX, 0);
+  s.w.bodies[0].frictionAir = 0;
+  var evs = runShot(s.w, K.SHOT_MAX_STEPS + 10);
+  assert.strictEqual(evs[evs.length - 1].type, "stop");
+});
+
 module.exports = { D: D, Rng: Rng, Matter: Matter, test: test, approx: approx, load: load };
 if (require.main === module) process.on("exit", function () { console.log("passed " + passed); });

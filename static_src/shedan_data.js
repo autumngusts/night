@@ -1,4 +1,4 @@
-﻿// 射彈宇宙（shedan）：共用資料與常數（屬性、反應表、場地常數）。
+// 射彈宇宙（shedan）：共用資料與常數（屬性、反應表、場地常數）。
 // 角色、敵人、遺物在各自的 shedan_data_*.js，以 register() 掛進來。規則依據 docs/shedan_game_design.md（§1～§3）。
 // 瀏覽器掛在 window.PriTestShedanData；Node 測試用 require 載入。
 (function () {
@@ -12,12 +12,13 @@
     FIELD_H: 960,
     HERO_R: 22,
     PULL_MAX: 180,
-    SPEED_MAX: 22,          // matter.js 速度（每 16.67ms 的位移）；原文件 28，實測穿透風險高，先用 22
-    AIR: 0.012,
+    SUBSTEPS: 3,            // 每 frame 的物理子步數（matter.js 的空氣摩擦每個子步套用一次）
+    SPEED_MAX: 32,          // matter.js 速度（每 16.67ms 的位移）；3 個子步時每步約 10.7，小於最小敵人直徑 32，不會穿過
+    AIR: 0.008,             // matter.js 0.19 依時間換算：每秒衰減約 e^(-60×AIR)；全力一發約 6 秒
     REST: 0.95,
-    STOP_SPEED: 0.4,
-    STOP_STEPS: 20,
-    SHOT_MAX_STEPS: 12 * 120, // 每 frame 兩個子步（120 步／秒）
+    STOP_SPEED: 2,
+    STOP_STEPS: 15,
+    SHOT_MAX_STEPS: 12 * 180, // 12 秒（180 子步／秒）
     HIT_GAP_STEPS: 6,
     HIT_STEP: 10,            // 每 10 Hit 倍率 +0.1
     HIT_STEP_BONUS: 0.1,
