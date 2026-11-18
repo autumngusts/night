@@ -398,4 +398,119 @@ test("殘影：射出者攻 ×0.5×屬性、不計 Hit、不留印記、6 子步
   assert.strictEqual(C.onGhost(b, { enemy: b.enemies[0].uid, step: 3 }).length, 0);
 });
 
+// ---------------- 物理（matter.js） ----------------
+var Matter = load("vendor/matter.min.js");
+var P = load("shedan_physics.js");
+var POS = [{ x: 270, y: 800 }, { x: 60, y: 900 }, { x: 480, y: 900 }, { x: 60, y: 820 }];
+function world(ids, enemies, field) {
+  var b = battle(ids || ["ignis", "rime", "volta", "nox"], enemies || [], field);
+  return { b: b, w: P.create({ Matter: Matter, battle: b, heroPos: POS, field: field }) };
+}
+function run(w, max, onEv) {
+  var all = [];
+  for (var i = 0; i < (max || 4000); i++) {
+    var evs = P.step(w);
+    all = all.concat(evs);
+    if (onEv) evs.forEach(function (e) { onEv(e, i); });
+    if (evs.some(function (e) { return e.type === "stop"; })) break;
+  }
+  return all;
+}
+
+test("物理：撞牆事件帶撞牆點座標", function () {
+  var s = world();
+  P.launch(s.w, 0, 0, -K.SPEED_MAX);
+  var wall = run(s.w).filter(function (e) { return e.type === "wall"; })[0];
+  assert.ok(wall, "有撞牆");
+  assert.strictEqual(wall.y, 0);
+});
+
+test("物理：穿透時穿過敵人但仍有 hit；關掉穿透後恢復反彈", function () {
+  var s = world(null, [["ore_crawler", 270, 400]]);
+  P.launch(s.w, 0, 0, -K.SPEED_MAX, { pierce: true });
+  var passed = false, hits = 0;
+  run(s.w, 400, function (e) { if (e.type === "hit") hits++; if (P.heroPos(s.w, 0).y < 330) passed = true; });
+  assert.ok(hits >= 1 && passed, "穿過去且有 hit");
+  var s2 = world(null, [["ore_crawler", 270, 400]]);
+  P.launch(s2.w, 0, 0, -K.SPEED_MAX, { pierceFirst: true });
+  var minY = 999;
+  run(s2.w, 120, function (e) { if (e.type === "hit") P.setPierce(s2.w, false); minY = Math.min(minY, P.heroPos(s2.w, 0).y); });
+  assert.ok(minY < 400, "第一次穿過");
+});
+
+test("物理：射出半徑放大，停止後恢復；大型角色平時就是 30", function () {
+  var s = world(["drift", "rime", "volta", "nox"]);
+  assert.strictEqual(P.heroRadius(s.w, 0), 30);
+  P.launch(s.w, 0, 0, -8, { radius: 48 });
+  assert.strictEqual(P.heroRadius(s.w, 0), 48);
+  run(s.w);
+  assert.strictEqual(P.heroRadius(s.w, 0), 30);
+});
+
+test("物理：引力井讓軌跡彎曲；引力加倍彎得更多", function () {
+  function endX(field, boost) {
+    var s = world(null, [], field);
+    P.launch(s.w, 0, 0, -K.SPEED_MAX * 0.6, { wellBoost: boost || 1 });
+    for (var i = 0; i < 60; i++) P.step(s.w);   // 比較 60 子步後的位置（加倍時可能被井抓住繞圈，不能等飛到上方）
+    return P.heroPos(s.w, 0).x;
+  }
+  var none = endX({});
+  var well = endX({ wells: [{ x: 380, y: 500 }] });
+  var well2 = endX({ wells: [{ x: 380, y: 500 }] }, 2);
+  assert.ok(Math.abs(none - 270) < 1, "沒有引力井時直線");
+  assert.ok(well > none + 3, "被拉向右邊 " + well);
+  assert.ok(well2 > well, "加倍彎更多 " + well2);
+});
+
+test("物理：小行星事件、碎裂、碎片撞敵事件、黑洞吞碎片", function () {
+  var s = world(null, [["ore_crawler", 270, 150]], { rocks: [{ id: "r0", x: 270, y: 500 }] });
+  P.launch(s.w, 0, 0, -K.SPEED_MAX);
+  var rock = run(s.w, 200).filter(function (e) { return e.type === "rock"; });
+  assert.ok(rock.length && rock[0].rock === "r0");
+  P.breakRock(s.w, "r0");
+  assert.ok(!s.w.rockBodies.r0);
+  var s2 = world(null, [["ore_crawler", 270, 300]]);
+  P.launch(s2.w, 0, 0, -1);
+  P.spawnDebris(s2.w, 270, 380, 5, "solar");
+  var deb = [];
+  for (var i = 0; i < 300; i++) deb = deb.concat(P.step(s2.w).filter(function (e) { return e.type === "debris"; }));
+  assert.ok(deb.length >= 1 && deb[0].el === "solar" && deb[0].speed > 0, "碎片撞敵");
+  var s3 = world(null, [], { wells: [{ x: 270, y: 400, hole: true }] });
+  P.launch(s3.w, 0, 0, -1);
+  P.spawnDebris(s3.w, 270, 400, 3, "solar");
+  for (var j = 0; j < 30; j++) P.step(s3.w);
+  assert.ok(s3.w.debris.length < 3, "黑洞中心吞掉碎片");
+});
+
+test("物理：停止時清掉碎片、暫時引力井、冰牆", function () {
+  var s = world();
+  P.launch(s.w, 0, 0, -K.SPEED_MAX * 0.2);
+  P.spawnDebris(s.w, 270, 500, 3, "solar");
+  P.addWell(s.w, { x: 100, y: 100 }, true);
+  P.addWall(s.w, 200, 300, 340, 300);
+  run(s.w);
+  assert.strictEqual(s.w.debris.length, 0);
+  assert.strictEqual(s.w.tempWells.length, 0);
+  assert.strictEqual(s.w.tempWalls.length, 0);
+});
+
+test("物理：冰牆擋住角色並算撞牆；轉向後速度大小不變", function () {
+  var s = world();
+  P.launch(s.w, 0, 0, -K.SPEED_MAX);
+  P.addWall(s.w, 190, 500, 350, 500);
+  var minY = 999, wallY = null;
+  run(s.w, 200, function (e) { minY = Math.min(minY, P.heroPos(s.w, 0).y); if (e.type === "wall" && wallY == null) wallY = P.heroPos(s.w, 0).y; });
+  assert.ok(minY > 480, "沒有穿過冰牆 " + minY);
+  assert.ok(wallY != null, "撞冰牆有 wall 事件");
+  var s2 = world();
+  P.launch(s2.w, 0, 0, -20);
+  P.step(s2.w);
+  var v0 = P.heroVel(s2.w, 0), sp0 = Math.sqrt(v0.x * v0.x + v0.y * v0.y);
+  assert.ok(P.redirect(s2.w, 500, 800));
+  var v1 = P.heroVel(s2.w, 0);
+  assert.ok(Math.abs(Math.sqrt(v1.x * v1.x + v1.y * v1.y) - sp0) < 1e-6);
+  assert.ok(v1.x > 0);
+  assert.ok(!P.redirect(s2.w, 0, 0), "每發只能轉向一次");
+});
+
 process.on("exit", function () { console.log("passed " + passed); });
