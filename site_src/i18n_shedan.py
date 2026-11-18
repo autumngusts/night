@@ -27,6 +27,12 @@ _ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("sd_const_tri", "三角座・隕石雨", "三角座・流星雨", "Triangulum · Meteor Rain"),
     ("sd_const_ark", "方舟座・護盾", "方舟座・シールド", "Ark · Shield"),
     ("sd_const_penta", "五芒座・量表充滿", "五芒座・ゲージ全開", "Pentagram · Full Gauges"),
+    ("sd_arena", "戰場", "戦場", "Battlefield"),
+    ("sd_arena_s1", "碎石帶", "砕石帯", "Rubble Belt"),
+    ("sd_arena_s2", "星雲海", "星雲の海", "Nebula Sea"),
+    ("sd_arena_s3", "虛空境", "虚空境", "Void Expanse"),
+    ("sd_shield_break", "破盾", "シールド破壊", "Shield broken"),
+    ("sd_all_parts", "全部位破壞", "全部位破壊", "All parts destroyed"),
     ("sd_resist", "抗性", "耐性", "Resist"),
 )
 

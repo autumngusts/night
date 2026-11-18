@@ -203,6 +203,26 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
   .sd-pick-grid { gap: .35rem; }
 }
 
+/* 戰場選擇（試作：星區 1～3、Boss 1～3） */
+.sd-pick-bar { flex-direction: column; align-items: center; gap: .5rem; }
+.sd-arena { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; }
+.sd-arena-btn {
+  padding: .25rem .6rem;
+  border: 1px solid rgba(160, 180, 255, .3);
+  border-radius: 999px;
+  background: rgba(16, 20, 44, .7);
+  color: #cfd6ff;
+  font-size: .78rem;
+  cursor: pointer;
+}
+.sd-arena-btn.is-on { border-color: #ffe27a; color: #ffe27a; box-shadow: 0 0 8px rgba(255, 226, 122, .45); }
+
+/* Boss HP（HUD 上方） */
+.sd-boss-bar { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; font-size: .72rem; }
+.sd-boss-bar b { color: #ffb3d9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sd-boss-hp { position: relative; height: .45rem; border-radius: 999px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.sd-boss-hp span { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ff4f8b, #ffb04f); }
+
 /* 技能鍵（HUD 底部右側；量表滿才能按，按下後這一發發動） */
 .sd-skill-btn {
   pointer-events: auto;

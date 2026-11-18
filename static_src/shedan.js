@@ -52,6 +52,7 @@
   var S = {
     screen: "pick",            // pick | battle | result
     picked: [],                // 選隊順序（id）
+    arena: "s1",               // 戰場（試作用）：s1～s3 一般戰鬥、b1～b3 Boss 戰（地圖在第 4 階段）
     battle: null, world: null,
     phase: "aim",              // aim | shooting | enemy | over
     aim: null, drag: null,
@@ -143,7 +144,11 @@
         '<img src="' + esc(imgBase + h.img) + '" alt="" loading="lazy">' +
         "<b>" + esc(name(h.name)) + '</b><span class="sd-el-tag">' + info.icon + " " + esc(name(h.skill.name)) + "</span></button>";
     });
-    html += '</div><div class="sd-pick-bar"><button type="button" class="sd-btn" data-act="launch"' + (S.picked.length === 4 ? "" : " disabled") + ">" + esc(t("sd_launch")) + "</button></div>";
+    html += '</div><div class="sd-pick-bar"><div class="sd-arena" role="radiogroup" aria-label="' + esc(t("sd_arena")) + '">' +
+      ARENAS.map(function (a) {
+        return '<button type="button" class="sd-arena-btn' + (S.arena === a ? " is-on" : "") + '" data-arena="' + a + '">' + esc(arenaName(a)) + "</button>";
+      }).join("") + "</div>" +
+      '<button type="button" class="sd-btn" data-act="launch"' + (S.picked.length === 4 ? "" : " disabled") + ">" + esc(t("sd_launch")) + "</button></div>";
     overlay.innerHTML = html;
     overlay.querySelectorAll("[data-hero]").forEach(function (b) {
       b.addEventListener("click", function () {
@@ -153,30 +158,64 @@
         renderPick();
       });
     });
+    overlay.querySelectorAll("[data-arena]").forEach(function (b) {
+      b.addEventListener("click", function () { S.arena = b.getAttribute("data-arena"); renderPick(); });
+    });
     overlay.querySelector('[data-act="launch"]').addEventListener("click", function () {
       if (S.picked.length === 4) startBattle();
     });
   }
 
+  var ARENAS = ["s1", "s2", "s3", "b1", "b2", "b3"];
+  function arenaSector(a) { return +a.charAt(1); }
+  function arenaBoss(a) { return a.charAt(0) === "b" ? D.BOSSES[arenaSector(a) - 1] : null; }
+  function arenaName(a) {
+    var boss = arenaBoss(a);
+    return boss ? name(boss.name) : t("sd_arena_s" + arenaSector(a));
+  }
+
   // ---------------- 戰鬥 ----------------
-  function genEnemies(rng) {
-    var pool = D.ENEMIES.filter(function (e) { return e.sector === 1; });
-    var count = Rng.int(rng, 4, 6), list = [], large = 0;
+  // 依星區抽敵（§6.1）：浮游孢子 2～3 隻成群、雙子球／引力雙星成對、寄生藤貼在宿主旁、巨蟒要留身體的空間。
+  // 星蝕使徒只以精英出現（第 4 階段），一般戰鬥不抽。boss = Boss 戰時本體與部位佔用的區域。
+  function genEnemies(rng, sector, count, boss) {
+    var pool = D.ENEMIES.filter(function (e) { return e.sector === sector && e.trait !== "eclipse"; });
+    var list = [], large = 0;
     while (list.length < count) {
       var def = Rng.pick(rng, pool);
       if (def.size === "l" && large >= 1) continue;
       if (def.size === "l") large++;
-      list.push(def);
+      var n = def.trait === "swarm" ? Rng.int(rng, 2, 3) : (def.trait === "linked" || def.trait === "binary") ? 2 : 1;
+      for (var k = 0; k < n; k++) list.push(def);
     }
     var placed = [];
+    var taken = boss ? [{ x: K.FIELD_W / 2, y: 240, r: 220 }] : [];
+    function free(x, y, r) {
+      return placed.concat(taken).every(function (p) { var dx = p.x - x, dy = p.y - y; return Math.sqrt(dx * dx + dy * dy) > p.r + r + 26; });
+    }
+    var parasites = [];
     list.forEach(function (def) {
+      if (def.trait === "parasite") { parasites.push(def); return; }
       var r = D.SIZE_R[def.size];
       for (var tries = 0; tries < 300; tries++) {
-        var x = Rng.int(rng, r + 20, K.FIELD_W - r - 20), y = Rng.int(rng, 110, 620);
-        var ok = placed.every(function (p) {
-          var dx = p.x - x, dy = p.y - y;
-          return Math.sqrt(dx * dx + dy * dy) > p.r + r + 26;
-        });
+        var serp = def.trait === "serpent";
+        var x = Rng.int(rng, r + 20, K.FIELD_W - r - 20), y = Rng.int(rng, 110, serp ? 500 : 620);
+        // 巨蟒：頭＋往下 3 節身體都要有空間
+        var ok = free(x, y, r) && (!serp || [76, 122, 168].every(function (dy) { return free(x, y + dy, 22); }));
+        if (ok) {
+          placed.push({ def: def, x: x, y: y, r: r });
+          if (serp) [76, 122, 168].forEach(function (dy) { taken.push({ x: x, y: y + dy, r: 22 }); });
+          return;
+        }
+      }
+    });
+    parasites.forEach(function (def) {
+      var r = D.SIZE_R[def.size];
+      var hosts = placed.filter(function (p) { return p.def.trait !== "parasite"; });
+      for (var tries = 0; tries < 60 && hosts.length; tries++) {
+        var h = Rng.pick(rng, hosts), a = rng() * Math.PI * 2, d = h.r + r + 4;
+        var x = h.x + Math.cos(a) * d, y = h.y + Math.sin(a) * d;
+        if (x < r + 10 || x > K.FIELD_W - r - 10 || y < 90 || y > 680) continue;
+        var ok = placed.concat(taken).every(function (p) { return p === h || Math.sqrt((p.x - x) * (p.x - x) + (p.y - y) * (p.y - y)) > p.r + r + 4; });
         if (ok) { placed.push({ def: def, x: x, y: y, r: r }); return; }
       }
     });
@@ -214,10 +253,14 @@
     var rng = Rng.make(S.seed);
     var heroes = S.picked.map(function (id) { return D.HERO_BY_ID[id]; });
     heroes.forEach(heroImg);
-    var enemies = genEnemies(rng);
-    var field = genField(rng, enemies);
-    S.battle = Combat.create({ heroes: heroes, enemies: enemies, field: field, rng: rng });
-    S.world = Physics.create({ Matter: window.Matter, battle: S.battle, field: { wells: field.wells, rocks: S.battle.rocks } });
+    var boss = arenaBoss(S.arena), sector = arenaSector(S.arena);
+    var enemies = genEnemies(rng, sector, boss ? 2 : Rng.int(rng, 4, 6), boss);
+    var occupied = enemies.slice();
+    if (boss) occupied.push({ x: K.FIELD_W / 2, y: 240, r: 200 });
+    var field = genField(rng, occupied);
+    S.battle = Combat.create({ heroes: heroes, enemies: enemies, field: field, rng: rng, boss: boss ? boss.id : null });
+    S.battle.avoid = Physics.DEFAULT_HERO_POS.map(function (p) { return { x: p.x, y: p.y, r: K.HERO_R + 6 }; });
+    S.world = Physics.create({ Matter: window.Matter, battle: S.battle, field: { wells: S.battle.wells, rocks: S.battle.rocks } });
     S.phase = "aim";
     S.aim = null; S.drag = null;
     S.skillArmed = false; S.canRedirect = false; S.walls = [];
@@ -420,6 +463,30 @@
       } else if (c.type === "friend") {
         var fh = b.party[c.ally].def, fp = heroPos(c.ally);
         Render.floatText(R, fp.x, fp.y - 34, name(fh.friend.name), "#ffe9a8");
+      // ---- 第 3 階段：敵人特性與 Boss ----
+      } else if (c.type === "spawn") {
+        var ne = Combat.byUid(b, c.uid);
+        if (ne) { Physics.addEnemy(S.world, ne); Render.spark(R, ne.x, ne.y, "#d6b3ff"); }
+      } else if (c.type === "shooterVel") {
+        Physics.scaleShooter(S.world, c.mult, c.rotate, c.cap);
+      } else if (c.type === "enemySensor") {
+        Physics.setEnemySensor(S.world, c.uid, c.on);
+      } else if (c.type === "removeWells") {
+        Physics.removeWellsOf(S.world, c.owner);
+      } else if (c.type === "addRock") {
+        Physics.addRock(S.world, { id: c.id, x: c.x, y: c.y });
+        Render.spark(R, c.x, c.y, "#c9a07a");
+      } else if (c.type === "teamDamage") {
+        // 敵人回合的攻擊由 attacks 依序顯示；這裡只顯示射擊中的（漂流水雷）
+        if (S.phase !== "enemy") Render.floatText(R, K.FIELD_W / 2, 800, "-" + c.amount, "#ff6b7a", true);
+        updateHud();
+      } else if (c.type === "enemyHeal") {
+        if (c.amount > 0) Render.floatText(R, c.x, c.y - 16, "+" + c.amount, "#7dffb0");
+      } else if (c.type === "shieldBreak") {
+        var se = Combat.byUid(b, c.uid);
+        if (se) { Render.explode(R, se.x, se.y, se.r * 1.4, 0, "#9fe6ff"); Render.floatText(R, se.x, se.y - 30, t("sd_shield_break"), "#9fe6ff", true); }
+      } else if (c.type === "allPartsDown") {
+        showBanner(t("sd_all_parts"), 1200);
       }
     });
   }
@@ -429,6 +496,8 @@
     showBanner(t("sd_enemy_turn"), 700);
     window.setTimeout(function () {
       var b = S.battle;
+      // 敵人移動／召喚要避開隊員目前的位置
+      b.avoid = b.party.map(function (p, i) { var q = heroPos(i); return { x: q.x, y: q.y, r: Physics.heroRadius(S.world, i) + 6 }; });
       var r = Combat.enemyTurn(b);
       applyCmds(r.cmds);
       r.attacks.forEach(function (a, i) {
@@ -476,7 +545,13 @@
   function updateHud() {
     var b = S.battle;
     if (!b || S.screen !== "battle") return;
-    hudTop.innerHTML = '<span class="sd-badge">' + esc(t("sd_turn", { n: b.turnNo })) + "</span>" +
+    var bossBar = "";
+    if (b.bossUid) {
+      var body = Combat.byUid(b, b.bossUid);
+      bossBar = '<span class="sd-boss-bar"><b>' + esc(name(body.def.name)) + '</b><span class="sd-boss-hp"><span style="width:' +
+        (100 * body.hp / body.hpMax).toFixed(1) + '%"></span></span></span>';
+    }
+    hudTop.innerHTML = bossBar + '<span class="sd-badge">' + esc(t("sd_turn", { n: b.turnNo })) + "</span>" +
       '<span class="sd-badge">' + esc(t("sd_hits", { n: b.shot.hits })) + "</span>" +
       '<span class="sd-badge">' + esc(t("sd_max_chain", { n: Math.max(b.stats.maxChain, b.shot.chain) })) + "</span>";
     var slots = b.party.map(function (p, i) {
@@ -499,7 +574,7 @@
     isNavOpen: isNavOpen, setNavOpen: setNavOpen,
     _debug: {
       state: function () { return S; },
-      pick: function (ids) { S.picked = ids.slice(0, 4); startBattle(1234); },
+      pick: function (ids, arena, seed) { S.picked = ids.slice(0, 4); if (arena) S.arena = arena; startBattle(seed == null ? 1234 : seed); },
       shoot: function (dx, dy, power) { if (S.phase === "aim") shoot(dx, dy, power == null ? 1 : power); },
       forceWin: function () {
         S.battle.enemies.forEach(function (e) { e.dead = true; e.hp = 0; Physics.removeEnemy(S.world, e.uid); });

@@ -143,6 +143,42 @@ async function smokeAllHeroes(browser) {
   console.log("ok - 30 人煙霧測試");
 }
 
+// 6 種戰場（星區 1～3、Boss 1～3）各跑一輪（每發發動技能），換 3 個種子；Boss 戰要有本體與部位
+async function smokeArenas(browser) {
+  var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  var errors = [];
+  page.on("pageerror", function (e) { errors.push(String(e)); });
+  page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
+  await page.goto(BASE);
+  await page.waitForSelector(".sd-arena-btn");
+  assert.strictEqual((await page.$$(".sd-arena-btn")).length, 6, "戰場選擇 6 個");
+  var team = ["ignis", "volta", "mist", "nox"], dirs = [[0.2, -1], [-0.6, -1], [0.9, -0.4], [-0.1, -1]];
+  var arenas = ["s1", "s2", "s3", "b1", "b2", "b3"];
+  for (var a = 0; a < arenas.length; a++) {
+    for (var seed = 1; seed <= 3; seed++) {
+      await page.evaluate(function (x) { window.PriTestShedanApp._debug.pick(x.team, x.arena, x.seed); }, { team: team, arena: arenas[a], seed: seed * 7919 });
+      var info = await page.evaluate(function () {
+        var b = window.PriTestShedanApp._debug.state().battle;
+        return { boss: b.bossUid, parts: b.enemies.filter(function (e) { return e.role === "part"; }).length, n: b.enemies.length };
+      });
+      if (arenas[a].charAt(0) === "b") assert.ok(info.boss && info.parts >= 2, arenas[a] + " Boss 本體與部位");
+      else assert.ok(info.n >= 4, arenas[a] + " 敵人數 " + info.n);
+      for (var k = 0; k < 4; k++) {
+        var st = await page.evaluate(function () { var s = window.PriTestShedanApp._debug.state(); return s.screen === "battle" ? s.phase : "done"; });
+        if (st !== "aim") break;
+        await page.evaluate(function (d) { var A = window.PriTestShedanApp._debug, s = A.state(); A.fillGauge(); s.skillArmed = true; A.shoot(d[0], d[1], 1); }, dirs[k]);
+        await page.waitForFunction(function () { return window.PriTestShedanApp._debug.state().phase !== "shooting"; }, null, { timeout: 40000 });
+      }
+      await page.waitForFunction(function () { var s = window.PriTestShedanApp._debug.state(); return s.phase === "aim" || s.phase === "over" || s.screen !== "battle"; }, null, { timeout: 10000 });
+    }
+    await page.screenshot({ path: path.join(SHOT_DIR, "arena_" + arenas[a] + ".png") });
+    console.log("  arena " + arenas[a]);
+  }
+  assert.deepStrictEqual(errors, [], "戰場煙霧測試 console error");
+  await page.close();
+  console.log("ok - 6 種戰場煙霧測試");
+}
+
 (async function () {
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   var browser = await chromium.launch();
@@ -150,6 +186,7 @@ async function smokeAllHeroes(browser) {
     await checkViewport(browser, { width: 390, height: 844 }, "phone");
     await checkViewport(browser, { width: 1280, height: 800 }, "desktop");
     await smokeAllHeroes(browser);
+    await smokeArenas(browser);
     var page = await browser.newPage();
     await page.goto(ROOT + "index.html");
     var card = await page.evaluate(function () {

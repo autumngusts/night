@@ -79,6 +79,7 @@
       drawWells(ctx, v.wells || [], now);
       drawStars(ctx, v.battle, v.lit || [], now);
       drawZones(ctx, v.battle, now);
+      drawAcids(ctx, v.battle, now);
       drawRocks(ctx, v.battle, now);
       drawEchoes(ctx, v.battle, now);
       drawEnemies(ctx, v.battle, now);
@@ -262,13 +263,25 @@
   }
 
   function drawEnemies(ctx, b, now) {
+    drawLinks(ctx, b);
     b.enemies.forEach(function (e) {
       if (e.dead) return;
-      var weak = e.def.weak[0];
+      var weak = (e.weak || e.def.weak)[0];
       var base = weak ? elColor(weak) : "#c8c8d8";
       ctx.save();
-      // 本體：發光的多邊形（大小不同邊數不同）
-      var sides = e.def.size === "s" ? 5 : e.def.size === "m" ? 6 : 8;
+      if (e.hidden) ctx.globalAlpha = 0.22 + 0.08 * Math.sin(now * 4);   // 霧隱者隱形
+      // 光環類（盾衛／星雲水母／共生珊瑚）：範圍淡圈
+      var auraR = e.trait === "shieldAllies" ? 120 : e.trait === "aura" ? 150 : e.trait === "protect" ? 200 : 0;
+      if (auraR) {
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.strokeStyle = e.trait === "protect" ? "#7dffb0" : "#9fe6ff";
+        ctx.setLineDash([6, 6]); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+      // 本體：發光的多邊形（大小不同邊數不同；Boss 本體 10 邊、部位 4 邊）
+      var sides = e.role === "body" ? 10 : e.role === "part" ? 4 : e.def.size === "s" ? 5 : e.def.size === "m" ? 6 : 8;
       var rot = now * (e.def.size === "s" ? 0.9 : 0.4) + e.x * 0.01;
       ctx.shadowColor = base;
       ctx.shadowBlur = 16;
@@ -288,17 +301,34 @@
       ctx.globalAlpha = 0.55 + 0.25 * Math.sin(now * 3 + e.y);
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.35, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
-      // 倒數
-      ctx.fillStyle = e.cd <= 1 ? "#ff5a6a" : "#fff";
-      ctx.font = "bold " + Math.max(12, e.r * 0.8) + "px sans-serif";
+      // 護盾（護盾母體、護盾產生器還在的 Boss 本體）
+      var genUp = e.role === "body" && b.enemies.some(function (o) { return !o.dead && o.owner === e.uid && o.partKey === "shieldGen"; });
+      if (e.shielded || genUp) {
+        ctx.strokeStyle = "rgba(159, 230, 255, 0.85)";
+        ctx.lineWidth = 3;
+        ctx.shadowColor = "#9fe6ff"; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 7 + Math.sin(now * 4) * 1.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      // 倒數（不攻擊的部位不顯示）
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(e.cd), e.x, e.y + 1);
-      // HP 條
-      var bw = Math.max(34, e.r * 2), by = e.y + e.r + 7;
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(e.x - bw / 2, by, bw, 5);
-      ctx.fillStyle = "#ff5a8a";
-      ctx.fillRect(e.x - bw / 2, by, bw * Math.max(0, e.hp / e.hpMax), 5);
+      if (e.cdMax) {
+        ctx.fillStyle = e.cd <= 1 ? "#ff5a6a" : "#fff";
+        ctx.font = "bold " + Math.max(12, Math.min(28, e.r * 0.8)) + "px sans-serif";
+        ctx.fillText(String(e.cd), e.x, e.y + 1);
+      }
+      // HP 條（暗物質塊不顯示）
+      if (e.trait !== "hiddenHp") {
+        var bw = Math.max(34, e.r * 2), by = e.y + e.r + 7;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(e.x - bw / 2, by, bw, 5);
+        ctx.fillStyle = e.role === "body" ? "#ffb04f" : "#ff5a8a";
+        ctx.fillRect(e.x - bw / 2, by, bw * Math.max(0, e.hp / e.hpMax), 5);
+      } else {
+        ctx.fillStyle = "#c9a8ff";
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillText("???", e.x, e.y + e.r + 10);
+      }
       // 印記
       if (e.mark) {
         var info = D.ELEMENT_INFO[e.mark.el];
@@ -307,6 +337,35 @@
         ctx.shadowColor = info.color; ctx.shadowBlur = 8;
         ctx.fillText(info.icon, e.x + e.r * 0.85, e.y - e.r * 0.85);
       }
+      ctx.restore();
+    });
+  }
+
+  // 連結線：雙子球／引力雙星、寄生藤與宿主、Boss 部位與巨蟒身體到本體
+  function drawLinks(ctx, b) {
+    ctx.save();
+    ctx.lineWidth = 2;
+    b.enemies.forEach(function (e) {
+      if (e.dead) return;
+      var to = null, col = "rgba(200, 180, 255, 0.45)";
+      if (e.owner) { to = byUidIn(b, e.owner); col = "rgba(255, 176, 79, 0.35)"; }
+      else if (e.host) { to = byUidIn(b, e.host); col = "rgba(125, 255, 176, 0.55)"; }
+      else if (e.partner && e.uid < e.partner) to = byUidIn(b, e.partner);
+      if (!to || to.dead) return;
+      ctx.strokeStyle = col;
+      ctx.setLineDash(e.owner ? [] : [5, 5]);
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  function byUidIn(b, uid) { for (var i = 0; i < b.enemies.length; i++) if (b.enemies[i].uid === uid) return b.enemies[i]; return null; }
+
+  function drawAcids(ctx, b, now) {
+    (b.acids || []).forEach(function (a) {
+      ctx.save();
+      ctx.globalAlpha = 0.22 + 0.06 * Math.sin(now * 3);
+      ctx.fillStyle = "#7dff6a";
+      ctx.beginPath(); ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     });
   }
