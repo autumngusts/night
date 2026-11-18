@@ -1,0 +1,197 @@
+/* ===================== 射彈宇宙（shedan） ===================== */
+/* 滿版畫面：遊戲佔滿整個視窗，原本的導覽列平時藏在畫面上方，左上 ☰ 鍵展開（使用者指定 2026-11-18）。只用 sd- 前綴。 */
+body.sd-body {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #05060f;
+  color: #e8ecff;
+  height: 100dvh;
+  overscroll-behavior: none;
+}
+body.sd-body > main { padding: 0; }
+body.sd-body > .site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: .5rem 1rem .5rem 3.4rem;
+  background: rgba(10, 12, 30, .94);
+  border-bottom: 1px solid rgba(140, 160, 255, .3);
+  transform: translateY(-110%);
+  transition: transform .22s ease;
+}
+body.sd-body > .site-header a,
+body.sd-body > .site-header .site-version { color: #e8ecff; }
+body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
+
+#sd-nav-toggle {
+  position: fixed;
+  top: .5rem;
+  left: .5rem;
+  z-index: 60;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid rgba(160, 180, 255, .35);
+  border-radius: 10px;
+  background: rgba(16, 20, 44, .55);
+  color: #e8ecff;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+#sd-nav-toggle:hover { background: rgba(40, 50, 100, .7); }
+
+#sd-app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  font-family: "Segoe UI", "Hiragino Sans", "Noto Sans TC", sans-serif;
+}
+.sd-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- HUD（疊在戰場上下邊緣） ---------- */
+.sd-hud {
+  position: absolute;
+  pointer-events: none;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .4rem .75rem;
+  font-size: .85rem;
+  text-shadow: 0 1px 3px #000;
+}
+.sd-hud-top { top: 0; justify-content: flex-end; padding-left: 3.4rem; }
+.sd-hud-bottom { bottom: 0; flex-direction: column; align-items: stretch; gap: .3rem; }
+.sd-hp {
+  position: relative;
+  height: .7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  overflow: hidden;
+}
+.sd-hp-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #46e0a8, #8af0ff);
+  transition: width .25s ease;
+}
+.sd-hp-text { font-size: .75rem; opacity: .85; text-align: right; }
+.sd-party { display: flex; gap: .4rem; justify-content: center; }
+.sd-party-slot {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .25);
+  background: #111 center / cover no-repeat;
+  opacity: .55;
+}
+.sd-party-slot.is-active { opacity: 1; border-color: #ffe27a; box-shadow: 0 0 10px #ffe27a; }
+.sd-badge {
+  padding: .1rem .5rem;
+  border-radius: 999px;
+  background: rgba(10, 14, 36, .6);
+  border: 1px solid rgba(160, 180, 255, .3);
+}
+.sd-banner {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: #ffd2f0;
+  text-shadow: 0 0 12px #ff4fb8, 0 0 2px #000;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.sd-banner.is-on { opacity: 1; }
+
+/* ---------- 覆蓋畫面（選隊、結算） ---------- */
+.sd-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3.5rem 1rem 1.5rem;
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 30, 90, .85), rgba(4, 5, 14, .94) 70%);
+  overflow-y: auto;
+}
+.sd-overlay h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: .15em;
+  color: #fff;
+  text-shadow: 0 0 14px #6f7bff;
+}
+.sd-overlay p { margin: 0; opacity: .85; text-align: center; }
+.sd-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .6rem;
+  width: min(100%, 30rem);
+}
+.sd-pick-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .25rem;
+  padding: .45rem .2rem;
+  border: 1px solid rgba(160, 180, 255, .25);
+  border-radius: 12px;
+  background: rgba(16, 20, 44, .7);
+  color: inherit;
+  cursor: pointer;
+  font-size: .78rem;
+}
+.sd-pick-card img {
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--sd-el, #888);
+}
+.sd-pick-card.is-picked { border-color: #ffe27a; box-shadow: 0 0 12px rgba(255, 226, 122, .6); }
+.sd-pick-order {
+  position: absolute;
+  top: .2rem;
+  right: .3rem;
+  font-weight: 700;
+  color: #ffe27a;
+}
+.sd-el-tag { font-size: .7rem; color: var(--sd-el, #ccc); }
+.sd-btn {
+  min-width: 9rem;
+  padding: .6rem 1.4rem;
+  border: 1px solid #8f9bff;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #4b55d8, #2a2f8f);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.sd-btn:disabled { opacity: .4; cursor: default; }
+.sd-btn-ghost { background: transparent; }
+.sd-row { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
