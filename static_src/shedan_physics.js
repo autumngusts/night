@@ -10,7 +10,8 @@
   var WALL = 200;                 // 牆的厚度（放在場地外側，避免高速穿牆）
   var DT = 1000 / (60 * K.SUBSTEPS); // 每 frame K.SUBSTEPS 個子步
 
-  var DEFAULT_HERO_POS = [{ x: 120, y: 860 }, { x: 220, y: 890 }, { x: 320, y: 890 }, { x: 420, y: 860 }];
+  // 開場隊形（下方約 90 單位留給 HUD）
+  var DEFAULT_HERO_POS = [{ x: 120, y: 810 }, { x: 220, y: 835 }, { x: 320, y: 835 }, { x: 420, y: 810 }];
 
   function create(opts) {
     var M = opts.Matter || root.Matter;

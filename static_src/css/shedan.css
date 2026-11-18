@@ -22,8 +22,9 @@ body.sd-body > .site-header {
   background: rgba(10, 12, 30, .94);
   border-bottom: 1px solid rgba(140, 160, 255, .3);
   transform: translateY(-110%);
-  transition: transform .22s ease;
 }
+/* 載入後下一個 frame 才啟用動畫（避免開頁時導覽列滑出的閃動） */
+body.sd-body.sd-nav-anim > .site-header { transition: transform .22s ease; }
 body.sd-body > .site-header a,
 body.sd-body > .site-header .site-version { color: #e8ecff; }
 body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
@@ -76,11 +77,13 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
   font-size: .85rem;
   text-shadow: 0 1px 3px #000;
 }
-.sd-hud-top { top: 0; justify-content: flex-end; padding-left: 3.4rem; }
-.sd-hud-bottom { bottom: 0; flex-direction: column; align-items: stretch; gap: .3rem; }
+/* 上下兩條的位置由 shedan.js 的 layoutHud() 決定：畫面比 9:16 長時放進上下空白，否則疊在戰場邊緣 */
+.sd-hud-top { justify-content: flex-end; padding-left: 3.4rem; height: 2.6rem; }
+.sd-hud-bottom { height: 3rem; }
+.sd-hp-box { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
 .sd-hp {
   position: relative;
-  height: .7rem;
+  height: .6rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, .12);
   overflow: hidden;
@@ -91,11 +94,11 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
   background: linear-gradient(90deg, #46e0a8, #8af0ff);
   transition: width .25s ease;
 }
-.sd-hp-text { font-size: .75rem; opacity: .85; text-align: right; }
-.sd-party { display: flex; gap: .4rem; justify-content: center; }
+.sd-hp-text { font-size: .72rem; opacity: .85; text-align: right; line-height: 1.2; }
+.sd-party { display: flex; gap: .3rem; flex: none; }
 .sd-party-slot {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, .25);
   background: #111 center / cover no-repeat;
@@ -114,9 +117,10 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
   top: 42%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  font-size: 1.6rem;
+  font-size: clamp(1rem, 5vw, 1.6rem);
+  white-space: nowrap;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
   color: #ffd2f0;
   text-shadow: 0 0 12px #ff4fb8, 0 0 2px #000;
   opacity: 0;
