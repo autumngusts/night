@@ -38,7 +38,7 @@
     ]);
     var w = {
       M: M, engine: engine, battle: b, bodies: [], baseR: [], enemyBodies: {}, rockBodies: {},
-      wells: (field.wells || []).map(function (x) { return { x: x.x, y: x.y, radius: x.radius || K.WELL_R, hole: !!x.hole }; }),
+      wells: (field.wells || []).map(function (x) { return { x: x.x, y: x.y, radius: x.radius || K.WELL_R, hole: !!x.hole, owner: x.owner || null }; }),
       tempWells: [], tempWalls: [], debris: [], debrisSeq: 0,
       shooter: null, launch: null, redirected: false,
       stepNo: 0, lowSteps: 0, shotSteps: 0, events: [], lastSpeed: 0
@@ -55,17 +55,11 @@
       w.baseR.push(r);
       M.Composite.add(engine.world, body);
     });
-    b.enemies.forEach(function (e) {
-      if (e.dead) return;
-      var body = M.Bodies.circle(e.x, e.y, e.r, opts({ label: "enemy:" + e.uid, collisionFilter: { category: CAT.enemy, mask: 0xFFFF } }));
-      w.enemyBodies[e.uid] = body;
-      M.Composite.add(engine.world, body);
-    });
+    w.sensorBase = {};
+    w.magnets = [];
+    b.enemies.forEach(function (e) { if (!e.dead) addEnemy(w, e); });
     (field.rocks || b.rocks || []).forEach(function (r, i) {
-      var id = r.id || ("r" + i);
-      var body = M.Bodies.circle(r.x, r.y, r.r || K.ROCK_R, opts({ label: "rock:" + id, collisionFilter: { category: CAT.rock, mask: 0xFFFF } }));
-      w.rockBodies[id] = body;
-      M.Composite.add(engine.world, body);
+      if (!r.broken) addRock(w, { id: r.id || ("r" + i), x: r.x, y: r.y, r: r.r });
     });
 
     M.Events.on(engine, "collisionStart", function (ev) {
@@ -113,8 +107,15 @@
     body.circleRadius = r;
   }
 
+  // 穿透：射出期間全部敵人變成感應區；關掉時回到各自的基本狀態（塵埃雲、隱形中的霧隱者仍是感應區）
   function setPierce(w, on) {
-    Object.keys(w.enemyBodies).forEach(function (uid) { w.enemyBodies[uid].isSensor = !!on; });
+    Object.keys(w.enemyBodies).forEach(function (uid) { w.enemyBodies[uid].isSensor = !!on || !!w.sensorBase[uid]; });
+    w.pierce = !!on;
+  }
+  function setEnemySensor(w, uid, on) {
+    w.sensorBase[uid] = !!on;
+    var body = w.enemyBodies[uid];
+    if (body) body.isSensor = !!on || !!w.pierce;
   }
 
   // 射出隊員 i：速度 (vx, vy) 以 matter.js 單位（每 16.67ms 的位移）；lo = Combat.beginShot 回傳的 launch
@@ -194,6 +195,20 @@
     w.M.Body.setVelocity(body, { x: vx, y: vy });
   }
 
+  // 磁石怪：射出者在 140 內時被吸引（力 50，算法同引力井）
+  function applyMagnets(w, body) {
+    var p = body.position, v = body.velocity, vx = v.x, vy = v.y, changed = false;
+    w.magnets.forEach(function (uid) {
+      var eb = w.enemyBodies[uid];
+      if (!eb) return;
+      var dx = eb.position.x - p.x, dy = eb.position.y - p.y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 140 || d < 1e-6) return;
+      var f = 50 / Math.max(d, K.WELL_MIN_D) / K.SUBSTEPS;
+      vx += dx / d * f; vy += dy / d * f; changed = true;
+    });
+    if (changed) w.M.Body.setVelocity(body, { x: vx, y: vy });
+  }
+
   // 前進一個子步，回傳這一步的事件
   function step(w) {
     var M = w.M;
@@ -203,6 +218,7 @@
       var sb = w.bodies[w.shooter];
       applyWells(w, sb, (w.launch && w.launch.wellBoost) || 1, false);
       if (w.launch && w.launch.enemyPull) applyEnemyPull(w, sb, w.launch.enemyPull);
+      if (w.magnets.length) applyMagnets(w, sb);
       w.lastSpeed = speedOf(sb);
     }
     var life = K.DEBRIS_LIFE * 60 * K.SUBSTEPS;
@@ -240,11 +256,43 @@
   }
 
   // ---------------- 由規則層指令驅動的操作 ----------------
+  // 敵人剛體（§6.1）：塵埃雲＝感應區（角色穿過）、鏡面艦＝彈性 1、磁石怪＝吸引射出者
+  function addEnemy(w, e) {
+    var M = w.M;
+    var body = M.Bodies.circle(e.x, e.y, e.r, opts({
+      label: "enemy:" + e.uid, restitution: e.trait === "reflect" ? 1 : 0,
+      collisionFilter: { category: CAT.enemy, mask: 0xFFFF }
+    }));
+    // matter.js 建立靜態剛體時會把彈性歸 0（setStatic 的行為），鏡面艦要在建立後再設回 1
+    if (e.trait === "reflect") body.restitution = 1;
+    w.sensorBase[e.uid] = e.trait === "slow" || !!e.hidden;
+    body.isSensor = w.sensorBase[e.uid] || !!w.pierce;
+    w.enemyBodies[e.uid] = body;
+    if (e.trait === "magnet") w.magnets.push(e.uid);
+    M.Composite.add(w.engine.world, body);
+  }
   function removeEnemy(w, uid) {
     var body = w.enemyBodies[uid];
     if (!body) return;
     w.M.Composite.remove(w.engine.world, body);
     delete w.enemyBodies[uid];
+    w.magnets = w.magnets.filter(function (x) { return x !== uid; });
+  }
+  function addRock(w, r) {
+    var body = w.M.Bodies.circle(r.x, r.y, r.r || K.ROCK_R, opts({ label: "rock:" + r.id, collisionFilter: { category: CAT.rock, mask: 0xFFFF } }));
+    w.rockBodies[r.id] = body;
+    w.M.Composite.add(w.engine.world, body);
+  }
+  function removeWellsOf(w, owner) { w.wells = w.wells.filter(function (g) { return g.owner !== owner; }); }
+  // 射出者速度 ×mult 並旋轉 rotate（弧度）；cap = 速度上限（反物質球）
+  function scaleShooter(w, mult, rotate, cap) {
+    if (w.shooter == null) return;
+    var body = w.bodies[w.shooter], v = body.velocity;
+    var c = Math.cos(rotate || 0), s = Math.sin(rotate || 0);
+    var vx = (v.x * c - v.y * s) * mult, vy = (v.x * s + v.y * c) * mult;
+    var sp = Math.sqrt(vx * vx + vy * vy);
+    if (cap && sp > cap) { vx *= cap / sp; vy *= cap / sp; }
+    w.M.Body.setVelocity(body, { x: vx, y: vy });
   }
   function moveEnemy(w, uid, x, y) {
     var body = w.enemyBodies[uid];
@@ -303,6 +351,7 @@
 
   var api = {
     create: create, launch: launch, step: step, removeEnemy: removeEnemy, moveEnemy: moveEnemy,
+    addEnemy: addEnemy, addRock: addRock, removeWellsOf: removeWellsOf, scaleShooter: scaleShooter, setEnemySensor: setEnemySensor,
     breakRock: breakRock, spawnDebris: spawnDebris, addWell: addWell, addWall: addWall, setPierce: setPierce, redirect: redirect,
     heroPos: heroPos, heroVel: heroVel, heroRadius: heroRadius, isShooting: isShooting, debrisList: debrisList,
     allWells: allWells, DEFAULT_HERO_POS: DEFAULT_HERO_POS

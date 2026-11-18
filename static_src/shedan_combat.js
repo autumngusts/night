@@ -35,33 +35,80 @@
 
   // ---------------- 建立戰鬥 ----------------
   var uidSeq = 0;
+  var MAX_ENEMIES = 10;          // 召喚／孵化／分裂的上限（§6.1）
+
+  // 一個敵人實體。弱點／抗性複製一份（稜鏡獸、鏡像分身、星蝕使徒會改）
+  function makeEnemy(b, def, x, y, extra) {
+    var hp = extra && extra.hp != null ? extra.hp : def.hp;
+    var e = {
+      uid: "e" + (++uidSeq), def: def, hp: hp, hpMax: hp, r: def.r || D.SIZE_R[def.size],
+      x: x, y: y, cd: def.cd, cdMax: def.cd, mark: null, slowUsed: false, superconduct: false, dead: false,
+      weak: def.weak.slice(), resist: def.resist.slice(), trait: def.trait || "", turns: 0,
+      hidden: false, shielded: def.trait === "selfShield", owner: null, role: null, partner: null, host: null
+    };
+    if (e.trait === "shiftWeak" && b) e.weak = [D.ELEMENTS[Math.floor(b.rng() * D.ELEMENTS.length)]];
+    if (extra) Object.keys(extra).forEach(function (k) { if (k !== "hp") e[k] = extra[k]; });
+    return e;
+  }
+
+  // opts = {heroes, enemies:[{def,x,y}], field, rng, boss: bossId}
   function create(opts) {
     var party = opts.heroes.map(function (h) {
       return { id: h.id, def: h, element: h.element, atk: h.atk, gauge: 0, gaugeMax: h.gauge };
     });
     var hpMax = opts.heroes.reduce(function (s, h) { return s + h.hp; }, 0);
-    var enemies = opts.enemies.map(function (e) {
-      return {
-        uid: "e" + (++uidSeq), def: e.def, hp: e.def.hp, hpMax: e.def.hp, r: D.SIZE_R[e.def.size],
-        x: e.x, y: e.y, cd: e.def.cd, cdMax: e.def.cd, mark: null, slowUsed: false, superconduct: false, dead: false
-      };
-    });
     var field = opts.field || {};
-    return {
-      party: party, hp: hpMax, hpMax: hpMax, enemies: enemies, zones: [],
+    var b = {
+      party: party, hp: hpMax, hpMax: hpMax, enemies: [], zones: [], acids: [],
       stars: (field.stars || []).map(function (s) { return { x: s.x, y: s.y }; }),
       rocks: (field.rocks || []).map(function (r, i) { return { id: "r" + i, x: r.x, y: r.y, r: K.ROCK_R, dur: K.ROCK_DUR, broken: false }; }),
       wells: (field.wells || []).slice(),
-      echoes: [], shield: 0, nullTurns: 0, ghostNext: false,
-      rng: opts.rng || Math.random,
+      echoes: [], shield: 0, armorBreak: false, nullTurns: 0, ghostNext: false,
+      rng: opts.rng || Math.random, bossUid: null, rockSeq: (field.rocks || []).length,
       active: 0, turnNo: 1,
       shot: newShot(null),
       stats: { damage: 0, maxChain: 0, shots: 0 }
     };
+    if (opts.boss) {
+      var B = D.BOSS_BY_ID[opts.boss], bx = K.FIELD_W / 2, by = 240;
+      var body = makeEnemy(b, B.body, bx, by, { role: "body", bossId: B.id });
+      b.enemies.push(body);
+      b.bossUid = body.uid;
+      B.parts.forEach(function (p) {
+        var pe = makeEnemy(b, p.def, bx + p.dx, by + p.dy, { role: "part", owner: body.uid, partKey: p.key });
+        b.enemies.push(pe);
+        if (p.key === "core") b.wells.push({ x: pe.x, y: pe.y, radius: K.WELL_R, hole: false, owner: pe.uid });
+      });
+    }
+    opts.enemies.forEach(function (x) { b.enemies.push(makeEnemy(b, x.def, x.x, x.y)); });
+    var normals = b.enemies.slice();
+    // 成對（雙子球、引力雙星）：依出現順序兩兩配對
+    ["linked", "binary"].forEach(function (tr) {
+      var list = normals.filter(function (e) { return e.trait === tr; });
+      for (var i = 0; i + 1 < list.length; i += 2) { list[i].partner = list[i + 1].uid; list[i + 1].partner = list[i].uid; }
+    });
+    normals.forEach(function (e) {
+      // 寄生藤：宿主是最近的其他（非寄生）敵人
+      if (e.trait === "parasite") {
+        var host = null, bd = Infinity;
+        normals.forEach(function (o) { if (o !== e && o.trait !== "parasite" && o.role !== "part") { var d = dist(o, e.x, e.y); if (d < bd) { bd = d; host = o; } } });
+        if (host) e.host = host.uid;
+      }
+      // 星雲巨蟒：頭＋3 節身體（往下排）
+      if (e.trait === "serpent") {
+        for (var k = 1; k <= 3; k++) {
+          var sd = D.SPAWN_DEFS.serpent_body;
+          var hpPart = Math.round(sd.hp * (e.def.hp / 1680));
+          b.enemies.push(makeEnemy(b, sd, e.x, Math.min(K.FIELD_H - 160, e.y + e.r + k * 46 - 10), { role: "part", owner: e.uid, hp: hpPart }));
+        }
+      }
+      if (e.trait === "ownWell") b.wells.push({ x: e.x, y: e.y, radius: K.WELL_R, hole: false, owner: e.uid });
+    });
+    return b;
   }
   function newShot(skill) {
     return {
-      hits: 0, chain: 0, lastHit: {}, skill: skill, allies: {}, lit: [], hitDmg: {}, frosted: {}, slowed: {}, vuln: {},
+      hits: 0, chain: 0, lastHit: {}, skill: skill, allies: {}, lit: [], hitDmg: {}, frosted: {}, slowed: {}, vuln: {}, slowedBy: {}, acidHit: {},
       pierceFirstUsed: false, hitIndex: 0, ended: false
     };
   }
@@ -83,24 +130,77 @@
 
   // ---------------- 傷害與連爆 ----------------
   // ctx = {cmds, queue, el}：el 是連爆時用的屬性
-  function damage(b, e, amount, kind, depth, ctx) {
+  // 敵人那一側的減傷倍率（§6.1、§7.1）。kind 是傷害種類（hit／explode／...）
+  function enemyTakeMult(b, e, kind) {
+    var m = 1, cor = corroded(b, e);
+    if (kind === "hit" && e.trait === "armored") m *= 0.7;
+    if (kind === "hit" && e.trait === "explosionOnly") m *= 0.5;
+    if (kind === "hit" && e.trait === "serpent") m *= 2;
+    if (e.shielded && !cor) m *= 0.2;
+    if (e.role === "body" && alive(b).some(function (o) { return o.owner === e.uid && o.partKey === "shieldGen"; })) m *= 0.2;
+    if (!cor) {
+      var others = alive(b).filter(function (o) { return o !== e; });
+      if (others.some(function (o) { return o.trait === "shieldAllies" && dist(o, e.x, e.y) <= 120 + e.r; })) m *= 0.5;
+      if (others.some(function (o) { return o.trait === "aura" && dist(o, e.x, e.y) <= 150 + e.r; })) m *= 0.8;
+    }
+    return m;
+  }
+  function isProtected(b, e) {
+    return alive(b).some(function (o) { return o !== e && o.trait === "protect" && dist(o, e.x, e.y) <= 200 + e.r; });
+  }
+
+  // ctx = {cmds, queue, el}：el 是這次傷害（與連爆）的屬性
+  function damage(b, e, amount, kind, depth, ctx, noLink) {
     if (e.dead) return 0;
-    var a = amount;
+    var a = amount * enemyTakeMult(b, e, kind);
     if (!b.shot.ended) {
       if (b.shot.vuln[e.uid]) a *= 1 + b.shot.skill.mult;
       if (skillKind(b) === "execute" && e.hp <= e.hpMax * b.shot.skill.threshold) a *= b.shot.skill.mult;
     }
+    // 護盾母體：受到爆炸傷害時護盾永久破除（這一下仍以護盾計算）
+    if (e.shielded && kind === "explode") { e.shielded = false; ctx.cmds.push({ type: "shieldBreak", uid: e.uid }); }
     var n = Math.max(0, Math.round(a));
+    if (!n) return 0;
+    // 噬光蟲：光子傷害改為回復
+    if (e.trait === "absorbLight" && ctx.el === "photon") {
+      var h0 = e.hp;
+      e.hp = Math.min(e.hpMax, e.hp + n);
+      ctx.cmds.push({ type: "enemyHeal", uid: e.uid, amount: e.hp - h0, x: e.x, y: e.y });
+      return 0;
+    }
+    if (e.hp - n < 1 && isProtected(b, e)) n = Math.max(0, e.hp - 1);   // 共生珊瑚
     if (!n) return 0;
     e.hp -= n;
     b.stats.damage += n;
     ctx.cmds.push({ type: "damage", uid: e.uid, amount: n, x: e.x, y: e.y, kind: kind });
+    // 雙子球：另一隻也受到 50%（不連鎖回傳）
+    if (!noLink && e.trait === "linked" && e.partner) {
+      var pt = byUid(b, e.partner);
+      if (pt && !pt.dead) damage(b, pt, n * 0.5 / enemyTakeMult(b, pt, kind), kind, depth, ctx, true);
+    }
     if (e.hp > 0) return n;
     e.hp = 0;
     e.dead = true;
     ctx.cmds.push({ type: "kill", uid: e.uid });
     onKill(b, e, depth, ctx);
     return n;
+  }
+
+  // 不爆炸、不觸發擊破效果的消失（本體死亡時的部位、宿主死亡時的寄生藤、自爆球攻擊後、被巨鯨吞掉）
+  function vanish(b, e, ctx) {
+    if (e.dead) return;
+    e.dead = true; e.hp = 0;
+    ctx.cmds.push({ type: "kill", uid: e.uid, silent: true });
+    dropOwned(b, e, ctx);
+  }
+  function dropOwned(b, e, ctx) {
+    if (b.wells.some(function (g) { return g.owner === e.uid; })) {
+      b.wells = b.wells.filter(function (g) { return g.owner !== e.uid; });
+      ctx.cmds.push({ type: "removeWells", owner: e.uid });
+    }
+    b.enemies.forEach(function (o) {
+      if (!o.dead && (o.owner === e.uid || o.host === e.uid)) vanish(b, o, ctx);
+    });
   }
 
   function onKill(b, e, depth, ctx) {
@@ -110,13 +210,75 @@
       pullToward(b, e, sk.pull, 0.6, ctx.cmds);
       ctx.queue.push({ x: e.x, y: e.y, radius: sk.radius, amount: shooter(b).atk * sk.mult, depth: depth + 1 });
     }
+    dropOwned(b, e, ctx);
+    // 擊破時的特性（§6.1）
+    var tr = e.trait, children = [];
+    if (tr === "split") {
+      [-1, 1].forEach(function (s) {
+        var ch = spawnEnemy(b, D.SPAWN_DEFS.splitter_shard, e.x + s * e.r, e.y, ctx, { hp: Math.round(e.hpMax * 0.3) });
+        if (ch) children.push(ch.uid);
+      });
+    }
+    if (tr === "acidPool") b.acids.push({ x: e.x, y: e.y, radius: 80, turns: 2 });
+    if (tr === "drainOnDeath") b.party.forEach(function (p) { p.gauge = Math.max(0, p.gauge - 2); });
+    if (tr === "oblivion") b.enemies.forEach(function (o) { o.mark = null; });
+    // Boss 部位：全部破壞時本體受到最大 HP 10%；重力核心全滅時本體倒數 +2（一次）
+    if (e.role === "part" && e.owner) {
+      var body = byUid(b, e.owner);
+      var parts = b.enemies.filter(function (o) { return o.owner === e.owner; });
+      if (body && !body.dead && body.role === "body" && parts.every(function (o) { return o.dead; }) && !body.allPartsDown) {
+        body.allPartsDown = true;
+        if (parts.some(function (o) { return o.partKey === "core"; })) body.cd += 2;
+        ctx.cmds.push({ type: "allPartsDown", uid: body.uid });
+        damage(b, body, body.hpMax * 0.1, "true", depth, ctx);
+      }
+    }
     if (e.mark && e.mark.el === "void") {
       var g = Math.floor(e.hpMax * K.VOID_GAUGE_RATIO / K.VOID_GAUGE_DIV);
       if (sk && sk.kind === "devour") g *= sk.mult;
       gaugeAll(b, g, ctx);
       return;
     }
-    ctx.queue.push({ x: e.x, y: e.y, radius: e.r * K.CHAIN_RADIUS_MULT, amount: e.hpMax * K.CHAIN_DMG_RATIO, depth: depth + 1 });
+    var rad = e.r * K.CHAIN_RADIUS_MULT * (tr === "selfDestruct" ? 2 : 1);
+    // 分裂體的連爆不打自己剛分出來的小型分裂體
+    ctx.queue.push({ x: e.x, y: e.y, radius: rad, amount: e.hpMax * K.CHAIN_DMG_RATIO, depth: depth + 1, exclude: children });
+  }
+
+  // ---------------- 生成／移動（召喚、孵化、分裂、敵人回合的移動） ----------------
+  // avoid：其他要避開的圓（隊員、小行星）。在 (x0, y0) 附近 spread 範圍找不重疊的位置；找不到回傳 null
+  function findSpot(b, x0, y0, r, spread, self, avoid) {
+    var others = alive(b).filter(function (o) { return o !== self; }).map(function (o) { return { x: o.x, y: o.y, r: o.r }; });
+    b.rocks.forEach(function (k) { if (!k.broken) others.push({ x: k.x, y: k.y, r: k.r }); });
+    (avoid || b.avoid || []).forEach(function (a) { others.push(a); });
+    for (var i = 0; i < 20; i++) {
+      var x, y;
+      if (spread == null) {
+        var fx = (b.rng() + i * 0.618034) % 1, fy = (b.rng() + i * 0.381966) % 1;
+        x = r + 20 + fx * (K.FIELD_W - 2 * r - 40); y = 100 + fy * 560;
+      }
+      else {
+        // 每次多轉一個黃金角、距離逐漸放大，確保 20 次嘗試真的分散開（不完全依賴亂數）
+        var a = b.rng() * Math.PI * 2 + i * 2.39996, d = spread * (1 + i * 0.12);
+        x = x0 + Math.cos(a) * d; y = y0 + Math.sin(a) * d;
+      }
+      if (x < r + 4 || x > K.FIELD_W - r - 4 || y < r + 60 || y > 720) continue;
+      if (others.every(function (o) { var dx = o.x - x, dy = o.y - y; return Math.sqrt(dx * dx + dy * dy) > o.r + r + 8; })) return { x: x, y: y };
+    }
+    return null;
+  }
+  function spawnEnemy(b, def, x, y, ctx, extra) {
+    if (alive(b).length >= MAX_ENEMIES) return null;
+    var r = def.r || D.SIZE_R[def.size];
+    var spot = findSpot(b, x, y, r, r * 2 + 10, null);
+    if (!spot) return null;
+    var e = makeEnemy(b, def, spot.x, spot.y, extra);
+    b.enemies.push(e);
+    ctx.cmds.push({ type: "spawn", uid: e.uid });
+    return e;
+  }
+  function moveTo(b, e, x, y, ctx) {
+    e.x = x; e.y = y;
+    ctx.cmds.push({ type: "move", uid: e.uid, x: x, y: y });
   }
 
   function gaugeAll(b, n, ctx) {
@@ -134,8 +296,9 @@
       var amt0 = x.amount * (1 + boost * x.depth);
       alive(b).forEach(function (e) {
         if (dist(e, x.x, x.y) > x.radius + e.r) return;
+        if (x.exclude && x.exclude.indexOf(e.uid) >= 0) return;
         var el = x.el || ctx.el;
-        damage(b, e, x.trueDmg ? amt0 : amt0 * elemMult(e.def, el, corroded(b, e)), "explode", x.depth, ctx);
+        damage(b, e, x.trueDmg ? amt0 : amt0 * elemMult(e, el, corroded(b, e)), "explode", x.depth, ctx);
       });
     }
   }
@@ -173,6 +336,7 @@
   function setMark(b, e, el, atk, ctx, burnMult) {
     e.mark = { el: el, turns: K.MARK_TURNS, atk: atk, burnMult: burnMult || 1 };
     ctx.cmds.push({ type: "mark", uid: e.uid, el: el });
+    if (el === "nebula" && e.shielded) { e.shielded = false; ctx.cmds.push({ type: "shieldBreak", uid: e.uid }); }
     if (el === "comet" && !e.slowUsed) { e.slowUsed = true; e.cd += 1; }
   }
   function heal(b, amount, ctx) {
@@ -247,7 +411,7 @@
     var start = both ? rayEnd(x, y, -ux, -uy) : { x: x, y: y };
     ctx.cmds.push({ type: "laser", x1: start.x, y1: start.y, x2: end.x, y2: end.y, el: el });
     enemiesOnRay(b, x, y, ux, uy, width, both).forEach(function (e) {
-      damage(b, e, amount * elemMult(e.def, el, corroded(b, e)), "laser", 0, ctx);
+      damage(b, e, amount * elemMult(e, el, corroded(b, e)), "laser", 0, ctx);
     });
   }
 
@@ -261,6 +425,7 @@
     var last = b.shot.lastHit[e.uid];
     if (last != null && ev.step - last < K.HIT_GAP_STEPS) return ctx.cmds;
     b.shot.lastHit[e.uid] = ev.step;
+    if (e.hidden) return ctx.cmds;   // 霧隱者隱形：角色穿過、沒有傷害也不計 Hit
 
     b.shot.hits++;
     b.shot.hitIndex++;
@@ -309,7 +474,7 @@
     if (sk_k === "firstHits" && b.shot.hitIndex <= sk.n) base *= sk.mult;
     if (sk_k === "focus" && b.shot.hitIndex === 1) base *= sk.mult;
     if (sk_k === "conceal") base *= sk.mult;
-    var amount = base * elemMult(e.def, el, corroded(b, e));
+    var amount = base * elemMult(e, el, corroded(b, e));
     if (t.kind === "execute") amount += (e.hpMax - e.hp) * t.ratio;
     var dealt = damage(b, e, amount, "hit", 0, ctx);
     b.shot.hitDmg[e.uid] = (b.shot.hitDmg[e.uid] || 0) + dealt;
@@ -323,13 +488,13 @@
         var tg = nearestFrom(b, from.x, from.y, K.ARC_RANGE, hit);
         if (!tg) break;
         ctx.cmds.push({ type: "arc", from: from.uid, to: tg.uid });
-        damage(b, tg, base * K.ARC_RATIO * elemMult(tg.def, el, corroded(b, tg)), "arc", 0, ctx);
+        damage(b, tg, base * K.ARC_RATIO * elemMult(tg, el, corroded(b, tg)), "arc", 0, ctx);
         hit.push(tg); from = tg;
       }
     }
     if (t.kind === "hitArc") {
       var t2 = nearestFrom(b, e.x, e.y, t.range, hit);   // 第二近：排除雷漿電弧已打過的目標
-      if (t2) { ctx.cmds.push({ type: "arc", from: e.uid, to: t2.uid }); damage(b, t2, p.atk * t.mult * elemMult(t2.def, el, corroded(b, t2)), "arc", 0, ctx); }
+      if (t2) { ctx.cmds.push({ type: "arc", from: e.uid, to: t2.uid }); damage(b, t2, p.atk * t.mult * elemMult(t2, el, corroded(b, t2)), "arc", 0, ctx); }
     }
     if (!reaction && el === "gravity" && !e.dead) pullToward(b, e, K.GRAVITY_MARK_RANGE, 0.25, ctx.cmds);
     if (t.kind === "hitPull" && !e.dead) pullToward(b, e, t.range, t.ratio, ctx.cmds);
@@ -344,11 +509,43 @@
     if (t.kind === "split") ctx.cmds.push({ type: "debris", x: e.x, y: e.y, n: t.n, el: el });
     if (t.kind === "echoMark") b.echoes.push({ x: e.x, y: e.y, atk: p.atk, el: el, range: t.range, radius: t.radius, mult: t.mult, shot: b.stats.shots });
 
+    // 3.5) 敵人的被撞效果（§6.1）。★ = 被撞反應，紗幕「隱蔽」那一發不觸發
+    onEnemyStruck(b, e, p, sk_k === "conceal", ctx);
+
     // 4) 反應效果
     if (reaction) applyReaction(b, reaction, e, p, reactEl, ctx);
     ctx.el = reactEl;
     resolve(b, ctx);
     return ctx.cmds;
+  }
+
+  function onEnemyStruck(b, e, p, concealed, ctx) {
+    var tr = e.trait;
+    e.hitThisShot = true;
+    // 塵埃雲：被穿過時減速（不是 ★，每發每朵一次）
+    if (tr === "slow" && !b.shot.slowedBy[e.uid]) { b.shot.slowedBy[e.uid] = true; ctx.cmds.push({ type: "shooterVel", mult: 0.7, rotate: 0 }); }
+    if (concealed) return;
+    if (tr === "chill") ctx.cmds.push({ type: "shooterVel", mult: 0.8, rotate: 0 });
+    else if (tr === "deflect") ctx.cmds.push({ type: "shooterVel", mult: 1, rotate: (b.rng() * 2 - 1) * Math.PI / 3 });
+    else if (tr === "repel") ctx.cmds.push({ type: "shooterVel", mult: 1.5, rotate: 0, cap: K.SPEED_MAX * 1.5 });
+    else if (tr === "shock") p.gauge = Math.max(0, p.gauge - 1);
+    else if (tr === "echoSpawn") e.echoPending = true;
+    else if (tr === "mine" && !e.dead) {
+      teamDamage(b, Math.round(b.hpMax * 0.05), ctx, true);
+      damage(b, e, e.hp, "true", 0, ctx);
+    }
+  }
+
+  // 直接扣隊伍 HP。direct = 不經過護盾／破甲（水雷）
+  function teamDamage(b, amount, ctx, direct) {
+    var dmg = amount;
+    if (!direct) {
+      if (b.shield > 0) { dmg = Math.round(dmg * (1 - b.shield)); b.shield = 0; }
+      if (b.armorBreak) { dmg = Math.round(dmg * 1.2); b.armorBreak = false; }
+    }
+    b.hp = Math.max(0, b.hp - dmg);
+    ctx.cmds.push({ type: "teamDamage", amount: dmg });
+    return dmg;
   }
 
   function applyReaction(b, R, e, p, el, ctx) {
@@ -374,7 +571,7 @@
     b.shot.allies[ev.ally] = true;
     var F = a.def.friend, x = ev.x, y = ev.y, el = a.element, atk = a.atk;
     ctx.cmds.push({ type: "friend", ally: ev.ally, id: a.id });
-    function hurt(e, mult, kind, el2) { damage(b, e, atk * mult * elemMult(e.def, el2 || el, corroded(b, e)), kind || "friend", 0, ctx); }
+    function hurt(e, mult, kind, el2) { damage(b, e, atk * mult * elemMult(e, el2 || el, corroded(b, e)), kind || "friend", 0, ctx); }
     var k = F.kind;
     if (k === "cross") {
       laser(b, a, x, y, 1, 0, F.width, atk * F.mult, el, ctx, true);
@@ -460,12 +657,12 @@
       alive(b).forEach(function (e) { if (dist(e, ev.x, ev.y) <= t.range + e.r) setMark(b, e, "comet", p.atk, ctx); });
     } else if (t.kind === "wallArc") {
       var n = nearestFrom(b, ev.x, ev.y, t.range);
-      if (n) { ctx.cmds.push({ type: "bolt", fromX: ev.x, fromY: ev.y, uid: n.uid, el: p.element }); damage(b, n, p.atk * t.mult * elemMult(n.def, p.element, corroded(b, n)), "arc", 0, ctx); }
+      if (n) { ctx.cmds.push({ type: "bolt", fromX: ev.x, fromY: ev.y, uid: n.uid, el: p.element }); damage(b, n, p.atk * t.mult * elemMult(n, p.element, corroded(b, n)), "arc", 0, ctx); }
     } else if (t.kind === "wallPull") {
       pullToward(b, { x: ev.x, y: ev.y, r: 0 }, t.range, t.ratio, ctx.cmds);
     }
     if (sk && sk.kind === "wallStorm") {
-      alive(b).forEach(function (e) { damage(b, e, p.atk * sk.mult * elemMult(e.def, p.element, corroded(b, e)), "arc", 0, ctx); });
+      alive(b).forEach(function (e) { damage(b, e, p.atk * sk.mult * elemMult(e, p.element, corroded(b, e)), "arc", 0, ctx); });
     }
     resolve(b, ctx);
     return ctx.cmds;
@@ -487,6 +684,12 @@
         return false;
       });
     }
+    // 酸液（酸液囊擊破後留下）：每發第一次進入時射出者速度 ×0.7
+    b.acids.forEach(function (a, i) {
+      if (b.shot.acidHit[i] || dist(a, ev.x, ev.y) > a.radius) return;
+      b.shot.acidHit[i] = true;
+      ctx.cmds.push({ type: "shooterVel", mult: 0.7, rotate: 0 });
+    });
     if (t.kind === "frostTrail") {
       alive(b).forEach(function (e) {
         if (b.shot.frosted[e.uid]) return;
@@ -526,7 +729,7 @@
     b.shot.lastHit[key] = ev.step;
     b.shot.hits++;
     p.gauge = Math.min(p.gaugeMax, p.gauge + 1);
-    damage(b, e, p.atk * K.DEBRIS_MULT * elemMult(e.def, el, corroded(b, e)), "debris", 0, ctx);
+    damage(b, e, p.atk * K.DEBRIS_MULT * elemMult(e, el, corroded(b, e)), "debris", 0, ctx);
     resolve(b, ctx);
     return ctx.cmds;
   }
@@ -539,7 +742,7 @@
     var key = "g:" + e.uid, last = b.shot.lastHit[key];
     if (last != null && ev.step - last < K.HIT_GAP_STEPS) return ctx.cmds;
     b.shot.lastHit[key] = ev.step;
-    damage(b, e, p.atk * K.GHOST_MULT * elemMult(e.def, p.element, corroded(b, e)), "ghost", 0, ctx);
+    damage(b, e, p.atk * K.GHOST_MULT * elemMult(e, p.element, corroded(b, e)), "ghost", 0, ctx);
     resolve(b, ctx);
     return ctx.cmds;
   }
@@ -561,10 +764,21 @@
     b.stats.shots++;
     if (b.shot.chain > b.stats.maxChain) b.stats.maxChain = b.shot.chain;
     b.shot.ended = true;
-    b.enemies.forEach(function (e) { e.superconduct = false; });
-    if (!alive(b).length) return { next: "win", cmds: ctx.cmds };
+    alive(b).forEach(function (e) {
+      // 稜鏡獸：本發被撞過就換弱點；鏡像分身：抗性改成這一發射出者的屬性
+      if (e.trait === "shiftWeak" && e.hitThisShot) e.weak = [D.ELEMENTS[Math.floor(b.rng() * D.ELEMENTS.length)]];
+      if (e.trait === "mirror") e.resist = [p.element];
+    });
+    b.enemies.forEach(function (e) { e.superconduct = false; e.hitThisShot = false; });
+    if (isWin(b)) return { next: "win", cmds: ctx.cmds };
     b.active = (b.active + 1) % b.party.length;
     return { next: b.active === 0 ? "enemy" : "hero", cmds: ctx.cmds };
+  }
+
+  // 勝利：敵人全滅，或 Boss 戰的本體被擊破
+  function isWin(b) {
+    if (b.bossUid) { var body = byUid(b, b.bossUid); if (body && body.dead) return true; }
+    return !alive(b).length;
   }
 
   // 星座（§8）：點亮 3 → 三角座、4 → 方舟座、5 以上 → 五芒座
@@ -579,7 +793,7 @@
         if (!live.length) break;
         var e = live[Math.floor(b.rng() * live.length)];
         ctx.cmds.push({ type: "bolt", fromX: e.x, fromY: 0, uid: e.uid, el: p.element });
-        damage(b, e, p.atk * K.METEOR_MULT * elemMult(e.def, p.element, corroded(b, e)), "friend", 0, ctx);
+        damage(b, e, p.atk * K.METEOR_MULT * elemMult(e, p.element, corroded(b, e)), "friend", 0, ctx);
       }
     } else if (id === "ark") {
       b.shield = Math.max(b.shield, K.ARK_SHIELD);
@@ -601,32 +815,143 @@
     b.zones.forEach(function (z) {
       ctx.el = z.el;
       alive(b).forEach(function (e) {
-        if (dist(e, z.x, z.y) <= z.radius + e.r) damage(b, e, z.amount * elemMult(e.def, z.el, corroded(b, e)), "zone", 0, ctx);
+        if (dist(e, z.x, z.y) <= z.radius + e.r) damage(b, e, z.amount * elemMult(e, z.el, corroded(b, e)), "zone", 0, ctx);
       });
       resolve(b, ctx);
       z.turns--;
     });
     b.zones = b.zones.filter(function (z) { return z.turns > 0; });
+    if (isWin(b)) return { cmds: ctx.cmds, attacks: attacks, lose: false, win: true };
+
+    // 倒數與攻擊（cdMax 0 = 不攻擊的部位）
     alive(b).forEach(function (e) {
+      if (!e.cdMax) return;
       e.cd -= 1;
-      if (e.cd <= 0) {
-        var dmg = e.def.atk;
-        if (b.shield > 0) { dmg = Math.round(dmg * (1 - b.shield)); b.shield = 0; }
-        b.hp = Math.max(0, b.hp - dmg);
-        attacks.push({ uid: e.uid, dmg: dmg });
-        e.cd = e.cdMax;
+      if (e.cd > 0) return;
+      var dmg = teamDamage(b, e.def.atk, ctx);
+      attacks.push({ uid: e.uid, dmg: dmg });
+      e.cd = e.cdMax;
+      if (e.trait === "armorBreak") b.armorBreak = true;
+      if (e.trait === "selfDestruct") vanish(b, e, ctx);
+    });
+
+    // 回合效果（§6.1）
+    var list = alive(b);
+    list.forEach(function (e) {
+      if (e.dead) return;
+      e.turns++;
+      var tr = e.trait;
+      if (tr === "lightning") { var d = teamDamage(b, Math.round(b.hpMax * 0.03), ctx); attacks.push({ uid: e.uid, dmg: d, kind: "lightning" }); }
+      else if (tr === "entropy") b.party.forEach(function (p) { p.gauge = Math.max(0, p.gauge - 1); });
+      else if (tr === "repair") alive(b).forEach(function (o) {
+        if (o === e || dist(o, e.x, e.y) > 150 + o.r) return;
+        var h0 = o.hp; o.hp = Math.min(o.hpMax, o.hp + Math.round(o.hpMax * 0.05));
+        if (o.hp > h0) ctx.cmds.push({ type: "enemyHeal", uid: o.uid, amount: o.hp - h0, x: o.x, y: o.y });
+      });
+      else if (tr === "spawn" && e.turns % 2 === 0) spawnEnemy(b, D.ENEMY_BY_ID.spore_drifter, e.x, e.y, ctx);
+      else if (tr === "nest") spawnEnemy(b, D.ENEMY_BY_ID.spore_drifter, e.x, e.y, ctx);
+      else if (tr === "summon" && e.turns % 3 === 0) spawnEnemy(b, D.ENEMY_BY_ID.sentry_drone, e.x, e.y, ctx);
+      else if (tr === "rift" && e.turns % 2 === 0) {
+        var pool = D.ENEMIES.filter(function (x) { return x.sector === 1; });
+        spawnEnemy(b, pool[Math.floor(b.rng() * pool.length)], e.x, e.y, ctx);
+      }
+      else if (tr === "devour") {
+        var prey = null, bd = Infinity;
+        alive(b).forEach(function (o) {
+          if (o === e || o.def.size !== "s" || o.role) return;
+          var dd = dist(o, e.x, e.y) - e.r - o.r;
+          if (dd <= 100 && dd < bd) { bd = dd; prey = o; }
+        });
+        if (prey) {
+          vanish(b, prey, ctx);
+          var h1 = e.hp; e.hp = Math.min(e.hpMax, e.hp + Math.round(e.hpMax * 0.2));
+          ctx.cmds.push({ type: "enemyHeal", uid: e.uid, amount: e.hp - h1, x: e.x, y: e.y });
+        }
+      }
+      else if (tr === "eclipse") alive(b).forEach(function (o) {
+        var cand = D.ELEMENTS.filter(function (x) { return o.resist.indexOf(x) < 0; });
+        if (cand.length) o.resist.push(cand[Math.floor(b.rng() * cand.length)]);
+      });
+      else if (tr === "part_drill") {
+        var rocks = b.rocks.filter(function (k) { return !k.broken; }).length;
+        if (rocks < 4) {
+          var spot = findSpot(b, 0, 0, K.ROCK_R, null, null);
+          if (spot) {
+            var rk = { id: "r" + (b.rockSeq++), x: spot.x, y: spot.y, r: K.ROCK_R, dur: K.ROCK_DUR, broken: false };
+            b.rocks.push(rk);
+            ctx.cmds.push({ type: "addRock", id: rk.id, x: rk.x, y: rk.y });
+          }
+        }
+      }
+      if (e.echoPending) {
+        e.echoPending = false;
+        spawnEnemy(b, D.SPAWN_DEFS.echo_shade, e.x, e.y, ctx, { hp: 1 });
       }
     });
+
+    // 移動（§6.1）：保持在場內、不重疊
+    var pairsDone = {};
+    alive(b).forEach(function (e) {
+      var tr = e.trait, s;
+      if (tr === "hop") { s = findSpot(b, 0, 0, e.r, null, e); if (s) moveTo(b, e, s.x, s.y, ctx); }
+      else if (tr === "glide" || tr === "charge") {
+        var len = tr === "glide" ? 80 : 120;
+        for (var i = 0; i < 6; i++) {
+          var a = b.rng() * Math.PI * 2, nx = e.x + Math.cos(a) * len, ny = e.y + Math.sin(a) * len;
+          if (spotFree(b, nx, ny, e.r, e)) { moveTo(b, e, nx, ny, ctx); break; }
+        }
+      }
+      else if (tr === "escort") {
+        var big = null, bd = Infinity;
+        alive(b).forEach(function (o) { if (o !== e && (o.def.size === "l" || o.role === "body")) { var dd = dist(o, e.x, e.y); if (dd < bd) { bd = dd; big = o; } } });
+        if (big) rotateAround(b, e, big.x, big.y, Math.PI / 3, ctx);
+      }
+      else if (tr === "binary" && e.partner && !pairsDone[e.uid]) {
+        var pt = byUid(b, e.partner);
+        if (pt && !pt.dead) {
+          pairsDone[pt.uid] = true;
+          var cx = (e.x + pt.x) / 2, cy = (e.y + pt.y) / 2;
+          rotateAround(b, e, cx, cy, Math.PI / 3, ctx, pt);
+          rotateAround(b, pt, cx, cy, Math.PI / 3, ctx, e);
+        }
+      }
+      if (tr === "phase") { e.hidden = !e.hidden; ctx.cmds.push({ type: "enemySensor", uid: e.uid, on: e.hidden }); }
+      if (tr === "randomCd") e.cd = 1 + Math.floor(b.rng() * e.cdMax);
+    });
+
+    b.acids.forEach(function (a) { a.turns--; });
+    b.acids = b.acids.filter(function (a) { return a.turns > 0; });
     b.enemies.forEach(function (e) { if (e.mark && --e.mark.turns <= 0) e.mark = null; });
     if (b.nullTurns > 0) b.nullTurns--;
     b.turnNo++;
-    return { cmds: ctx.cmds, attacks: attacks, lose: b.hp <= 0, win: !alive(b).length };
+    return { cmds: ctx.cmds, attacks: attacks, lose: b.hp <= 0, win: isWin(b) };
+  }
+
+  function spotFree(b, x, y, r, self) {
+    if (x < r + 4 || x > K.FIELD_W - r - 4 || y < r + 60 || y > 720) return false;
+    var ok = alive(b).every(function (o) { return o === self || dist(o, x, y) > o.r + r + 8; });
+    ok = ok && b.rocks.every(function (k) { return k.broken || dist(k, x, y) > k.r + r + 8; });
+    return ok && (b.avoid || []).every(function (a) { return dist(a, x, y) > a.r + r + 8; });
+  }
+  // 繞 (cx, cy) 轉 ang；轉不過去（出界／重疊）就不動。ignore = 一起轉的另一隻
+  function rotateAround(b, e, cx, cy, ang, ctx, ignore) {
+    var dx = e.x - cx, dy = e.y - cy, c = Math.cos(ang), s = Math.sin(ang);
+    var nx = cx + dx * c - dy * s, ny = cy + dx * s + dy * c;
+    var ok = nx >= e.r + 4 && nx <= K.FIELD_W - e.r - 4 && ny >= e.r + 60 && ny <= 720 &&
+      alive(b).every(function (o) { return o === e || o === ignore || dist(o, nx, ny) > o.r + e.r + 8; }) &&
+      (b.avoid || []).every(function (a) { return dist(a, nx, ny) > a.r + e.r + 8; });
+    if (ok) moveTo(b, e, nx, ny, ctx);
   }
 
   var api = {
     create: create, canSkill: canSkill, beginShot: beginShot, onHit: onHit, onAlly: onAlly, onWall: onWall, onPos: onPos,
-    onRock: onRock, onDebris: onDebris, onGhost: onGhost, endShot: endShot, enemyTurn: enemyTurn,
-    hitMult: hitMult, elemMult: elemMult, speedFactor: speedFactor, byUid: byUid, alive: alive,
+    onRock: onRock, onDebris: onDebris, onGhost: onGhost, endShot: endShot, enemyTurn: enemyTurn, isWin: isWin,
+    hitMult: hitMult, elemMult: elemMult, speedFactor: speedFactor, byUid: byUid, alive: alive, spawnEnemy: spawnEnemy,
+    ENEMY_TRAITS: ["", "swarm", "quick", "armored", "hop", "magnet", "chill", "selfDestruct", "repair", "shieldAllies", "linked",
+      "deflect", "slow", "spawn", "summon", "aura", "reflect", "split", "shock", "phase", "parasite", "acidPool", "glide", "protect",
+      "lightning", "mine", "absorbLight", "nest", "shiftWeak", "escort", "armorBreak", "serpent", "drainOnDeath", "selfShield",
+      "charge", "randomCd", "ownWell", "repel", "rift", "mirror", "explosionOnly", "entropy", "binary", "doom", "oblivion",
+      "hiddenHp", "echoSpawn", "devour", "eclipse"],
     TRAIT_KINDS: TRAIT_KINDS, FRIEND_KINDS: FRIEND_KINDS, SKILL_KINDS: SKILL_KINDS
   };
   root.PriTestShedanCombat = api;
