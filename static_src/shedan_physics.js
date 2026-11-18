@@ -54,6 +54,7 @@
       w.baseR.push(r);
       M.Composite.add(engine.world, body);
     });
+    w.mods = o.mods || b.mods || {};   // 遺物（礦石磁軌、吸積盤、隊形磁鐵）
     w.sensorBase = {};
     w.magnets = [];
     b.enemies.forEach(function (e) { if (!e.dead) addEnemy(w, e); });
@@ -208,6 +209,24 @@
     if (changed) w.M.Body.setVelocity(body, { x: vx, y: vy });
   }
 
+  // 隊形磁鐵：射出者在停住的隊友 60 內時被吸引（力 30）
+  function applyAllyMagnet(w, body) {
+    var p = body.position, v = body.velocity, vx = v.x, vy = v.y, changed = false;
+    w.bodies.forEach(function (hb, i) {
+      if (i === w.shooter) return;
+      var dx = hb.position.x - p.x, dy = hb.position.y - p.y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 60 + hb.circleRadius || d < 1e-6) return;
+      var f = 30 / Math.max(d, K.WELL_MIN_D) / K.SUBSTEPS;
+      vx += dx / d * f; vy += dy / d * f; changed = true;
+    });
+    if (changed) w.M.Body.setVelocity(body, { x: vx, y: vy });
+  }
+  // 時滯晶片：殘影存在期間射出者沒有空氣摩擦（on=false 時恢復發射時的設定）
+  function setShooterAirless(w, on) {
+    if (w.shooter == null) return;
+    w.bodies[w.shooter].frictionAir = on ? 0 : K.AIR * ((w.launch && w.launch.airMult) || 1);
+  }
+
   // 前進一個子步，回傳這一步的事件
   function step(w) {
     var M = w.M;
@@ -218,12 +237,14 @@
       applyWells(w, sb, (w.launch && w.launch.wellBoost) || 1, false);
       if (w.launch && w.launch.enemyPull) applyEnemyPull(w, sb, w.launch.enemyPull);
       if (w.magnets.length) applyMagnets(w, sb);
+      if (w.mods.allyMagnet) applyAllyMagnet(w, sb);
       w.lastSpeed = speedOf(sb);
     }
-    var life = K.DEBRIS_LIFE * 60 * K.SUBSTEPS;
+    var life = (K.DEBRIS_LIFE + (w.mods.debrisLife || 0)) * 60 * K.SUBSTEPS;   // 礦石磁軌 +4 秒
+    var debrisBoost = w.mods.debrisWell ? 2 : 1;                               // 吸積盤
     w.debris = w.debris.filter(function (d) {
       d.plugin.age++;
-      if (d.plugin.age > life || applyWells(w, d, 1, true)) { M.Composite.remove(w.engine.world, d); return false; }
+      if (d.plugin.age > life || applyWells(w, d, debrisBoost, true)) { M.Composite.remove(w.engine.world, d); return false; }
       d.plugin.lastSpeed = speedOf(d);
       return true;
     });
@@ -351,6 +372,7 @@
   var api = {
     create: create, launch: launch, step: step, removeEnemy: removeEnemy, moveEnemy: moveEnemy,
     addEnemy: addEnemy, addRock: addRock, removeWellsOf: removeWellsOf, scaleShooter: scaleShooter, setEnemySensor: setEnemySensor,
+    setShooterAirless: setShooterAirless,
     breakRock: breakRock, spawnDebris: spawnDebris, addWell: addWell, addWall: addWall, setPierce: setPierce, redirect: redirect,
     heroPos: heroPos, heroVel: heroVel, heroRadius: heroRadius, isShooting: isShooting, debrisList: debrisList,
     allWells: allWells, DEFAULT_HERO_POS: DEFAULT_HERO_POS

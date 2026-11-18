@@ -262,7 +262,8 @@
   function battleSetup(run) {
     var d = data(run), m = mods(run);
     var gaugeMinus = {};
-    run.heroes.forEach(function (id) { gaugeMinus[id] = (run.gaugeMinus[id] || 0) + (m.gaugeMaxMinus || 0); });
+    // 只傳休息的「強化技能」；冷卻劑／技能套裝（mods.gaugeMaxMinus）由 Combat.create 自己套用
+    run.heroes.forEach(function (id) { gaugeMinus[id] = run.gaugeMinus[id] || 0; });
     var s = {
       heroes: run.heroes.map(function (id) { return D.HERO_BY_ID[id]; }),
       enemies: d.battle.enemies, field: d.battle.field, boss: d.battle.boss, seed: d.battle.seed,
