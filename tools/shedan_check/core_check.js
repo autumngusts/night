@@ -79,5 +79,166 @@ test("種子亂數：同種子序列相同、不同種子不同、int 在範圍�
   assert.notStrictEqual(Rng.hashStr("2026-11-18"), Rng.hashStr("2026-11-19"));
 });
 
+// ---------------- 戰鬥規則（§2～§4） ----------------
+var Combat = load("shedan_combat.js");
+var H = D.HERO_BY_ID, E = D.ENEMY_BY_ID, K = D.C;
+function battle(heroIds, enemies) {
+  return Combat.create({
+    heroes: heroIds.map(function (id) { return H[id]; }),
+    enemies: enemies.map(function (x) { return { def: E[x[0]], x: x[1], y: x[2] }; })
+  });
+}
+function uidOf(b, i) { return b.enemies[i].uid; }
+function hit(b, i, step, speed) { return Combat.onHit(b, { enemy: uidOf(b, i), speed: speed == null ? K.SPEED_MAX : speed, step: step || 0 }); }
+function types(cmds) { return cmds.map(function (c) { return c.type; }); }
+
+test("倍率：Hit 每 10 下 +0.1、弱點 1.5／抗性 0.5、速度係數 0.4～1.0", function () {
+  approx(Combat.hitMult(0), 1); approx(Combat.hitMult(9), 1); approx(Combat.hitMult(10), 1.1); approx(Combat.hitMult(25), 1.2);
+  approx(Combat.elemMult(E.spore_drifter, "solar", false), 1.5);
+  approx(Combat.elemMult(E.rock_worm, "comet", false), 0.5);
+  approx(Combat.elemMult(E.rock_worm, "comet", true), 1, "腐蝕時抗性失效");
+  approx(Combat.elemMult(E.rock_worm, "solar", false), 1);
+  approx(Combat.speedFactor(K.SPEED_MAX * 2), 1); approx(Combat.speedFactor(0), 0.4); approx(Combat.speedFactor(K.SPEED_MAX / 2), 0.5);
+});
+
+test("撞擊傷害＝攻擊力×倍率；6 步內同一敵人不算新的 Hit；量表 +1", function () {
+  var b = battle(["ignis", "rime", "volta", "nox"], [["rock_worm", 270, 300], ["spore_drifter", 100, 100]]);
+  Combat.beginShot(b);
+  hit(b, 0, 0);
+  assert.strictEqual(b.enemies[0].hp, 600);
+  assert.strictEqual(b.shot.hits, 1);
+  assert.strictEqual(hit(b, 0, 3).length, 0);
+  assert.strictEqual(b.shot.hits, 1);
+  hit(b, 0, 10);
+  assert.strictEqual(b.shot.hits, 2);
+  assert.strictEqual(b.party[0].gauge, 2);
+  hit(b, 1, 20);
+  assert.strictEqual(b.enemies[1].hp, 220 - 150, "弱點 ×1.5");
+  b.active = 1; Combat.beginShot(b);
+  b.enemies[0].mark = null;
+  hit(b, 0, 0);
+  assert.strictEqual(b.enemies[0].hp, 600 - 100 - 58, "抗性：115×0.5 四捨五入");
+});
+
+test("印記：撞擊留下印記；不同屬性再撞觸發反應並消耗印記（蒸氣爆）", function () {
+  var b = battle(["ignis", "rime", "volta", "nox"], [["ore_crawler", 270, 300], ["ore_crawler", 270, 420]]);
+  Combat.beginShot(b);
+  hit(b, 0, 0);
+  assert.strictEqual(b.enemies[0].mark.el, "solar");
+  b.active = 1; Combat.beginShot(b);
+  var cmds = hit(b, 0, 0);
+  var r = cmds.filter(function (c) { return c.type === "reaction"; })[0];
+  assert.strictEqual(r.id, "steam");
+  assert.strictEqual(b.enemies[0].mark, null);
+  // 蒸氣爆：半徑 160、攻擊力 115×3=345，波及 120 外的另一隻
+  assert.strictEqual(b.enemies[1].hp, 1500 - 345);
+  assert.strictEqual(b.enemies[0].hp, 1500 - 150 - 115 - 345, "礦脈蠕弱點恆星：伊格妮第一下 ×1.5");
+});
+
+test("反應：超導（Hit 倍率 ×2）、湮滅（真實傷害）、坍縮（吸引＋爆炸）、共鳴", function () {
+  var b = battle(["rime", "volta", "lumen", "nox"], [["ore_crawler", 270, 300], ["ore_crawler", 270, 480]]);
+  Combat.beginShot(b); hit(b, 0, 0);          // 冰彗印記
+  b.active = 1; Combat.beginShot(b);
+  var before = b.enemies[0].hp;
+  hit(b, 0, 0);                               // 雷漿 → 超導
+  assert.ok(b.enemies[0].superconduct);
+  assert.strictEqual(before - b.enemies[0].hp, Math.round(90 * 2), "超導讓這一下 Hit 倍率 ×2");
+  Combat.endShot(b);
+  assert.ok(!b.enemies[0].superconduct, "超導到本發結束");
+
+  var b2 = battle(["lumen", "nox", "orbit", "ignis"], [["ore_crawler", 270, 300], ["ore_crawler", 270, 480]]);
+  Combat.beginShot(b2); hit(b2, 0, 0);        // 光子印記
+  b2.active = 1; Combat.beginShot(b2);
+  var hp0 = b2.enemies[0].hp;
+  hit(b2, 0, 0);                              // 虛空 → 湮滅 100×4
+  assert.strictEqual(hp0 - b2.enemies[0].hp, 100 + 400);
+
+  b2.active = 2; Combat.beginShot(b2);
+  hit(b2, 0, 20);                             // 引力印記
+  b2.active = 3; Combat.beginShot(b2);
+  var y1 = b2.enemies[1].y;
+  var cmds = hit(b2, 0, 40);                  // 恆星 → 坍縮：180 外的敵人被吸近
+  assert.ok(types(cmds).indexOf("move") >= 0);
+  assert.ok(b2.enemies[1].y < y1);
+
+  var b3 = battle(["ignis", "lumen", "volta", "nox"], [["ore_crawler", 270, 300]]);
+  Combat.beginShot(b3); hit(b3, 0, 0);
+  b3.active = 1; Combat.beginShot(b3);
+  var c3 = hit(b3, 0, 0);
+  assert.strictEqual(c3.filter(function (c) { return c.type === "reaction"; })[0].id, "resonance");
+});
+
+test("連爆：擊破→爆炸→波及擊破→再爆炸，連鎖層數記錄", function () {
+  var b = battle(["volta", "rime", "ignis", "nox"], [["spore_drifter", 100, 100], ["spore_drifter", 135, 100], ["spore_drifter", 170, 100], ["spore_drifter", 400, 100]]);
+  b.enemies[0].hp = 1; b.enemies[1].hp = 30; b.enemies[2].hp = 30;
+  Combat.beginShot(b);
+  var cmds = hit(b, 0, 0);
+  assert.ok(b.enemies[0].dead && b.enemies[1].dead && b.enemies[2].dead);
+  assert.ok(!b.enemies[3].dead);
+  assert.strictEqual(b.shot.chain, 3);
+  assert.strictEqual(cmds.filter(function (c) { return c.type === "explode"; }).length, 3);
+  var r = Combat.endShot(b);
+  assert.strictEqual(b.stats.maxChain, 3);
+  assert.strictEqual(r.next, "hero");
+});
+
+test("虛空印記的敵人被擊破不爆炸，改成全隊技能量表", function () {
+  var b = battle(["nox", "rime", "ignis", "volta"], [["rock_worm", 100, 100], ["spore_drifter", 130, 100]]);
+  b.enemies[0].hp = 1; b.enemies[1].hp = 10;
+  Combat.beginShot(b);
+  var cmds = hit(b, 0, 0);
+  assert.ok(b.enemies[0].dead);
+  assert.ok(!b.enemies[1].dead, "沒有爆炸波及");
+  assert.strictEqual(types(cmds).indexOf("explode"), -1);
+  var g = Math.floor(700 * K.VOID_GAUGE_RATIO / K.VOID_GAUGE_DIV);
+  assert.strictEqual(b.party[1].gauge, g);
+  assert.strictEqual(b.party[0].gauge, 1 + g);
+});
+
+test("雷漿撞擊放電弧、引力撞擊吸近附近敵人", function () {
+  var b = battle(["volta", "orbit", "ignis", "nox"], [["ore_crawler", 100, 100], ["ore_crawler", 200, 100]]);
+  Combat.beginShot(b);
+  hit(b, 0, 0);
+  assert.strictEqual(b.enemies[1].hp, 1500 - Math.round(90 * K.ARC_RATIO));
+  b.active = 1; Combat.beginShot(b);
+  b.enemies[0].mark = null;
+  b.enemies[1].mark = null;
+  var x1 = b.enemies[1].x;
+  hit(b, 0, 0);
+  assert.ok(b.enemies[1].x < x1, "被拉向撞擊點");
+});
+
+test("輪流射擊：4 人射完輪到敵人；敵人全滅判定勝利", function () {
+  var b = battle(["ignis", "rime", "volta", "nox"], [["ore_crawler", 100, 100]]);
+  var seq = [];
+  for (var i = 0; i < 4; i++) { Combat.beginShot(b); seq.push(Combat.endShot(b).next); }
+  assert.deepStrictEqual(seq, ["hero", "hero", "hero", "enemy"]);
+  assert.strictEqual(b.active, 0);
+  b.enemies[0].hp = 1;
+  Combat.beginShot(b); hit(b, 0, 0);
+  assert.strictEqual(Combat.endShot(b).next, "win");
+});
+
+test("敵人回合：倒數 −1、歸零攻擊並重置；冰彗印記倒數 +1 一次；灼燒；HP 歸零落敗", function () {
+  var b = battle(["ignis", "rime", "volta", "nox"], [["sentry_drone", 100, 100], ["ore_crawler", 300, 300], ["ore_crawler", 300, 600]]);
+  var hp0 = b.hp;
+  var r = Combat.enemyTurn(b);
+  assert.strictEqual(r.attacks.length, 1, "哨衛倒數 1");
+  assert.strictEqual(b.hp, hp0 - 18);
+  assert.strictEqual(b.enemies[0].cd, 1);
+  assert.strictEqual(b.enemies[1].cd, 4);
+  b.active = 1; Combat.beginShot(b); hit(b, 1, 0);
+  assert.strictEqual(b.enemies[1].cd, 5, "冰彗 +1");
+  b.enemies[1].mark = null; hit(b, 1, 20);
+  assert.strictEqual(b.enemies[1].cd, 5, "只生效一次");
+  b.active = 0; Combat.beginShot(b); hit(b, 2, 0);
+  var h2 = b.enemies[2].hp;
+  Combat.enemyTurn(b);
+  assert.strictEqual(h2 - b.enemies[2].hp, Math.round(100 * K.BURN_RATIO), "灼燒");
+  b.hp = 5;
+  b.enemies[0].cd = 1;
+  assert.ok(Combat.enemyTurn(b).lose);
+});
+
 module.exports = { D: D, Rng: Rng, Matter: Matter, test: test, approx: approx, load: load };
 if (require.main === module) process.on("exit", function () { console.log("passed " + passed); });
