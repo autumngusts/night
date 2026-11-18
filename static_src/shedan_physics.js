@@ -13,8 +13,7 @@
   var DT = 1000 / (60 * K.SUBSTEPS); // 每 frame K.SUBSTEPS 個子步
   var CAT = { wall: 0x1, hero: 0x2, enemy: 0x4, debris: 0x8, rock: 0x10 };
 
-  // 開場隊形（下方約 90 單位留給 HUD）
-  var DEFAULT_HERO_POS = [{ x: 120, y: 810 }, { x: 220, y: 835 }, { x: 320, y: 835 }, { x: 420, y: 810 }];
+  var DEFAULT_HERO_POS = D.HERO_POS;   // 開場隊形（shedan_data.js）
 
   // 碰撞的彈性取兩者較大值，所以牆、敵人、小行星設 0，讓射出者自己的彈性（0.95／流明 1）生效
   var STATIC_OPTS = { isStatic: true, restitution: 0, friction: 0, frictionStatic: 0 };

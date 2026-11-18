@@ -49,6 +49,9 @@
   // 敵人大小 → 半徑（§6）
   var SIZE_R = { s: 16, m: 26, l: 40 };
 
+  // 開場隊形（下方約 90 單位留給 HUD）。物理層與遠征層（敵人配置要避開）共用
+  var HERO_POS = [{ x: 120, y: 810 }, { x: 220, y: 835 }, { x: 320, y: 835 }, { x: 420, y: 810 }];
+
   // ---------------- 屬性（§3） ----------------
   var ELEMENTS = ["solar", "comet", "plasma", "gravity", "nebula", "photon", "void"];
   var ELEMENT_INFO = {
@@ -106,7 +109,7 @@
   }
 
   var api = {
-    C: C, SIZE_R: SIZE_R, ELEMENTS: ELEMENTS, ELEMENT_INFO: ELEMENT_INFO, REACTIONS: REACTIONS,
+    C: C, SIZE_R: SIZE_R, HERO_POS: HERO_POS, ELEMENTS: ELEMENTS, ELEMENT_INFO: ELEMENT_INFO, REACTIONS: REACTIONS,
     reactionFor: reactionFor, register: register, text: text, C3: C3,
     HEROES: HEROES, ENEMIES: ENEMIES, HERO_BY_ID: HERO_BY_ID, ENEMY_BY_ID: ENEMY_BY_ID
   };
