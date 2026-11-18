@@ -21,6 +21,12 @@ _ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("sd_back_pick", "重新編成", "編成に戻る", "Change crew"),
     ("sd_result_stats", "回合 {turns}・總傷害 {dmg}・最大連爆 {chain}", "ターン {turns}・総ダメージ {dmg}・最大連爆 {chain}", "Turns {turns} · Damage {dmg} · Best chain {chain}"),
     ("sd_weak", "弱點", "弱点", "Weak"),
+    ("sd_skill", "技能", "スキル", "Skill"),
+    ("sd_friend", "友情技", "友情スキル", "Friend skill"),
+    ("sd_shield", "護盾", "シールド", "Shield"),
+    ("sd_const_tri", "三角座・隕石雨", "三角座・流星雨", "Triangulum · Meteor Rain"),
+    ("sd_const_ark", "方舟座・護盾", "方舟座・シールド", "Ark · Shield"),
+    ("sd_const_penta", "五芒座・量表充滿", "五芒座・ゲージ全開", "Pentagram · Full Gauges"),
     ("sd_resist", "抗性", "耐性", "Resist"),
 )
 

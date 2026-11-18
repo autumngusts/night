@@ -49,12 +49,22 @@ async function checkViewport(browser, vp, tag) {
   assert.ok(await headerBottom() <= 1, tag + " 點外側收起");
 
   // 選隊
-  assert.strictEqual((await page.$$(".sd-pick-card")).length, 8, "初始 8 人");
-  // 每點一次選隊畫面就重繪，所以每次重新查詢
-  for (var i = 0; i < 4; i++) await page.click(".sd-pick-card >> nth=" + i);
+  assert.strictEqual((await page.$$(".sd-pick-card")).length, 30, "第 2 階段暫時開放 30 人");
+  // 每點一次選隊畫面就重繪，所以每次重新查詢；故意選到後段的角色
+  var picks = [0, 9, 17, 29];
+  for (var i = 0; i < picks.length; i++) await page.click(".sd-pick-card >> nth=" + picks[i]);
   await page.screenshot({ path: path.join(SHOT_DIR, tag + "_02_pick.png") });
   await page.click('[data-act="launch"]');
   await waitPhase(page, "aim");
+
+  var stars = await page.evaluate(function () { return window.PriTestShedanApp._debug.state().battle.stars.length; });
+  assert.ok(stars >= 4 && stars <= 6, tag + " 星點 4～6 個：" + stars);
+
+  // 技能鍵：量表未滿時不能按；墊滿後按下 → 這一發發動、量表歸 0
+  assert.ok(await page.$eval('[data-act="skill"]', function (b) { return b.disabled; }), tag + " 量表未滿技能鍵不能按");
+  await page.evaluate(function () { window.PriTestShedanApp._debug.fillGauge(); });
+  await page.dispatchEvent('[data-act="skill"]', "click");
+  assert.ok(await page.$eval('[data-act="skill"]', function (b) { return b.classList.contains("is-armed"); }), tag + " 技能已準備");
 
   // 拖曳拉弓射出：從畫面中央往下拉（射向上方）
   var hp0 = await page.evaluate(function () { return window.PriTestShedanApp._debug.enemyHp(); });
@@ -64,6 +74,7 @@ async function checkViewport(browser, vp, tag) {
   await page.screenshot({ path: path.join(SHOT_DIR, tag + "_03_aim.png") });
   await page.dispatchEvent(".sd-canvas", "pointerup", { clientX: cx + 10, clientY: cy + 140, pointerId: 1, bubbles: true });
   await waitPhase(page, "shooting", 3000);
+  assert.strictEqual(await page.evaluate(function () { var b = window.PriTestShedanApp._debug.state().battle; return b.party[b.active].gauge <= 3 && !!b.shot.skill; }), true, tag + " 技能發動、量表歸 0");
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(SHOT_DIR, tag + "_04_shooting.png") });
   await page.waitForFunction(function () { return window.PriTestShedanApp._debug.state().phase !== "shooting"; }, null, { timeout: 20000 });
@@ -99,12 +110,46 @@ async function checkViewport(browser, vp, tag) {
   console.log("ok - " + tag);
 }
 
+// 30 人煙霧測試：每 4 人一組開戰，每一發都墊滿量表並發動技能，跑完一輪（4 發＋敵人回合），不能有 console error
+async function smokeAllHeroes(browser) {
+  var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  var errors = [];
+  page.on("pageerror", function (e) { errors.push(String(e)); });
+  page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
+  await page.goto(BASE);
+  await page.waitForSelector(".sd-pick-card");
+  var ids = await page.evaluate(function () { return window.PriTestShedanData.HEROES.map(function (h) { return h.id; }); });
+  var dirs = [[0.2, -1], [-0.6, -1], [0.9, -0.4], [-0.1, -1]];
+  for (var g = 0; g < ids.length; g += 4) {
+    var team = ids.slice(g, g + 4);
+    while (team.length < 4) team.push(ids[team.length]);
+    await page.evaluate(function (t) { window.PriTestShedanApp._debug.pick(t); }, team);
+    for (var k = 0; k < 4; k++) {
+      var st = await page.evaluate(function () { var s = window.PriTestShedanApp._debug.state(); return s.screen === "battle" ? s.phase : "done"; });
+      if (st !== "aim") break;
+      await page.evaluate(function (d) {
+        var A = window.PriTestShedanApp._debug, s = A.state();
+        A.fillGauge(); s.skillArmed = true; A.shoot(d[0], d[1], 1);
+        if (s.canRedirect) window.setTimeout(function () { var w = s.world; window.PriTestShedanPhysics.redirect(w, 270, 200); }, 300);
+      }, dirs[k]);
+      await page.waitForFunction(function () { var s = window.PriTestShedanApp._debug.state(); return s.phase !== "shooting"; }, null, { timeout: 40000 });
+    }
+    await page.waitForFunction(function () { var s = window.PriTestShedanApp._debug.state(); return s.phase === "aim" || s.phase === "over" || s.screen !== "battle"; }, null, { timeout: 10000 });
+    console.log("  smoke " + team.join(","));
+  }
+  assert.deepStrictEqual(errors, [], "30 人煙霧測試 console error");
+  await page.screenshot({ path: path.join(SHOT_DIR, "smoke_last.png") });
+  await page.close();
+  console.log("ok - 30 人煙霧測試");
+}
+
 (async function () {
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   var browser = await chromium.launch();
   try {
     await checkViewport(browser, { width: 390, height: 844 }, "phone");
     await checkViewport(browser, { width: 1280, height: 800 }, "desktop");
+    await smokeAllHeroes(browser);
     var page = await browser.newPage();
     await page.goto(ROOT + "index.html");
     var card = await page.evaluate(function () {

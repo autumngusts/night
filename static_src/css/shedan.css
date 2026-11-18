@@ -152,9 +152,20 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
 .sd-overlay p { margin: 0; opacity: .85; text-align: center; }
 .sd-pick-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: .6rem;
-  width: min(100%, 30rem);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .5rem;
+  width: min(100%, 36rem);
+}
+/* 30 人會超出一個畫面：上方對齊（safe center 避免頂端被切掉），出擊鍵固定在底部 */
+.sd-overlay { justify-content: safe center; }
+.sd-pick-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: .6rem 0 .2rem;
+  background: linear-gradient(180deg, rgba(4, 5, 14, 0), rgba(4, 5, 14, .92) 40%);
 }
 .sd-pick-card {
   position: relative;
@@ -185,7 +196,38 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
   font-weight: 700;
   color: #ffe27a;
 }
-.sd-el-tag { font-size: .7rem; color: var(--sd-el, #ccc); }
+.sd-el-tag { font-size: .68rem; color: var(--sd-el, #ccc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sd-pick-card b { font-size: .78rem; white-space: nowrap; }
+@media (max-width: 420px) {
+  .sd-pick-card img { width: 2.8rem; height: 2.8rem; }
+  .sd-pick-grid { gap: .35rem; }
+}
+
+/* 技能鍵（HUD 底部右側；量表滿才能按，按下後這一發發動） */
+.sd-skill-btn {
+  pointer-events: auto;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.4rem;
+  height: 2.4rem;
+  padding: 0 .5rem;
+  border: 1px solid rgba(160, 180, 255, .35);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, rgba(255, 226, 122, .35) var(--sd-fill, 0%), transparent var(--sd-fill, 0%)),
+    rgba(16, 20, 44, .75);
+  color: #e8ecff;
+  font-size: .62rem;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.sd-skill-btn b { font-size: .78rem; }
+.sd-skill-btn:disabled { opacity: .55; cursor: default; }
+.sd-skill-btn.is-ready { border-color: #ffe27a; box-shadow: 0 0 10px rgba(255, 226, 122, .55); }
+.sd-skill-btn.is-armed { background: linear-gradient(180deg, #ffd25a, #d68a1a); color: #1a1030; box-shadow: 0 0 16px #ffd25a; }
 .sd-btn {
   min-width: 9rem;
   padding: .6rem 1.4rem;

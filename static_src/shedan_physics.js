@@ -168,8 +168,15 @@
         if (dx * vx + dy * vy > 0) { vx = -vx; vy = -vy; changed = true; }
         return;
       }
-      var f = K.WELL_FORCE / Math.max(d, K.WELL_MIN_D) / K.SUBSTEPS * boost;
-      vx += dx / d * f; vy += dy / d * f; changed = true;
+      if (d < K.WELL_MIN_D) {
+        // 中心附近：不再加速，改成強阻力，讓角色停在井心（否則會來回穿越中心、一直維持高速）
+        vx *= 1 - K.WELL_CORE_DRAG; vy *= 1 - K.WELL_CORE_DRAG;
+      } else {
+        var f = K.WELL_FORCE / d / K.SUBSTEPS * boost;
+        vx += dx / d * f; vy += dy / d * f;
+        vx *= 1 - K.WELL_DRAG; vy *= 1 - K.WELL_DRAG;   // 井內阻力：避免困在軌道上
+      }
+      changed = true;
     });
     if (changed) M.Body.setVelocity(body, { x: vx, y: vy });
     return eaten;
