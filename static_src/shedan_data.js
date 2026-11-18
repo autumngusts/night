@@ -33,7 +33,17 @@
     ARC_RATIO: 0.3,
     GRAVITY_MARK_RANGE: 150,
     VOID_GAUGE_RATIO: 0.3,   // 最大 HP × 30% 轉成技能量表（÷ VOID_GAUGE_DIV 換算成格數）
-    VOID_GAUGE_DIV: 100
+    VOID_GAUGE_DIV: 100,
+    // ---- 場地機關、星座、殘影（§8、§8.1，第 2 階段） ----
+    STAR_R: 26,              // 角色中心與星點距離 ≤ 26 就點亮
+    STAR_MIN: 4, STAR_MAX: 6,
+    METEOR_N: 5, METEOR_MULT: 1.2,   // 三角座
+    ARK_SHIELD: 0.5,                 // 方舟座
+    WELL_R: 140, WELL_FORCE: 120, WELL_MIN_D: 40, HOLE_R: 30,
+    ROCK_R: 24, ROCK_DUR: 3,
+    DEBRIS_R: 7, DEBRIS_SPEED: 9, DEBRIS_AIR: 0.02, DEBRIS_LIFE: 6, DEBRIS_MIN_SPEED: 6, DEBRIS_MULT: 0.4,
+    GHOST_MULT: 0.5,
+    FIELD_GAP: 30            // 機關與敵人、隊員、彼此的最小間距
   };
 
   // 敵人大小 → 半徑（§6）
