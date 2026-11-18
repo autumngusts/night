@@ -2,7 +2,7 @@
 // 第 2 階段：30 人（暫時全部開放）的特性／友情技／技能、星座、殘影、引力井、小行星。規則依據 docs/shedan_game_design.md。
 (function () {
   "use strict";
-  var D = window.PriTestShedanData, Rng = window.PriTestShedanRng, Combat = window.PriTestShedanCombat;
+  var D = window.PriTestShedanData, Rng = window.PriTestShedanRng, Combat = window.PriTestShedanCombat, Run = window.PriTestShedanRun;
   var Physics = window.PriTestShedanPhysics, Render = window.PriTestShedanRender;
   var K = D.C;
 
@@ -88,7 +88,7 @@
     app.appendChild(overlay);
     R = Render.create(canvas);
     layoutHud();
-    window.addEventListener("resize", function () { Render.resize(R); layoutHud(); });
+    window.addEventListener("resize", function () { Render.resize(R); layoutHud(); if (S.screen === "map") render(); });
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
@@ -129,8 +129,12 @@
   function render() {
     overlay.style.display = S.screen === "battle" ? "none" : "flex";
     hudWrap.style.display = S.screen === "battle" ? "block" : "none";
-    if (S.screen === "pick") renderPick();
-    else if (S.screen === "result") renderResult();
+    overlay.classList.toggle("is-run", !!S.run && S.screen !== "pick");
+    var fn = {
+      pick: renderPick, result: renderResult, map: renderMap, reward: renderReward, shop: renderShop, rest: renderRest,
+      drifter: renderDrifter, event: renderEvent, eventOut: renderEventOut, relics: renderRelics, runEnd: renderRunEnd
+    }[S.screen];
+    if (fn) fn();
   }
 
   function renderPick() {
@@ -144,11 +148,13 @@
         '<img src="' + esc(imgBase + h.img) + '" alt="" loading="lazy">' +
         "<b>" + esc(name(h.name)) + '</b><span class="sd-el-tag">' + info.icon + " " + esc(name(h.skill.name)) + "</span></button>";
     });
-    html += '</div><div class="sd-pick-bar"><div class="sd-arena" role="radiogroup" aria-label="' + esc(t("sd_arena")) + '">' +
+    var ready = S.picked.length === 4 ? "" : " disabled";
+    html += '</div><div class="sd-pick-bar">' +
+      '<button type="button" class="sd-btn" data-act="launch"' + ready + ">" + esc(t("sd_start_run")) + "</button>" +
+      '<details class="sd-test-arena"' + (S.arenaOpen ? " open" : "") + '><summary>' + esc(t("sd_test_arena")) + '</summary><div class="sd-arena" role="radiogroup" aria-label="' + esc(t("sd_arena")) + '">' +
       ARENAS.map(function (a) {
         return '<button type="button" class="sd-arena-btn' + (S.arena === a ? " is-on" : "") + '" data-arena="' + a + '">' + esc(arenaName(a)) + "</button>";
-      }).join("") + "</div>" +
-      '<button type="button" class="sd-btn" data-act="launch"' + (S.picked.length === 4 ? "" : " disabled") + ">" + esc(t("sd_launch")) + "</button></div>";
+      }).join("") + '</div><button type="button" class="sd-btn sd-btn-ghost" data-act="arena"' + ready + ">" + esc(t("sd_launch")) + "</button></details></div>";
     overlay.innerHTML = html;
     overlay.querySelectorAll("[data-hero]").forEach(function (b) {
       b.addEventListener("click", function () {
@@ -162,8 +168,12 @@
       b.addEventListener("click", function () { S.arena = b.getAttribute("data-arena"); renderPick(); });
     });
     overlay.querySelector('[data-act="launch"]').addEventListener("click", function () {
-      if (S.picked.length === 4) startBattle();
+      if (S.picked.length === 4) startRun();
     });
+    overlay.querySelector('[data-act="arena"]').addEventListener("click", function () {
+      if (S.picked.length === 4) startArena();
+    });
+    overlay.querySelector(".sd-test-arena").addEventListener("toggle", function (e) { S.arenaOpen = e.target.open; });
   }
 
   var ARENAS = ["s1", "s2", "s3", "b1", "b2", "b3"];
@@ -175,96 +185,23 @@
   }
 
   // ---------------- 戰鬥 ----------------
-  // 依星區抽敵（§6.1）：浮游孢子 2～3 隻成群、雙子球／引力雙星成對、寄生藤貼在宿主旁、巨蟒要留身體的空間。
-  // 星蝕使徒只以精英出現（第 4 階段），一般戰鬥不抽。boss = Boss 戰時本體與部位佔用的區域。
-  function genEnemies(rng, sector, count, boss) {
-    var pool = D.ENEMIES.filter(function (e) { return e.sector === sector && e.trait !== "eclipse"; });
-    var list = [], large = 0;
-    while (list.length < count) {
-      var def = Rng.pick(rng, pool);
-      if (def.size === "l" && large >= 1) continue;
-      if (def.size === "l") large++;
-      var n = def.trait === "swarm" ? Rng.int(rng, 2, 3) : (def.trait === "linked" || def.trait === "binary") ? 2 : 1;
-      for (var k = 0; k < n; k++) list.push(def);
-    }
-    var placed = [];
-    var taken = boss ? [{ x: K.FIELD_W / 2, y: 240, r: 220 }] : [];
-    function free(x, y, r) {
-      return placed.concat(taken).every(function (p) { var dx = p.x - x, dy = p.y - y; return Math.sqrt(dx * dx + dy * dy) > p.r + r + 26; });
-    }
-    var parasites = [];
-    list.forEach(function (def) {
-      if (def.trait === "parasite") { parasites.push(def); return; }
-      var r = D.SIZE_R[def.size];
-      for (var tries = 0; tries < 300; tries++) {
-        var serp = def.trait === "serpent";
-        var x = Rng.int(rng, r + 20, K.FIELD_W - r - 20), y = Rng.int(rng, 110, serp ? 500 : 620);
-        // 巨蟒：頭＋往下 3 節身體都要有空間
-        var ok = free(x, y, r) && (!serp || [76, 122, 168].every(function (dy) { return free(x, y + dy, 22); }));
-        if (ok) {
-          placed.push({ def: def, x: x, y: y, r: r });
-          if (serp) [76, 122, 168].forEach(function (dy) { taken.push({ x: x, y: y + dy, r: 22 }); });
-          return;
-        }
-      }
-    });
-    parasites.forEach(function (def) {
-      var r = D.SIZE_R[def.size];
-      var hosts = placed.filter(function (p) { return p.def.trait !== "parasite"; });
-      for (var tries = 0; tries < 60 && hosts.length; tries++) {
-        var h = Rng.pick(rng, hosts), a = rng() * Math.PI * 2, d = h.r + r + 4;
-        var x = h.x + Math.cos(a) * d, y = h.y + Math.sin(a) * d;
-        if (x < r + 10 || x > K.FIELD_W - r - 10 || y < 90 || y > 680) continue;
-        var ok = placed.concat(taken).every(function (p) { return p === h || Math.sqrt((p.x - x) * (p.x - x) + (p.y - y) * (p.y - y)) > p.r + r + 4; });
-        if (ok) { placed.push({ def: def, x: x, y: y, r: r }); return; }
-      }
-    });
-    return placed;
-  }
-
-  // 場地機關（規則文件 §8.1）：星點 4～6；50% 引力井（其中 30% 黑洞）；60% 小行星 2～3。
-  // 與敵人、隊員、彼此至少相距 FIELD_GAP。
-  function genField(rng, enemies) {
-    var taken = enemies.map(function (e) { return { x: e.x, y: e.y, r: e.r }; });
-    Physics.DEFAULT_HERO_POS.forEach(function (p) { taken.push({ x: p.x, y: p.y, r: K.HERO_R }); });
-    function place(r, y0, y1) {
-      for (var i = 0; i < 300; i++) {
-        var x = Rng.int(rng, r + 20, K.FIELD_W - r - 20), y = Rng.int(rng, y0, y1);
-        var ok = taken.every(function (o) { var dx = o.x - x, dy = o.y - y; return Math.sqrt(dx * dx + dy * dy) > o.r + r + K.FIELD_GAP; });
-        if (ok) { taken.push({ x: x, y: y, r: r }); return { x: x, y: y }; }
-      }
-      return null;
-    }
-    var field = { stars: [], wells: [], rocks: [] };
-    if (rng() < 0.5) {
-      var hole = rng() < 0.3;
-      var g = place(hole ? K.HOLE_R + 10 : 50, 180, 620);
-      if (g) field.wells.push({ x: g.x, y: g.y, radius: K.WELL_R, hole: hole });
-    }
-    if (rng() < 0.6) {
-      for (var k = Rng.int(rng, 2, 3); k > 0; k--) { var rk = place(K.ROCK_R, 130, 700); if (rk) field.rocks.push(rk); }
-    }
-    for (var s = Rng.int(rng, K.STAR_MIN, K.STAR_MAX); s > 0; s--) { var st = place(12, 90, 740); if (st) field.stars.push(st); }
-    return field;
-  }
-
-  function startBattle(seed) {
-    S.seed = seed == null ? (Date.now() >>> 0) : seed;
+  // 敵人與場地機關的產生在 shedan_run.js（遠征層亂數，最終移植成 Go）。這裡只把 setup 交給規則與物理。
+  // setup = {heroes, enemies, field, boss, seed, mods, hp, hpMax, gaugeMinus, fullGauge, lifePodUsed}
+  function startBattle(setup) {
+    S.seed = setup.seed >>> 0;
     var rng = Rng.make(S.seed);
-    var heroes = S.picked.map(function (id) { return D.HERO_BY_ID[id]; });
-    heroes.forEach(heroImg);
-    var boss = arenaBoss(S.arena), sector = arenaSector(S.arena);
-    var enemies = genEnemies(rng, sector, boss ? 2 : Rng.int(rng, 4, 6), boss);
-    var occupied = enemies.slice();
-    if (boss) occupied.push({ x: K.FIELD_W / 2, y: 240, r: 200 });
-    var field = genField(rng, occupied);
-    S.battle = Combat.create({ heroes: heroes, enemies: enemies, field: field, rng: rng, boss: boss ? boss.id : null });
-    S.battle.avoid = Physics.DEFAULT_HERO_POS.map(function (p) { return { x: p.x, y: p.y, r: K.HERO_R + 6 }; });
-    S.world = Physics.create({ Matter: window.Matter, battle: S.battle, field: { wells: S.battle.wells, rocks: S.battle.rocks } });
+    setup.heroes.forEach(heroImg);
+    S.battle = Combat.create({
+      heroes: setup.heroes, enemies: setup.enemies, field: setup.field, rng: rng, boss: setup.boss,
+      mods: setup.mods || {}, hp: setup.hp, hpMax: setup.hpMax, gaugeMinus: setup.gaugeMinus,
+      fullGauge: setup.fullGauge, lifePodUsed: setup.lifePodUsed
+    });
+    S.battle.avoid = D.HERO_POS.map(function (p) { return { x: p.x, y: p.y, r: K.HERO_R + 6 }; });
+    S.world = Physics.create({ Matter: window.Matter, battle: S.battle, field: { wells: S.battle.wells, rocks: S.battle.rocks }, mods: S.battle.mods });
     S.phase = "aim";
     S.aim = null; S.drag = null;
     S.skillArmed = false; S.canRedirect = false; S.walls = [];
-    S.recording = false; S.recPath = []; S.ghostPath = null; S.ghost = null;
+    S.recording = false; S.recPath = []; S.ghostPath = null; S.ghost = null; S.lastPath = null; S.bestPath = null;
     S.screen = "battle";
     Render.trailClear(R);
     render();
@@ -272,6 +209,31 @@
     showBanner(t("sd_drag_hint"), 1600);
   }
 
+  // 試玩戰場（不經過遠征）：用與遠征相同的產生器
+  function startArena(seed) {
+    var sd = seed == null ? (Date.now() >>> 0) : seed;
+    var boss = arenaBoss(S.arena);
+    var bt = Run.genBattle(Rng.make(sd), { sector: arenaSector(S.arena), boss: boss ? boss.id : null, mods: {} });
+    S.run = null;
+    startBattle({ heroes: S.picked.map(function (id) { return D.HERO_BY_ID[id]; }), enemies: bt.enemies, field: bt.field, boss: bt.boss, seed: sd });
+  }
+
+  // ---------------- 遠征（第 4 階段） ----------------
+  function startRun(seed) {
+    S.run = Run.create({ seed: seed == null ? String(Date.now()) : String(seed), heroes: S.picked });
+    S.screen = "map";
+    render();
+  }
+  function enterNode(id) {
+    var run = S.run, node = Run.enter(run, id);
+    if (node.type === "battle" || node.type === "elite" || node.type === "boss") startBattle(Run.battleSetup(run));
+    else { S.screen = node.type; render(); }
+  }
+  function backToMap() {
+    var run = S.run;
+    S.screen = run.state === "won" || run.state === "lost" ? "runEnd" : "map";
+    render();
+  }
   function heroPos(i) { return Physics.heroPos(S.world, i); }
 
   // ---------------- 輸入：任何位置按住拖曳拉弓 ----------------
@@ -292,11 +254,13 @@
   function updateAim(e) {
     var p = Render.toField(R, e.clientX, e.clientY);
     var dx = S.drag.x - p.x, dy = S.drag.y - p.y;
-    var len = Math.sqrt(dx * dx + dy * dy);
-    if (len > K.PULL_MAX) { dx *= K.PULL_MAX / len; dy *= K.PULL_MAX / len; len = K.PULL_MAX; }
+    var len = Math.sqrt(dx * dx + dy * dy), maxLen = K.PULL_MAX * maxPower();
+    if (len > maxLen) { dx *= maxLen / len; dy *= maxLen / len; len = maxLen; }
     var hp = heroPos(S.battle.active);
-    S.aim = { x: hp.x, y: hp.y, dx: dx, dy: dy, power: len / K.PULL_MAX };
+    S.aim = { x: hp.x, y: hp.y, dx: dx, dy: dy, power: len / K.PULL_MAX, bounce: !!S.battle.mods.bounceAim };
   }
+  // 力道上限：穩定推進器 100% → 115%
+  function maxPower() { return 1 + ((S.battle && S.battle.mods.pullMax) || 0); }
   function onUp(e) {
     if (!S.drag) return;
     updateAim(e);
@@ -309,20 +273,26 @@
   function shoot(dx, dy, power) {
     var b = S.battle, len = Math.sqrt(dx * dx + dy * dy) || 1;
     var hero = b.party[b.active].def;
-    var sp = K.SPEED_MAX * Math.min(1, power) * (hero.speed || 1);
+    var m = b.mods;
+    var sp = K.SPEED_MAX * Math.min(maxPower(), power) * (hero.speed || 1);
     var hp = heroPos(b.active);
     var useSkill = S.skillArmed && Combat.canSkill(b);
     S.skillArmed = false;
     var r = Combat.beginShot(b, { skill: useSkill, x: hp.x, y: hp.y, dir: { x: dx / len, y: dy / len } });
     S.walls = [];
-    // 殘影：上一發有「回聲」就在這一發重播；這一發有「回聲」就開始記錄
-    S.ghost = S.ghostPath ? { path: S.ghostPath, i: 0, x: S.ghostPath[0].x, y: S.ghostPath[0].y } : null;
+    // 殘影（§8.1、§10.1）：上一發有「回聲」→ 重播那一發；殘影投影機 → 每發重播上一發（記憶結晶：本場 Hit 最多的一發）
+    var path = S.ghostPath || (m.ghostOn ? (m.ghostMemory ? S.bestPath : S.lastPath) : null);
+    S.ghost = path && path.length > 1 ? {
+      path: path, i: 0, x: path[0].x, y: path[0].y, loops: m.ghostTwice ? 2 : 1,
+      r: K.HERO_R * (1 + (m.ghostRadius || 0))
+    } : null;
     S.ghostPath = null;
-    S.recording = !!b.ghostNext;
+    S.recording = !!b.ghostNext;   // 這一發有「回聲」：下一發重播這一發
     b.ghostNext = false;
     S.recPath = [];
     applyCmds(r.cmds);
     Physics.launch(S.world, b.active, dx / len * sp, dy / len * sp, r.launch);
+    if (S.ghost && m.ghostAirless) Physics.setShooterAirless(S.world, true);   // 時滯晶片
     S.canRedirect = !!r.launch.redirect;
     S.phase = "shooting";
     Render.trailClear(R);
@@ -361,18 +331,29 @@
     }
     var p = heroPos(b.active);
     if (!stop) {
-      applyCmds(Combat.onPos(b, { x: p.x, y: p.y, r: Physics.heroRadius(w, b.active) }));
-      if (S.recording) S.recPath.push({ x: p.x, y: p.y });
+      // 共振天線：停住的隊友位置也算星點
+      var allies = b.mods.allyStar ? b.party.map(function (q, i) { var hp = heroPos(i); return { i: i, x: hp.x, y: hp.y }; }).filter(function (a) { return a.i !== b.active; }) : null;
+      applyCmds(Combat.onPos(b, { x: p.x, y: p.y, r: Physics.heroRadius(w, b.active), allies: allies }));
+      S.recPath.push({ x: p.x, y: p.y });   // 每一發都記錄（殘影投影機、記憶結晶用）
     }
     if (S.ghost) {
       var g = S.ghost;
       g.i++;
-      if (g.i >= g.path.length) S.ghost = null;
-      else {
+      if (g.i >= g.path.length && --g.loops > 0) g.i = 0;   // 雙重殘影：跑完再跑一次
+      if (g.i >= g.path.length) {
+        S.ghost = null;
+        if (b.mods.ghostAirless) Physics.setShooterAirless(w, false);
+      } else {
         g.x = g.path[g.i].x; g.y = g.path[g.i].y;
         Combat.alive(b).forEach(function (e) {
           var dx = e.x - g.x, dy = e.y - g.y;
-          if (Math.sqrt(dx * dx + dy * dy) <= e.r + K.HERO_R) applyCmds(Combat.onGhost(b, { enemy: e.uid, step: w.stepNo }));
+          if (Math.sqrt(dx * dx + dy * dy) <= e.r + g.r) applyCmds(Combat.onGhost(b, { enemy: e.uid, step: w.stepNo }));
+        });
+        // 幽靈隊員／殘影 5：殘影碰到停住的隊友也觸發友情技（規則層限制每發一次）
+        if (b.mods.ghostAlly) b.party.forEach(function (q, i) {
+          if (i === b.active) return;
+          var hp = heroPos(i), ddx = hp.x - g.x, ddy = hp.y - g.y;
+          if (Math.sqrt(ddx * ddx + ddy * ddy) <= g.r + Physics.heroRadius(w, i)) applyCmds(Combat.onAlly(b, { ally: i, x: hp.x, y: hp.y, ghost: true }));
         });
       }
     }
@@ -397,9 +378,16 @@
       updateHud();
     } else if (ev.type === "stop") {
       var sp = heroPos(b.active);
+      var shotHits = b.shot.hits;
       var res = Combat.endShot(b, sp);
       applyCmds(res.cmds);
-      if (S.recording) { S.ghostPath = S.recPath.length > 1 ? S.recPath : null; S.recording = false; S.recPath = []; }
+      // 軌跡：回聲 → 下一發；上一發（投影機）；本場 Hit 最多的一發（記憶結晶）
+      if (S.recPath.length > 1) {
+        if (S.recording) S.ghostPath = S.recPath;
+        S.lastPath = S.recPath;
+        if (!S.bestPath || shotHits > S.bestHits) { S.bestPath = S.recPath; S.bestHits = shotHits; }
+      }
+      S.recording = false; S.recPath = [];
       S.ghost = null;
       S.walls = [];
       S.canRedirect = false;
@@ -448,8 +436,18 @@
         Physics.breakRock(S.world, c.id);
         Render.explode(R, c.x, c.y, K.ROCK_R * 1.8, 0, "#c9a07a");
       } else if (c.type === "star") {
-        var st = b.stars[c.index];
-        Render.spark(R, st.x, st.y, "#ffe27a");
+        Render.spark(R, c.x, c.y, "#ffe27a");
+      } else if (c.type === "addStar") {
+        Render.spark(R, c.x, c.y, "#fff3b0");
+      } else if (c.type === "miss") {
+        var me = Combat.byUid(b, c.uid);
+        if (me) Render.floatText(R, me.x, me.y - 30, t("sd_miss"), "#cfd6ff");
+      } else if (c.type === "lifePod") {
+        showBanner(name(D.RELIC_BY_ID.life_pod.name), 1400);
+        updateHud();
+      } else if (c.type === "relic") {
+        var rl = D.RELIC_BY_ID[c.id];
+        if (rl) Render.floatText(R, K.FIELD_W / 2, 120, name(rl.name), "#ffe9a8", true);
       } else if (c.type === "constellation") {
         showBanner(t("sd_const_" + c.id), 1200);
       } else if (c.type === "heal") {
@@ -517,11 +515,24 @@
     }, 650);
   }
 
+  // 戰鬥結束：遠征中交給 Run（勝利 → 獎勵三選一；戰敗 → 遠征結束）；試玩戰場顯示結果
   function finish(kind) {
     S.phase = "over";
     S.result = kind;
     updateHud();
-    window.setTimeout(function () { S.screen = "result"; render(); }, 700);
+    var ended = S.battle;
+    window.setTimeout(function () {
+      // 延遲期間已經開了下一場（例如測試或快速操作）就不要把新戰鬥切走
+      if (S.battle !== ended || S.screen !== "battle") return;
+      var b = S.battle;
+      if (S.run) {
+        S.reward = Run.finishBattle(S.run, {
+          win: kind === "win", hp: b.hp, damage: b.stats.damage, maxChain: b.stats.maxChain, lifePodUsed: b.flags.lifePodUsed
+        });
+        S.screen = S.run.state === "reward" ? "reward" : "runEnd";
+      } else S.screen = "result";
+      render();
+    }, 700);
   }
 
   function renderResult() {
@@ -530,8 +541,204 @@
       "<p>" + esc(t("sd_result_stats", { turns: b.turnNo, dmg: b.stats.damage, chain: b.stats.maxChain })) + "</p>" +
       '<div class="sd-row"><button type="button" class="sd-btn" data-act="again">' + esc(t("sd_again")) + "</button>" +
       '<button type="button" class="sd-btn sd-btn-ghost" data-act="pick">' + esc(t("sd_back_pick")) + "</button></div>";
-    overlay.querySelector('[data-act="again"]').addEventListener("click", function () { startBattle(); });
+    overlay.querySelector('[data-act="again"]').addEventListener("click", function () { startArena(); });
     overlay.querySelector('[data-act="pick"]').addEventListener("click", function () { S.screen = "pick"; render(); });
+  }
+
+  // ---------------- 遠征畫面 ----------------
+  var NODE_ICON = { battle: "⚔", elite: "☠", drifter: "🛟", shop: "🛒", event: "❓", rest: "⛺", boss: "👑" };
+  function relicCard(id, extra) {
+    var r = D.RELIC_BY_ID[id];
+    return '<div class="sd-relic is-' + r.rarity + '"><b>' + esc(name(r.name)) + '</b><span class="sd-relic-tags">' +
+      r.tags.map(function (tg) { return esc(name(D.TAG_NAMES[tg])); }).join("・") + " · " + esc(t("sd_rarity_" + r.rarity)) + "</span>" +
+      "<span>" + esc(r.desc) + "</span>" + (extra || "") + "</div>";
+  }
+  function runHeader() {
+    var run = S.run;
+    return '<div class="sd-run-head"><span class="sd-badge">' + esc(t("sd_arena_s" + run.sector)) + '</span>' +
+      '<span class="sd-badge">HP ' + run.hp + " / " + run.hpMax + '</span><span class="sd-badge">⚡ ' + run.energy + "</span>" +
+      '<button type="button" class="sd-badge sd-relic-btn" data-act="relics">' + esc(t("sd_relics_n", { n: run.relics.length })) + "</button></div>";
+  }
+  function bindRunHeader() {
+    var rb = overlay.querySelector('[data-act="relics"]');
+    if (rb) rb.addEventListener("click", function () { S.prevScreen = S.screen; S.screen = "relics"; render(); });
+  }
+  function teamRow(onPick) {
+    return '<div class="sd-team">' + S.run.heroes.map(function (id, i) {
+      var h = D.HERO_BY_ID[id];
+      return '<button type="button" class="sd-team-btn" data-team="' + i + '"' + (onPick ? "" : " disabled") + '><img src="' + esc(imgBase + h.img) + '" alt=""><span>' + esc(name(h.name)) + "</span></button>";
+    }).join("") + "</div>";
+  }
+
+  // 地圖：由下（第 1 層）往上（Boss）；可走的節點高亮
+  function renderMap() {
+    var run = S.run, map = Run.mapOf(run), reach = Run.reachable(run);
+    var html = runHeader() + '<div class="sd-map"><svg class="sd-map-lines"></svg>';
+    for (var L = Run.LAYERS + 1; L >= 1; L--) {
+      html += '<div class="sd-map-row">';
+      map.nodes.filter(function (n) { return n.layer === L; }).forEach(function (n) {
+        var vis = Run.typeVisible(run, n);
+        var cls = "sd-node" + (reach.indexOf(n.id) >= 0 ? " is-reach" : "") + (run.visited.indexOf(n.id) >= 0 ? " is-done" : "") + (run.nodeId === n.id ? " is-here" : "") + (n.type === "boss" ? " is-boss" : "");
+        var left = n.type === "boss" ? 50 : 12.5 + n.col * 25;
+        html += '<button type="button" class="' + cls + '" data-node="' + n.id + '" style="left:' + left + '%"' + (reach.indexOf(n.id) >= 0 ? "" : " disabled") +
+          ' title="' + esc(vis ? t("sd_node_" + n.type) : "?") + '">' + (vis ? NODE_ICON[n.type] : "?") + "</button>";
+      });
+      html += "</div>";
+    }
+    html += "</div>";
+    overlay.innerHTML = html;
+    bindRunHeader();
+    overlay.querySelectorAll("[data-node]").forEach(function (btn) {
+      btn.addEventListener("click", function () { enterNode(btn.getAttribute("data-node")); });
+    });
+    drawMapLines(map);
+  }
+  function drawMapLines(map) {
+    var svg = overlay.querySelector(".sd-map-lines"), box = overlay.querySelector(".sd-map");
+    if (!svg || !box) return;
+    var br = box.getBoundingClientRect(), lines = "";
+    function center(id) {
+      var n = overlay.querySelector('[data-node="' + id + '"]');
+      if (!n) return null;
+      var r = n.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - br.left, y: r.top + r.height / 2 - br.top };
+    }
+    map.nodes.forEach(function (n) {
+      var a = center(n.id);
+      n.next.forEach(function (id) {
+        var c = center(id);
+        if (a && c) lines += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + c.x + '" y2="' + c.y + '"/>';
+      });
+    });
+    svg.setAttribute("width", br.width);
+    svg.setAttribute("height", br.height);
+    svg.innerHTML = lines;
+  }
+
+  function renderReward() {
+    var rw = S.reward || { energy: 0, choices: [] };
+    var html = runHeader() + "<h1>" + esc(t("sd_win")) + "</h1><p>" + esc(t("sd_energy_gain", { n: rw.energy })) + "</p><p>" + esc(t("sd_pick_relic")) + '</p><div class="sd-relic-list">';
+    rw.choices.forEach(function (id) { html += '<button type="button" class="sd-relic-pick" data-relic="' + id + '">' + relicCard(id) + "</button>"; });
+    html += '</div><button type="button" class="sd-btn sd-btn-ghost" data-act="skip">' + esc(t("sd_skip")) + "</button>";
+    overlay.innerHTML = html;
+    bindRunHeader();
+    overlay.querySelectorAll("[data-relic]").forEach(function (btn) {
+      btn.addEventListener("click", function () { Run.takeRelic(S.run, btn.getAttribute("data-relic")); backToMap(); });
+    });
+    overlay.querySelector('[data-act="skip"]').addEventListener("click", function () { Run.takeRelic(S.run, null); backToMap(); });
+  }
+
+  function renderShop() {
+    var run = S.run, sh = Run.data(run).shop;
+    var html = runHeader() + "<h1>" + esc(t("sd_node_shop")) + '</h1><div class="sd-relic-list">';
+    sh.items.forEach(function (it, i) {
+      var can = !it.sold && run.energy >= it.price && run.relics.indexOf(it.id) < 0;
+      html += relicCard(it.id, '<button type="button" class="sd-btn" data-buy="' + i + '"' + (can ? "" : " disabled") + ">" + (it.sold ? esc(t("sd_sold")) : "⚡ " + it.price) + "</button>");
+    });
+    var rc = Run.repairCost(run);
+    html += '</div><div class="sd-row"><button type="button" class="sd-btn" data-act="repair"' + (!sh.repaired && run.energy >= rc ? "" : " disabled") + ">" +
+      esc(t("sd_repair", { n: rc })) + '</button><button type="button" class="sd-btn sd-btn-ghost" data-act="leave">' + esc(t("sd_leave")) + "</button></div>";
+    overlay.innerHTML = html;
+    bindRunHeader();
+    overlay.querySelectorAll("[data-buy]").forEach(function (btn) {
+      btn.addEventListener("click", function () { Run.buy(run, +btn.getAttribute("data-buy")); renderShop(); });
+    });
+    overlay.querySelector('[data-act="repair"]').addEventListener("click", function () { Run.repair(run); renderShop(); });
+    overlay.querySelector('[data-act="leave"]').addEventListener("click", function () { Run.leave(run); backToMap(); });
+  }
+
+  function renderRest() {
+    var run = S.run;
+    var heal = Math.round(run.hpMax * 0.3 * (1 + (Run.mods(run).restBonus || 0)));
+    overlay.innerHTML = runHeader() + "<h1>" + esc(t("sd_node_rest")) + "</h1>" +
+      '<div class="sd-row"><button type="button" class="sd-btn" data-act="heal">' + esc(t("sd_rest_heal", { n: heal })) + "</button></div>" +
+      "<p>" + esc(t("sd_rest_upgrade")) + "</p>" + teamRow(true);
+    bindRunHeader();
+    overlay.querySelector('[data-act="heal"]').addEventListener("click", function () { Run.rest(run, "heal"); backToMap(); });
+    overlay.querySelectorAll("[data-team]").forEach(function (btn) {
+      btn.addEventListener("click", function () { Run.rest(run, "upgrade", +btn.getAttribute("data-team")); backToMap(); });
+    });
+  }
+
+  function renderDrifter() {
+    var run = S.run, who = Run.data(run).drifter;
+    if (!who) { Run.leave(run); backToMap(); return; }
+    var h = D.HERO_BY_ID[who], info = D.ELEMENT_INFO[h.element];
+    var pay = S.drifterPay;
+    var html = runHeader() + "<h1>" + esc(t("sd_node_drifter")) + '</h1><div class="sd-drifter"><img src="' + esc(imgBase + h.img) + '" alt="" style="border-color:' + info.color + '">' +
+      "<b>" + esc(name(h.name)) + "</b><span>" + info.icon + " " + esc(name(info.name)) + "・" + esc(name(h.skill.name)) + "</span></div>";
+    if (!pay) {
+      html += '<div class="sd-row"><button type="button" class="sd-btn" data-pay="energy"' + (Run.canRescue(run, "energy") ? "" : " disabled") + ">" + esc(t("sd_pay_energy", { n: Run.drifterCost(run, "energy") })) + "</button>" +
+        '<button type="button" class="sd-btn" data-pay="hp"' + (Run.canRescue(run, "hp") ? "" : " disabled") + ">" + esc(t("sd_pay_hp", { n: Run.drifterCost(run, "hp") })) + "</button>" +
+        '<button type="button" class="sd-btn sd-btn-ghost" data-act="leave">' + esc(t("sd_leave")) + "</button></div>";
+    } else {
+      html += "<p>" + esc(t("sd_replace_who")) + "</p>" + teamRow(true) + '<button type="button" class="sd-btn sd-btn-ghost" data-act="noswap">' + esc(t("sd_no_swap")) + "</button>";
+    }
+    overlay.innerHTML = html;
+    bindRunHeader();
+    overlay.querySelectorAll("[data-pay]").forEach(function (btn) {
+      btn.addEventListener("click", function () { S.drifterPay = btn.getAttribute("data-pay"); renderDrifter(); });
+    });
+    var lv = overlay.querySelector('[data-act="leave"]');
+    if (lv) lv.addEventListener("click", function () { Run.leave(run); backToMap(); });
+    overlay.querySelectorAll("[data-team]").forEach(function (btn) {
+      btn.addEventListener("click", function () { Run.rescue(run, pay, +btn.getAttribute("data-team")); S.drifterPay = null; backToMap(); });
+    });
+    var ns = overlay.querySelector('[data-act="noswap"]');
+    if (ns) ns.addEventListener("click", function () { Run.rescue(run, pay, null); S.drifterPay = null; backToMap(); });
+  }
+
+  function renderEvent() {
+    var run = S.run, ev = Run.eventOf(run);
+    overlay.innerHTML = runHeader() + "<h1>" + esc(name(ev.name)) + "</h1><p>" + esc(name(ev.text)) + '</p><div class="sd-row sd-col">' +
+      ["a", "b"].map(function (o) {
+        return '<button type="button" class="sd-btn" data-opt="' + o + '"' + (Run.canChoose(run, o) ? "" : " disabled") + ">" + esc(name(ev[o].label)) + "</button>";
+      }).join("") + "</div>";
+    bindRunHeader();
+    overlay.querySelectorAll("[data-opt]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var out = Run.choose(run, btn.getAttribute("data-opt"));
+        S.eventOut = out;
+        S.screen = "eventOut";
+        render();
+      });
+    });
+  }
+  function renderEventOut() {
+    var o = S.eventOut || {};
+    var lines = [];
+    if (o.relic) lines.push(t("sd_got_relic", { name: name(D.RELIC_BY_ID[o.relic].name) }));
+    if (o.energy) lines.push("⚡ " + (o.energy > 0 ? "+" : "") + o.energy);
+    if (o.hp) lines.push("HP " + (o.hp > 0 ? "+" : "") + o.hp);
+    if (o.maxHp) lines.push(t("sd_max_hp") + " " + (o.maxHp > 0 ? "+" : "") + o.maxHp);
+    if (!lines.length) lines.push(t("sd_nothing"));
+    overlay.innerHTML = runHeader() + "<h1>" + esc(t("sd_node_event")) + "</h1>" + lines.map(function (l) { return "<p>" + esc(l) + "</p>"; }).join("") +
+      (o.relic ? '<div class="sd-relic-list">' + relicCard(o.relic) + "</div>" : "") +
+      '<button type="button" class="sd-btn" data-act="ok">' + esc(t("sd_continue")) + "</button>";
+    bindRunHeader();
+    overlay.querySelector('[data-act="ok"]').addEventListener("click", backToMap);
+  }
+
+  // 持有遺物與套裝進度
+  function renderRelics() {
+    var run = S.run, n = D.tagCounts(run.relics);
+    var html = "<h1>" + esc(t("sd_relics")) + '</h1><div class="sd-sets">' + D.TAGS.map(function (tg) {
+      var c = n[tg], st = D.SETS[tg];
+      return '<div class="sd-set' + (c >= 3 ? " is-on" : "") + '"><b>' + esc(name(D.TAG_NAMES[tg])) + " " + c + '</b><span class="' + (c >= 3 ? "on" : "") + '">3：' + esc(st.d3) +
+        '</span><span class="' + (c >= 5 ? "on" : "") + '">5：' + esc(st.d5) + "</span></div>";
+    }).join("") + '</div><div class="sd-relic-list">' + (run.relics.length ? run.relics.map(function (id) { return relicCard(id); }).join("") : "<p>" + esc(t("sd_no_relics")) + "</p>") +
+      '</div><button type="button" class="sd-btn" data-act="back">' + esc(t("sd_continue")) + "</button>";
+    overlay.innerHTML = html;
+    overlay.querySelector('[data-act="back"]').addEventListener("click", function () { S.screen = S.prevScreen || "map"; render(); });
+  }
+
+  function renderRunEnd() {
+    var run = S.run, s = run.stats;
+    overlay.innerHTML = "<h1>" + esc(t(run.state === "won" ? "sd_run_won" : "sd_run_lost")) + "</h1>" +
+      "<p>" + esc(t("sd_run_stats", { nodes: s.nodes, dmg: s.damage, chain: s.maxChain, bosses: s.bosses })) + "</p>" +
+      '<p class="sd-score">' + esc(t("sd_score", { n: Run.score(run) })) + "</p>" +
+      '<div class="sd-row"><button type="button" class="sd-btn" data-act="pick">' + esc(t("sd_back_pick")) + "</button></div>";
+    overlay.querySelector('[data-act="pick"]').addEventListener("click", function () { S.run = null; S.screen = "pick"; render(); });
   }
 
   // ---------------- HUD ----------------
@@ -574,7 +781,19 @@
     isNavOpen: isNavOpen, setNavOpen: setNavOpen,
     _debug: {
       state: function () { return S; },
-      pick: function (ids, arena, seed) { S.picked = ids.slice(0, 4); if (arena) S.arena = arena; startBattle(seed == null ? 1234 : seed); },
+      pick: function (ids, arena, seed) { S.picked = ids.slice(0, 4); if (arena) S.arena = arena; startArena(seed == null ? 1234 : seed); },
+      startRun: function (ids, seed) { S.picked = ids.slice(0, 4); startRun(seed == null ? "debug" : seed); },
+      run: function () { return S.run; },
+      enter: function (id) { enterNode(id); },
+      // 測試：直接把遺物加進遠征（全部 100 件同時持有的煙霧測試用）
+      giveRelics: function (ids) { ids.forEach(function (id) { Run.addRelic(S.run, id); }); },
+      arenaWithRelics: function (ids, arena, seed) {
+        S.arena = arena || "s1";
+        var sd = seed || 99, boss = arenaBoss(S.arena);
+        var bt = Run.genBattle(Rng.make(sd), { sector: arenaSector(S.arena), boss: boss ? boss.id : null, mods: D.computeMods(ids) });
+        S.run = null;
+        startBattle({ heroes: S.picked.map(function (id) { return D.HERO_BY_ID[id]; }), enemies: bt.enemies, field: bt.field, boss: bt.boss, seed: sd, mods: D.computeMods(ids) });
+      },
       shoot: function (dx, dy, power) { if (S.phase === "aim") shoot(dx, dy, power == null ? 1 : power); },
       forceWin: function () {
         S.battle.enemies.forEach(function (e) { e.dead = true; e.hp = 0; Physics.removeEnemy(S.world, e.uid); });

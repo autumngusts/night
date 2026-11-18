@@ -77,7 +77,7 @@
     drawField(ctx);
     if (v.battle) {
       drawWells(ctx, v.wells || [], now);
-      drawStars(ctx, v.battle, v.lit || [], now);
+      drawStars(ctx, v.battle, v.lit || [], now, v.battle.mods && v.battle.mods.stargazer);
       drawZones(ctx, v.battle, now);
       drawAcids(ctx, v.battle, now);
       drawRocks(ctx, v.battle, now);
@@ -165,19 +165,30 @@
     });
   }
 
-  function drawStars(ctx, b, lit, now) {
-    if (!b.stars || !b.stars.length) return;
+  // lit：本發點亮的星點 [{key, x, y}]（星點 s#、引力井 w#、隊友 a#）
+  function drawStars(ctx, b, lit, now, stargazer) {
+    if (!b.stars) return;
     ctx.save();
     if (lit.length > 1) {
       ctx.strokeStyle = "rgba(255, 236, 160, 0.85)";
       ctx.lineWidth = 3;
       ctx.shadowColor = "#ffe27a"; ctx.shadowBlur = 12;
       ctx.beginPath();
-      lit.forEach(function (idx, k) { var s = b.stars[idx]; if (k) ctx.lineTo(s.x, s.y); else ctx.moveTo(s.x, s.y); });
+      lit.forEach(function (l, k) { if (k) ctx.lineTo(l.x, l.y); else ctx.moveTo(l.x, l.y); });
       ctx.stroke();
     }
+    var litKeys = lit.map(function (l) { return l.key; });
     b.stars.forEach(function (s, i) {
-      var on = lit.indexOf(i) >= 0;
+      var on = litKeys.indexOf("s" + i) >= 0;
+      if (stargazer) {   // 觀星鏡：星點編號
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(255, 236, 160, 0.8)";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(i + 1), s.x, s.y - 14);
+        ctx.restore();
+      }
       var size = on ? 11 : 7 + Math.sin(now * 3 + i) * 1.5;
       ctx.shadowColor = on ? "#ffe27a" : "#9fb4ff"; ctx.shadowBlur = on ? 20 : 10;
       ctx.fillStyle = on ? "#fff3b0" : "rgba(200, 215, 255, 0.85)";
@@ -428,7 +439,22 @@
     ctx.lineDashOffset = -(Date.now() / 30) % 18;
     ctx.strokeStyle = "rgba(255, 240, 180, 0.85)";
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(aim.x, aim.y); ctx.lineTo(aim.x + ux * reach, aim.y + uy * reach); ctx.stroke();
+    var ex = aim.x + ux * reach, ey = aim.y + uy * reach;
+    // 跳彈計算機：碰到牆就畫出第一次反彈的方向
+    if (aim.bounce) {
+      var r = K.HERO_R, t = Infinity, nx = ux, ny = uy;
+      if (ux > 1e-6) t = Math.min(t, (K.FIELD_W - r - aim.x) / ux);
+      if (ux < -1e-6) t = Math.min(t, (r - aim.x) / ux);
+      if (uy < -1e-6) t = Math.min(t, (r - aim.y) / uy);
+      if (uy > 1e-6) t = Math.min(t, (K.FIELD_H - r - aim.y) / uy);
+      if (t < reach + 400) {
+        var bx = aim.x + ux * t, by = aim.y + uy * t;
+        if (bx <= r + 0.5 || bx >= K.FIELD_W - r - 0.5) nx = -ux; else ny = -uy;
+        ctx.beginPath(); ctx.moveTo(aim.x, aim.y); ctx.lineTo(bx, by); ctx.lineTo(bx + nx * 220, by + ny * 220); ctx.stroke();
+        ex = null;
+      }
+    }
+    if (ex != null) { ctx.beginPath(); ctx.moveTo(aim.x, aim.y); ctx.lineTo(ex, ey); ctx.stroke(); }
     ctx.setLineDash([]);
     // 拉弓的皮筋
     ctx.strokeStyle = "rgba(160, 200, 255, 0.6)";

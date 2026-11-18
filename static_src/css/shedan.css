@@ -203,6 +203,71 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
   .sd-pick-grid { gap: .35rem; }
 }
 
+/* ---------- 遠征（第 4 階段） ---------- */
+.sd-overlay.is-run { justify-content: flex-start; }
+.sd-run-head { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: center; width: 100%; }
+.sd-relic-btn { cursor: pointer; color: #ffe9a8; font: inherit; }
+.sd-map { position: relative; width: min(100%, 26rem); flex: 1; min-height: 22rem; max-height: 44rem; display: flex; flex-direction: column; }
+.sd-map-lines { position: absolute; inset: 0; pointer-events: none; }
+.sd-map-lines line { stroke: rgba(150, 170, 255, .35); stroke-width: 2; stroke-dasharray: 4 4; }
+.sd-map-row { position: relative; flex: 1; }
+.sd-node {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 2px solid rgba(160, 180, 255, .3);
+  background: rgba(16, 20, 44, .9);
+  color: #e8ecff;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: default;
+}
+.sd-node.is-reach { border-color: #ffe27a; box-shadow: 0 0 12px rgba(255, 226, 122, .6); cursor: pointer; animation: sd-node-pulse 1.2s ease-in-out infinite; }
+.sd-node.is-done { opacity: .45; }
+.sd-node.is-here { opacity: 1; border-color: #8af0ff; box-shadow: 0 0 10px #8af0ff; }
+.sd-node.is-boss { width: 3.2rem; height: 3.2rem; font-size: 1.5rem; border-color: #ff7ad9; }
+@keyframes sd-node-pulse { 50% { box-shadow: 0 0 20px rgba(255, 226, 122, .95); } }
+
+.sd-relic-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .5rem; width: min(100%, 36rem); }
+.sd-relic {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding: .55rem .65rem;
+  border: 1px solid rgba(160, 180, 255, .3);
+  border-radius: 10px;
+  background: rgba(16, 20, 44, .8);
+  text-align: left;
+  font-size: .8rem;
+}
+.sd-relic b { font-size: .92rem; }
+.sd-relic-tags { font-size: .7rem; opacity: .75; }
+.sd-relic.is-rare { border-color: #6fb3ff; }
+.sd-relic.is-rare b { color: #9fd0ff; }
+.sd-relic.is-legendary { border-color: #ffb04f; box-shadow: 0 0 10px rgba(255, 176, 79, .35); }
+.sd-relic.is-legendary b { color: #ffd27a; }
+.sd-relic .sd-btn { min-width: 0; margin-top: .3rem; padding: .35rem .8rem; font-size: .85rem; }
+.sd-relic-pick { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.sd-relic-pick:hover .sd-relic { border-color: #ffe27a; }
+.sd-team { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: center; }
+.sd-team-btn { display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: .35rem; border: 1px solid rgba(160, 180, 255, .3); border-radius: 10px; background: rgba(16, 20, 44, .8); color: inherit; font-size: .75rem; cursor: pointer; }
+.sd-team-btn img { width: 3rem; height: 3rem; border-radius: 50%; object-fit: cover; }
+.sd-team-btn:hover:not(:disabled) { border-color: #ffe27a; }
+.sd-drifter { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+.sd-drifter img { width: 5rem; height: 5rem; border-radius: 50%; object-fit: cover; border: 3px solid; }
+.sd-sets { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .4rem; width: min(100%, 36rem); }
+.sd-set { display: flex; flex-direction: column; gap: .1rem; padding: .4rem .55rem; border-radius: 8px; background: rgba(16, 20, 44, .7); font-size: .72rem; opacity: .7; }
+.sd-set.is-on { opacity: 1; border: 1px solid #ffe27a; }
+.sd-set span.on { color: #ffe27a; }
+.sd-col { flex-direction: column; align-items: stretch; width: min(100%, 24rem); }
+.sd-score { font-size: 1.3rem; font-weight: 700; color: #ffe27a; }
+.sd-test-arena { display: flex; flex-direction: column; align-items: center; gap: .4rem; font-size: .8rem; opacity: .9; }
+.sd-test-arena summary { cursor: pointer; text-align: center; }
+.sd-test-arena[open] { display: flex; }
+
 /* 戰場選擇（試作：星區 1～3、Boss 1～3） */
 .sd-pick-bar { flex-direction: column; align-items: center; gap: .5rem; }
 .sd-arena { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; }
