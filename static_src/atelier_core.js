@@ -218,7 +218,9 @@
   // 第 1 階段的存檔補上第 2 階段的欄位（原有資料不動）
   function migrate(save) {
     var def = { ideas: {}, made: {}, ash: 0, cauldrons: { copper: 1 }, shelf: 0, streak: { n: 0, date: "" },
-      daily: { date: "" }, wb: null, best: {}, seen: {}, log: [], tutorial: 0 };
+      daily: { date: "" }, wb: null, best: {}, seen: {}, log: [], tutorial: 0,
+      settings: { advanced: true }, catalysts: { expand: 0, tint: 0, double: 0 },
+      weekly: { key: "", best: 0, plays: 0 } };
     Object.keys(def).forEach(function (k) { if (save[k] === undefined) save[k] = def[k]; });
     if (!save.cauldrons.copper) save.cauldrons.copper = 1;
     return save;
@@ -411,11 +413,125 @@
   function recipesFor(save) { return D.RECIPES.filter(function (r) { return recipeAvailable(save, r); }); }
   function slotOk(need, mat) { return need === "*" || need === mat.category; }
 
+  // ---------- 第 3 階段：進階棋盤、觸媒（§9.1） ----------
+  function advancedOn(save) { return level(save) >= D.ADVANCED_LV && !!save.settings.advanced; }
+  function setAdvanced(save, on) { save.settings.advanced = !!on; }
+  function makeCatalyst(save, id) {
+    var c = D.CATALYSTS[id];
+    if (!c || level(save) < D.ADVANCED_LV || save.ash < c.ash) return false;
+    save.ash -= c.ash; save.catalysts[id] = (save.catalysts[id] || 0) + 1;
+    return true;
+  }
+  function catalystOk(save, cat) {
+    var c = cat && D.CATALYSTS[cat.id];
+    if (!c || level(save) < D.ADVANCED_LV || !(save.catalysts[cat.id] > 0)) return false;
+    if (!c.needsEl) return true;
+    return D.ELEMENTS.some(function (e) { return e.id === cat.el; });
+  }
+  // ---------- O8 特性合成（§9.3） ----------
+  function fuseTraits(ids) {
+    var out = ids.slice();
+    D.TRAIT_FUSION.forEach(function (f) {
+      var a = out.indexOf(f[0]), b = out.indexOf(f[1]);
+      if (a < 0 || b < 0) return;
+      out = out.filter(function (t) { return t !== f[0] && t !== f[1]; });
+      out.push(f[2]);
+    });
+    return out;
+  }
+  function traitCost(ids) { return fuseTraits(ids).reduce(function (a, t) { return a + D.TRAITS[t].cost; }, 0); }
+  // ---------- B5 大成功（§9.2） ----------
+  function greatChance(save, session, ev) {
+    ev = ev || methods[session.method].evaluate(session, true);
+    var all = effectLevels(session.recipe, ev.gauges).every(function (e) { return e.level >= 1; });
+    return D.GREAT_BASE + save.hosts[save.host].aff * D.GREAT_PER_AFF + (all ? D.GREAT_ALL_LV : 0);
+  }
+  // ---------- C7 瑠璃出手（§9.4） ----------
+  function helpAvailable(save, session) {
+    var impl = methods[session.method];
+    return save.hosts[save.host].aff >= D.HELP_AFF && !session.helped && !!impl.bestPlacement && !impl.done(session);
+  }
+  function useHelp(save, session, mi) {
+    if (!helpAvailable(save, session)) return null;
+    var impl = methods[session.method], bp = impl.bestPlacement(session, mi);
+    if (!bp) return null;
+    var info = impl.place(session, mi, bp.x, bp.y, bp.rot);
+    if (info.ok) session.helped = true;
+    return info.ok ? info : null;
+  }
+  // ---------- B7 每週挑戰（§9.5） ----------
+  function weekKey(now) {
+    var dow = (new Date(now + JST).getUTCDay() + 6) % 7;   // 週一＝0
+    return jstDate(now - dow * 86400000);
+  }
+  function hsvToRgb(h, s2, v) {
+    var c = v * s2, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c, r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+    return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+  }
+  function randomShape(rng, n) {
+    var cells = [[0, 0]], has = { "0,0": true }, guard = 0;
+    while (cells.length < n && guard++ < 200) {
+      var c = cells[Math.floor(rng() * cells.length)], d = [[0, -1], [1, 0], [0, 1], [-1, 0]][Math.floor(rng() * 4)];
+      var k = (c[0] + d[0]) + "," + (c[1] + d[1]);
+      if (!has[k]) { has[k] = true; cells.push([c[0] + d[0], c[1] + d[1]]); }
+    }
+    return normalizeShape(cells);
+  }
+  function weeklyChallenge(now) {
+    var key = weekKey(now), rng = makeRng("weekly:" + key);
+    var pool = D.RECIPES.filter(function (r) { return r.lv <= 2; });
+    var r = pool[Math.floor(rng() * pool.length)], noon = Date.parse(key + "T03:00:00Z");
+    var mats = r.needs.map(function (n, i) {
+      var rgb = hsvToRgb(rng() * 360, 0.5 + rng() * 0.5, 0.45 + rng() * 0.5);
+      var m = makeMaterial({ rgb: rgb, hex: rgbToHex(rgb), frac: 0, shape: randomShape(rng, 2 + Math.floor(rng() * 4)) }, noon, -(i + 1));
+      return m;
+    });
+    return { key: key, recipe: r.id, mats: mats };
+  }
+  function baseCauldron(id) {
+    var c = D.CAULDRONS[id];
+    return { id: id, lv: 1, name: c.name, pattern: c.pattern, affinity: c.affinity, affinityMult: D.AFFINITY_MULT, qualityPerCell: c.qualityPerCell };
+  }
+  function startChallenge(save, now) {
+    var wc = weeklyChallenge(now), h = host(save);
+    var s = methods[h.method].create(recipe(wc.recipe), wc.mats, baseCauldron("copper"), h.ability);
+    s.challenge = wc.key;
+    return s;
+  }
+  function challengeScore(session) {
+    var ev = methods[session.method].evaluate(session, true);
+    return ev.quality + 10 * effectLevels(session.recipe, ev.gauges).reduce(function (a, e) { return a + e.level; }, 0);
+  }
+  function finishChallenge(save, session, now) {
+    if (!session.challenge || !methods[session.method].done(session)) return { error: "unplaced" };
+    var w = save.weekly, score = challengeScore(session);
+    if (w.key !== session.challenge) { save.weekly = w = { key: session.challenge, best: 0, plays: 0 }; }
+    w.plays++;
+    var first = w.plays === 1;
+    if (first) save.exp += D.WEEKLY_EXP;
+    w.best = Math.max(w.best, score);
+    return { score: score, best: w.best, first: first };
+  }
+  // ---------- B8 調和回放（§9.6） ----------
+  function replaySession(item) {
+    var rp = item.replay, impl = methods[rp.method || "board"];
+    var mats = rp.mats.map(function (m, i) {
+      return { uid: -(i + 1), hex: m.hex, element: m.element, shape: m.shape, power: m.power, quality: m.quality, traits: [], category: "*" };
+    });
+    var s = impl.create(recipe(item.recipe), mats, rp.cauldron, rp.ability, { rules: rp.rules, catalyst: rp.cat });
+    rp.moves.forEach(function (mv) { impl.place(s, mv[0], mv[1], mv[2], mv[3]); });
+    return s;
+  }
+
   // ---------- 調和 ----------
   function registerMethod(id, impl) { methods[id] = impl; }
   function host(save) { return HOSTS[save.host]; }
   // matUids 依配方 needs 的順序；檢查失敗回傳 {error}
-  function startSynthesis(save, recipeId, matUids, cauldronId, now) {
+  // opts（第 3 階段）：{ catalyst: {id, el} }
+  function startSynthesis(save, recipeId, matUids, cauldronId, now, opts) {
+    opts = opts || {};
     var r = recipe(recipeId);
     if (!r || !recipeAvailable(save, r)) return { error: "recipe" };
     if (!canSynth(save, now)) return { error: "cooldown" };
@@ -428,8 +544,12 @@
       if (!m || matUids.indexOf(matUids[i]) !== i || !slotOk(r.needs[i], m)) return { error: "slot", slot: i };
       mats.push(m);
     }
-    var h = host(save);
-    return methods[h.method].create(r, mats, cauldron, h.ability);
+    if (opts.catalyst && !catalystOk(save, opts.catalyst)) return { error: "catalyst" };
+    var h = host(save), adv = advancedOn(save);
+    return methods[h.method].create(r, mats, cauldron, h.ability, {
+      rules: adv ? { mix: true, complement: true, great: true } : {},
+      catalyst: opts.catalyst ? { id: opts.catalyst.id, el: opts.catalyst.el || null } : null
+    });
   }
   function effectLevels(r, gauges) {
     return r.gauges.map(function (g) {
@@ -449,25 +569,35 @@
   }
   function traitsValid(save, session, traitIds) {
     if (traitIds.length > D.MAX_TRAITS) return false;
-    var choices = traitChoices(session), cost = 0;
+    var choices = traitChoices(session);
     for (var i = 0; i < traitIds.length; i++) {
       if (choices.indexOf(traitIds[i]) < 0 || traitIds.indexOf(traitIds[i]) !== i) return false;
-      cost += D.TRAITS[traitIds[i]].cost;
     }
-    return cost <= traitCap(save);
+    return traitCost(traitIds) <= traitCap(save);   // O8：成本以合成後的特性計算
   }
   // 完成調和：扣素材、加成品、經驗、冷卻、好感度；回傳 item 或 {error}
   function finishSynthesis(save, session, traitIds, now) {
     var impl = methods[session.method];
     if (!impl.done(session)) return { error: "unplaced" };
     if (!traitsValid(save, session, traitIds)) return { error: "traits" };
-    var ev = impl.evaluate(session, true), q = ev.quality, boost = 0;
-    traitIds.forEach(function (t) { q += D.TRAITS[t].quality || 0; boost += D.TRAITS[t].boost || 0; });
+    var ev = impl.evaluate(session, true), q = ev.quality, boost = 0, traits = fuseTraits(traitIds);
+    traits.forEach(function (t) { q += D.TRAITS[t].quality || 0; boost += D.TRAITS[t].boost || 0; });
+    var rules = session.rules || {}, overheat = !!(rules.great && ev.overheat), great = false;
+    if (overheat) q -= D.OVERHEAT_PENALTY;                                      // §9.2 過熱
+    if (rules.great) {                                                          // §9.2 大成功（seed 可重現）
+      great = makeRng("great:" + save.nextUid + ":" + session.recipe.id)() < greatChance(save, session, ev);
+      if (great) q += D.GREAT_QUALITY;
+    }
+    var mult = (1 + boost / 100) * (great ? D.GREAT_EFFECT : 1);
     var effects = effectLevels(session.recipe, ev.gauges).map(function (e) {
-      return { el: e.el, level: e.level, kind: e.step ? e.step.kind : null, n: e.step ? Math.round(e.step.n * (1 + boost / 100)) : 0 };
+      return { el: e.el, level: e.level, kind: e.step ? e.step.kind : null, n: e.step ? Math.round(e.step.n * mult) : 0 };
     });
-    var item = { uid: save.nextUid++, recipe: session.recipe.id, quality: clamp(Math.round(q), 1, 100),
-      effects: effects, traits: traitIds.slice(), gauges: ev.gauges, at: now };
+    var item = { uid: save.nextUid++, recipe: session.recipe.id, quality: clamp(Math.round(q), 1, great ? D.QUALITY_CAP_GREAT : 100),
+      effects: effects, traits: traits, gauges: ev.gauges, at: now, great: great, overheat: overheat,
+      replay: { method: session.method, cauldron: session.cauldron, ability: session.ability, rules: rules, cat: session.catalyst || null,
+        mats: session.mats.map(function (m) { return { hex: m.hex, element: m.element, shape: m.shape, power: m.power, quality: m.quality }; }),
+        moves: (session.moves || []).slice() } };
+    if (session.catalyst) save.catalysts[session.catalyst.id]--;
     var used = session.mats.map(function (m) { return m.uid; }), ash = 0;
     session.mats.forEach(function (m, i) { ash += m.shape.length - ev.visible[i]; });   // C10：被蓋掉的格子變成灰燼
     if (item.quality < D.ASH_LOW_QUALITY) ash += D.ASH_FAIL_BONUS;
@@ -521,6 +651,10 @@
     cauldronLv: cauldronLv, canUnlockCauldron: canUnlockCauldron, unlockCauldron: unlockCauldron, upgradeCost: upgradeCost,
     upgradeCauldron: upgradeCauldron, effectiveCauldron: effectiveCauldron, matMax: matMax, shelfCost: shelfCost, upgradeShelf: upgradeShelf,
     itemAsMaterial: itemAsMaterial, findMat: findMat, sublimate: sublimate,
+    advancedOn: advancedOn, setAdvanced: setAdvanced, makeCatalyst: makeCatalyst, catalystOk: catalystOk,
+    fuseTraits: fuseTraits, traitCost: traitCost, greatChance: greatChance, helpAvailable: helpAvailable, useHelp: useHelp,
+    weekKey: weekKey, hsvToRgb: hsvToRgb, weeklyChallenge: weeklyChallenge, startChallenge: startChallenge,
+    challengeScore: challengeScore, finishChallenge: finishChallenge, replaySession: replaySession, baseCauldron: baseCauldron,
     hexToRgb: hexToRgb, rgbToHex: rgbToHex, rgbToHsv: rgbToHsv, rgbToLab: rgbToLab, deltaE: deltaE,
     nearestColor: nearestColor, elementOf: elementOf, categoryOf: categoryOf,
     kmeans: kmeans, shapeFromGrid: shapeFromGrid, normalizeShape: normalizeShape, rotateShape: rotateShape, analyze: analyze,

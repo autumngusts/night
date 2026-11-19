@@ -159,7 +159,11 @@
       hue_grace: { cost: 10, quality: 8, name: { zh: "色之恩惠", ja: "色の恵み", en: "Hue's Grace" } },
       hue_blessing: { cost: 18, boost: 25, name: { zh: "色之祝福", ja: "色の祝福", en: "Hue's Blessing" } },
       vivid: { cost: 12, quality: 10, name: { zh: "鮮豔", ja: "あざやか", en: "Vivid" } },
-      daily_hue: { cost: 8, boost: 15, name: { zh: "今日之色", ja: "今日の色", en: "Color of the Day" } }
+      daily_hue: { cost: 8, boost: 15, name: { zh: "今日之色", ja: "今日の色", en: "Color of the Day" } },
+      // 第 3 階段（O8 特性合成）才會出現的高階特性
+      twilight: { cost: 14, quality: 15, fused: true, name: { zh: "晨昏", ja: "朝夕", en: "Twilight" } },
+      hue_crown: { cost: 20, quality: 20, fused: true, name: { zh: "色之冠", ja: "色の冠", en: "Crown of Hues" } },
+      star_hue: { cost: 22, boost: 30, fused: true, name: { zh: "星之色", ja: "星の色", en: "Starlit Hue" } }
     },
     // O4 時間特性（JST 小時，含 from、不含 to；from > to 表示跨午夜）
     TIME_TRAITS: [
@@ -179,7 +183,26 @@
     WB_VALID_MS: 30 * 60000,         // O2 白平衡校正：30 分內有效（暫定）
     WB_QUALITY_MULT: 1.1,
     WB_GAIN_MIN: 0.5, WB_GAIN_MAX: 2,
-    SUBLIMATE_N: 3, SUBLIMATE_BONUS: 8   // B9 素材升華：同屬性 3 個 → 1 個，品質＝最高者＋8（暫定）
+    SUBLIMATE_N: 3, SUBLIMATE_BONUS: 8,  // B9 素材升華：同屬性 3 個 → 1 個，品質＝最高者＋8（暫定）
+
+    // ---------- 第 3 階段（§9） ----------
+    ADVANCED_LV: 3,                  // 進階棋盤、觸媒、大成功與過熱從 Lv3 開始
+    MIX_PAIRS: [["fire", "ice", "spirit"], ["bolt", "ice", "wind"], ["fire", "bolt", "fire"]],
+    MIX_BONUS: 1,
+    COMPLEMENT: { fire: "wind", wind: "fire", bolt: "spirit", spirit: "bolt" },
+    COMPLEMENT_PENALTY: 1,
+    CATALYSTS: {
+      expand: { ash: 6, needsEl: false, name: { zh: "擴張觸媒", ja: "拡張の触媒", en: "Expansion Catalyst" } },
+      tint: { ash: 5, needsEl: true, name: { zh: "染色觸媒", ja: "染色の触媒", en: "Tint Catalyst" } },
+      double: { ash: 8, needsEl: true, name: { zh: "倍化觸媒", ja: "倍化の触媒", en: "Doubling Catalyst" } }
+    },
+    CATALYST_ORDER: ["expand", "tint", "double"],
+    OVERHEAT_RATIO: 0.9, OVERHEAT_PENALTY: 10,
+    GREAT_BASE: 0.05, GREAT_PER_AFF: 0.001, GREAT_ALL_LV: 0.05,
+    GREAT_QUALITY: 15, GREAT_EFFECT: 1.2, QUALITY_CAP_GREAT: 120,
+    TRAIT_FUSION: [["morning_dew", "dusk", "twilight"], ["hue_grace", "vivid", "hue_crown"], ["night", "daily_hue", "star_hue"]],
+    HELP_AFF: 40,
+    WEEKLY_EXP: 20
   };
   if (typeof module !== "undefined" && module.exports) module.exports = data;
   else window.PriTestAtelierData = data;
