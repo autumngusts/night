@@ -1,6 +1,26 @@
+// 煉金術士（atelier）：日本傳統色（C2）。[id, hex, 日文名, 中文名, 稀有度 1～3]
+// 第 1 階段先收 42 色；第 2 階段擴充到約 250 色（圖鑑）。hex 為一般通行的參考值。
 (function () {
   "use strict";
-  var api = [];
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else window.PriTestAtelierColors = api;
+  var rows = [
+    ["akane", "#B7282E", "茜色", "茜色", 2], ["beni", "#D7003A", "紅", "紅", 2], ["shu", "#EB6101", "朱色", "朱色", 1],
+    ["kaki", "#ED6D3D", "柿色", "柿色", 1], ["daidai", "#EE7800", "橙色", "橙色", 1], ["yamabuki", "#F8B500", "山吹色", "棣棠色", 2],
+    ["kiiro", "#FFD900", "黄色", "黃色", 1], ["kariyasu", "#F5E56B", "刈安色", "刈安色", 2], ["uguisu", "#928C36", "鶯色", "鶯色", 2],
+    ["moegi", "#AACF53", "萌黄", "萌黃", 1], ["wakakusa", "#C3D825", "若草色", "若草色", 1], ["wakatake", "#68BE8D", "若竹色", "若竹色", 1],
+    ["tokiwa", "#007B43", "常磐色", "常盤色", 2], ["rokusho", "#47885E", "緑青", "綠青", 2], ["seiji", "#7EBEA5", "青磁色", "青瓷色", 2],
+    ["asagi", "#00A3AF", "浅葱色", "淺蔥色", 2], ["mizu", "#BCE2E8", "水色", "水色", 1], ["sora", "#A0D8EF", "空色", "空色", 1],
+    ["hanada", "#2792C3", "縹色", "縹色", 2], ["ruri", "#1E50A2", "瑠璃色", "瑠璃色", 3], ["gunjo", "#4C6CB3", "群青色", "群青色", 2],
+    ["ai", "#165E83", "藍色", "藍色", 1], ["kon", "#223A70", "紺色", "紺色", 1], ["kikyo", "#5654A2", "桔梗色", "桔梗色", 2],
+    ["sumire", "#7058A3", "菫色", "堇色", 2], ["fuji", "#BBBCDE", "藤色", "藤色", 1], ["murasaki", "#884898", "紫", "紫", 2],
+    ["botan", "#E7609E", "牡丹色", "牡丹色", 2], ["sakura", "#FEF4F4", "桜色", "櫻色", 1], ["momo", "#F09199", "桃色", "桃色", 1],
+    ["toki", "#F4B3C2", "鴇色", "鴇色", 2], ["sango", "#F5B1AA", "珊瑚色", "珊瑚色", 2], ["azuki", "#96514D", "小豆色", "紅豆色", 1],
+    ["kuri", "#762F07", "栗色", "栗色", 1], ["odo", "#C39143", "黄土色", "黃土色", 1], ["kinari", "#FBFAF5", "生成り色", "生成色", 1],
+    ["shiro", "#FFFFFF", "白", "白", 1], ["nibi", "#727171", "鈍色", "鈍色", 1], ["sumi", "#595857", "墨", "墨", 1],
+    ["shikkoku", "#0D0015", "漆黒", "漆黑", 3], ["kin", "#E6B422", "金色", "金色", 3], ["gin", "#AFAFB0", "銀色", "銀色", 3]
+  ];
+  var list = rows.map(function (r) {
+    return { id: r[0], hex: r[1], name: { ja: r[2], zh: r[3], en: r[0] }, rarity: r[4] };
+  });
+  if (typeof module !== "undefined" && module.exports) module.exports = list;
+  else window.PriTestAtelierColors = list;
 })();
