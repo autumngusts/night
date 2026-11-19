@@ -61,3 +61,12 @@
 .at-dex-grid li { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.4rem; background: #fff; border: 1px solid var(--at-line); border-radius: 8px; font-size: 0.85rem; }
 .at-dex-off { opacity: 0.5; }
 .at-dex-off .at-chip { background: repeating-linear-gradient(45deg, #ddd, #ddd 3px, #f4f4f4 3px, #f4f4f4 6px); }
+/* 第 3 階段：過熱、大成功、回放、每週挑戰 */
+.at-warn { color: #b3261e; font-weight: bold; }
+.at-great { border-color: #e6b422; box-shadow: 0 0 0 3px rgba(230, 180, 34, 0.35); }
+.at-great-text { font-size: 1.2rem; font-weight: bold; color: #b8860b; }
+.at-replay { margin: 0.5rem 0; padding: 0.6rem; background: #fff; border: 2px solid var(--at-accent); border-radius: 10px; }
+.at-board-mini { max-width: 14rem; }
+.at-board-mini .at-cell { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; font-size: 0.7rem; color: var(--at-c); border: 2px solid var(--at-c); border-radius: 4px; background: #fff; }
+.at-board-mini .at-cell.at-filled { background: var(--at-c); color: rgba(255, 255, 255, 0.9); }
+.at-weekly { padding: 0.6rem; margin-bottom: 0.6rem; background: #fff; border: 1px dashed var(--at-accent); border-radius: 10px; }

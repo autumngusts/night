@@ -10,7 +10,9 @@
 
   var save = load();
   var ui = { tab: "gather", swatches: null, picks: [], scene: null, recipe: null, slots: [], cauldron: "copper", session: null,
-    sel: -1, rot: 0, ghost: null, traits: [], result: null, line: null, dev: false, resetArm: false, msg: "", wbMode: false, subs: [] };
+    sel: -1, rot: 0, ghost: null, traits: [], result: null, line: null, dev: false, resetArm: false, msg: "", wbMode: false, subs: [],
+    catalyst: "", catalystEl: "fire", challengeResult: null, replay: null };
+  var replayTimer = null;
 
   // ---------- 共用 ----------
   function now() { return Date.now() + (save.offsetMs || 0); }
@@ -84,6 +86,7 @@
         return '<button type="button" data-at-tab="' + k + '" class="' + (ui.tab === k ? "at-on" : "") + '">' + t("at_tab_" + k) + "</button>";
       }).join("") + "</nav>";
     if (ui.msg) html += '<p class="at-msg" id="at-msg">' + esc(ui.msg) + "</p>";
+    if (ui.replay) html += renderReplay();
     html += '<section class="at-body">' + ({ gather: renderGather, box: renderBox, lab: renderLab, tasks: renderTasks, dex: renderDex, shop: renderShop })[ui.tab]() + "</section>";
     html += renderDev();
     var video = app.querySelector("#at-video");
@@ -141,11 +144,13 @@
     out += '</ul><button type="button" id="at-sublimate"' + (ui.subs.length === D.SUBLIMATE_N ? "" : " disabled") + ">" + t("at_sublimate") + "</button>";
     out += "<h3>" + t("at_items") + '</h3><ul class="at-list" id="at-items">';
     if (!save.items.length) out += "<li>" + t("at_items_empty") + "</li>";
-    save.items.forEach(function (it) { out += "<li>" + itemHtml(it) + "</li>"; });
+    save.items.forEach(function (it) {
+      out += "<li>" + itemHtml(it) + (it.replay ? ' <button type="button" data-at-replay="' + it.uid + '">' + t("at_replay") + "</button>" : "") + "</li>";
+    });
     return out + "</ul>";
   }
   function itemHtml(it) {
-    return '<span class="at-mat-name">' + esc(recipeName(it.recipe)) + "</span>" +
+    return '<span class="at-mat-name">' + (it.great ? "✨" : "") + esc(recipeName(it.recipe)) + "</span>" +
       '<span class="at-tag">' + t("at_quality", { n: it.quality }) + "</span>" +
       it.effects.map(function (e) { return '<span class="at-tag" style="border-color:' + el(e.el).color + '">' + el(e.el).icon + " " + esc(fxText(e)) + "</span>"; }).join("") +
       it.traits.map(function (tr) { return '<span class="at-tag at-trait">' + esc(loc(D.TRAITS[tr].name)) + "</span>"; }).join("");
@@ -153,9 +158,19 @@
 
   function renderLab() {
     if (ui.result) {
-      return '<div id="at-result" class="at-result"><h3>' + t("at_result") + "</h3><p>" + itemHtml(ui.result) + "</p><p>" +
+      return '<div id="at-result" class="at-result' + (ui.result.great ? " at-great" : "") + '"><h3>' + t("at_result") + "</h3>" +
+        (ui.result.great ? '<p class="at-great-text" id="at-great">' + t("at_great") + "</p>" : "") +
+        (ui.result.overheat ? '<p class="at-warn" id="at-overheat-result">' + t("at_overheat_done") + "</p>" : "") +
+        "<p>" + itemHtml(ui.result) + "</p><p>" +
         t("at_best", { n: save.best[ui.result.recipe] }) + (ui.result.ash ? "　" + t("at_ash_gain", { n: ui.result.ash }) : "") +
-        '</p><button type="button" id="at-result-close" class="at-main">' + t("at_back") + "</button></div>";
+        '</p><div class="at-row"><button type="button" data-at-replay="' + ui.result.uid + '">' + t("at_replay") + "</button>" +
+        '<button type="button" id="at-result-close" class="at-main">' + t("at_back") + "</button></div></div>";
+    }
+    if (ui.challengeResult) {
+      var cr = ui.challengeResult;
+      return '<div id="at-challenge-result" class="at-result"><h3>' + t("at_weekly_done", { score: cr.score, best: cr.best }) + "</h3>" +
+        (cr.first ? "<p>" + t("at_weekly_first", { n: D.WEEKLY_EXP }) + "</p>" : "") +
+        '<button type="button" id="at-challenge-close" class="at-main">' + t("at_back") + "</button></div>";
     }
     if (ui.session) return renderBoard();
     var left = save.cooldownUntil - now();
@@ -187,16 +202,25 @@
       });
       out += "</select></label>";
     });
+    if (C.level(save) >= D.ADVANCED_LV) {
+      out += '<label class="at-slot">' + t("at_catalyst") + '<select id="at-catalyst"><option value="">' + t("at_catalyst_none") + "</option>" +
+        D.CATALYST_ORDER.filter(function (id) { return save.catalysts[id] > 0; }).map(function (id) {
+          return '<option value="' + id + '"' + (ui.catalyst === id ? " selected" : "") + ">" + esc(loc(D.CATALYSTS[id].name)) + " ×" + save.catalysts[id] + "</option>";
+        }).join("") + "</select></label>";
+      if (ui.catalyst && D.CATALYSTS[ui.catalyst].needsEl) {
+        out += '<label class="at-slot">' + t("at_catalyst_el") + '<select id="at-catalyst-el">' + D.ELEMENTS.map(function (e) {
+          return '<option value="' + e.id + '"' + (ui.catalystEl === e.id ? " selected" : "") + ">" + e.icon + " " + t("at_el_" + e.id) + "</option>";
+        }).join("") + "</select></label>";
+      }
+    }
     var ready = r.needs.every(function (n, i) { return ui.slots[i]; });
     return out + '</div><div class="at-row"><button type="button" id="at-back">' + t("at_back") + '</button><button type="button" id="at-start" class="at-main"' +
       (ready ? "" : " disabled") + ">" + t("at_start") + "</button></div>";
   }
 
-  function renderBoard() {
-    var s = ui.session, impl = C.method(s.method), ghost = ui.ghost;
-    var ev = ghost ? ghost.after : impl.evaluate(s, impl.done(s));
-    var ghostSet = {}; if (ghost) ghost.cells.forEach(function (c) { ghostSet[c[0] + "," + c[1]] = true; });
-    var out = '<div class="at-board" id="at-board" style="grid-template-columns:repeat(' + s.size + ',1fr)">';
+  // 棋盤格（調和與回放共用）。id＝null 時不加 data-at-cell（回放用）
+  function boardHtml(s, ghostSet, id) {
+    var out = '<div class="at-board' + (id ? "" : " at-board-mini") + '"' + (id ? ' id="' + id + '"' : "") + ' style="grid-template-columns:repeat(' + s.size + ',1fr)">';
     for (var y = 0; y < s.size; y++) for (var x = 0; x < s.size; x++) {
       var idx = y * s.size + x, cell = s.cells[idx], o = s.owner[idx], cls = "at-cell";
       var bg = cell.color ? el(cell.color).color : "";
@@ -204,9 +228,35 @@
       if (cell.bonus) cls += " at-bonus";
       if (o >= 0) { cls += " at-filled"; bg = s.mats[o].hex; inner = el(s.mats[o].element).icon; }
       if (ghostSet[x + "," + y]) cls += " at-ghost";
-      out += '<button type="button" class="' + cls + '" data-at-cell="' + x + "," + y + '" style="--at-c:' + (bg || "var(--at-line)") + '">' + inner + "</button>";
+      out += (id ? '<button type="button" data-at-cell="' + x + "," + y + '"' : "<span") + ' class="' + cls + '" style="--at-c:' + (bg || "var(--at-line)") + '">' + inner + (id ? "</button>" : "</span>");
     }
-    out += '</div><ul class="at-gauges" id="at-gauges">';
+    return out + "</div>";
+  }
+  // B8 回放：成品的第 k 手時的棋盤
+  function replayAt(item, k) {
+    var copy = JSON.parse(JSON.stringify(item));
+    copy.replay.moves = copy.replay.moves.slice(0, k);
+    return C.replaySession(copy);
+  }
+  function findItem(uid) { return save.items.filter(function (it) { return it.uid === uid; })[0] || (ui.result && ui.result.uid === uid ? ui.result : null); }
+  function renderReplay() {
+    var item = findItem(ui.replay.uid);
+    if (!item || !item.replay) { ui.replay = null; return ""; }
+    var total = item.replay.moves.length, s = replayAt(item, ui.replay.step);
+    return '<div class="at-replay" id="at-replay"><h3>' + t("at_replay") + "：" + esc(recipeName(item.recipe)) + "</h3>" + boardHtml(s, {}, null) +
+      '<p id="at-replay-step">' + t("at_replay_step", { n: ui.replay.step, total: total }) + '</p><div class="at-row">' +
+      '<button type="button" id="at-replay-prev"' + (ui.replay.step > 0 ? "" : " disabled") + ">" + t("at_replay_prev") + "</button>" +
+      '<button type="button" id="at-replay-next"' + (ui.replay.step < total ? "" : " disabled") + ">" + t("at_replay_next") + "</button>" +
+      '<button type="button" id="at-replay-play">' + t("at_replay_play") + '</button><button type="button" id="at-replay-close">' + t("at_replay_close") + "</button></div></div>";
+  }
+  function stopReplay() { if (replayTimer) { clearInterval(replayTimer); replayTimer = null; } }
+
+  function renderBoard() {
+    var s = ui.session, impl = C.method(s.method), ghost = ui.ghost;
+    var ev = ghost ? ghost.after : impl.evaluate(s, impl.done(s));
+    var ghostSet = {}; if (ghost) ghost.cells.forEach(function (c) { ghostSet[c[0] + "," + c[1]] = true; });
+    var out = (s.challenge ? '<p class="at-hint" id="at-challenge-banner">' + t("at_weekly", { key: s.challenge }) + "</p>" : "") + boardHtml(s, ghostSet, "at-board");
+    out += '<ul class="at-gauges" id="at-gauges">';
     C.effectLevels(s.recipe, ev.gauges).forEach(function (g) {
       var e = el(g.el), val = ev.gauges[g.el], top = s.recipe.gauges.filter(function (x) { return x.el === g.el; })[0].steps.slice(-1)[0].at;
       out += '<li><span style="color:' + e.color + '">' + e.icon + " " + t("at_el_" + g.el) + "</span> " +
@@ -215,6 +265,8 @@
     });
     out += "</ul>";
     if (ev.mult > 1) out += '<p class="at-hint" id="at-affinity">' + t("at_affinity_on", { m: ev.mult }) + "</p>";
+    if (s.rules && (s.rules.mix || s.rules.complement)) out += '<p class="at-hint" id="at-mix">' + t("at_mix", { mix: ev.mix, clash: ev.clash }) + "</p>";
+    if (s.rules && s.rules.great && ev.overheat) out += '<p class="at-warn" id="at-overheat">' + t("at_overheat") + "</p>";
     if (ev.push) out += '<p class="at-push" id="at-push">' + t("at_final_push", { el: t("at_el_" + ev.dominant), n: ev.push }) + "</p>";
     out += '<p class="at-hint">' + t("at_quality", { n: ev.quality }) + "　" + t("at_tap_hint") + "</p>";
     if (!impl.done(s)) {
@@ -226,10 +278,16 @@
     }
     out += '<div class="at-row"><button type="button" id="at-rot"' + (ui.sel < 0 ? " disabled" : "") + ">" + t("at_rotate") + "</button>" +
       '<button type="button" id="at-undo"' + (s.history.length ? "" : " disabled") + ">" + t("at_undo") + "</button>" +
-      '<button type="button" id="at-abort">' + t("at_back") + "</button></div>";
-    if (impl.done(s)) {
-      var choices = C.traitChoices(s), used = ui.traits.reduce(function (a, k) { return a + D.TRAITS[k].cost; }, 0);
+      '<button type="button" id="at-abort">' + t("at_back") + "</button>" +
+      (!s.challenge && ui.sel >= 0 && C.helpAvailable(save, s) ? '<button type="button" id="at-help">' + t("at_help") + "</button>" : "") + "</div>";
+    if (impl.done(s) && s.challenge) {
+      out += '<button type="button" id="at-finish" class="at-main">' + t("at_finish_challenge") + "</button>";
+    } else if (impl.done(s)) {
+      var choices = C.traitChoices(s), used = C.traitCost(ui.traits), fused = C.fuseTraits(ui.traits);
+      var fusedNew = fused.filter(function (k) { return ui.traits.indexOf(k) < 0; });
       out += '<div id="at-traits"><p>' + t("at_traits", { used: used, cap: C.traitCap(save), max: D.MAX_TRAITS }) + "</p>" +
+        (fusedNew.length ? '<p class="at-push" id="at-fusion">' + t("at_fusion", { names: fusedNew.map(function (k) { return loc(D.TRAITS[k].name); }).join("、") }) + "</p>" : "") +
+        (s.rules && s.rules.great ? '<p class="at-hint" id="at-great-chance">' + t("at_great_chance", { p: Math.round(C.greatChance(save, s) * 100) }) + "</p>" : "") +
         choices.map(function (k) {
           return '<label class="at-tag"><input type="checkbox" data-at-trait="' + k + '"' + (ui.traits.indexOf(k) >= 0 ? " checked" : "") + "> " +
             esc(loc(D.TRAITS[k].name)) + " (" + D.TRAITS[k].cost + ")</label>";
@@ -239,10 +297,15 @@
     return out;
   }
 
+  function renderWeekly() {
+    var wc = C.weeklyChallenge(now()), w = save.weekly.key === wc.key ? save.weekly : { best: 0, plays: 0 };
+    return '<div class="at-weekly" id="at-weekly"><h3>' + t("at_weekly", { key: wc.key }) + "</h3><p>" +
+      t("at_weekly_info", { recipe: recipeName(wc.recipe), best: w.best, plays: w.plays }) + '</p><button type="button" id="at-weekly-start">' + t("at_weekly_start") + "</button></div>";
+  }
   function renderTasks() {
     var task = C.currentTask(save);
-    if (!task) return '<p id="at-task">' + t("at_task_done") + "</p>";
-    var out = '<div id="at-task"><h3>' + t("at_task_now") + "</h3><p>" + esc(loc(task.text)) + "</p><p><small>" +
+    if (!task) return '<p id="at-task">' + t("at_task_done") + "</p>" + renderWeekly();
+    var out = renderWeekly() + '<div id="at-task"><h3>' + t("at_task_now") + "</h3><p>" + esc(loc(task.text)) + "</p><p><small>" +
       t("at_task_need", { recipe: recipeName(task.recipe), q: task.minQuality }) +
       (task.minLevel ? t("at_task_lv", { n: task.minLevel }) : "") + '</small></p></div><ul class="at-list">';
     save.items.forEach(function (it) {
@@ -282,6 +345,17 @@
       }
       out += "</li>";
     });
+    out += "</ul>";
+    if (C.level(save) >= D.ADVANCED_LV) {
+      out += '<p><label><input type="checkbox" id="at-advanced"' + (save.settings.advanced ? " checked" : "") + "> " + t("at_advanced") + "</label></p>" +
+        "<h3>" + t("at_catalysts") + '</h3><ul class="at-list" id="at-catalysts">' + D.CATALYST_ORDER.map(function (id) {
+          var c = D.CATALYSTS[id];
+          return "<li><b>" + esc(loc(c.name)) + "</b> <small>" + t("at_owned", { n: save.catalysts[id] || 0 }) + "</small> " +
+            '<button type="button" data-at-make="' + id + '"' + (save.ash >= c.ash ? "" : " disabled") + ">" + t("at_make", { ash: c.ash }) + "</button></li>";
+        }).join("");
+    } else {
+      out += '<p class="at-hint" id="at-advanced-locked">' + t("at_advanced_locked") + "</p><ul class=\"at-hidden\">";
+    }
     var sc = C.shelfCost(save);
     out += '</ul><p>' + t("at_box_cap", { n: C.matMax(save) }) + " " + (sc === null ? "<small>" + t("at_shelf_max") + "</small>"
       : '<button type="button" id="at-shelf"' + (save.ash >= sc ? "" : " disabled") + ">" + t("at_shelf", { n: D.SHELF_STEP, ash: sc }) + "</button>") + "</p>";
@@ -319,7 +393,8 @@
     ideas(); persist(); render();
   }
   function startSession() {
-    var res = C.startSynthesis(save, ui.recipe, ui.slots.slice(), ui.cauldron, now());
+    var cat = ui.catalyst ? { id: ui.catalyst, el: D.CATALYSTS[ui.catalyst].needsEl ? ui.catalystEl : null } : null;
+    var res = C.startSynthesis(save, ui.recipe, ui.slots.slice(), ui.cauldron, now(), { catalyst: cat });
     if (res.error) { ui.msg = t("at_err_" + res.error); say(res.error === "cooldown" ? "cooldown" : "miss"); render(); return; }
     ui.session = res; ui.sel = 0; ui.rot = 0; ui.ghost = null; ui.traits = []; ui.msg = "";
     render();
@@ -377,11 +452,40 @@
     }
     if (b.id === "at-undo") { C.method(s.method).undo(s); ui.sel = s.placed.indexOf(false); ui.rot = 0; ui.ghost = null; ui.traits = []; render(); return; }
     if (b.id === "at-abort") { ui.session = null; ui.ghost = null; render(); return; }
+    if (b.id === "at-help") {
+      var hinfo = C.useHelp(save, s, ui.sel);
+      if (hinfo) { say("help"); ui.sel = s.placed.indexOf(false); ui.rot = 0; ui.ghost = null; }
+      render(); return;
+    }
+    if (b.id === "at-finish" && s && s.challenge) {
+      var cr = C.finishChallenge(save, s, now());
+      if (cr.error) { ui.msg = t("at_err_" + cr.error); render(); return; }
+      ui.challengeResult = cr; ui.session = null; persist(); render(); return;
+    }
+    if (b.id === "at-challenge-close") { ui.challengeResult = null; render(); return; }
+    if (b.id === "at-weekly-start") {
+      ui.session = C.startChallenge(save, now()); ui.sel = 0; ui.rot = 0; ui.ghost = null; ui.traits = []; ui.result = null;
+      ui.tab = "lab"; ui.msg = ""; render(); return;
+    }
+    if (d.atReplay) { stopReplay(); ui.replay = { uid: +d.atReplay, step: 0 }; render(); return; }
+    if (b.id === "at-replay-prev") { stopReplay(); ui.replay.step--; render(); return; }
+    if (b.id === "at-replay-next") { stopReplay(); ui.replay.step++; render(); return; }
+    if (b.id === "at-replay-play") {
+      stopReplay(); ui.replay.step = 0; render();
+      replayTimer = setInterval(function () {
+        var it = ui.replay && findItem(ui.replay.uid);
+        if (!it || ui.replay.step >= it.replay.moves.length) { stopReplay(); return; }
+        ui.replay.step++; render();
+      }, 600);
+      return;
+    }
+    if (b.id === "at-replay-close") { stopReplay(); ui.replay = null; render(); return; }
+    if (d.atMake) { if (C.makeCatalyst(save, d.atMake)) { say("upgrade"); persist(); } render(); return; }
     if (b.id === "at-finish") {
       var item = C.finishSynthesis(save, s, ui.traits, now());
       if (item.error) { ui.msg = t("at_err_" + item.error); render(); return; }
-      ui.result = item; ui.session = null; ui.recipe = null; ui.slots = []; ui.msg = "";
-      say(item.quality >= 50 ? "finish_good" : "finish_bad");
+      ui.result = item; ui.session = null; ui.recipe = null; ui.slots = []; ui.msg = ""; ui.catalyst = "";
+      say(item.great ? "great" : item.overheat ? "overheat" : item.quality >= 50 ? "finish_good" : "finish_bad");
       ideas(); persist(); render(); return;
     }
     if (b.id === "at-result-close") { ui.result = null; render(); return; }
@@ -413,6 +517,9 @@
       return;
     }
     if (x.id === "at-cauldron") { ui.cauldron = x.value; render(); return; }
+    if (x.id === "at-catalyst") { ui.catalyst = x.value; render(); return; }
+    if (x.id === "at-catalyst-el") { ui.catalystEl = x.value; render(); return; }
+    if (x.id === "at-advanced") { C.setAdvanced(save, x.checked); persist(); render(); return; }
     if (x.dataset.atSlot !== undefined) { ui.slots[+x.dataset.atSlot] = x.value ? +x.value : undefined; render(); return; }
     if (x.dataset.atSub) {
       var u = +x.dataset.atSub, k = ui.subs.indexOf(u);
