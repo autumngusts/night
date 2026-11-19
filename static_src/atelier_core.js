@@ -159,10 +159,12 @@
     return out;
   }
   // rgba：RGBA 陣列（長度 w*h*4，w＝h＝SRC_SIZE）。回傳色塊 [{rgb, hex, frac, shape}]，面積大到小
-  function analyze(rgba, w, h, seed) {
-    var pixels = [], i;
+  // opts（第 4 階段）：{ k, minFrac }（B3 放大鏡）
+  function analyze(rgba, w, h, seed, opts) {
+    opts = opts || {};
+    var pixels = [], i, minFrac = opts.minFrac || D.MIN_FRAC;
     for (i = 0; i < w * h; i++) pixels.push([rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]]);
-    var km = kmeans(pixels, D.K, seed), G = D.GRID, cw = w / G, ch = h / G, grid = [];
+    var km = kmeans(pixels, opts.k || D.K, seed), G = D.GRID, cw = w / G, ch = h / G, grid = [];
     for (var gy = 0; gy < G; gy++) for (var gx = 0; gx < G; gx++) {
       var votes = {};
       for (var y = Math.floor(gy * ch); y < Math.floor((gy + 1) * ch); y++)
@@ -178,7 +180,7 @@
     var out = [];
     km.centers.forEach(function (c, j) {
       var frac = counts[j] / pixels.length;
-      if (frac < D.MIN_FRAC) return;
+      if (frac < minFrac) return;
       var n = clamp(Math.round(1 + frac * D.SHAPE_SCALE), D.SHAPE_MIN, D.SHAPE_MAX);
       var rgb = c.map(Math.round);
       out.push({ rgb: rgb, hex: rgbToHex(rgb), frac: frac, shape: shapeFromGrid(grid, j, n) });
@@ -201,6 +203,8 @@
     if (opts.wb) quality = clamp(Math.round(quality * D.WB_QUALITY_MULT), 1, 100);
     var traits = timeTraits(now);
     if (opts.daily) traits.push("daily_hue");
+    if (opts.harmony) traits.push("harmony");                               // §10.1 B1
+    if (isSeasonColor(near.color.id, now)) traits.push("season");          // §10.7 B12
     if (D.RARITY_TRAIT[near.color.rarity]) traits.push(D.RARITY_TRAIT[near.color.rarity]);
     if (quality >= D.VIVID_QUALITY) traits.push("vivid");
     return {
@@ -220,7 +224,9 @@
     var def = { ideas: {}, made: {}, ash: 0, cauldrons: { copper: 1 }, shelf: 0, streak: { n: 0, date: "" },
       daily: { date: "" }, wb: null, best: {}, seen: {}, log: [], tutorial: 0,
       settings: { advanced: true }, catalysts: { expand: 0, tint: 0, double: 0 },
-      weekly: { key: "", best: 0, plays: 0 } };
+      weekly: { key: "", best: 0, plays: 0 },
+      coins: 0, coinsEarned: 0, tools: {}, coloring: {}, pagesDone: {}, deco: [null, null, null], visitDate: "",
+      titles: {}, title: "", greatCount: 0 };
     Object.keys(def).forEach(function (k) { if (save[k] === undefined) save[k] = def[k]; });
     if (!save.cauldrons.copper) save.cauldrons.copper = 1;
     return save;
@@ -245,7 +251,9 @@
   }
   function streakBonus(n) { return Math.min(D.STREAK_CAP, Math.max(0, n - 1) * D.STREAK_STEP); }
   // 選 1～PICK_MAX 個色塊，消耗 1 籃。回傳 {mats, newColors, daily, streak, exp} 或 {error: "pick"|"basket"|"full"}
-  function captureEx(save, swatches, now) {
+  // extra（第 4 階段）：{ harmony: 這張照片有配色, rainbow: 這張照片是虹（多給 1 個虹之欠片） }
+  function captureEx(save, swatches, now, extra) {
+    extra = extra || {};
     refillBasket(save, now);
     if (!swatches.length || swatches.length > D.PICK_MAX) return { error: "pick" };
     if (save.basket.n <= 0) return { error: "basket" };
@@ -256,12 +264,19 @@
     var res = { mats: [], newColors: [], daily: false, streak: n, exp: 0 };
     swatches.forEach(function (s) {
       var hit = isDailyHit(s.rgb, now);
-      var m = makeMaterial(s, now, save.nextUid++, { wb: wb, streakBonus: streakBonus(n), daily: hit });
+      var m = makeMaterial(s, now, save.nextUid++, { wb: wb, streakBonus: streakBonus(n), daily: hit, harmony: !!extra.harmony });
       save.mats.push(m);
       if (!save.seen[m.colorId]) { save.seen[m.colorId] = true; res.newColors.push(m.colorId); res.exp += D.DEX_EXP; }
       if (hit && save.daily.date !== today) { save.daily = { date: today }; res.daily = true; res.exp += D.DAILY_EXP; }
       res.mats.push(m);
     });
+    if (extra.rainbow && save.mats.length < matMax(save)) {                // §10.2 B2 虹之欠片
+      var R = D.RAINBOW_MAT;
+      res.rainbow = { uid: save.nextUid++, hex: R.hex, rgb: hexToRgb(R.hex), colorId: null, rainbow: true, element: "spirit",
+        category: "essence", power: R.power, quality: R.quality, traits: ["rainbow"], shape: [[0, 0]], at: now };
+      save.mats.push(res.rainbow);
+    }
+    res.harmony = extra.harmony || null;
     save.exp += res.exp;
     return res;
   }
@@ -326,7 +341,11 @@
     return false;
   }
   function recipeKnown(save, r) { return !r.idea || !!save.ideas[r.id]; }
-  function recipeAvailable(save, r) { return r.lv <= level(save) && recipeKnown(save, r); }
+  // now（第 4 階段）：季節限定配方只在當季可用；沒有傳 now 時一律不可用
+  function recipeAvailable(save, r, now) {
+    if (r.season && (now === undefined || seasonOf(now) !== r.season)) return false;
+    return r.lv <= level(save) && recipeKnown(save, r);
+  }
   // 檢查所有還沒發想的配方，回傳這次新想到的配方 id
   function checkIdeas(save) {
     var out = [];
@@ -386,7 +405,7 @@
   function findMat(save, uid) {
     var i;
     for (i = 0; i < save.mats.length; i++) if (save.mats[i].uid === uid) return save.mats[i];
-    for (i = 0; i < save.items.length; i++) if (save.items[i].uid === uid) return itemAsMaterial(save.items[i]);
+    for (i = 0; i < save.items.length; i++) if (save.items[i].uid === uid && !displayed(save, uid)) return itemAsMaterial(save.items[i]);
     return null;
   }
   // 同屬性的素材 3 個 → 1 個：顏色取品質最高者、形狀取最大者、特性合併（最多 MAX_TRAITS）
@@ -410,7 +429,7 @@
   function traitCap(save) { return D.TRAIT_CAP_BASE + D.TRAIT_CAP_PER_LV * level(save); }
   function canSynth(save, now) { return now >= save.cooldownUntil; }
   function recipe(id) { for (var i = 0; i < D.RECIPES.length; i++) if (D.RECIPES[i].id === id) return D.RECIPES[i]; return null; }
-  function recipesFor(save) { return D.RECIPES.filter(function (r) { return recipeAvailable(save, r); }); }
+  function recipesFor(save, now) { return D.RECIPES.filter(function (r) { return recipeAvailable(save, r, now); }); }
   function slotOk(need, mat) { return need === "*" || need === mat.category; }
 
   // ---------- 第 3 階段：進階棋盤、觸媒（§9.1） ----------
@@ -481,7 +500,7 @@
   }
   function weeklyChallenge(now) {
     var key = weekKey(now), rng = makeRng("weekly:" + key);
-    var pool = D.RECIPES.filter(function (r) { return r.lv <= 2; });
+    var pool = D.RECIPES.filter(function (r) { return r.lv <= 2 && !r.season && !r.tool; });
     var r = pool[Math.floor(rng() * pool.length)], noon = Date.parse(key + "T03:00:00Z");
     var mats = r.needs.map(function (n, i) {
       var rgb = hsvToRgb(rng() * 360, 0.5 + rng() * 0.5, 0.45 + rng() * 0.5);
@@ -525,6 +544,170 @@
     return s;
   }
 
+  // ---------- 第 4 階段：配色、虹、觀察道具（§10.1～10.3） ----------
+  function hueDiff(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+  function harmonyOf(swatches) {
+    var hs = swatches.map(function (s) { return rgbToHsv(s.rgb); }).filter(function (h) { return h.s >= D.HARMONY_SAT; })
+      .map(function (h) { return h.h; });
+    var n = hs.length, i, j, k, T = D.HARMONY_TOL;
+    function near(d, target) { return Math.abs(d - target) <= T; }
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) for (k = j + 1; k < n; k++)
+      if (near(hueDiff(hs[i], hs[j]), 120) && near(hueDiff(hs[j], hs[k]), 120) && near(hueDiff(hs[i], hs[k]), 120)) return "triad";
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) if (hueDiff(hs[i], hs[j]) >= 180 - T) return "complementary";
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) for (k = j + 1; k < n; k++) {
+      var ds = [hueDiff(hs[i], hs[j]), hueDiff(hs[j], hs[k]), hueDiff(hs[i], hs[k])];
+      if (Math.max.apply(null, ds) <= D.ANALOG_SPAN && Math.min.apply(null, ds) >= D.ANALOG_MIN) return "analogous";
+    }
+    return null;
+  }
+  function rainbowOf(rgba) {
+    var sectors = [], total = rgba.length / 4, i;
+    for (i = 0; i < 12; i++) sectors.push(0);
+    for (i = 0; i < total; i++) {
+      var hsv = rgbToHsv([rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]]);
+      if (hsv.s >= D.RAINBOW_SAT && hsv.v >= D.RAINBOW_VAL) sectors[Math.floor(hsv.h / 30) % 12]++;
+    }
+    return sectors.filter(function (c) { return c / total >= D.RAINBOW_SECTOR_FRAC; }).length >= D.RAINBOW_SECTORS;
+  }
+  function shiftHue(rgba, deg) {
+    var out = new Uint8ClampedArray(rgba.length);
+    for (var i = 0; i < rgba.length; i += 4) {
+      var hsv = rgbToHsv([rgba[i], rgba[i + 1], rgba[i + 2]]), rgb = hsvToRgb((hsv.h + deg + 360) % 360, hsv.s, hsv.v);
+      out[i] = rgb[0]; out[i + 1] = rgb[1]; out[i + 2] = rgb[2]; out[i + 3] = rgba[i + 3];
+    }
+    return out;
+  }
+  function analyzeOpts(save) { return save.tools && save.tools.loupe ? { k: D.LOUPE.k, minFrac: D.LOUPE.minFrac } : {}; }
+
+  // ---------- §10.7 季節 ----------
+  function seasonOf(now) { return D.SEASON_BY_MONTH[new Date(now + JST).getUTCMonth() + 1]; }
+  function isSeasonColor(colorId, now) { return D.SEASONS[seasonOf(now)].colors.indexOf(colorId) >= 0; }
+
+  // ---------- §10.4 著色繪本 ----------
+  function page(id) { return D.PAGES.filter(function (pg) { return pg.id === id; })[0] || null; }
+  function colorById(id) { return COLORS.filter(function (c) { return c.id === id; })[0] || null; }
+  function pageProgress(save, pageId) {
+    var pg = page(pageId), filled = save.coloring[pageId] || {};
+    return { filled: pg.regions.filter(function (r) { return filled[r.id]; }).length, total: pg.regions.length };
+  }
+  function colorRegion(save, pageId, regionId, matUid) {
+    var pg = page(pageId);
+    if (!pg) return { error: "page" };
+    var region = pg.regions.filter(function (r) { return r.id === regionId; })[0];
+    if (!region) return { error: "region" };
+    var filled = save.coloring[pageId] = save.coloring[pageId] || {};
+    if (filled[regionId]) return { error: "filled" };
+    var m = save.mats.filter(function (x) { return x.uid === matUid; })[0];
+    if (!m || !m.colorId) return { error: "material" };
+    if (dexGroup(colorById(m.colorId)) !== region.group) return { error: "group" };
+    filled[regionId] = m.hex;
+    save.mats = save.mats.filter(function (x) { return x !== m; });
+    var pr = pageProgress(save, pageId), done = pr.filled === pr.total && !save.pagesDone[pageId];
+    if (done) { save.pagesDone[pageId] = true; save.exp += D.PAGE_REWARD.exp; save.ash += D.PAGE_REWARD.ash; }
+    return { ok: true, done: done };
+  }
+
+  // ---------- §10.5 工房裝飾 ----------
+  function displayed(save, uid) { return save.deco.indexOf("item:" + uid) >= 0; }
+  function decoOptions(save) {
+    var out = [];
+    D.PAGES.forEach(function (pg) { if (save.pagesDone[pg.id]) out.push({ ref: "page:" + pg.id, kind: "page", id: pg.id }); });
+    save.items.forEach(function (it) { out.push({ ref: "item:" + it.uid, kind: "item", id: it.uid }); });
+    return out;
+  }
+  function decoValid(save, ref) { return decoOptions(save).some(function (o) { return o.ref === ref; }); }
+  function decoTaste(save, ref) {
+    var h = host(save), likes = h.likes || { groups: [], elements: [] }, dislikes = h.dislikes || { groups: [], elements: [] };
+    if (!ref || !decoValid(save, ref)) return 0;
+    var parts = ref.split(":"), key;
+    if (parts[0] === "page") {
+      key = page(parts[1]).theme;
+      return likes.groups.indexOf(key) >= 0 ? 1 : dislikes.groups.indexOf(key) >= 0 ? -1 : 0;
+    }
+    var it = save.items.filter(function (x) { return x.uid === +parts[1]; })[0];
+    key = itemAsMaterial(it).element;
+    return likes.elements.indexOf(key) >= 0 ? 1 : dislikes.elements.indexOf(key) >= 0 ? -1 : 0;
+  }
+  // 放上裝飾（ref＝null 時拿下）。回傳瑠璃的反應：like／dislike／ok；不合法時 null
+  function setDeco(save, slot, ref) {
+    if (slot < 0 || slot >= D.DECO_SLOTS) return null;
+    if (ref !== null) {
+      if (!decoValid(save, ref)) return null;
+      if (save.deco.some(function (r, i) { return i !== slot && r === ref; })) return null;
+    }
+    save.deco[slot] = ref;
+    if (ref === null) return "ok";
+    var taste = decoTaste(save, ref);
+    return taste > 0 ? "like" : taste < 0 ? "dislike" : "ok";
+  }
+  // 每天第一次開啟：每個喜歡的裝飾讓好感度 +1
+  function dailyVisit(save, now) {
+    var date = jstDate(now);
+    if (save.visitDate === date) return null;
+    save.visitDate = date;
+    save.deco = save.deco.map(function (r) { return r && decoValid(save, r) ? r : null; });
+    var likes = save.deco.filter(function (r) { return r && decoTaste(save, r) > 0; }).length, hs = save.hosts[save.host];
+    hs.aff = Math.min(100, hs.aff + likes);
+    return { aff: likes };
+  }
+
+  // ---------- §10.6 店鋪與行情 ----------
+  function hotElement(now) { return D.ELEMENTS[hash("hot:" + weekKey(now)) % D.ELEMENTS.length].id; }
+  function priceOf(item, now) {
+    var r = recipe(item.recipe), base = D.RECIPE_PRICE[r.id] || 30, el = itemAsMaterial(item).element;
+    var mult = (el === hotElement(now) ? D.HOT_MULT : 1) * (r.season && r.season === seasonOf(now) ? D.SEASON_MULT : 1);
+    return Math.round(base * (0.5 + item.quality / 100) * mult);
+  }
+  function sell(save, uid, now) {
+    var it = save.items.filter(function (x) { return x.uid === uid; })[0];
+    if (!it || displayed(save, uid)) return null;
+    var price = priceOf(it, now);
+    save.items = save.items.filter(function (x) { return x !== it; });
+    save.coins += price; save.coinsEarned += price;
+    return price;
+  }
+  function buyCatalyst(save, id) {
+    var cost = D.CATALYST_COINS[id];
+    if (cost === undefined || level(save) < D.ADVANCED_LV || save.coins < cost) return false;
+    save.coins -= cost; save.catalysts[id] = (save.catalysts[id] || 0) + 1;
+    return true;
+  }
+  function buyBasket(save, now) {
+    refillBasket(save, now);
+    if (save.basket.n >= D.BASKET_MAX || save.coins < D.BASKET_COINS) return false;
+    save.coins -= D.BASKET_COINS; save.basket.n++;
+    if (save.basket.n >= D.BASKET_MAX) save.basket.at = now;
+    return true;
+  }
+
+  // ---------- §10.8 稱號 ----------
+  function titleMet(save, c) {
+    var made = Object.keys(save.made).reduce(function (a, k) { return a + save.made[k]; }, 0);
+    var best = Object.keys(save.best).reduce(function (a, k) { return Math.max(a, save.best[k]); }, 0);
+    var pages = Object.keys(save.pagesDone).length, dex = dexProgress(save);
+    if (c.made) return made >= c.made;
+    if (c.dex) return dex.seen >= c.dex;
+    if (c.dexAll) return dex.seen >= dex.total;
+    if (c.quality) return best >= c.quality;
+    if (c.great) return save.greatCount >= c.great;
+    if (c.weekly) return save.weekly.plays >= c.weekly;
+    if (c.pages) return pages >= c.pages;
+    if (c.pagesAll) return pages >= D.PAGES.length;
+    if (c.coins) return save.coinsEarned >= c.coins;
+    if (c.aff) return save.hosts[save.host].aff >= c.aff;
+    return false;
+  }
+  function checkTitles(save) {
+    var out = [];
+    D.TITLES.forEach(function (t) { if (!save.titles[t.id] && titleMet(save, t.cond)) { save.titles[t.id] = true; out.push(t.id); } });
+    return out;
+  }
+  function setTitle(save, id) {
+    if (id && !save.titles[id]) return false;
+    save.title = id || "";
+    return true;
+  }
+
   // ---------- 調和 ----------
   function registerMethod(id, impl) { methods[id] = impl; }
   function host(save) { return HOSTS[save.host]; }
@@ -533,7 +716,7 @@
   function startSynthesis(save, recipeId, matUids, cauldronId, now, opts) {
     opts = opts || {};
     var r = recipe(recipeId);
-    if (!r || !recipeAvailable(save, r)) return { error: "recipe" };
+    if (!r || !recipeAvailable(save, r, now)) return { error: "recipe" };
     if (!canSynth(save, now)) return { error: "cooldown" };
     if (matUids.length !== r.needs.length) return { error: "count" };
     var cauldron = effectiveCauldron(save, cauldronId);
@@ -598,6 +781,8 @@
         mats: session.mats.map(function (m) { return { hex: m.hex, element: m.element, shape: m.shape, power: m.power, quality: m.quality }; }),
         moves: (session.moves || []).slice() } };
     if (session.catalyst) save.catalysts[session.catalyst.id]--;
+    if (great) save.greatCount = (save.greatCount || 0) + 1;
+    if (session.recipe.tool && effects.some(function (e) { return e.level >= 1; })) save.tools[session.recipe.tool] = true;   // §10.3
     var used = session.mats.map(function (m) { return m.uid; }), ash = 0;
     session.mats.forEach(function (m, i) { ash += m.shape.length - ev.visible[i]; });   // C10：被蓋掉的格子變成灰燼
     if (item.quality < D.ASH_LOW_QUALITY) ash += D.ASH_FAIL_BONUS;
@@ -624,7 +809,7 @@
   function deliver(save, itemUid) {
     var task = currentTask(save), item = null;
     save.items.forEach(function (it) { if (it.uid === itemUid) item = it; });
-    if (!item || !taskMet(task, item)) return false;
+    if (!item || !taskMet(task, item) || displayed(save, itemUid)) return false;
     save.items = save.items.filter(function (it) { return it !== item; });
     var hs = save.hosts[save.host];
     hs.task++; hs.aff = Math.min(100, hs.aff + D.AFF_PER_TASK); save.exp += task.exp;
@@ -655,6 +840,11 @@
     fuseTraits: fuseTraits, traitCost: traitCost, greatChance: greatChance, helpAvailable: helpAvailable, useHelp: useHelp,
     weekKey: weekKey, hsvToRgb: hsvToRgb, weeklyChallenge: weeklyChallenge, startChallenge: startChallenge,
     challengeScore: challengeScore, finishChallenge: finishChallenge, replaySession: replaySession, baseCauldron: baseCauldron,
+    hueDiff: hueDiff, harmonyOf: harmonyOf, rainbowOf: rainbowOf, shiftHue: shiftHue, analyzeOpts: analyzeOpts,
+    seasonOf: seasonOf, isSeasonColor: isSeasonColor, page: page, colorById: colorById, pageProgress: pageProgress, colorRegion: colorRegion,
+    displayed: displayed, decoOptions: decoOptions, decoTaste: decoTaste, setDeco: setDeco, dailyVisit: dailyVisit,
+    hotElement: hotElement, priceOf: priceOf, sell: sell, buyCatalyst: buyCatalyst, buyBasket: buyBasket,
+    titleMet: titleMet, checkTitles: checkTitles, setTitle: setTitle,
     hexToRgb: hexToRgb, rgbToHex: rgbToHex, rgbToHsv: rgbToHsv, rgbToLab: rgbToLab, deltaE: deltaE,
     nearestColor: nearestColor, elementOf: elementOf, categoryOf: categoryOf,
     kmeans: kmeans, shapeFromGrid: shapeFromGrid, normalizeShape: normalizeShape, rotateShape: rotateShape, analyze: analyze,

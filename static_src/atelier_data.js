@@ -142,6 +142,44 @@
         gauges: [
           { el: "bolt", steps: [{ at: 12, kind: "light", n: 2 }, { at: 24, kind: "light", n: 3 }, { at: 36, kind: "light", n: 4 }] },
           { el: "spirit", steps: [{ at: 12, kind: "value", n: 80 }, { at: 26, kind: "value", n: 200 }] }
+        ] },
+      // 第 4 階段（§10.3 觀察道具：做出效果 Lv1 以上就能一直使用）
+      { id: "loupe", lv: 3, cat: "crystal", tool: "loupe", idea: { made: "lamp" }, needs: ["crystal", "mineral"],
+        name: { zh: "放大鏡", ja: "ルーペ", en: "Loupe" },
+        gauges: [
+          { el: "bolt", steps: [{ at: 8, kind: "light", n: 1 }, { at: 16, kind: "light", n: 2 }] },
+          { el: "ice", steps: [{ at: 8, kind: "value", n: 40 }, { at: 16, kind: "value", n: 90 }] }
+        ] },
+      { id: "glasses", lv: 4, cat: "crystal", tool: "glasses", idea: { seenCount: 40 }, needs: ["crystal", "*", "*"],
+        name: { zh: "濾色眼鏡", ja: "色フィルター眼鏡", en: "Filter Glasses" },
+        gauges: [
+          { el: "spirit", steps: [{ at: 10, kind: "light", n: 1 }, { at: 20, kind: "light", n: 2 }] },
+          { el: "ice", steps: [{ at: 10, kind: "value", n: 60 }, { at: 20, kind: "value", n: 120 }] }
+        ] },
+      // 第 4 階段（§10.7 季節限定：只有當季可以調和）
+      { id: "sachet", lv: 2, cat: "plant", season: "spring", needs: ["plant", "essence", "*"],
+        name: { zh: "櫻花香包", ja: "桜の匂い袋", en: "Blossom Sachet" },
+        gauges: [
+          { el: "wind", steps: [{ at: 8, kind: "heal", n: 30 }, { at: 16, kind: "heal", n: 60 }] },
+          { el: "spirit", steps: [{ at: 8, kind: "value", n: 60 }, { at: 16, kind: "value", n: 120 }] }
+        ] },
+      { id: "fireworks", lv: 2, cat: "mineral", season: "summer", needs: ["mineral", "essence", "*"],
+        name: { zh: "夏夜煙火", ja: "夏夜の花火", en: "Summer Fireworks" },
+        gauges: [
+          { el: "fire", steps: [{ at: 8, kind: "dmg", n: 40 }, { at: 16, kind: "dmg", n: 80 }, { at: 24, kind: "dmg", n: 120 }] },
+          { el: "bolt", steps: [{ at: 10, kind: "light", n: 2 }, { at: 20, kind: "light", n: 3 }] }
+        ] },
+      { id: "dyecloth", lv: 2, cat: "plant", season: "autumn", needs: ["plant", "*", "*"],
+        name: { zh: "楓紅染布", ja: "紅葉染めの布", en: "Maple-Dyed Cloth" },
+        gauges: [
+          { el: "fire", steps: [{ at: 8, kind: "dye", n: 2 }, { at: 16, kind: "dye", n: 3 }, { at: 24, kind: "dye", n: 4 }] },
+          { el: "wind", steps: [{ at: 10, kind: "guard", n: 10 }, { at: 20, kind: "guard", n: 20 }] }
+        ] },
+      { id: "snowcharm", lv: 2, cat: "crystal", season: "winter", needs: ["crystal", "liquid", "*"],
+        name: { zh: "雪晶護符", ja: "雪晶のお守り", en: "Snow Crystal Charm" },
+        gauges: [
+          { el: "ice", steps: [{ at: 8, kind: "freeze", n: 1 }, { at: 16, kind: "freeze", n: 2 }, { at: 24, kind: "freeze", n: 3 }] },
+          { el: "spirit", steps: [{ at: 10, kind: "guard", n: 15 }, { at: 20, kind: "guard", n: 30 }] }
         ] }
     ],
     // O9 成品再投入：成品當素材時的形狀（依格數）
@@ -163,7 +201,11 @@
       // 第 3 階段（O8 特性合成）才會出現的高階特性
       twilight: { cost: 14, quality: 15, fused: true, name: { zh: "晨昏", ja: "朝夕", en: "Twilight" } },
       hue_crown: { cost: 20, quality: 20, fused: true, name: { zh: "色之冠", ja: "色の冠", en: "Crown of Hues" } },
-      star_hue: { cost: 22, boost: 30, fused: true, name: { zh: "星之色", ja: "星の色", en: "Starlit Hue" } }
+      star_hue: { cost: 22, boost: 30, fused: true, name: { zh: "星之色", ja: "星の色", en: "Starlit Hue" } },
+      // 第 4 階段（§10）
+      harmony: { cost: 10, quality: 8, boost: 5, name: { zh: "調和", ja: "調和", en: "Harmony" } },
+      rainbow: { cost: 25, boost: 40, name: { zh: "虹", ja: "虹", en: "Rainbow" } },
+      season: { cost: 10, quality: 6, boost: 10, name: { zh: "季節之彩", ja: "季節の彩り", en: "Seasonal Hue" } }
     },
     // O4 時間特性（JST 小時，含 from、不含 to；from > to 表示跨午夜）
     TIME_TRAITS: [
@@ -202,7 +244,75 @@
     GREAT_QUALITY: 15, GREAT_EFFECT: 1.2, QUALITY_CAP_GREAT: 120,
     TRAIT_FUSION: [["morning_dew", "dusk", "twilight"], ["hue_grace", "vivid", "hue_crown"], ["night", "daily_hue", "star_hue"]],
     HELP_AFF: 40,
-    WEEKLY_EXP: 20
+    WEEKLY_EXP: 20,
+
+    // ---------- 第 4 階段（§10） ----------
+    HARMONY_SAT: 0.25, HARMONY_TOL: 20, ANALOG_SPAN: 40, ANALOG_MIN: 8,
+    RAINBOW_SAT: 0.35, RAINBOW_VAL: 0.25, RAINBOW_SECTOR_FRAC: 0.02, RAINBOW_SECTORS: 6,
+    RAINBOW_MAT: { quality: 90, power: 4, hex: "#C9A0DC" },
+    LOUPE: { k: 7, minFrac: 0.015 },
+    FILTER_SHIFT: 30,
+    PAGE_REWARD: { exp: 30, ash: 5 },
+    DECO_SLOTS: 3,
+    RECIPE_PRICE: { heal: 40, ink: 30, neutral: 35, bomb: 60, pigment: 45, frost: 55, lamp: 80, charm: 75, shade: 90, prism: 150,
+      loupe: 100, glasses: 120, sachet: 70, fireworks: 70, dyecloth: 70, snowcharm: 70 },
+    HOT_MULT: 1.5, SEASON_MULT: 1.2,
+    CATALYST_COINS: { expand: 60, tint: 50, double: 80 },
+    BASKET_COINS: 30,
+    // §10.7 季節：JST 月份 → 季節；每季 10 個主題色與 1 個限定配方
+    SEASON_BY_MONTH: { 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring", 6: "summer", 7: "summer", 8: "summer",
+      9: "autumn", 10: "autumn", 11: "autumn", 12: "winter" },
+    SEASONS: {
+      spring: { colors: ["sakura", "momo", "toki", "nadeshiko", "wakakusa", "wakaba", "moegi", "nanohana", "fuji", "usuzakura"], recipe: "sachet" },
+      summer: { colors: ["ao", "sora", "mizu", "himawari", "asagi", "tsuyukusa", "wakatake", "shinbashi", "kamenozoki", "remon"], recipe: "fireworks" },
+      autumn: { colors: ["akane", "kaki", "kuri", "kohaku", "odo", "yamabuki", "beni", "enji", "kurumi", "kitsune"], recipe: "dyecloth" },
+      winter: { colors: ["shiro", "gin", "ai", "kon", "gofun", "shironeri", "nezumi", "sumi", "tetsukon", "ruri"], recipe: "snowcharm" }
+    },
+    // §10.4 著色繪本：6×6 的原創線稿，region 依陣列順序繪製（後面的蓋在前面上）
+    PAGES: [
+      { id: "goldfish", theme: "blue", name: { zh: "金魚", ja: "金魚", en: "Goldfish" }, regions: [
+        { id: "water", group: "blue", rects: [[0, 0, 6, 6]] },
+        { id: "weed", group: "green", rects: [[0, 3, 1, 3], [5, 4, 1, 2]] },
+        { id: "body", group: "orange", rects: [[1, 2, 3, 2]] },
+        { id: "tail", group: "red", rects: [[4, 1, 1, 4], [2, 4, 1, 1]] }
+      ] },
+      { id: "persimmon", theme: "orange", name: { zh: "柿子樹", ja: "柿の木", en: "Persimmon Tree" }, regions: [
+        { id: "sky", group: "blue", rects: [[0, 0, 6, 6]] },
+        { id: "trunk", group: "brown", rects: [[2, 2, 2, 3]] },
+        { id: "leaves", group: "green", rects: [[0, 0, 6, 2], [1, 2, 1, 1], [4, 2, 1, 1]] },
+        { id: "fruit", group: "orange", rects: [[1, 1, 1, 1], [3, 0, 1, 1], [4, 1, 1, 1], [1, 2, 1, 1]] },
+        { id: "ground", group: "yellow", rects: [[0, 5, 6, 1]] }
+      ] },
+      { id: "iris", theme: "purple", name: { zh: "菖蒲", ja: "菖蒲", en: "Iris" }, regions: [
+        { id: "sky", group: "mono", rects: [[0, 0, 6, 3]] },
+        { id: "water", group: "blue", rects: [[0, 3, 6, 3]] },
+        { id: "stem", group: "green", rects: [[2, 1, 1, 5], [4, 2, 1, 4]] },
+        { id: "petal", group: "purple", rects: [[1, 0, 3, 1], [3, 1, 3, 1]] },
+        { id: "heart", group: "yellow", rects: [[2, 0, 1, 1], [4, 1, 1, 1]] }
+      ] },
+      { id: "snow", theme: "blue", name: { zh: "雪夜", ja: "雪の夜", en: "Snowy Night" }, regions: [
+        { id: "night", group: "blue", rects: [[0, 0, 6, 6]] },
+        { id: "house", group: "brown", rects: [[1, 3, 4, 2]] },
+        { id: "roof", group: "red", rects: [[0, 2, 6, 1]] },
+        { id: "lantern", group: "yellow", rects: [[2, 3, 1, 1]] },
+        { id: "snow", group: "mono", rects: [[0, 1, 6, 1], [0, 5, 6, 1]] }
+      ] }
+    ],
+    // §10.8 稱號
+    TITLES: [
+      { id: "novice", cond: { made: 1 }, name: { zh: "見習煉金術士", ja: "見習い錬金術士", en: "Apprentice" } },
+      { id: "artisan", cond: { made: 20 }, name: { zh: "熟練工匠", ja: "熟練の職人", en: "Artisan" } },
+      { id: "collector", cond: { dex: 30 }, name: { zh: "色彩收集家", ja: "色あつめの人", en: "Color Collector" } },
+      { id: "connoisseur", cond: { dex: 80 }, name: { zh: "色彩鑑賞家", ja: "色の目利き", en: "Connoisseur" } },
+      { id: "master_hue", cond: { dexAll: true }, name: { zh: "萬色之主", ja: "万色の主", en: "Master of Hues" } },
+      { id: "perfect", cond: { quality: 100 }, name: { zh: "完美主義者", ja: "完璧主義者", en: "Perfectionist" } },
+      { id: "lucky", cond: { great: 1 }, name: { zh: "幸運兒", ja: "幸運児", en: "Lucky One" } },
+      { id: "challenger", cond: { weekly: 1 }, name: { zh: "挑戰者", ja: "挑戦者", en: "Challenger" } },
+      { id: "painter", cond: { pages: 1 }, name: { zh: "繪本畫家", ja: "絵本作家", en: "Painter" } },
+      { id: "illustrator", cond: { pagesAll: true }, name: { zh: "繪本大師", ja: "絵本の名人", en: "Illustrator" } },
+      { id: "merchant", cond: { coins: 500 }, name: { zh: "商人", ja: "商人", en: "Merchant" } },
+      { id: "friend", cond: { aff: 100 }, name: { zh: "瑠璃的摯友", ja: "瑠璃の親友", en: "Ruri's Best Friend" } }
+    ]
   };
   if (typeof module !== "undefined" && module.exports) module.exports = data;
   else window.PriTestAtelierData = data;
