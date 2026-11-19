@@ -12,8 +12,8 @@
 .at-avatar { width: 3rem; height: 3rem; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; }
 .at-bubble { grid-column: 1 / -1; margin: 0.25rem 0 0; padding: 0.6rem 0.8rem; background: #fff; border: 1px solid var(--at-line); border-radius: 10px; }
 .at-tutorial { border-color: var(--at-accent); border-width: 2px; }
-.at-tabs { display: flex; gap: 0.25rem; margin: 0.75rem 0; }
-.at-tabs button { flex: 1; min-width: 0; padding: 0.45rem 0.2rem; white-space: nowrap; }
+.at-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; margin: 0.75rem 0; }
+.at-tabs button { min-width: 0; padding: 0.45rem 0.2rem; white-space: nowrap; }
 .at-tabs .at-on { background: var(--at-soft); border-color: var(--at-accent); font-weight: bold; }
 .at-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
 .at-msg { padding: 0.4rem 0.6rem; background: var(--at-soft); border-radius: 8px; }
@@ -52,3 +52,12 @@
 .at-cooldown { padding: 0.8rem; background: var(--at-soft); border-radius: 10px; }
 .at-dev { margin-top: 1.5rem; font-size: 0.85rem; opacity: 0.8; }
 .at-dev button { margin: 0.25rem; }
+/* 第 2 階段：每日色彩、圖鑑、升華 */
+.at-daily { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; background: #fff; border: 1px dashed var(--at-accent); border-radius: 8px; }
+.at-new { background: #e6f0ff; border-color: var(--at-accent); }
+.at-wrap button.at-on { outline: 3px solid var(--at-accent); }
+.at-subpick input { width: 1.1rem; height: 1.1rem; }
+.at-dex-grid { list-style: none; padding: 0; margin: 0.3rem 0 0.8rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: 0.3rem; }
+.at-dex-grid li { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.4rem; background: #fff; border: 1px solid var(--at-line); border-radius: 8px; font-size: 0.85rem; }
+.at-dex-off { opacity: 0.5; }
+.at-dex-off .at-chip { background: repeating-linear-gradient(45deg, #ddd, #ddd 3px, #f4f4f4 3px, #f4f4f4 6px); }
