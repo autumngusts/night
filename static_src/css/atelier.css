@@ -1,0 +1,54 @@
+/* 煉金術士（atelier）。只放這個遊戲的樣式，前綴 at-。手機直式優先。 */
+.at-wrap {
+  --at-ink: #2b2433; --at-paper: #fbf6ec; --at-line: #d9cdb8; --at-accent: #1e50a2; --at-soft: #efe5d2;
+  max-width: 46rem; margin: 0 auto; padding: 0.75rem 1rem 2rem; color: var(--at-ink); background: var(--at-paper);
+  border-radius: 12px; box-sizing: border-box;
+}
+.at-wrap * { box-sizing: border-box; }
+.at-wrap button { font: inherit; padding: 0.45rem 0.8rem; border: 1px solid var(--at-line); border-radius: 8px; background: #fff; color: var(--at-ink); cursor: pointer; }
+.at-wrap button:disabled { opacity: 0.45; cursor: default; }
+.at-wrap .at-main { background: var(--at-accent); color: #fff; border-color: var(--at-accent); }
+.at-head { display: grid; grid-template-columns: 3rem 1fr; gap: 0.5rem; align-items: center; }
+.at-avatar { width: 3rem; height: 3rem; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; }
+.at-bubble { grid-column: 1 / -1; margin: 0.25rem 0 0; padding: 0.6rem 0.8rem; background: #fff; border: 1px solid var(--at-line); border-radius: 10px; }
+.at-tutorial { border-color: var(--at-accent); border-width: 2px; }
+.at-tabs { display: flex; gap: 0.25rem; margin: 0.75rem 0; }
+.at-tabs button { flex: 1; }
+.at-tabs .at-on { background: var(--at-soft); border-color: var(--at-accent); font-weight: bold; }
+.at-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
+.at-msg { padding: 0.4rem 0.6rem; background: var(--at-soft); border-radius: 8px; }
+.at-hint { font-size: 0.9rem; opacity: 0.8; }
+.at-hidden { display: none; }
+.at-video-slot { position: relative; width: 100%; max-width: 22rem; aspect-ratio: 1; overflow: hidden; border-radius: 10px; background: #000; }
+.at-video { width: 100%; height: 100%; object-fit: cover; }
+.at-reticle { position: absolute; inset: 0; border: 2px dashed rgba(255, 255, 255, 0.7); border-radius: 10px; pointer-events: none; z-index: 1; }
+.at-file { display: inline-flex; align-items: center; padding: 0.45rem 0.8rem; border: 1px solid var(--at-line); border-radius: 8px; background: #fff; cursor: pointer; }
+.at-file input { display: none; }
+.at-scene { width: 8rem; height: 8rem; image-rendering: pixelated; border-radius: 8px; }
+.at-swatches, .at-list { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.4rem; }
+.at-swatch { width: 100%; text-align: left; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.at-swatch.at-on { outline: 3px solid var(--at-accent); }
+.at-chip { width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 1px solid var(--at-line); }
+.at-mat-name { font-weight: bold; margin-right: 0.25rem; }
+.at-tag { display: inline-block; padding: 0.1rem 0.4rem; border: 1px solid var(--at-line); border-radius: 999px; font-size: 0.8rem; background: #fff; }
+.at-trait { background: #fff5d6; }
+.at-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding: 0.4rem; background: #fff; border: 1px solid var(--at-line); border-radius: 8px; }
+.at-shape { display: inline-grid; gap: 1px; vertical-align: middle; }
+.at-shape i { width: 0.9rem; height: 0.9rem; font-style: normal; font-size: 0.55rem; line-height: 0.9rem; text-align: center; color: rgba(255, 255, 255, 0.9); border-radius: 2px; }
+.at-shape i.at-off { background: transparent; }
+.at-slot { display: block; margin: 0.4rem 0; }
+.at-slot select { width: 100%; padding: 0.4rem; }
+.at-board { display: grid; gap: 3px; width: 100%; max-width: 22rem; margin: 0.5rem auto; }
+.at-wrap .at-cell { aspect-ratio: 1; padding: 0; font-size: 1rem; color: var(--at-c); background: #fff; border: 2px solid var(--at-c); border-radius: 6px; }
+.at-wrap .at-cell.at-bonus { box-shadow: inset 0 0 0 3px #f2c94c; }
+.at-wrap .at-cell.at-filled { background: var(--at-c); color: rgba(255, 255, 255, 0.9); }
+.at-wrap .at-cell.at-ghost { outline: 3px dashed var(--at-accent); outline-offset: -3px; }
+.at-gauges { list-style: none; padding: 0; margin: 0.5rem 0; }
+.at-gauges meter { width: 8rem; vertical-align: middle; }
+.at-push { font-weight: bold; color: var(--at-accent); }
+.at-tray { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.at-tray .at-on { outline: 3px solid var(--at-accent); }
+.at-result { padding: 0.8rem; background: #fff; border: 2px solid var(--at-accent); border-radius: 10px; }
+.at-cooldown { padding: 0.8rem; background: var(--at-soft); border-radius: 10px; }
+.at-dev { margin-top: 1.5rem; font-size: 0.85rem; opacity: 0.8; }
+.at-dev button { margin: 0.25rem; }

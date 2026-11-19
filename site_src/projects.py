@@ -220,6 +220,14 @@ PROJECTS = [
         # 使用者指定 2026-11-17：test 分頁只顯示、不能點，要自己輸入 /shedan 進入
         "link": False,
     },
+    {
+        "id": "atelier",
+        "href": "atelier/index.html",
+        "name_key": "project_atelier_name",
+        "desc_key": "project_atelier_desc",
+        # 使用者指定 2026-11-19：先在 PriTest 試作，test 分頁只顯示、不能點，要自己輸入 /atelier 進入
+        "link": False,
+    },
 ]
 
 # 首頁的分類標籤（使用者指定 2026-11-13）：一開始不顯示任何遊戲，按下標籤才依此順序列出。
@@ -230,6 +238,6 @@ PROJECT_TABS = [
     {"id": "v1_0j", "label": "v1.0j", "projects": ("utau",)},
     {"id": "v1_5", "label": "v1.5", "projects": ("yukimura", "reiwa", "jomon", "starv", "wanren", "jikan", "denshi")},
     {"id": "v2_0", "label": "v2.0", "projects": ("sennyu", "ennichi")},
-    {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone", "tama", "kyuka", "shedan")},
+    {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone", "tama", "kyuka", "shedan", "atelier")},
     {"id": "abandoned", "label_key": "home_tab_abandoned", "projects": ("fist", "zombie", "natsu")},
 ]
