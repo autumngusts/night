@@ -49,10 +49,11 @@ async function checkViewport(browser, vp, tag) {
   assert.ok(await headerBottom() <= 1, tag + " 點外側收起");
 
   // 選隊
-  assert.strictEqual((await page.$$(".sd-pick-card")).length, 30, "第 2 階段暫時開放 30 人");
-  // 每點一次選隊畫面就重繪，所以每次重新查詢；故意選到後段的角色
-  var picks = [0, 9, 17, 29];
-  for (var i = 0; i < picks.length; i++) await page.click(".sd-pick-card >> nth=" + picks[i]);
+  assert.strictEqual((await page.$$(".sd-pick-card")).length, 30, "30 人都顯示");
+  assert.strictEqual((await page.$$(".sd-pick-card.is-locked")).length, 22, "一開始 22 人未解鎖");
+  // 每點一次選隊畫面就重繪，所以每次重新查詢；選已解鎖的第 1、3、5、8 位
+  var picks = [0, 2, 4, 7];
+  for (var i = 0; i < picks.length; i++) await page.click(".sd-pick-card:not(.is-locked) >> nth=" + picks[i]);
   await page.screenshot({ path: path.join(SHOT_DIR, tag + "_02_pick.png") });
   // 開始遠征 → 地圖（第 1 層可走、全是戰鬥）→ 點第一個節點開戰
   await page.click('[data-act="launch"]');
@@ -244,6 +245,121 @@ async function smokeRun(browser, seed) {
   console.log("ok - 一整局遠征（" + run.nodes + " 節點、遺物 " + run.relics + " 件、經過畫面：" + Object.keys(seen).join("／") + "）");
 }
 
+// 第 5 階段：星艦據點解鎖、存檔續玩（地圖中／戰鬥中重新整理）、每日星圖、難度選擇、遠征結束給星塵
+async function checkMeta(browser) {
+  var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  var errors = [];
+  page.on("pageerror", function (e) { errors.push(String(e)); });
+  page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
+  await page.goto(BASE);
+  await page.evaluate(function () { localStorage.clear(); });
+  await page.reload();
+  await page.waitForSelector(".sd-pick-card");
+  // 據點：給 200 星塵 → 解鎖焰鈴（60）與加速環（40）→ 重新整理後還在
+  await page.evaluate(function () { var m = window.PriTestShedanApp._debug.meta(); m.stardust = 200; window.PriTestShedanApp._debug.setMeta(m); });
+  await page.dispatchEvent('[data-act="base"]', "click");
+  await page.waitForSelector("[data-unlock-hero]");
+  await page.screenshot({ path: path.join(SHOT_DIR, "meta_01_base.png") });
+  await page.dispatchEvent('[data-unlock-hero="pyra"]', "click");
+  await page.dispatchEvent('[data-unlock-relic="accel_ring"]', "click");
+  await page.reload();
+  await page.waitForSelector(".sd-pick-card");
+  var meta = await page.evaluate(function () { return window.PriTestShedanApp._debug.meta(); });
+  assert.strictEqual(meta.stardust, 100, "星塵扣掉 100");
+  assert.ok(meta.heroes.indexOf("pyra") >= 0 && meta.startRelics.indexOf("accel_ring") >= 0, "解鎖有存檔");
+  assert.strictEqual((await page.$$(".sd-pick-card.is-locked")).length, 21);
+  // 選焰鈴＋3 人、帶加速環 → 開始遠征 → 地圖中重新整理 → 繼續遠征
+  await page.click('[data-hero="pyra"]');
+  for (var i = 0; i < 3; i++) await page.click(".sd-pick-card:not(.is-locked):not(.is-picked) >> nth=0");
+  await page.selectOption('[data-act="srelic"]', "accel_ring");
+  await page.click('[data-act="launch"]');
+  await page.waitForSelector(".sd-node.is-reach");
+  assert.deepStrictEqual(await page.evaluate(function () { return window.PriTestShedanApp._debug.run().relics; }), ["accel_ring"], "起始遺物");
+  await page.reload();
+  await page.waitForSelector('[data-act="continue"]');
+  await page.dispatchEvent('[data-act="continue"]', "click");
+  await page.waitForSelector(".sd-node.is-reach");
+  // 進戰鬥 → 戰鬥中重新整理 → 繼續 → 同一場（同樣的敵人配置）
+  await page.dispatchEvent(".sd-node.is-reach >> nth=0", "click");
+  await waitPhase(page, "aim");
+  var sig = await page.evaluate(function () { return window.PriTestShedanApp._debug.state().battle.enemies.map(function (e) { return e.def.id + Math.round(e.x); }).join(","); });
+  await page.reload();
+  await page.waitForSelector('[data-act="continue"]');
+  await page.dispatchEvent('[data-act="continue"]', "click");
+  await waitPhase(page, "aim");
+  var sig2 = await page.evaluate(function () { return window.PriTestShedanApp._debug.state().battle.enemies.map(function (e) { return e.def.id + Math.round(e.x); }).join(","); });
+  assert.strictEqual(sig2, sig, "戰鬥中重整：同一場重來");
+  // 打贏 → 獎勵畫面重新整理 → 繼續回到獎勵
+  await page.evaluate(function () { window.PriTestShedanApp._debug.forceWin(); });
+  await page.waitForSelector("[data-relic]");
+  await page.reload();
+  await page.dispatchEvent('[data-act="continue"]', "click");
+  await page.waitForSelector("[data-relic]");
+  // 跳過獎勵 → 回到地圖（結算星塵另外由下面的整局檢查驗證）
+  await page.dispatchEvent('[data-act="skip"]', "click");
+  await page.waitForSelector(".sd-node.is-reach");
+  await page.close();
+
+  // 每日星圖：只有初始 8 人、出發後 run.daily = 今天、難度 0
+  var p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  p2.on("pageerror", function (e) { errors.push(String(e)); });
+  await p2.goto(BASE);
+  await p2.waitForSelector('[data-act="mode-daily"]');
+  await p2.dispatchEvent('[data-act="mode-daily"]', "click");
+  await p2.waitForSelector('[data-act="daily-go"]');
+  assert.strictEqual((await p2.$$(".sd-pick-card")).length, 8, "每日星圖只有初始 8 人");
+  for (var k = 0; k < 4; k++) await p2.click(".sd-pick-card:not(.is-picked) >> nth=0");
+  await p2.screenshot({ path: path.join(SHOT_DIR, "meta_02_daily.png") });
+  await p2.click('[data-act="daily-go"]');
+  await p2.waitForSelector(".sd-node.is-reach");
+  var dr = await p2.evaluate(function () { var r = window.PriTestShedanApp._debug.run(); var d = new Date(); return { daily: r.daily, diff: r.difficulty, today: d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2) }; });
+  assert.strictEqual(dr.daily, dr.today);
+  assert.strictEqual(dr.diff, 0);
+  await p2.close();
+
+  // 一整局（debug 開局、畫面操作）結束 → 星塵增加、存檔刪除、難度 1 解鎖
+  var p3 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  p3.on("pageerror", function (e) { errors.push(String(e)); });
+  await p3.goto(BASE);
+  await p3.waitForSelector(".sd-pick-card");
+  var before = await p3.evaluate(function () { return window.PriTestShedanApp._debug.meta().stardust; });
+  await playRun(p3, "meta-run");
+  var after = await p3.evaluate(function () { return { m: window.PriTestShedanApp._debug.meta(), saved: !!localStorage.getItem("pritest-shedan-run-v1") }; });
+  assert.ok(after.m.stardust > before, "星塵增加 " + before + " → " + after.m.stardust);
+  assert.ok(!after.saved, "遠征結束刪除存檔");
+  assert.strictEqual(after.m.cleared, 0, "通關難度 0");
+  await p3.screenshot({ path: path.join(SHOT_DIR, "meta_03_end.png") });
+  await p3.reload();
+  await p3.waitForSelector('[data-act="diff"]');
+  assert.strictEqual((await p3.$$('[data-act="diff"] option')).length, 2, "可以選難度 0、1");
+  await p3.close();
+
+  assert.deepStrictEqual(errors, [], "局外檢查 console error");
+  console.log("ok - 星艦據點、存檔續玩、每日星圖、星塵結算、難度解鎖");
+}
+
+// 用畫面按鈕把一局走完（戰鬥用 debug 強制勝利）
+async function playRun(page, seed) {
+  await page.evaluate(function (s) { window.PriTestShedanApp._debug.startRun(["ignis", "volta", "mist", "nox"], s); }, seed);
+  for (var step = 0; step < 80; step++) {
+    var st = await page.evaluate(function () { return window.PriTestShedanApp._debug.state().screen; });
+    if (st === "runEnd") return;
+    if (st === "map") await page.dispatchEvent(".sd-node.is-reach >> nth=0", "click");
+    else if (st === "battle") {
+      await page.waitForFunction(function () { var s = window.PriTestShedanApp._debug.state(); return s.phase === "aim" || s.screen !== "battle"; }, null, { timeout: 15000 });
+      await page.evaluate(function () { var s = window.PriTestShedanApp._debug.state(); if (s.screen === "battle" && s.phase === "aim") window.PriTestShedanApp._debug.forceWin(); });
+      await page.waitForFunction(function () { return window.PriTestShedanApp._debug.state().screen !== "battle"; }, null, { timeout: 5000 });
+    }
+    else if (st === "reward") await page.dispatchEvent('[data-act="skip"]', "click");
+    else if (st === "shop" || st === "drifter") await page.dispatchEvent('[data-act="leave"]', "click");
+    else if (st === "rest") await page.dispatchEvent('[data-act="heal"]', "click");
+    else if (st === "event") await page.dispatchEvent('[data-opt="b"]', "click");
+    else if (st === "eventOut") await page.dispatchEvent('[data-act="ok"]', "click");
+    await page.waitForTimeout(100);
+  }
+  throw new Error("80 步內沒走完");
+}
+
 // 100 件遺物同時持有：在 4 種戰場各打一輪（每發發動技能），不能有 console error
 async function smokeAllRelics(browser) {
   var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -281,6 +397,7 @@ async function smokeAllRelics(browser) {
   try {
     await checkViewport(browser, { width: 390, height: 844 }, "phone");
     await checkViewport(browser, { width: 1280, height: 800 }, "desktop");
+    await checkMeta(browser);
     await smokeRun(browser, "smoke-a");
     await smokeRun(browser, "smoke-b");
     await smokeAllRelics(browser);

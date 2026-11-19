@@ -129,36 +129,68 @@
   function render() {
     overlay.style.display = S.screen === "battle" ? "none" : "flex";
     hudWrap.style.display = S.screen === "battle" ? "block" : "none";
-    overlay.classList.toggle("is-run", !!S.run && S.screen !== "pick");
+    overlay.classList.toggle("is-run", (!!S.run && S.screen !== "pick") || S.screen === "base");
     var fn = {
       pick: renderPick, result: renderResult, map: renderMap, reward: renderReward, shop: renderShop, rest: renderRest,
-      drifter: renderDrifter, event: renderEvent, eventOut: renderEventOut, relics: renderRelics, runEnd: renderRunEnd
+      drifter: renderDrifter, event: renderEvent, eventOut: renderEventOut, relics: renderRelics, runEnd: renderRunEnd, base: renderBase
     }[S.screen];
     if (fn) fn();
   }
 
+  // 選隊（§12.1）：一般模式只能選已解鎖的角色；每日星圖只能選初始 8 人
+  function isLocked(h) { return S.pickMode === "daily" ? !h.initial : S.meta.heroes.indexOf(h.id) < 0; }
   function renderPick() {
-    var html = '<h1>' + esc(t("sd_title")) + '</h1><p>' + esc(t("sd_pick_hint", { n: S.picked.length })) + '</p><div class="sd-pick-grid">';
+    var meta = S.meta, daily = S.pickMode === "daily";
+    S.picked = S.picked.filter(function (id) { return !isLocked(D.HERO_BY_ID[id]); });
+    var html = "<h1>" + esc(t(daily ? "sd_daily_title" : "sd_title")) + "</h1>";
+    if (S.saved && !daily) {
+      html += '<button type="button" class="sd-btn sd-btn-continue" data-act="continue">' + esc(t("sd_continue_run")) + "</button>";
+    }
+    html += '<div class="sd-run-head"><span class="sd-badge">✦ ' + esc(t("sd_stardust_n", { n: meta.stardust })) + "</span>" +
+      '<span class="sd-badge">' + esc(t("sd_best", { n: meta.best })) + "</span>" +
+      (daily ? '<span class="sd-badge">' + esc(Run.todayStr()) + " · " + esc(t("sd_daily_best", { n: meta.daily[Run.todayStr()] || 0 })) + "</span>" : "") + "</div>";
+    html += "<p>" + esc(t(daily ? "sd_daily_hint" : "sd_pick_hint", { n: S.picked.length })) + '</p><div class="sd-pick-grid">';
     pickableHeroes().forEach(function (h) {
-      var idx = S.picked.indexOf(h.id);
+      var idx = S.picked.indexOf(h.id), locked = isLocked(h);
+      if (daily && locked) return;
       var info = D.ELEMENT_INFO[h.element];
-      html += '<button type="button" class="sd-pick-card' + (idx >= 0 ? " is-picked" : "") + '" data-hero="' + h.id + '" style="--sd-el:' + info.color + '"' +
+      html += '<button type="button" class="sd-pick-card' + (idx >= 0 ? " is-picked" : "") + (locked ? " is-locked" : "") + '" data-hero="' + h.id + '" style="--sd-el:' + info.color + '"' +
         ' title="' + esc(t("sd_friend") + "：" + name(h.friend.name) + " ／ " + t("sd_skill") + "：" + name(h.skill.name)) + '">' +
         (idx >= 0 ? '<span class="sd-pick-order">' + (idx + 1) + "</span>" : "") +
         '<img src="' + esc(imgBase + h.img) + '" alt="" loading="lazy">' +
-        "<b>" + esc(name(h.name)) + '</b><span class="sd-el-tag">' + info.icon + " " + esc(name(h.skill.name)) + "</span></button>";
+        "<b>" + esc(name(h.name)) + '</b><span class="sd-el-tag">' + (locked ? "🔒 ✦" + Run.HERO_COST : info.icon + " " + esc(name(h.skill.name))) + "</span></button>";
     });
     var ready = S.picked.length === 4 ? "" : " disabled";
-    html += '</div><div class="sd-pick-bar">' +
-      '<button type="button" class="sd-btn" data-act="launch"' + ready + ">" + esc(t("sd_start_run")) + "</button>" +
-      '<details class="sd-test-arena"' + (S.arenaOpen ? " open" : "") + '><summary>' + esc(t("sd_test_arena")) + '</summary><div class="sd-arena" role="radiogroup" aria-label="' + esc(t("sd_arena")) + '">' +
-      ARENAS.map(function (a) {
-        return '<button type="button" class="sd-arena-btn' + (S.arena === a ? " is-on" : "") + '" data-arena="' + a + '">' + esc(arenaName(a)) + "</button>";
-      }).join("") + '</div><button type="button" class="sd-btn sd-btn-ghost" data-act="arena"' + ready + ">" + esc(t("sd_launch")) + "</button></details></div>";
+    html += '</div><div class="sd-pick-bar">';
+    if (daily) {
+      html += '<div class="sd-row"><button type="button" class="sd-btn" data-act="daily-go"' + ready + ">" + esc(t("sd_go")) + "</button>" +
+        '<button type="button" class="sd-btn sd-btn-ghost" data-act="mode-normal">' + esc(t("sd_back")) + "</button></div>";
+    } else {
+      // 難度（0～已解鎖的最高）、起始遺物（已解鎖的普通遺物，0 或 1 件）
+      var maxD = Run.maxDifficulty(meta);
+      if (S.difficulty > maxD) S.difficulty = maxD;
+      if (S.startRelic && meta.startRelics.indexOf(S.startRelic) < 0) S.startRelic = "";
+      html += '<div class="sd-run-opts"><label>' + esc(t("sd_difficulty")) + ' <select data-act="diff">' +
+        Array.apply(null, Array(maxD + 1)).map(function (_, i) { return '<option value="' + i + '"' + (S.difficulty === i ? " selected" : "") + ">" + i + "</option>"; }).join("") +
+        "</select></label>" +
+        "<label>" + esc(t("sd_start_relic")) + ' <select data-act="srelic"><option value="">' + esc(t("sd_none")) + "</option>" +
+        meta.startRelics.map(function (id) { return '<option value="' + id + '"' + (S.startRelic === id ? " selected" : "") + ">" + esc(name(D.RELIC_BY_ID[id].name)) + "</option>"; }).join("") +
+        "</select></label></div>" +
+        '<button type="button" class="sd-btn" data-act="launch"' + ready + ">" + esc(t("sd_start_run")) + "</button>" +
+        '<div class="sd-row"><button type="button" class="sd-btn sd-btn-ghost" data-act="mode-daily">' + esc(t("sd_daily")) + "</button>" +
+        '<button type="button" class="sd-btn sd-btn-ghost" data-act="base">' + esc(t("sd_base")) + "</button></div>" +
+        '<details class="sd-test-arena"' + (S.arenaOpen ? " open" : "") + '><summary>' + esc(t("sd_test_arena")) + '</summary><div class="sd-arena" role="radiogroup" aria-label="' + esc(t("sd_arena")) + '">' +
+        ARENAS.map(function (a) {
+          return '<button type="button" class="sd-arena-btn' + (S.arena === a ? " is-on" : "") + '" data-arena="' + a + '">' + esc(arenaName(a)) + "</button>";
+        }).join("") + '</div><button type="button" class="sd-btn sd-btn-ghost" data-act="arena"' + ready + ">" + esc(t("sd_launch")) + "</button></details>";
+    }
+    html += "</div>";
     overlay.innerHTML = html;
+    function on(sel, ev, fn) { var n = overlay.querySelector(sel); if (n) n.addEventListener(ev, fn); }
     overlay.querySelectorAll("[data-hero]").forEach(function (b) {
       b.addEventListener("click", function () {
         var id = b.getAttribute("data-hero"), i = S.picked.indexOf(id);
+        if (isLocked(D.HERO_BY_ID[id])) { S.screen = "base"; render(); return; }   // 未解鎖 → 去據點
         if (i >= 0) S.picked.splice(i, 1);
         else if (S.picked.length < 4) S.picked.push(id);
         renderPick();
@@ -167,13 +199,47 @@
     overlay.querySelectorAll("[data-arena]").forEach(function (b) {
       b.addEventListener("click", function () { S.arena = b.getAttribute("data-arena"); renderPick(); });
     });
-    overlay.querySelector('[data-act="launch"]').addEventListener("click", function () {
-      if (S.picked.length === 4) startRun();
+    on('[data-act="launch"]', "click", function () { if (S.picked.length === 4) startRun(); });
+    on('[data-act="daily-go"]', "click", function () { if (S.picked.length === 4) startRun(null, true); });
+    on('[data-act="arena"]', "click", function () { if (S.picked.length === 4) startArena(); });
+    on('[data-act="continue"]', "click", continueRun);
+    on('[data-act="mode-daily"]', "click", function () { S.pickMode = "daily"; renderPick(); });
+    on('[data-act="mode-normal"]', "click", function () { S.pickMode = "normal"; renderPick(); });
+    on('[data-act="base"]', "click", function () { S.screen = "base"; render(); });
+    on('[data-act="diff"]', "change", function (e) { S.difficulty = +e.target.value; });
+    on('[data-act="srelic"]', "change", function (e) { S.startRelic = e.target.value; });
+    on(".sd-test-arena", "toggle", function (e) { S.arenaOpen = e.target.open; });
+  }
+
+  // 星艦據點（§12、§12.1）：星塵、角色解鎖、起始遺物解鎖、紀錄
+  function renderBase() {
+    var meta = S.meta;
+    var html = "<h1>" + esc(t("sd_base")) + '</h1><div class="sd-run-head"><span class="sd-badge">✦ ' + esc(t("sd_stardust_n", { n: meta.stardust })) + "</span>" +
+      '<span class="sd-badge">' + esc(t("sd_best", { n: meta.best })) + '</span><span class="sd-badge">' + esc(t("sd_cleared", { n: meta.cleared < 0 ? "—" : meta.cleared })) + "</span></div>";
+    html += "<h2>" + esc(t("sd_base_heroes", { n: Run.HERO_COST })) + '</h2><div class="sd-pick-grid">';
+    pickableHeroes().forEach(function (h) {
+      var owned = meta.heroes.indexOf(h.id) >= 0, info = D.ELEMENT_INFO[h.element];
+      html += '<button type="button" class="sd-pick-card' + (owned ? " is-owned" : " is-locked") + '" data-unlock-hero="' + h.id + '" style="--sd-el:' + info.color + '"' +
+        (owned || meta.stardust < Run.HERO_COST ? " disabled" : "") + '><img src="' + esc(imgBase + h.img) + '" alt="" loading="lazy"><b>' + esc(name(h.name)) + '</b><span class="sd-el-tag">' +
+        (owned ? "✓" : "✦" + Run.HERO_COST) + "</span></button>";
     });
-    overlay.querySelector('[data-act="arena"]').addEventListener("click", function () {
-      if (S.picked.length === 4) startArena();
+    html += "</div><h2>" + esc(t("sd_base_relics", { n: Run.START_RELIC_COST })) + '</h2><div class="sd-relic-list">';
+    D.RELICS.filter(function (r) { return Run.canStartRelic(r.id); }).forEach(function (r) {
+      var owned = meta.startRelics.indexOf(r.id) >= 0;
+      html += relicCard(r.id, '<button type="button" class="sd-btn" data-unlock-relic="' + r.id + '"' + (owned || meta.stardust < Run.START_RELIC_COST ? " disabled" : "") + ">" +
+        (owned ? "✓" : "✦" + Run.START_RELIC_COST) + "</button>");
     });
-    overlay.querySelector(".sd-test-arena").addEventListener("toggle", function (e) { S.arenaOpen = e.target.open; });
+    var days = Object.keys(meta.daily).sort().reverse();
+    html += "</div><h2>" + esc(t("sd_daily_records")) + "</h2>" + (days.length ? '<ul class="sd-daily-list">' + days.map(function (d) { return "<li>" + esc(d) + "：" + meta.daily[d] + "</li>"; }).join("") + "</ul>" : "<p>—</p>") +
+      '<div class="sd-pick-bar"><button type="button" class="sd-btn" data-act="back">' + esc(t("sd_back")) + "</button></div>";
+    overlay.innerHTML = html;
+    overlay.querySelectorAll("[data-unlock-hero]").forEach(function (b) {
+      b.addEventListener("click", function () { if (Run.unlockHero(meta, b.getAttribute("data-unlock-hero"))) { saveMeta(); renderBase(); } });
+    });
+    overlay.querySelectorAll("[data-unlock-relic]").forEach(function (b) {
+      b.addEventListener("click", function () { if (Run.unlockStartRelic(meta, b.getAttribute("data-unlock-relic"))) { saveMeta(); renderBase(); } });
+    });
+    overlay.querySelector('[data-act="back"]').addEventListener("click", function () { S.screen = "pick"; render(); });
   }
 
   var ARENAS = ["s1", "s2", "s3", "b1", "b2", "b3"];
@@ -218,20 +284,68 @@
     startBattle({ heroes: S.picked.map(function (id) { return D.HERO_BY_ID[id]; }), enemies: bt.enemies, field: bt.field, boss: bt.boss, seed: sd });
   }
 
-  // ---------------- 遠征（第 4 階段） ----------------
-  function startRun(seed) {
-    S.run = Run.create({ seed: seed == null ? String(Date.now()) : String(seed), heroes: S.picked });
+  // ---------------- 遠征（第 4 階段）＋存檔（第 5 階段） ----------------
+  var META_KEY = "pritest-shedan-meta-v1", RUN_KEY = "pritest-shedan-run-v1";
+  function loadMeta() {
+    try { return Run.normalizeMeta(JSON.parse(window.localStorage.getItem(META_KEY))); } catch (e) { return Run.newMeta(); }
+  }
+  function saveMeta() { try { window.localStorage.setItem(META_KEY, JSON.stringify(S.meta)); } catch (e) { /* 無痕模式等：只存在記憶體 */ } }
+  function hasSavedRun() { try { return !!window.localStorage.getItem(RUN_KEY); } catch (e) { return false; } }
+  function saveRun() {
+    if (!S.run) return;
+    try { window.localStorage.setItem(RUN_KEY, Run.serialize(S.run)); S.saved = true; } catch (e) { /* 寫不進去就算了 */ }
+  }
+  function clearRun() { try { window.localStorage.removeItem(RUN_KEY); } catch (e) { /* ignore */ } S.saved = false; }
+
+  // daily = true：每日星圖（今天的日期當種子、初始 8 人、難度 0、無起始遺物）
+  function startRun(seed, daily) {
+    var meta = S.meta, today = Run.todayStr();
+    S.run = Run.create(daily ? {
+      seed: Run.dailySeed(today), heroes: S.picked, daily: today, difficulty: 0,
+      pool: D.HEROES.filter(function (h) { return h.initial; }).map(function (h) { return h.id; })
+    } : {
+      seed: seed == null ? String(Date.now()) : String(seed), heroes: S.picked, difficulty: S.difficulty || 0,
+      relics: S.startRelic ? [S.startRelic] : [], pool: meta.heroes.slice()
+    });
+    S.settled = null;
+    saveRun();
     S.screen = "map";
+    render();
+  }
+  // 續玩：地圖／獎勵／非戰鬥節點回到原畫面；戰鬥中存的檔從那場戰鬥的開頭重來
+  function continueRun() {
+    var str = null;
+    try { str = window.localStorage.getItem(RUN_KEY); } catch (e) { str = null; }
+    try { S.run = Run.restore(str); } catch (e) { clearRun(); S.run = null; render(); return; }
+    var run = S.run;
+    S.settled = null;
+    if (run.state === "reward") { S.reward = { energy: 0, choices: run.pendingChoices || [] }; S.screen = "reward"; }
+    else if (Run.inBattle(run)) { startBattle(Run.battleSetup(run)); return; }
+    else if (run.state === "node") S.screen = Run.current(run).type;
+    else S.screen = "map";
     render();
   }
   function enterNode(id) {
     var run = S.run, node = Run.enter(run, id);
+    saveRun();   // 戰鬥配置已經決定（battleSetup 之前存，續玩時共鳴水晶等旗標還在）
     if (node.type === "battle" || node.type === "elite" || node.type === "boss") startBattle(Run.battleSetup(run));
     else { S.screen = node.type; render(); }
   }
   function backToMap() {
     var run = S.run;
-    S.screen = run.state === "won" || run.state === "lost" ? "runEnd" : "map";
+    if (run.state === "won" || run.state === "lost") { endRun(); return; }
+    saveRun();
+    S.screen = "map";
+    render();
+  }
+  // 遠征結束：星塵、紀錄、難度解鎖寫進 meta；刪除遠征存檔
+  function endRun() {
+    if (!S.settled) {
+      S.settled = Run.settle(S.meta, S.run);
+      saveMeta();
+      clearRun();
+    }
+    S.screen = "runEnd";
     render();
   }
   function heroPos(i) { return Physics.heroPos(S.world, i); }
@@ -529,7 +643,9 @@
         S.reward = Run.finishBattle(S.run, {
           win: kind === "win", hp: b.hp, damage: b.stats.damage, maxChain: b.stats.maxChain, lifePodUsed: b.flags.lifePodUsed
         });
-        S.screen = S.run.state === "reward" ? "reward" : "runEnd";
+        if (S.run.state !== "reward") { endRun(); return; }
+        saveRun();   // 獎勵畫面重新整理也能回來
+        S.screen = "reward";
       } else S.screen = "result";
       render();
     }, 700);
@@ -733,10 +849,13 @@
   }
 
   function renderRunEnd() {
-    var run = S.run, s = run.stats;
+    var run = S.run, s = run.stats, st = S.settled || {};
     overlay.innerHTML = "<h1>" + esc(t(run.state === "won" ? "sd_run_won" : "sd_run_lost")) + "</h1>" +
+      (run.daily ? "<p>" + esc(t("sd_daily_title")) + " " + esc(run.daily) + "</p>" : "<p>" + esc(t("sd_difficulty")) + " " + run.difficulty + "</p>") +
       "<p>" + esc(t("sd_run_stats", { nodes: s.nodes, dmg: s.damage, chain: s.maxChain, bosses: s.bosses })) + "</p>" +
-      '<p class="sd-score">' + esc(t("sd_score", { n: Run.score(run) })) + "</p>" +
+      '<p class="sd-score">' + esc(t("sd_score", { n: Run.score(run) })) + (st.newBest ? " · " + esc(t("sd_new_best")) : "") + "</p>" +
+      '<p class="sd-dust">✦ +' + (st.stardust || 0) + "</p>" +
+      (st.unlockedDifficulty != null ? "<p>" + esc(t("sd_unlock_diff", { n: st.unlockedDifficulty })) + "</p>" : "") +
       '<div class="sd-row"><button type="button" class="sd-btn" data-act="pick">' + esc(t("sd_back_pick")) + "</button></div>";
     overlay.querySelector('[data-act="pick"]').addEventListener("click", function () { S.run = null; S.screen = "pick"; render(); });
   }
@@ -782,7 +901,9 @@
     _debug: {
       state: function () { return S; },
       pick: function (ids, arena, seed) { S.picked = ids.slice(0, 4); if (arena) S.arena = arena; startArena(seed == null ? 1234 : seed); },
-      startRun: function (ids, seed) { S.picked = ids.slice(0, 4); startRun(seed == null ? "debug" : seed); },
+      startRun: function (ids, seed, daily) { S.picked = ids.slice(0, 4); startRun(seed == null ? "debug" : seed, daily); },
+      meta: function () { return S.meta; },
+      setMeta: function (m) { S.meta = Run.normalizeMeta(m); saveMeta(); render(); },
       run: function () { return S.run; },
       enter: function (id) { enterNode(id); },
       // 測試：直接把遺物加進遠征（全部 100 件同時持有的煙霧測試用）
@@ -806,6 +927,12 @@
   };
 
   setupNav();
+  // 局外進度與存檔（§12.1）
+  S.meta = loadMeta();
+  S.saved = hasSavedRun();
+  S.pickMode = "normal";
+  S.difficulty = 0;
+  S.startRelic = "";
   if (app) {
     build();
     render();

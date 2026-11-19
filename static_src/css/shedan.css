@@ -268,6 +268,16 @@ body.sd-body.sd-nav-open > .site-header { transform: translateY(0); }
 .sd-test-arena summary { cursor: pointer; text-align: center; }
 .sd-test-arena[open] { display: flex; }
 
+/* ---------- 局外（第 5 階段） ---------- */
+.sd-pick-card.is-locked { opacity: .45; filter: grayscale(.7); }
+.sd-pick-card.is-owned { border-color: rgba(125, 255, 176, .5); }
+.sd-btn-continue { background: linear-gradient(180deg, #ffd25a, #d68a1a); color: #1a1030; border-color: #ffd25a; }
+.sd-run-opts { display: flex; gap: .8rem; flex-wrap: wrap; justify-content: center; font-size: .85rem; }
+.sd-run-opts select { margin-left: .3rem; padding: .2rem .4rem; border-radius: 6px; border: 1px solid rgba(160, 180, 255, .35); background: #121633; color: #e8ecff; font: inherit; }
+.sd-overlay h2 { margin: .4rem 0 0; font-size: 1rem; color: #cfd6ff; }
+.sd-dust { font-size: 1.15rem; color: #c9b8ff; }
+.sd-daily-list { margin: 0; padding: 0 0 0 1.2rem; font-size: .85rem; }
+
 /* 戰場選擇（試作：星區 1～3、Boss 1～3） */
 .sd-pick-bar { flex-direction: column; align-items: center; gap: .5rem; }
 .sd-arena { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; }
