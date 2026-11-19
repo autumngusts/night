@@ -61,7 +61,7 @@
     return e;
   }
 
-  // opts = {heroes, enemies:[{def,x,y,elite}], field, rng, boss, mods, hp, hpMax, gaugeMinus:{heroId:n}, fullGauge, lifePodUsed}
+  // opts = {heroes, enemies:[{def,x,y,elite}], field, rng, boss, mods, hp, hpMax, gaugeMinus:{heroId:n}, fullGauge, lifePodUsed, difficulty}
   function create(opts) {
     var mods = opts.mods || {};
     var party = opts.heroes.map(function (h) {
@@ -91,7 +91,10 @@
       var body = makeEnemy(b, B.body, bx, by, { role: "body", bossId: B.id });
       b.enemies.push(body);
       b.bossUid = body.uid;
-      B.parts.forEach(function (p) {
+      // 難度 5：多 1 個部位（複製第一個部位，放在本體正上方 110）
+      var parts = B.parts.slice();
+      if ((opts.difficulty || 0) >= 5) parts.push({ key: B.parts[0].key, dx: 0, dy: -110, def: B.parts[0].def });
+      parts.forEach(function (p) {
         var pe = makeEnemy(b, p.def, bx + p.dx, by + p.dy, { role: "part", owner: body.uid, partKey: p.key });
         b.enemies.push(pe);
         if (p.key === "core") b.wells.push({ x: pe.x, y: pe.y, radius: wellR, hole: false, owner: pe.uid });
@@ -118,6 +121,13 @@
         }
       }
       if (e.trait === "ownWell") b.wells.push({ x: e.x, y: e.y, radius: wellR, hole: false, owner: e.uid });
+    });
+    // 難度（§12.1）：1 敵人 HP ×1.15；3 倒數與倒數上限 −1（最低 1）
+    var diff = opts.difficulty || 0;
+    b.difficulty = diff;
+    b.enemies.forEach(function (e) {
+      if (diff >= 1) { e.hpMax = Math.round(e.hpMax * 1.15); e.hp = e.hpMax; }
+      if (diff >= 3 && e.cdMax) { e.cdMax = Math.max(1, e.cdMax - 1); e.cd = Math.max(1, e.cd - 1); }
     });
     // 開場（遺物）：不穩定核心 倒數 −1、時間緩衝 倒數 +1、充能電池、共鳴水晶（事件）
     b.enemies.forEach(function (e) {

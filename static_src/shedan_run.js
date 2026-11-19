@@ -165,13 +165,17 @@
     var boss = opts.boss ? D.BOSS_BY_ID[opts.boss] : null;
     var enemies = genEnemies(rng, opts.sector, boss ? 2 : Rng.int(rng, 4, 6), boss);
     if (opts.elite && enemies.length) {
-      // 精英：把其中一隻換成精英（星區 3 可能是星蝕使徒）
-      var idx = Math.floor(rng() * enemies.length);
-      if (opts.sector === 3 && rng() < 0.35) {
-        var ap = D.ENEMY_BY_ID.eclipse_apostle;
-        enemies[idx] = { def: ap, x: enemies[idx].x, y: enemies[idx].y, r: D.SIZE_R[ap.size] };
+      // 精英：把其中一隻換成精英（星區 3 可能是星蝕使徒）；難度 2 以上 2 隻
+      var count = Math.min(enemies.length, (opts.difficulty || 0) >= 2 ? 2 : 1);
+      for (var c = 0; c < count; c++) {
+        var cand = enemies.map(function (e, i) { return i; }).filter(function (i) { return !enemies[i].elite; });
+        var idx = cand[Math.floor(rng() * cand.length)];
+        if (opts.sector === 3 && c === 0 && rng() < 0.35) {
+          var ap = D.ENEMY_BY_ID.eclipse_apostle;
+          enemies[idx] = { def: ap, x: enemies[idx].x, y: enemies[idx].y, r: D.SIZE_R[ap.size] };
+        }
+        enemies[idx].elite = Rng.pick(rng, ELITE_TRAITS);
       }
-      enemies[idx].elite = Rng.pick(rng, ELITE_TRAITS);
     }
     var occupied = enemies.slice();
     if (boss) occupied.push({ x: K.FIELD_W / 2, y: 240, r: 200 });
@@ -195,10 +199,11 @@
     run.hp = Math.min(run.hp, run.hpMax);
   }
 
-  // opts = {seed, heroes:[id×4], pool:[可救援的角色 id]（省略＝全部）, relics:[起始遺物]}
+  // opts = {seed, heroes:[id×4], pool:[可救援的角色 id]（省略＝全部）, relics:[起始遺物], difficulty, daily}
   function create(opts) {
     var run = {
       seed: String(opts.seed), heroes: opts.heroes.slice(0, 4), relics: (opts.relics || []).slice(),
+      difficulty: opts.difficulty || 0, daily: opts.daily || null,
       pool: opts.pool || D.HEROES.map(function (h) { return h.id; }),
       sector: 1, maps: {}, nodeId: null, visited: [], energy: 0, maxHpAdj: 0,
       gaugeMinus: {}, flags: { fullGauge: false, lifePodUsed: false, drifterBoost: false },
@@ -243,7 +248,7 @@
     var data = { type: node.type };
     if (node.type === "battle" || node.type === "elite" || node.type === "boss") {
       var boss = node.type === "boss" ? D.BOSSES[run.sector - 1].id : null;
-      data.battle = genBattle(rng, { sector: run.sector, boss: boss, elite: node.type === "elite", mods: mods(run) });
+      data.battle = genBattle(rng, { sector: run.sector, boss: boss, elite: node.type === "elite", mods: mods(run), difficulty: run.difficulty });
       data.battle.seed = Rng.hashStr(run.seed + ":battle:" + id);
     } else if (node.type === "shop") {
       data.shop = { items: rollRelics(run, rng, RARITY_W.shop, 3).map(function (rid) { return { id: rid, price: price(run, rid), sold: false }; }), repaired: false };
@@ -268,7 +273,7 @@
       heroes: run.heroes.map(function (id) { return D.HERO_BY_ID[id]; }),
       enemies: d.battle.enemies, field: d.battle.field, boss: d.battle.boss, seed: d.battle.seed,
       mods: m, hp: run.hp, hpMax: run.hpMax, gaugeMinus: gaugeMinus, fullGauge: run.flags.fullGauge,
-      lifePodUsed: run.flags.lifePodUsed
+      lifePodUsed: run.flags.lifePodUsed, difficulty: run.difficulty
     };
     run.flags.fullGauge = false;
     return s;
@@ -341,8 +346,10 @@
   }
 
   // ---------------- 補給站 ----------------
-  function price(run, id) { return Math.round(PRICE[D.RELIC_BY_ID[id].rarity] * (1 + (mods(run).shopMult || 0))); }
-  function repairCost(run) { return Math.round(REPAIR_COST * (1 + (mods(run).shopMult || 0))); }
+  // 價格：商人會員卡 −20%、難度 4 以上 ×1.3（相乘）
+  function shopFactor(run) { return (1 + (mods(run).shopMult || 0)) * ((run.difficulty || 0) >= 4 ? 1.3 : 1); }
+  function price(run, id) { return Math.round(PRICE[D.RELIC_BY_ID[id].rarity] * shopFactor(run)); }
+  function repairCost(run) { return Math.round(REPAIR_COST * shopFactor(run)); }
   function buy(run, i) {
     var it = data(run).shop.items[i];
     if (!it || it.sold || run.energy < it.price || run.relics.indexOf(it.id) >= 0) return false;
@@ -436,7 +443,106 @@
     return s.nodes * 100 + Math.floor(s.damage / 100) + s.maxChain * 200 + Math.round(100 * run.hp / run.hpMax) * 10 + (run.state === "won" ? 1000 : 0);
   }
 
+  // ---------------- 局外（§12、§12.1）：星塵、解鎖、難度、紀錄 ----------------
+  var HERO_COST = 60, START_RELIC_COST = 40, MAX_DIFFICULTY = 5, DAILY_KEEP = 14;
+  function newMeta() {
+    return {
+      v: 1, stardust: 0, heroes: D.HEROES.filter(function (h) { return h.initial; }).map(function (h) { return h.id; }),
+      startRelics: [], cleared: -1, best: 0, daily: {}, runs: 0, wins: 0
+    };
+  }
+  // 讀檔時補齊缺的欄位、去掉資料裡已不存在的 id
+  function normalizeMeta(m) {
+    var base = newMeta();
+    if (!m || typeof m !== "object") return base;
+    Object.keys(base).forEach(function (k) { if (m[k] == null) m[k] = base[k]; });
+    m.heroes = m.heroes.filter(function (id) { return D.HERO_BY_ID[id]; });
+    base.heroes.forEach(function (id) { if (m.heroes.indexOf(id) < 0) m.heroes.push(id); });
+    m.startRelics = m.startRelics.filter(function (id) { return D.RELIC_BY_ID[id]; });
+    return m;
+  }
+  function unlockHero(meta, id) {
+    if (!D.HERO_BY_ID[id] || meta.heroes.indexOf(id) >= 0 || meta.stardust < HERO_COST) return false;
+    meta.stardust -= HERO_COST;
+    meta.heroes.push(id);
+    return true;
+  }
+  // 起始遺物：只有普通稀有度可以解鎖
+  function canStartRelic(id) { var r = D.RELIC_BY_ID[id]; return !!r && r.rarity === "common"; }
+  function unlockStartRelic(meta, id) {
+    if (!canStartRelic(id) || meta.startRelics.indexOf(id) >= 0 || meta.stardust < START_RELIC_COST) return false;
+    meta.stardust -= START_RELIC_COST;
+    meta.startRelics.push(id);
+    return true;
+  }
+  function maxDifficulty(meta) { return Math.min(MAX_DIFFICULTY, meta.cleared + 1); }
+  // 星塵 = 抵達節點數 × 3 ＋ 擊敗 Boss 數 × 20（星塵吸收器 +20%，無條件捨去）
+  function stardust(run) {
+    return Math.floor((run.stats.nodes * 3 + run.stats.bosses * 20) * (1 + (mods(run).stardustMult || 0)));
+  }
+  // 遠征結束時寫進 meta。回傳 {stardust, score, newBest, unlockedDifficulty}
+  function settle(meta, run) {
+    var dust = stardust(run), sc = score(run), out = { stardust: dust, score: sc, newBest: false, unlockedDifficulty: null };
+    meta.stardust += dust;
+    meta.runs++;
+    if (sc > meta.best) { meta.best = sc; out.newBest = true; }
+    if (run.state === "won") {
+      meta.wins++;
+      if (!run.daily && run.difficulty > meta.cleared) {
+        meta.cleared = run.difficulty;
+        if (run.difficulty < MAX_DIFFICULTY) out.unlockedDifficulty = run.difficulty + 1;
+      }
+    }
+    if (run.daily) {
+      meta.daily[run.daily] = Math.max(meta.daily[run.daily] || 0, sc);
+      var keys = Object.keys(meta.daily).sort();
+      while (keys.length > DAILY_KEEP) delete meta.daily[keys.shift()];
+    }
+    return out;
+  }
+
+  // ---------------- 每日星圖 ----------------
+  function todayStr(date) {
+    var d = date || new Date();
+    return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+  }
+  function dailySeed(dateStr) { return "daily:" + Rng.hashStr(dateStr); }
+
+  // ---------------- 存檔（序列化／還原） ----------------
+  // 敵人的 def 存 id，讀檔時換回資料物件（資料更新後也會用新數值）
+  function serialize(run) {
+    return JSON.stringify(run, function (k, v) {
+      if (k === "def" && v && v.id) return { id: v.id };
+      return v;
+    });
+  }
+  function restore(str) {
+    var run = JSON.parse(str);
+    if (!run || !run.maps || !run.heroes) throw new Error("bad run");
+    Object.keys(run.nodeData || {}).forEach(function (id) {
+      var bt = run.nodeData[id].battle;
+      if (!bt) return;
+      bt.enemies.forEach(function (e) {
+        var def = D.ENEMY_BY_ID[e.def.id];
+        if (!def) throw new Error("unknown enemy " + e.def.id);
+        e.def = def;
+      });
+    });
+    run.heroes.forEach(function (id) { if (!D.HERO_BY_ID[id]) throw new Error("unknown hero " + id); });
+    run.relics = run.relics.filter(function (id) { return D.RELIC_BY_ID[id]; });
+    return run;
+  }
+  // 戰鬥中存的檔：讀回來後從那場戰鬥的開頭重來（同一配置、同一種子）
+  function inBattle(run) {
+    var n = current(run);
+    return run.state === "node" && !!n && (n.type === "battle" || n.type === "elite" || n.type === "boss");
+  }
+
   var api = {
+    newMeta: newMeta, normalizeMeta: normalizeMeta, unlockHero: unlockHero, canStartRelic: canStartRelic, unlockStartRelic: unlockStartRelic,
+    maxDifficulty: maxDifficulty, stardust: stardust, settle: settle, todayStr: todayStr, dailySeed: dailySeed,
+    serialize: serialize, restore: restore, inBattle: inBattle,
+    HERO_COST: HERO_COST, START_RELIC_COST: START_RELIC_COST, MAX_DIFFICULTY: MAX_DIFFICULTY,
     create: create, genMap: genMap, genBattle: genBattle, genEnemies: genEnemies, genField: genField,
     mapOf: mapOf, nodeOf: nodeOf, current: current, reachable: reachable, typeVisible: typeVisible, enter: enter, data: data,
     battleSetup: battleSetup, finishBattle: finishBattle, takeRelic: takeRelic, rollRelics: rollRelics, addRelic: addRelic,
