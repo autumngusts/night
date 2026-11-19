@@ -28,6 +28,8 @@
   }
   function jstHour(ms) { return new Date(ms + JST).getUTCHours(); }
   function inRange(h, from, to) { return from <= to ? (h >= from && h < to) : (h >= from || h < to); }
+  function jstDate(ms) { return new Date(ms + JST).toISOString().slice(0, 10); }
+  function dayDiff(d1, d2) { return Math.round((Date.parse(d2) - Date.parse(d1)) / 86400000); }
 
   // ---------- 色彩數學 ----------
   function hexToRgb(hex) {
@@ -189,11 +191,16 @@
     var h = jstHour(now);
     return D.TIME_TRAITS.filter(function (t) { return inRange(h, t.from, t.to); }).map(function (t) { return t.trait; });
   }
-  function makeMaterial(swatch, now, uid) {
+  // opts（第 2 階段）：{ streakBonus: C9 連續採色的品質加值, wb: O2 白平衡有效, daily: O3 拍到今日之色 }
+  function makeMaterial(swatch, now, uid, opts) {
+    opts = opts || {};
     var hsv = rgbToHsv(swatch.rgb), el = elementOf(hsv), near = nearestColor(swatch.rgb);
     var purity = 1 - Math.min(near.dist, D.PURITY_RANGE) / D.PURITY_RANGE;
     var quality = clamp(Math.round(15 + 45 * hsv.s + 40 * purity), 1, 100);
+    if (opts.streakBonus) quality = clamp(quality + opts.streakBonus, 1, 100);
+    if (opts.wb) quality = clamp(Math.round(quality * D.WB_QUALITY_MULT), 1, 100);
     var traits = timeTraits(now);
+    if (opts.daily) traits.push("daily_hue");
     if (D.RARITY_TRAIT[near.color.rarity]) traits.push(D.RARITY_TRAIT[near.color.rarity]);
     if (quality >= D.VIVID_QUALITY) traits.push("vivid");
     return {
@@ -205,8 +212,16 @@
 
   // ---------- 存檔、採集籃（O5）、冷卻（C11） ----------
   function newSave(now) {
-    return { v: 1, nextUid: 1, mats: [], items: [], basket: { n: D.BASKET_MAX, at: now }, cooldownUntil: 0,
-      exp: 0, host: "ruri", hosts: { ruri: { aff: 0, task: 0 } }, best: {}, tutorial: 0, seen: {}, log: [] };
+    return migrate({ v: 1, nextUid: 1, mats: [], items: [], basket: { n: D.BASKET_MAX, at: now }, cooldownUntil: 0,
+      exp: 0, host: "ruri", hosts: { ruri: { aff: 0, task: 0 } }, best: {}, tutorial: 0, seen: {}, log: [] });
+  }
+  // 第 1 階段的存檔補上第 2 階段的欄位（原有資料不動）
+  function migrate(save) {
+    var def = { ideas: {}, made: {}, ash: 0, cauldrons: { copper: 1 }, shelf: 0, streak: { n: 0, date: "" },
+      daily: { date: "" }, wb: null, best: {}, seen: {}, log: [], tutorial: 0 };
+    Object.keys(def).forEach(function (k) { if (save[k] === undefined) save[k] = def[k]; });
+    if (!save.cauldrons.copper) save.cauldrons.copper = 1;
+    return save;
   }
   function refillBasket(save, now) {
     var b = save.basket;
@@ -218,21 +233,182 @@
     }
     return b.n;
   }
-  // 選 1～PICK_MAX 個色塊，消耗 1 籃 → 回傳新增的素材；失敗回傳 null
-  function capture(save, swatches, now) {
+  // C9 連續採色：同一天不變、隔天 +1、中斷時減半再加今天
+  function updateStreak(save, now) {
+    var today = jstDate(now), st = save.streak;
+    if (st.date === today) return st.n;
+    st.n = !st.date ? 1 : dayDiff(st.date, today) === 1 ? st.n + 1 : Math.floor(st.n / 2) + 1;
+    st.date = today;
+    return st.n;
+  }
+  function streakBonus(n) { return Math.min(D.STREAK_CAP, Math.max(0, n - 1) * D.STREAK_STEP); }
+  // 選 1～PICK_MAX 個色塊，消耗 1 籃。回傳 {mats, newColors, daily, streak, exp} 或 {error: "pick"|"basket"|"full"}
+  function captureEx(save, swatches, now) {
     refillBasket(save, now);
-    if (!swatches.length || swatches.length > D.PICK_MAX || save.basket.n <= 0) return null;
-    if (save.mats.length + swatches.length > D.MAT_MAX) return null;
+    if (!swatches.length || swatches.length > D.PICK_MAX) return { error: "pick" };
+    if (save.basket.n <= 0) return { error: "basket" };
+    if (save.mats.length + swatches.length > matMax(save)) return { error: "full" };
     if (save.basket.n >= D.BASKET_MAX) save.basket.at = now;
     save.basket.n--;
-    var added = swatches.map(function (s) { var m = makeMaterial(s, now, save.nextUid++); save.mats.push(m); save.seen[m.colorId] = true; return m; });
-    return added;
+    var n = updateStreak(save, now), wb = wbActive(save, now), today = jstDate(now);
+    var res = { mats: [], newColors: [], daily: false, streak: n, exp: 0 };
+    swatches.forEach(function (s) {
+      var hit = isDailyHit(s.rgb, now);
+      var m = makeMaterial(s, now, save.nextUid++, { wb: wb, streakBonus: streakBonus(n), daily: hit });
+      save.mats.push(m);
+      if (!save.seen[m.colorId]) { save.seen[m.colorId] = true; res.newColors.push(m.colorId); res.exp += D.DEX_EXP; }
+      if (hit && save.daily.date !== today) { save.daily = { date: today }; res.daily = true; res.exp += D.DAILY_EXP; }
+      res.mats.push(m);
+    });
+    save.exp += res.exp;
+    return res;
+  }
+  // 第 1 階段的介面：成功回傳新增的素材，失敗回傳 null
+  function capture(save, swatches, now) { var r = captureEx(save, swatches, now); return r.error ? null : r.mats; }
+
+  // ---------- O3 每日色彩、O2 白平衡、C2 圖鑑 ----------
+  function dailyColor(now) {
+    var pool = COLORS.filter(function (c) { return c.rarity < 3; });
+    return pool[hash("daily:" + jstDate(now)) % pool.length];
+  }
+  function isDailyHit(rgb, now) {
+    var d = dailyColor(now);
+    return nearestColor(rgb).color.id === d.id || deltaE(rgbToLab(rgb), rgbToLab(hexToRgb(d.hex))) <= D.DAILY_TOLERANCE;
+  }
+  // 拍白紙：取中央一半的平均色，算出讓三個通道一樣亮的增益
+  function whiteBalanceGains(rgba, w, h) {
+    var sum = [0, 0, 0], n = 0;
+    for (var y = Math.floor(h / 4); y < Math.ceil(h * 3 / 4); y++) for (var x = Math.floor(w / 4); x < Math.ceil(w * 3 / 4); x++) {
+      var i = (y * w + x) * 4; sum[0] += rgba[i]; sum[1] += rgba[i + 1]; sum[2] += rgba[i + 2]; n++;
+    }
+    var avg = sum.map(function (v) { return Math.max(1, v / n); }), top = Math.max(avg[0], avg[1], avg[2]);
+    return avg.map(function (a) { return clamp(top / a, D.WB_GAIN_MIN, D.WB_GAIN_MAX); });
+  }
+  function applyGains(rgba, gains) {
+    var out = new Uint8ClampedArray(rgba.length);
+    for (var i = 0; i < rgba.length; i += 4) {
+      out[i] = rgba[i] * gains[0]; out[i + 1] = rgba[i + 1] * gains[1]; out[i + 2] = rgba[i + 2] * gains[2]; out[i + 3] = rgba[i + 3];
+    }
+    return out;
+  }
+  function setWhiteBalance(save, gains, now) { save.wb = { gains: gains, until: now + D.WB_VALID_MS }; }
+  function wbActive(save, now) { return !!(save.wb && now < save.wb.until); }
+  function dexGroup(color) {
+    var hsv = rgbToHsv(hexToRgb(color.hex)), h = hsv.h;
+    if (hsv.s < 0.12 || (hsv.s < 0.25 && hsv.v < 0.3)) return "mono";
+    if ((h < 50 || h >= 345) && hsv.v < 0.6 && hsv.s > 0.3) return "brown";
+    if (h >= 330 || h < 15) return "red";
+    if (h < 45) return "orange";
+    if (h < 70) return "yellow";
+    if (h < 170) return "green";
+    if (h < 250) return "blue";
+    return "purple";
+  }
+  function dexGroups() {
+    return D.DEX_GROUPS.map(function (g) { return { id: g, colors: COLORS.filter(function (c) { return dexGroup(c) === g; }) }; });
+  }
+  function dexProgress(save) {
+    return { seen: COLORS.filter(function (c) { return save.seen[c.id]; }).length, total: COLORS.length };
+  }
+
+  // ---------- C3 配方發想 ----------
+  function seenElCount(save, el) {
+    return COLORS.filter(function (c) { return save.seen[c.id] && elementOf(rgbToHsv(hexToRgb(c.hex))) === el; }).length;
+  }
+  function ideaMet(save, idea) {
+    if (idea.seen) return !!save.seen[idea.seen];
+    if (idea.seenCount) return dexProgress(save).seen >= idea.seenCount;
+    if (idea.seenEl) return seenElCount(save, idea.seenEl.el) >= idea.seenEl.n;
+    if (idea.made) return (save.made[idea.made] || 0) > 0;
+    if (idea.quality) return (save.best[idea.quality.recipe] || 0) >= idea.quality.n;
+    return false;
+  }
+  function recipeKnown(save, r) { return !r.idea || !!save.ideas[r.id]; }
+  function recipeAvailable(save, r) { return r.lv <= level(save) && recipeKnown(save, r); }
+  // 檢查所有還沒發想的配方，回傳這次新想到的配方 id
+  function checkIdeas(save) {
+    var out = [];
+    D.RECIPES.forEach(function (r) {
+      if (r.idea && !save.ideas[r.id] && ideaMet(save, r.idea)) { save.ideas[r.id] = true; out.push(r.id); }
+    });
+    return out;
+  }
+
+  // ---------- C5 錬金釜、B6 升級、C10 灰燼 ----------
+  function cauldronLv(save, id) { return save.cauldrons[id] || 0; }
+  function canUnlockCauldron(save, id) {
+    var c = D.CAULDRONS[id];
+    return !!c && !cauldronLv(save, id) && !!c.unlock && level(save) >= c.unlock.lv && save.ash >= c.unlock.ash;
+  }
+  function unlockCauldron(save, id) {
+    if (!canUnlockCauldron(save, id)) return false;
+    save.ash -= D.CAULDRONS[id].unlock.ash; save.cauldrons[id] = 1;
+    return true;
+  }
+  function upgradeCost(save, id) {
+    var lv = cauldronLv(save, id);
+    return lv && lv < D.CAULDRON_LV_MAX ? D.CAULDRON_UPGRADE_ASH[lv - 1] : null;
+  }
+  function upgradeCauldron(save, id) {
+    var cost = upgradeCost(save, id);
+    if (cost === null || save.ash < cost) return false;
+    save.ash -= cost; save.cauldrons[id]++;
+    return true;
+  }
+  // 調和實際使用的釜：品質上升率加上升級；擅長的配方量表 ×affinityMult
+  function effectiveCauldron(save, id) {
+    var c = D.CAULDRONS[id], lv = cauldronLv(save, id);
+    if (!c || !lv) return null;
+    return { id: id, lv: lv, name: c.name, pattern: c.pattern, affinity: c.affinity, affinityMult: D.AFFINITY_MULT,
+      qualityPerCell: Math.round((c.qualityPerCell + (lv - 1) * D.CAULDRON_LV_QUALITY) * 100) / 100 };
+  }
+  function matMax(save) { return D.MAT_MAX + (save.shelf || 0) * D.SHELF_STEP; }
+  function shelfCost(save) { var c = D.SHELF_ASH[save.shelf]; return c === undefined ? null : c; }
+  function upgradeShelf(save) {
+    var cost = shelfCost(save);
+    if (cost === null || save.ash < cost) return false;
+    save.ash -= cost; save.shelf++;
+    return true;
+  }
+
+  // ---------- O9 成品再投入、B9 素材升華 ----------
+  function itemAsMaterial(item) {
+    var r = recipe(item.recipe), best = null, maxLv = 0, sumLv = 0, e = null;
+    Object.keys(item.gauges).forEach(function (k) { if (best === null || item.gauges[k] > item.gauges[best]) best = k; });
+    item.effects.forEach(function (x) { sumLv += x.level; maxLv = Math.max(maxLv, x.level); });
+    D.ELEMENTS.forEach(function (x) { if (x.id === best) e = x; });
+    return { uid: item.uid, hex: e.color, rgb: hexToRgb(e.color), colorId: null, element: best, category: r.cat,
+      power: Math.min(4, 2 + maxLv), quality: item.quality, traits: item.traits.slice(),
+      shape: D.ITEM_SHAPES[clamp(2 + sumLv, 3, 6)], at: item.at, fromItem: item.recipe };
+  }
+  function findMat(save, uid) {
+    var i;
+    for (i = 0; i < save.mats.length; i++) if (save.mats[i].uid === uid) return save.mats[i];
+    for (i = 0; i < save.items.length; i++) if (save.items[i].uid === uid) return itemAsMaterial(save.items[i]);
+    return null;
+  }
+  // 同屬性的素材 3 個 → 1 個：顏色取品質最高者、形狀取最大者、特性合併（最多 MAX_TRAITS）
+  function sublimate(save, uids, now) {
+    if (uids.length !== D.SUBLIMATE_N) return { error: "count" };
+    var ms = uids.map(function (u) { return save.mats.filter(function (m) { return m.uid === u; })[0]; });
+    if (ms.some(function (m) { return !m; }) || uids.some(function (u, i) { return uids.indexOf(u) !== i; })) return { error: "missing" };
+    if (ms.some(function (m) { return m.element !== ms[0].element; })) return { error: "element" };
+    var base = ms.slice().sort(function (a, b) { return b.quality - a.quality; })[0];
+    var big = ms.slice().sort(function (a, b) { return b.shape.length - a.shape.length; })[0];
+    var traits = [];
+    ms.forEach(function (m) { m.traits.forEach(function (t) { if (traits.indexOf(t) < 0) traits.push(t); }); });
+    var out = { uid: save.nextUid++, hex: base.hex, rgb: base.rgb, colorId: base.colorId, element: base.element, category: base.category,
+      power: Math.max.apply(null, ms.map(function (m) { return m.power; })), quality: clamp(base.quality + D.SUBLIMATE_BONUS, 1, 100),
+      traits: traits.slice(0, D.MAX_TRAITS), shape: big.shape, at: now, sublimated: true };
+    save.mats = save.mats.filter(function (m) { return uids.indexOf(m.uid) < 0; });
+    save.mats.push(out);
+    return out;
   }
   function level(save) { return Math.min(D.LV_MAX, 1 + Math.floor(save.exp / D.EXP_PER_LV)); }
   function traitCap(save) { return D.TRAIT_CAP_BASE + D.TRAIT_CAP_PER_LV * level(save); }
   function canSynth(save, now) { return now >= save.cooldownUntil; }
   function recipe(id) { for (var i = 0; i < D.RECIPES.length; i++) if (D.RECIPES[i].id === id) return D.RECIPES[i]; return null; }
-  function recipesFor(save) { var lv = level(save); return D.RECIPES.filter(function (r) { return r.lv <= lv; }); }
+  function recipesFor(save) { return D.RECIPES.filter(function (r) { return recipeAvailable(save, r); }); }
   function slotOk(need, mat) { return need === "*" || need === mat.category; }
 
   // ---------- 調和 ----------
@@ -241,18 +417,19 @@
   // matUids 依配方 needs 的順序；檢查失敗回傳 {error}
   function startSynthesis(save, recipeId, matUids, cauldronId, now) {
     var r = recipe(recipeId);
-    if (!r || r.lv > level(save)) return { error: "recipe" };
+    if (!r || !recipeAvailable(save, r)) return { error: "recipe" };
     if (!canSynth(save, now)) return { error: "cooldown" };
     if (matUids.length !== r.needs.length) return { error: "count" };
+    var cauldron = effectiveCauldron(save, cauldronId);
+    if (!cauldron) return { error: "cauldron" };
     var mats = [];
     for (var i = 0; i < matUids.length; i++) {
-      var m = null;
-      for (var j = 0; j < save.mats.length; j++) if (save.mats[j].uid === matUids[i]) m = save.mats[j];
-      if (!m || mats.indexOf(m) >= 0 || !slotOk(r.needs[i], m)) return { error: "slot", slot: i };
+      var m = findMat(save, matUids[i]);
+      if (!m || matUids.indexOf(matUids[i]) !== i || !slotOk(r.needs[i], m)) return { error: "slot", slot: i };
       mats.push(m);
     }
     var h = host(save);
-    return methods[h.method].create(r, mats, D.CAULDRONS[cauldronId], h.ability);
+    return methods[h.method].create(r, mats, cauldron, h.ability);
   }
   function effectLevels(r, gauges) {
     return r.gauges.map(function (g) {
@@ -291,8 +468,14 @@
     });
     var item = { uid: save.nextUid++, recipe: session.recipe.id, quality: clamp(Math.round(q), 1, 100),
       effects: effects, traits: traitIds.slice(), gauges: ev.gauges, at: now };
-    var used = session.mats.map(function (m) { return m.uid; });
+    var used = session.mats.map(function (m) { return m.uid; }), ash = 0;
+    session.mats.forEach(function (m, i) { ash += m.shape.length - ev.visible[i]; });   // C10：被蓋掉的格子變成灰燼
+    if (item.quality < D.ASH_LOW_QUALITY) ash += D.ASH_FAIL_BONUS;
+    item.ash = ash;
+    save.ash += ash;
+    save.made[item.recipe] = (save.made[item.recipe] || 0) + 1;
     save.mats = save.mats.filter(function (m) { return used.indexOf(m.uid) < 0; });
+    save.items = save.items.filter(function (it) { return used.indexOf(it.uid) < 0; });   // O9：投入的成品也會用掉
     save.items.push(item);
     save.exp += D.EXP_PER_SYNTH;
     save.cooldownUntil = now + D.COOLDOWN_MS;
@@ -330,7 +513,14 @@
   }
 
   var api = {
-    clamp: clamp, hash: hash, makeRng: makeRng, jstHour: jstHour,
+    clamp: clamp, hash: hash, makeRng: makeRng, jstHour: jstHour, jstDate: jstDate, dayDiff: dayDiff, migrate: migrate,
+    updateStreak: updateStreak, streakBonus: streakBonus, captureEx: captureEx,
+    dailyColor: dailyColor, isDailyHit: isDailyHit, whiteBalanceGains: whiteBalanceGains, applyGains: applyGains,
+    setWhiteBalance: setWhiteBalance, wbActive: wbActive, dexGroup: dexGroup, dexGroups: dexGroups, dexProgress: dexProgress,
+    ideaMet: ideaMet, recipeKnown: recipeKnown, recipeAvailable: recipeAvailable, checkIdeas: checkIdeas,
+    cauldronLv: cauldronLv, canUnlockCauldron: canUnlockCauldron, unlockCauldron: unlockCauldron, upgradeCost: upgradeCost,
+    upgradeCauldron: upgradeCauldron, effectiveCauldron: effectiveCauldron, matMax: matMax, shelfCost: shelfCost, upgradeShelf: upgradeShelf,
+    itemAsMaterial: itemAsMaterial, findMat: findMat, sublimate: sublimate,
     hexToRgb: hexToRgb, rgbToHex: rgbToHex, rgbToHsv: rgbToHsv, rgbToLab: rgbToLab, deltaE: deltaE,
     nearestColor: nearestColor, elementOf: elementOf, categoryOf: categoryOf,
     kmeans: kmeans, shapeFromGrid: shapeFromGrid, normalizeShape: normalizeShape, rotateShape: rotateShape, analyze: analyze,

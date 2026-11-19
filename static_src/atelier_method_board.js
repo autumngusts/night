@@ -68,11 +68,14 @@
       push = Math.round(gauges[dominant] * (byEl[dominant] / covered) * D.FINAL_PUSH_RATE);
       gauges[dominant] += push;
     }
+    // 第 2 階段（C5）：擅長這個配方的釜，量表 ×affinityMult
+    var mult = s.cauldron.affinityMult && s.cauldron.affinity && s.cauldron.affinity.indexOf(s.recipe.id) >= 0 ? s.cauldron.affinityMult : 1;
+    if (mult !== 1) Object.keys(gauges).forEach(function (k) { gauges[k] = Math.round(gauges[k] * mult); });
     var used = s.mats.filter(function (m, i) { return visible[i] > 0; });
     if (!used.length) used = s.mats;
     var avg = used.reduce(function (a, m) { return a + m.quality; }, 0) / used.length;
     var quality = Math.max(1, Math.min(100, Math.round(avg + s.cauldron.qualityPerCell * covered)));
-    return { gauges: gauges, visible: visible, covered: covered, dominant: dominant, push: push, quality: quality };
+    return { gauges: gauges, visible: visible, covered: covered, dominant: dominant, push: push, quality: quality, mult: mult };
   }
   // O7 放置預覽：不改動 session，回傳放下前後的評估
   function preview(s, mi, x, y, rot) {
