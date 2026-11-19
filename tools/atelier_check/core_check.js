@@ -200,4 +200,87 @@ test("預覽不改動 session", function () {
   assert.strictEqual(s.owner[20], -1);
 });
 
+// ---------- 調和流程 ----------
+function readySave() {
+  var s = C.newSave(T0);
+  s.mats = [mat(11, "ice", "liquid", [[0, 0], [1, 0]], 60, 3), mat(12, "wind", "plant", [[0, 0], [0, 1]], 60, 3),
+    mat(13, "wind", "plant", [[0, 0]], 60, 3)];
+  s.mats[0].traits = ["vivid"]; s.mats[1].traits = ["hue_grace", "dusk"];
+  s.nextUid = 100;
+  return s;
+}
+
+test("開始調和：類別不合、冷卻中、等級不足都會被擋下", function () {
+  var s = readySave();
+  assert.strictEqual(C.startSynthesis(s, "heal", [12, 11, 13], "copper", T0).error, "slot");
+  assert.strictEqual(C.startSynthesis(s, "bomb", [11, 12, 13], "copper", T0).error, "recipe");
+  s.cooldownUntil = T0 + 1;
+  assert.strictEqual(C.startSynthesis(s, "heal", [11, 12, 13], "copper", T0).error, "cooldown");
+});
+
+test("完成調和：特性成本上限、成品、扣素材、經驗、冷卻、好感度、最佳紀錄", function () {
+  var s = readySave(), ss = C.startSynthesis(s, "heal", [11, 12, 13], "copper", T0);
+  assert.strictEqual(ss.method, "board");
+  assert.strictEqual(C.finishSynthesis(s, ss, [], T0).error, "unplaced");
+  Board.place(ss, 0, 3, 0, 0);   // 冰 2 格：(3,0) 一般、(4,0) 冰色格
+  Board.place(ss, 1, 0, 3, 0);   // 風 2 格：(0,3) 一般、(0,4) 風色格
+  Board.place(ss, 2, 1, 3, 0);   // 風色加成格
+  assert.deepStrictEqual(C.traitChoices(ss).sort(), ["dusk", "hue_grace", "vivid"]);
+  assert.strictEqual(C.traitCap(s), 15);
+  assert.strictEqual(C.traitsValid(s, ss, ["vivid", "hue_grace"]), false, "12＋10 超過 15");
+  assert.strictEqual(C.traitsValid(s, ss, ["vivid", "night"]), false, "沒有的特性不能選");
+  assert.strictEqual(C.finishSynthesis(s, ss, ["hue_grace", "dusk"], T0).error, "traits", "10＋6 超過 15");
+  var item = C.finishSynthesis(s, ss, ["dusk"], T0);
+  assert.strictEqual(item.recipe, "heal");
+  assert.strictEqual(s.mats.length, 0);
+  assert.strictEqual(s.items.length, 1);
+  assert.strictEqual(s.exp, D.EXP_PER_SYNTH);
+  assert.strictEqual(s.cooldownUntil, T0 + D.COOLDOWN_MS);
+  assert.strictEqual(s.hosts.ruri.aff, D.AFF_PER_SYNTH);
+  assert.strictEqual(s.best.heal, item.quality);
+  var heal = item.effects[0];
+  assert.strictEqual(heal.el, "wind");
+  assert(heal.level >= 1);
+  assert.strictEqual(heal.n, Math.round(D.RECIPES[0].gauges[0].steps[heal.level - 1].n * 1.1), "黃昏 +10%");
+});
+
+test("任務：符合條件才能交貨，交貨後進到下一個任務", function () {
+  var s = C.newSave(T0);
+  s.items = [{ uid: 5, recipe: "heal", quality: 20, effects: [], traits: [] }, { uid: 6, recipe: "heal", quality: 35, effects: [], traits: [] }];
+  assert.strictEqual(C.currentTask(s).id, "r1");
+  assert.strictEqual(C.deliver(s, 5), false);
+  assert.strictEqual(C.deliver(s, 6), true);
+  assert.strictEqual(C.currentTask(s).id, "r2");
+  assert.strictEqual(s.hosts.ruri.aff, D.AFF_PER_TASK);
+});
+
+test("瑠璃的反應：效果升級 > 加成格 > 同色 > 覆蓋 > 沒對上（好感度高時給提示）", function () {
+  var s = C.newSave(T0), r = C.recipe("heal");
+  var g0 = { gauges: { wind: 0 } }, g1 = { gauges: { wind: 6 } };
+  assert.strictEqual(C.react(s, g0, g1, { recipe: r, cells: 1, matchCells: 0, bonusCells: 0, overwritten: 0 }), "levelup");
+  assert.strictEqual(C.react(s, g0, g0, { recipe: r, cells: 2, matchCells: 0, bonusCells: 1, overwritten: 0 }), "bonus");
+  assert.strictEqual(C.react(s, g0, g0, { recipe: r, cells: 2, matchCells: 1, bonusCells: 0, overwritten: 0 }), "match");
+  assert.strictEqual(C.react(s, g0, g0, { recipe: r, cells: 3, matchCells: 1, bonusCells: 0, overwritten: 1 }), "overwrite");
+  assert.strictEqual(C.react(s, g0, g0, { recipe: r, cells: 3, matchCells: 0, bonusCells: 0, overwritten: 0 }), "miss");
+  s.hosts.ruri.aff = D.AFF_HINT;
+  assert.strictEqual(C.react(s, g0, g0, { recipe: r, cells: 3, matchCells: 0, bonusCells: 0, overwritten: 0 }), "hint");
+});
+
+test("資料完整性：每個配方的量表屬性存在、每個工房主人的 method 已登記、台詞都有 zh／ja", function () {
+  var els = D.ELEMENTS.map(function (e) { return e.id; });
+  D.RECIPES.forEach(function (r) {
+    r.gauges.forEach(function (g) { assert(els.indexOf(g.el) >= 0, r.id); });
+    r.needs.forEach(function (n) { assert(n === "*" || D.CATEGORIES.indexOf(n) >= 0, r.id + " " + n); });
+  });
+  Object.keys(global.PriTestAtelierHosts).forEach(function (id) {
+    var h = global.PriTestAtelierHosts[id];
+    assert(C.method(h.method), id + " method");
+    Object.keys(h.lines).forEach(function (k) { h.lines[k].forEach(function (l) { assert(l.zh && l.ja, id + " " + k); }); });
+    h.tasks.forEach(function (t) { assert(C.recipe(t.recipe), t.id); });
+  });
+  Object.keys(D.TRAITS).forEach(function (t) { assert(D.TRAITS[t].cost > 0); });
+  D.TIME_TRAITS.concat([{ trait: D.RARITY_TRAIT[2] }, { trait: D.RARITY_TRAIT[3] }, { trait: "vivid" }])
+    .forEach(function (t) { assert(D.TRAITS[t.trait], t.trait); });
+});
+
 console.log("\n" + passed + " passed");

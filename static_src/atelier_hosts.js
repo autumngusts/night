@@ -1,6 +1,47 @@
+// 煉金術士（atelier）：工房主人。第 1 階段只有瑠璃（色彩棋盤派）。
+// 新增工房主人時：在這裡加一筆、指定 method（對應 atelier_method_*.js 登記的 id），不改核心。
+// 台詞 {zh, ja}；en 沿用 ja（比照其他遊戲資料的 fallback）。
 (function () {
   "use strict";
-  var api = {};
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else window.PriTestAtelierHosts = api;
+  function L(zh, ja) { return { zh: zh, ja: ja }; }
+  var hosts = {
+    ruri: {
+      id: "ruri", color: "#1E50A2", glyph: "瑠",
+      name: { zh: "瑠璃", ja: "瑠璃", en: "Ruri" },
+      title: L("色彩棋盤派", "色彩盤派"),
+      method: "board",
+      ability: { matchBonus: 1 },           // 同色格每格再 +1
+      abilityText: L("同色格的加成每格再 +1。", "同じ色のマスの加算が 1 マスごとに +1。"),
+      lines: {
+        greet: [L("歡迎來到我的工房。今天想調和什麼？", "わたしのアトリエへようこそ。今日は何を調合する？"),
+          L("外面的顏色，帶回來了嗎？", "外の色、持って帰ってきた？")],
+        levelup: [L("啊，效果升級了！", "あっ、効果が上がった！"), L("就是這樣，很漂亮。", "そう、それ。きれい。")],
+        bonus: [L("放在發光的格子上，很聰明。", "光ってるマスに置いたね、さすが。")],
+        match: [L("顏色對上了，釜裡的光變強了。", "色がそろった。釜の光が強くなったよ。")],
+        overwrite: [L("蓋掉前面的素材了……這樣好嗎？", "前の素材を上書きしちゃった……いいの？")],
+        miss: [L("嗯……顏色好像不太合。", "うーん……色が合ってないみたい。")],
+        hint: [L("試試把它轉個方向，放到同色的格子上？", "向きを変えて、同じ色のマスに置いてみたら？")],
+        ok: [L("嗯，慢慢來。", "うん、ゆっくりでいいよ。")],
+        finish_good: [L("好棒的成品！可以拿去交貨了。", "いい出来！納品できるね。")],
+        finish_bad: [L("下次一定能做得更好。", "次はもっと上手にできるよ。")],
+        cooldown: [L("大釜還在冷卻，先去採色吧。", "大釜はまだ冷めてないよ。先に色を集めてきて。")]
+      },
+      // 專屬任務（依序解鎖）
+      tasks: [
+        { id: "r1", recipe: "heal", minQuality: 30, minLevel: 0, exp: 40, text: L("先做一瓶治癒藥水給我看看。", "まずはいやしの薬を一つ見せて。") },
+        { id: "r2", recipe: "ink", minQuality: 40, minLevel: 1, exp: 50, text: L("我需要能用的色彩墨水，效果至少 Lv1。", "使える色インクがほしいな。効果 Lv1 以上で。") },
+        { id: "r3", recipe: "neutral", minQuality: 50, minLevel: 1, exp: 60, text: L("中和劑，品質 50 以上。", "中和剤、品質 50 以上でお願い。") },
+        { id: "r4", recipe: "heal", minQuality: 60, minLevel: 2, exp: 80, text: L("治癒藥水，回復效果 Lv2。試試最後一推。", "いやしの薬、回復 Lv2 で。最後のひと押しを狙ってみて。") },
+        { id: "r5", recipe: "bomb", minQuality: 60, minLevel: 2, exp: 100, text: L("色彩炸彈……小心一點喔。", "いろどり爆弾……気をつけてね。") }
+      ],
+      // B16 教學（前 3 次調和時顯示）
+      tutorial: [
+        L("先選配方，再依格子要求放入素材。素材的形狀，是你拍到的色塊形狀。", "レシピを選んで、枠に合う素材を入れてね。素材の形は、撮った色のかたち。"),
+        L("把素材放到同色的格子上，量表會漲得更多；發光的格子還有加成。按「旋轉」可以改變方向。", "同じ色のマスに置くとゲージが大きく伸びるよ。光るマスはボーナス。「回転」で向きを変えられる。"),
+        L("全部放完後，佔最多格的屬性會再加一次，這叫「最後一推」。", "全部置いたら、一番多い属性がもう一度加算される。これが「最後のひと押し」。")
+      ]
+    }
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = hosts;
+  else window.PriTestAtelierHosts = hosts;
 })();
