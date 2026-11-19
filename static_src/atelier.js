@@ -87,7 +87,8 @@
   function render() {
     C.refillBasket(save, now());
     var h = host(), hs = save.hosts[save.host];
-    var tutorial = ui.tab === "lab" && save.tutorial < h.tutorial.length ? h.tutorial[save.tutorial] : null;
+    var tutStep = save.host === "ruri" ? save.tutorial : (hs.tut || 0);
+    var tutorial = ui.tab === "lab" && tutStep < h.tutorial.length ? h.tutorial[tutStep] : null;
     var line = tutorial || ui.line || h.lines.greet[0];
     var html = '<header class="at-head">' +
       '<div class="at-avatar" style="background:' + h.color + '">' + h.glyph + "</div>" +
@@ -253,6 +254,61 @@
     }
     return out + "</div>";
   }
+  // §11 各調和方式的畫面。interactive＝false 時用在回放（不可點）
+  function cellButton(interactive, x, cls, style, inner) {
+    return interactive ? '<button type="button" data-at-cell="' + x + ',0" class="' + cls + '"' + style + ">" + inner + "</button>"
+      : '<span class="' + cls + '"' + style + ">" + inner + "</span>";
+  }
+  function ringHtml(s, ghostSet, interactive) {
+    var out = '<div class="at-ring" id="' + (interactive ? "at-ring" : "") + '">';
+    s.nodes.forEach(function (node, i) {
+      var e = el(node.el), segs = "", used = 0;
+      node.fill.forEach(function (f) { used += f.n; segs += '<i style="flex:' + f.n + ";background:" + s.mats[f.mi].hex + '"></i>'; });
+      if (used < D.RING_CAP) segs += '<i class="at-empty" style="flex:' + (D.RING_CAP - used) + '"></i>';
+      out += cellButton(interactive, i, "at-node" + (ghostSet[i + ",0"] ? " at-ghost" : "") + (used >= D.RING_CAP ? " at-closed" : ""),
+        ' style="--at-c:' + e.color + '"', '<b>' + e.icon + "</b><span class=\"at-fill\">" + segs + "</span><small>" + used + "/" + D.RING_CAP + "</small>");
+    });
+    return out + "</div>";
+  }
+  function brewHtml(s, ghost, interactive) {
+    var impl = C.method("brew"), sel = interactive && ui.sel >= 0 ? s.mats[ui.sel] : null, pct = function (v) { return Math.round(v / D.BREW_MAX * 100); };
+    var zones = s.recipe.gauges.map(function (g) { return g.el; });
+    if (sel && zones.indexOf(sel.element) < 0) zones.push(sel.element);
+    var out = '<div class="at-thermo" id="' + (interactive ? "at-brew" : "") + '">' + zones.map(function (z) {
+      var r = D.BREW_ZONES[z];
+      return '<span class="at-zone" style="left:' + pct(r[0]) + "%;width:" + (pct(r[1]) - pct(r[0])) + "%;background:" + el(z).color + '">' + el(z).icon + "</span>";
+    }).join("") + '<span class="at-temp" style="left:' + pct(s.temp) + '%"></span>' +
+      (ghost && ghost.after && ghost.after.temp !== undefined ? '<span class="at-temp at-temp-ghost" style="left:' + pct(ghost.after.temp) + '%"></span>' : "") +
+      '</div><p class="at-hint" id="at-temp">' + t("at_temp", { t: s.temp }) + (s.temp >= D.BREW_BOIL ? "　" + t("at_boil") : "") + "</p>";
+    if (interactive && sel) {
+      out += '<div class="at-row" id="at-heats">' + D.BREW_HEATS.map(function (h, x) {
+        var r = impl.heatResult(s.temp, sel, x);
+        return cellButton(true, x, "at-heat" + (ghost && ghost.x === x ? " at-ghost" : ""), "", t("at_heat_" + x) + " " + t("at_temp_after", { t: r.temp }) + " ×" + r.mult);
+      }).join("") + "</div>";
+    }
+    return out;
+  }
+  function paletteHtml(s, ghost, interactive) {
+    var ev = ghost && ghost.after ? ghost.after : C.method("palette").evaluate(s, false), hex = function (c) { return c ? C.rgbToHex(c) : "#ffffff"; };
+    var out = '<div class="at-palette" id="' + (interactive ? "at-palette" : "") + '"><span class="at-chip at-chip-l" style="background:' + hex(s.target) + '"></span>' + t("at_target") +
+      '　<span class="at-chip at-chip-l" style="background:' + hex(ev.mixRgb) + '"></span>' + t("at_mixcolor") +
+      (ev.dE !== null && ev.dE !== undefined ? '　<b id="at-de">' + t("at_de", { d: Math.round(ev.dE) }) + "</b>" : "") + "</div>";
+    if (interactive && ui.sel >= 0) {
+      out += '<div class="at-row" id="at-parts">';
+      for (var x = 1; x <= D.PALETTE_MAX_PARTS; x++) out += cellButton(true, x, "at-part" + (ghost && ghost.x === x ? " at-ghost" : ""), "", t("at_parts", { n: x }));
+      out += "</div>";
+    }
+    return out;
+  }
+  function methodView(s, ghost, interactive) {
+    var ghostSet = {}; if (ghost && ghost.cells) ghost.cells.forEach(function (c) { ghostSet[c[0] + "," + c[1]] = true; });
+    if (s.method === "ring") return ringHtml(s, ghostSet, interactive);
+    if (s.method === "brew") return brewHtml(s, ghost, interactive);
+    if (s.method === "palette") return paletteHtml(s, ghost, interactive);
+    return boardHtml(s, ghostSet, interactive ? "at-board" : null);   // board、gravity
+  }
+  function usesGrid(s) { return s.method === "board" || s.method === "gravity"; }
+
   // B8 回放：成品的第 k 手時的棋盤
   function replayAt(item, k) {
     var copy = JSON.parse(JSON.stringify(item));
@@ -264,7 +320,7 @@
     var item = findItem(ui.replay.uid);
     if (!item || !item.replay) { ui.replay = null; return ""; }
     var total = item.replay.moves.length, s = replayAt(item, ui.replay.step);
-    return '<div class="at-replay" id="at-replay"><h3>' + t("at_replay") + "：" + esc(recipeName(item.recipe)) + "</h3>" + boardHtml(s, {}, null) +
+    return '<div class="at-replay" id="at-replay"><h3>' + t("at_replay") + "：" + esc(recipeName(item.recipe)) + "</h3>" + methodView(s, null, false) +
       '<p id="at-replay-step">' + t("at_replay_step", { n: ui.replay.step, total: total }) + '</p><div class="at-row">' +
       '<button type="button" id="at-replay-prev"' + (ui.replay.step > 0 ? "" : " disabled") + ">" + t("at_replay_prev") + "</button>" +
       '<button type="button" id="at-replay-next"' + (ui.replay.step < total ? "" : " disabled") + ">" + t("at_replay_next") + "</button>" +
@@ -276,7 +332,8 @@
     var s = ui.session, impl = C.method(s.method), ghost = ui.ghost;
     var ev = ghost ? ghost.after : impl.evaluate(s, impl.done(s));
     var ghostSet = {}; if (ghost) ghost.cells.forEach(function (c) { ghostSet[c[0] + "," + c[1]] = true; });
-    var out = (s.challenge ? '<p class="at-hint" id="at-challenge-banner">' + t("at_weekly", { key: s.challenge }) + "</p>" : "") + boardHtml(s, ghostSet, "at-board");
+    var out = (s.challenge ? '<p class="at-hint" id="at-challenge-banner">' + t("at_weekly", { key: s.challenge }) + "</p>" : "") +
+      '<p class="at-hint" id="at-method">' + t("at_method_" + s.method) + "</p>" + methodView(s, ghost, true);
     out += '<ul class="at-gauges" id="at-gauges">';
     C.effectLevels(s.recipe, ev.gauges).forEach(function (g) {
       var e = el(g.el), val = ev.gauges[g.el], top = s.recipe.gauges.filter(function (x) { return x.el === g.el; })[0].steps.slice(-1)[0].at;
@@ -286,8 +343,10 @@
     });
     out += "</ul>";
     if (ev.mult > 1) out += '<p class="at-hint" id="at-affinity">' + t("at_affinity_on", { m: ev.mult }) + "</p>";
-    if (s.rules && (s.rules.mix || s.rules.complement)) out += '<p class="at-hint" id="at-mix">' + t("at_mix", { mix: ev.mix, clash: ev.clash }) + "</p>";
-    if (s.rules && s.rules.great && ev.overheat) out += '<p class="at-warn" id="at-overheat">' + t("at_overheat") + "</p>";
+    if (usesGrid(s) && s.rules && (s.rules.mix || s.rules.complement)) out += '<p class="at-hint" id="at-mix">' + t("at_mix", { mix: ev.mix, clash: ev.clash }) + "</p>";
+    if (s.rules && s.rules.great && ev.overheat) out += '<p class="at-warn" id="at-overheat">' + t(s.method === "brew" ? "at_boil" : "at_overheat") + "</p>";
+    if (ev.lines) out += '<p class="at-push" id="at-lines">' + t("at_lines", { n: ev.lines }) + "</p>";
+    if (s.method === "ring" && ev.lost) out += '<p class="at-hint" id="at-lost">' + t("at_lost", { n: ev.lost }) + "</p>";
     if (ev.push) out += '<p class="at-push" id="at-push">' + t("at_final_push", { el: t("at_el_" + ev.dominant), n: ev.push }) + "</p>";
     out += '<p class="at-hint">' + t("at_quality", { n: ev.quality }) + "　" + t("at_tap_hint") + "</p>";
     if (!impl.done(s)) {
@@ -297,7 +356,7 @@
         return '<button type="button" data-at-mat="' + i + '" class="' + (i === ui.sel ? "at-on" : "") + '">' + shapeHtml(shown) + "</button>";
       }).join("") + "</div>";
     }
-    out += '<div class="at-row"><button type="button" id="at-rot"' + (ui.sel < 0 ? " disabled" : "") + ">" + t("at_rotate") + "</button>" +
+    out += '<div class="at-row">' + (usesGrid(s) ? '<button type="button" id="at-rot"' + (ui.sel < 0 ? " disabled" : "") + ">" + t("at_rotate") + "</button>" : "") +
       '<button type="button" id="at-undo"' + (s.history.length ? "" : " disabled") + ">" + t("at_undo") + "</button>" +
       '<button type="button" id="at-abort">' + t("at_back") + "</button>" +
       (!s.challenge && ui.sel >= 0 && C.helpAvailable(save, s) ? '<button type="button" id="at-help">' + t("at_help") + "</button>" : "") + "</div>";
@@ -416,8 +475,17 @@
   }
 
   // C5 錬金釜、B6 升級、C10 灰燼
+  function renderHosts() {
+    return "<h3>" + t("at_hosts") + '</h3><ul class="at-list" id="at-hosts">' + D.HOST_ORDER.map(function (id) {
+      var h = H[id], open = C.hostUnlocked(save, id), here = save.host === id;
+      return '<li><span class="at-avatar at-avatar-s" style="background:' + h.color + '">' + h.glyph + "</span><b>" + esc(loc(h.name)) + "</b> <small>" +
+        esc(loc(h.title)) + "・" + t("at_method_" + h.method) + "<br>" + esc(loc(h.abilityText)) + "</small> " +
+        (here ? "<small>" + t("at_host_here") + "</small>" : '<button type="button" data-at-host="' + id + '"' + (open ? "" : " disabled") + ">" +
+          (open ? t("at_host_go") : t("at_host_locked", { n: h.unlock.lv })) + "</button>") + "</li>";
+    }).join("") + "</ul>";
+  }
   function renderShop() {
-    var out = '<h3 id="at-ash">' + t("at_ash", { n: save.ash }) + '</h3><ul class="at-list" id="at-cauldrons">';
+    var out = renderHosts() + '<h3 id="at-ash">' + t("at_ash", { n: save.ash }) + '</h3><ul class="at-list" id="at-cauldrons">';
     D.CAULDRON_ORDER.forEach(function (id) {
       var c = D.CAULDRONS[id], lv = C.cauldronLv(save, id), eff = C.effectiveCauldron(save, id);
       out += "<li><b>" + esc(loc(c.name)) + "</b> <small>" +
@@ -589,6 +657,13 @@
     if (d.atSell) {
       var price = C.sell(save, +d.atSell, now());
       if (price !== null) { ui.msg = t("at_sold", { n: price }); say("sold"); ideas(); persist(); }
+      render(); return;
+    }
+    if (d.atHost) {
+      if (C.setHost(save, d.atHost)) {
+        ui.session = null; ui.recipe = null; ui.slots = []; ui.result = null; ui.ghost = null;
+        ui.line = null; say("greet"); ui.msg = t("at_host_moved", { name: loc(host().name) }); persist();
+      }
       render(); return;
     }
     if (d.atBuycat) { if (C.buyCatalyst(save, d.atBuycat)) { say("upgrade"); persist(); } render(); return; }
