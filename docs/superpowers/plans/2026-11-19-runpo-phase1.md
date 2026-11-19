@@ -17,7 +17,7 @@
 - 存檔鍵 `pritest-runpo-save-v1`；讀檔一律 try/catch，壞檔就重建。結算後**刪除行程座標**，只留方格 ID。
 - 日期一律用 JST（UTC+9）。
 - 首頁 test 分頁只顯示、不能點（`"link": False`），要自己輸入 `/runpo` 進入（比照 kyuka）。
-- 版本 `2.75.0`（`site_src/version.py`）。只推 `private`（`git push private main`），不要碰 `origin`。
+- 版本 `2.80.0`（`site_src/version.py`；2026-11-20 改：2.75.0～2.79.0 已被煉金術士使用，執行時若又有其他版本先推送，就再遞增 minor）。只推 `private`（`git push private main`），不要碰 `origin`。
 - 回覆、註解、文件、commit message 用繁體中文。
 
 ## 檔案結構
@@ -1113,13 +1113,13 @@ git commit -m "feat(runpo): 約跑畫面、GPS 出發／打卡／結算、模擬
 
 ### Task 7: 版本與推送
 
-- [ ] **Step 1:** `site_src/version.py` 的 `VERSION = "2.75.0"`
+- [ ] **Step 1:** `site_src/version.py` 的 `VERSION = "2.80.0"`
 - [ ] **Step 2:** 再跑一次 Task 6 Step 6 的全部檢查
 - [ ] **Step 3: Commit 並推送**
 
 ```bash
 git add site_src/version.py docs/runpo_design.md docs/superpowers/plans/2026-11-19-runpo-phase1.md
-git commit -m "feat(runpo): v2.75.0 約跑第 1 階段：GPS 結算、模擬御所、親密度、吃醋、乘車事件、劇情"
+git commit -m "feat(runpo): v2.80.0 約跑第 1 階段：GPS 結算、模擬御所、親密度、吃醋、乘車事件、劇情"
 git push private main
 ```
 
