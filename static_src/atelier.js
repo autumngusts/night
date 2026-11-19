@@ -4,14 +4,15 @@
   var D = window.PriTestAtelierData, C = window.PriTestAtelierCore, H = window.PriTestAtelierHosts;
   var CAM = window.PriTestAtelierCamera, COLORS = window.PriTestAtelierColors;
   var KEY = "pritest-atelier-save-v1";
-  var TABS = ["gather", "box", "lab", "tasks", "dex", "shop"];
+  var TABS = ["gather", "box", "lab", "tasks", "dex", "book", "shop"];
   var app = document.getElementById("at-app");
   if (!app) return;
 
   var save = load();
   var ui = { tab: "gather", swatches: null, picks: [], scene: null, recipe: null, slots: [], cauldron: "copper", session: null,
     sel: -1, rot: 0, ghost: null, traits: [], result: null, line: null, dev: false, resetArm: false, msg: "", wbMode: false, subs: [],
-    catalyst: "", catalystEl: "fire", challengeResult: null, replay: null };
+    catalyst: "", catalystEl: "fire", challengeResult: null, replay: null,
+    harmony: null, rainbow: false, filter: false, page: "goldfish", region: null };
   var replayTimer = null;
 
   // ---------- 共用 ----------
@@ -34,12 +35,23 @@
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* 容量不足時只保留記憶體中的狀態 */ } }
   function recipeName(id) { return loc(C.recipe(id).name); }
   // C3：每次操作後檢查有沒有想到新配方
+  function addMsg(text) { ui.msg = (ui.msg ? ui.msg + "　" : "") + text; }
   function ideas() {
     var got = C.checkIdeas(save);
-    if (got.length) { say("idea"); ui.msg = (ui.msg ? ui.msg + "　" : "") + t("at_idea_new", { names: got.map(recipeName).join("、") }); }
+    if (got.length) { say("idea"); addMsg(t("at_idea_new", { names: got.map(recipeName).join("、") })); }
+    var titles = C.checkTitles(save);                                   // §10.8 稱號
+    if (titles.length) {
+      say("title");
+      addMsg(t("at_title_new", { names: titles.map(function (id) { return loc(titleById(id).name); }).join("、") }));
+    }
     return got;
   }
-  function matName(m) { return m.fromItem ? "★" + recipeName(m.fromItem) : loc(colorOf(m.colorId).name); }
+  function titleById(id) { return D.TITLES.filter(function (x) { return x.id === id; })[0]; }
+  function matName(m) {
+    if (m.fromItem) return "★" + recipeName(m.fromItem);
+    if (m.rainbow) return t("at_rainbow_mat");
+    return loc(colorOf(m.colorId).name);
+  }
 
   // 素材形狀的小圖（色覺友善：同時顯示屬性圖形）
   function shapeHtml(m, cls) {
@@ -80,14 +92,15 @@
     var html = '<header class="at-head">' +
       '<div class="at-avatar" style="background:' + h.color + '">' + h.glyph + "</div>" +
       '<div class="at-who"><b>' + esc(loc(h.name)) + "</b> <small>" + esc(loc(h.title)) + "</small><br><small>" +
-      t("at_level", { n: C.level(save) }) + "・" + t("at_aff", { n: hs.aff }) + "・" + t("at_ash", { n: save.ash }) + "</small></div>" +
+      t("at_level", { n: C.level(save) }) + "・" + t("at_aff", { n: hs.aff }) + "・" + t("at_ash", { n: save.ash }) + "・" + t("at_coins", { n: save.coins }) +
+      (save.title ? '<br><span class="at-title-tag" id="at-title">〈' + esc(loc(titleById(save.title).name)) + "〉</span>" : "") + "</small></div>" +
       '<p id="at-line" class="at-bubble' + (tutorial ? " at-tutorial" : "") + '">' + esc(loc(line)) + "</p></header>" +
       '<nav class="at-tabs">' + TABS.map(function (k) {
         return '<button type="button" data-at-tab="' + k + '" class="' + (ui.tab === k ? "at-on" : "") + '">' + t("at_tab_" + k) + "</button>";
       }).join("") + "</nav>";
     if (ui.msg) html += '<p class="at-msg" id="at-msg">' + esc(ui.msg) + "</p>";
     if (ui.replay) html += renderReplay();
-    html += '<section class="at-body">' + ({ gather: renderGather, box: renderBox, lab: renderLab, tasks: renderTasks, dex: renderDex, shop: renderShop })[ui.tab]() + "</section>";
+    html += '<section class="at-body">' + ({ gather: renderGather, box: renderBox, lab: renderLab, tasks: renderTasks, dex: renderDex, book: renderBook, shop: renderShop })[ui.tab]() + "</section>";
     html += renderDev();
     var video = app.querySelector("#at-video");
     app.innerHTML = html;
@@ -117,8 +130,15 @@
         : '<button type="button" id="at-cam-open" class="at-main">' + t("at_cam_open") + "</button>") : "") +
       '<label class="at-file">' + t("at_upload") + '<input type="file" id="at-file" accept="image/*"></label>' +
       '<button type="button" id="at-walk">' + t("at_walk") + "</button>" +
-      '<button type="button" id="at-wb" class="' + (ui.wbMode ? "at-on" : "") + '">' + t("at_wb") + "</button></div>";
+      '<button type="button" id="at-wb" class="' + (ui.wbMode ? "at-on" : "") + '">' + t("at_wb") + "</button>" +
+      (save.tools.glasses ? '<button type="button" id="at-filter" class="' + (ui.filter ? "at-on" : "") + '">' + t("at_filter") + "</button>" : "") + "</div>";
+    if (save.tools.loupe) out += '<p class="at-hint" id="at-loupe">' + t("at_loupe") + "</p>";
+    var season = C.seasonOf(n);
+    out += '<p class="at-season" id="at-season">' + t("at_season", { season: t("at_season_" + season) }) +
+      D.SEASONS[season].colors.map(function (id) { var c = colorOf(id); return '<span class="at-chip at-chip-s" title="' + esc(loc(c.name)) + '" style="background:' + c.hex + '"></span>'; }).join("") + "</p>";
     if (ui.wbMode) out += '<p class="at-hint" id="at-wb-hint">' + t("at_wb_hint") + "</p>";
+    if (ui.swatches && ui.harmony) out += '<p class="at-push" id="at-harmony">' + t("at_harmony", { kind: t("at_harmony_" + ui.harmony) }) + "</p>";
+    if (ui.swatches && ui.rainbow) out += '<p class="at-push" id="at-rainbow">' + t("at_rainbow") + "</p>";
     if (ui.scene) out += '<img class="at-scene" id="at-scene" alt="" src="' + ui.scene + '">';
     if (ui.swatches) {
       out += '<p class="at-hint">' + t("at_pick_hint", { n: D.PICK_MAX }) + '</p><ul class="at-swatches" id="at-swatches">';
@@ -177,9 +197,10 @@
     if (left > 0) return '<p id="at-cooldown" class="at-cooldown">' + t("at_cooldown", { m: Math.ceil(left / 60000) }) + "</p>";
     if (!ui.recipe) {
       return "<h3>" + t("at_recipes") + '</h3><ul class="at-list" id="at-recipes">' + D.RECIPES.map(function (r) {
-        var lvOk = r.lv <= C.level(save), known = C.recipeKnown(save, r), ok = lvOk && known;
+        var lvOk = r.lv <= C.level(save), known = C.recipeKnown(save, r), ok = C.recipeAvailable(save, r, now());
         var note = !lvOk ? t("at_recipe_locked", { n: r.lv }) + (known ? "" : "　" + ideaHint(r)) : !known ? t("at_recipe_idea") + "　" + ideaHint(r) :
           (save.best[r.id] ? t("at_best", { n: save.best[r.id] }) : "");
+        if (r.season) note = t("at_recipe_season", { season: t("at_season_" + r.season) }) + (note ? "　" + note : "");
         return '<li><button type="button" data-at-recipe="' + r.id + '"' + (ok ? "" : " disabled") + ">" +
           esc(known ? loc(r.name) : "？？？") + (note ? " — " + esc(note) : "") + "</button></li>";
       }).join("") + "</ul>";
@@ -190,7 +211,7 @@
       return '<option value="' + id + '"' + (ui.cauldron === id ? " selected" : "") + ">" + esc(loc(c.name)) + " Lv" + C.cauldronLv(save, id) +
         " (" + c.pattern.length + "×" + c.pattern.length + ")" + (good ? " ★" + t("at_affinity") : "") + "</option>";
     }).join("") + "</select></label><div id=\"at-slots\">";
-    var pool = save.mats.concat(save.items.map(C.itemAsMaterial));
+    var pool = save.mats.concat(save.items.filter(function (it) { return !C.displayed(save, it.uid); }).map(C.itemAsMaterial));
     r.needs.forEach(function (need, i) {
       out += '<label class="at-slot">' + t("at_slot", { n: i + 1, need: need === "*" ? t("at_any") : t("at_cat_" + need) }) +
         '<select data-at-slot="' + i + '"><option value="">' + t("at_choose") + "</option>";
@@ -329,6 +350,71 @@
     return out + "</div>";
   }
 
+  // §10.4 C6 著色繪本：上方是 SVG（純顯示），下方是區域按鈕與可用素材
+  function renderBook() {
+    var pg = C.page(ui.page), filled = save.coloring[pg.id] || {}, pr = C.pageProgress(save, pg.id);
+    var out = '<div class="at-row" id="at-pages">' + D.PAGES.map(function (x) {
+      return '<button type="button" data-at-page="' + x.id + '" class="' + (x.id === ui.page ? "at-on" : "") + '">' + esc(loc(x.name)) +
+        (save.pagesDone[x.id] ? " ✓" : "") + "</button>";
+    }).join("") + "</div>";
+    out += '<svg class="at-book" id="at-book" viewBox="0 0 6 6" role="img" aria-label="' + esc(loc(pg.name)) + '">' + pg.regions.map(function (r) {
+      var fill = filled[r.id] || "#ffffff";
+      return '<g class="' + (ui.region === r.id ? "at-region-on" : "") + '">' + r.rects.map(function (q) {
+        return '<rect x="' + q[0] + '" y="' + q[1] + '" width="' + q[2] + '" height="' + q[3] + '" fill="' + fill + '" stroke="#8a7f6c" stroke-width="0.04"' +
+          (filled[r.id] ? "" : ' stroke-dasharray="0.12 0.08"') + "></rect>";
+      }).join("") + "</g>";
+    }).join("") + "</svg>";
+    out += '<p id="at-book-progress">' + t("at_book_progress", { filled: pr.filled, total: pr.total }) + (save.pagesDone[pg.id] ? "　" + t("at_book_done") : "") + "</p>";
+    out += '<div class="at-row" id="at-regions">' + pg.regions.map(function (r) {
+      return '<button type="button" data-at-region="' + r.id + '" class="' + (ui.region === r.id ? "at-on" : "") + '"' + (filled[r.id] ? " disabled" : "") + ">" +
+        (filled[r.id] ? '<span class="at-chip" style="background:' + filled[r.id] + '"></span>' : "") + t("at_region", { group: t("at_dex_" + r.group) }) + "</button>";
+    }).join("") + "</div>";
+    if (ui.region && !filled[ui.region]) {
+      var region = pg.regions.filter(function (r) { return r.id === ui.region; })[0];
+      var mats = save.mats.filter(function (m) { return m.colorId && C.dexGroup(colorOf(m.colorId)) === region.group; });
+      out += '<ul class="at-list" id="at-paints">' + (mats.length ? mats.map(function (m) {
+        return '<li><span class="at-chip" style="background:' + m.hex + '"></span>' + esc(matName(m)) +
+          ' <button type="button" data-at-paint="' + m.uid + '">' + t("at_paint") + "</button></li>";
+      }).join("") : "<li>" + t("at_no_paint") + "</li>") + "</ul>";
+    }
+    return out;
+  }
+  function decoLabel(ref) {
+    var parts = ref.split(":");
+    if (parts[0] === "page") return t("at_deco_page", { name: loc(C.page(parts[1]).name) });
+    var it = save.items.filter(function (x) { return x.uid === +parts[1]; })[0];
+    return it ? (it.great ? "✨" : "") + recipeName(it.recipe) + " (" + t("at_quality", { n: it.quality }) + ")" : "";
+  }
+  // §10.8 稱號、§10.5 裝飾、§10.6 店鋪
+  function renderStore() {
+    var n = now(), opts = C.decoOptions(save), hot = C.hotElement(n);
+    var out = "<h3>" + t("at_titles") + '</h3><p><select id="at-title-select"><option value="">' + t("at_title_none") + "</option>" +
+      D.TITLES.filter(function (x) { return save.titles[x.id]; }).map(function (x) {
+        return '<option value="' + x.id + '"' + (save.title === x.id ? " selected" : "") + ">" + esc(loc(x.name)) + "</option>";
+      }).join("") + "</select></p>";
+    out += "<h3>" + t("at_deco") + '</h3><div id="at-decos">';
+    for (var i = 0; i < D.DECO_SLOTS; i++) {
+      out += '<label class="at-slot">' + t("at_deco_slot", { n: i + 1 }) + '<select data-at-deco="' + i + '"><option value="">' + t("at_deco_empty") + "</option>" +
+        opts.map(function (o) { return '<option value="' + o.ref + '"' + (save.deco[i] === o.ref ? " selected" : "") + ">" + esc(decoLabel(o.ref)) + "</option>"; }).join("") +
+        "</select></label>";
+    }
+    out += "</div><h3>" + t("at_shop") + '</h3><p id="at-coins">' + t("at_coins", { n: save.coins }) + '　<span id="at-hot">' +
+      t("at_hot", { el: el(hot).icon + t("at_el_" + hot) }) + '</span></p><ul class="at-list" id="at-sells">';
+    if (!save.items.length) out += "<li>" + t("at_items_empty") + "</li>";
+    save.items.forEach(function (it) {
+      var shown = C.displayed(save, it.uid);
+      out += "<li>" + itemHtml(it) + ' <button type="button" data-at-sell="' + it.uid + '"' + (shown ? " disabled" : "") + ">" +
+        (shown ? t("at_displayed") : t("at_sell", { price: C.priceOf(it, n) })) + "</button></li>";
+    });
+    out += '</ul><div class="at-row">' + '<button type="button" id="at-buy-basket"' + (save.coins >= D.BASKET_COINS && save.basket.n < D.BASKET_MAX ? "" : " disabled") + ">" +
+      t("at_buy_basket", { coins: D.BASKET_COINS }) + "</button>" +
+      (C.level(save) >= D.ADVANCED_LV ? D.CATALYST_ORDER.map(function (id) {
+        return '<button type="button" data-at-buycat="' + id + '"' + (save.coins >= D.CATALYST_COINS[id] ? "" : " disabled") + ">" +
+          t("at_buy_cat", { name: loc(D.CATALYSTS[id].name), coins: D.CATALYST_COINS[id] }) + "</button>";
+      }).join("") : "") + "</div>";
+    return out;
+  }
+
   // C5 錬金釜、B6 升級、C10 灰燼
   function renderShop() {
     var out = '<h3 id="at-ash">' + t("at_ash", { n: save.ash }) + '</h3><ul class="at-list" id="at-cauldrons">';
@@ -359,7 +445,7 @@
     var sc = C.shelfCost(save);
     out += '</ul><p>' + t("at_box_cap", { n: C.matMax(save) }) + " " + (sc === null ? "<small>" + t("at_shelf_max") + "</small>"
       : '<button type="button" id="at-shelf"' + (save.ash >= sc ? "" : " disabled") + ">" + t("at_shelf", { n: D.SHELF_STEP, ash: sc }) + "</button>") + "</p>";
-    return out;
+    return out + renderStore();
   }
 
   function renderDev() {
@@ -378,17 +464,23 @@
       return;
     }
     if (C.wbActive(save, n)) rgba = C.applyGains(rgba, save.wb.gains);
-    ui.swatches = C.analyze(rgba, D.SRC_SIZE, D.SRC_SIZE, String(n));
+    ui.rainbow = C.rainbowOf(rgba);                                            // §10.2 B2
+    if (ui.filter && save.tools.glasses) rgba = C.shiftHue(rgba, D.FILTER_SHIFT);   // §10.3 濾色眼鏡
+    ui.swatches = C.analyze(rgba, D.SRC_SIZE, D.SRC_SIZE, String(n), C.analyzeOpts(save));
+    ui.harmony = C.harmonyOf(ui.swatches);                                     // §10.1 B1
     ui.picks = []; ui.scene = sceneUrl || null; ui.msg = "";
     render();
   }
   function collect() {
-    var r = C.captureEx(save, ui.picks.map(function (k) { return ui.swatches[k]; }), now()), msgs = [];
+    var r = C.captureEx(save, ui.picks.map(function (k) { return ui.swatches[k]; }), now(), { harmony: ui.harmony, rainbow: ui.rainbow }), msgs = [];
     if (r.error) { ui.msg = t(r.error === "basket" ? "at_collect_fail_basket" : r.error === "full" ? "at_collect_fail_full" : "at_err_pick"); render(); return; }
     ui.swatches = null; ui.scene = null; ui.picks = [];
     msgs.push(t("at_collect_ok", { n: r.mats.length }));
     if (r.newColors.length) msgs.push(t("at_new_colors", { names: r.newColors.map(function (id) { return loc(colorOf(id).name); }).join("、") }));
     if (r.daily) { msgs.push(t("at_daily_hit", { n: D.DAILY_EXP })); say("daily"); }
+    else if (r.rainbow) { msgs.push(t("at_rainbow_got")); say("rainbow"); }
+    else if (r.harmony) say("harmony");
+    ui.harmony = null; ui.rainbow = false;
     ui.msg = msgs.join("　");
     ideas(); persist(); render();
   }
@@ -460,7 +552,7 @@
     if (b.id === "at-finish" && s && s.challenge) {
       var cr = C.finishChallenge(save, s, now());
       if (cr.error) { ui.msg = t("at_err_" + cr.error); render(); return; }
-      ui.challengeResult = cr; ui.session = null; persist(); render(); return;
+      ui.challengeResult = cr; ui.session = null; ideas(); persist(); render(); return;
     }
     if (b.id === "at-challenge-close") { ui.challengeResult = null; render(); return; }
     if (b.id === "at-weekly-start") {
@@ -481,6 +573,26 @@
     }
     if (b.id === "at-replay-close") { stopReplay(); ui.replay = null; render(); return; }
     if (d.atMake) { if (C.makeCatalyst(save, d.atMake)) { say("upgrade"); persist(); } render(); return; }
+    if (b.id === "at-filter") { ui.filter = !ui.filter; ui.swatches = null; render(); return; }
+    if (d.atPage) { ui.page = d.atPage; ui.region = null; render(); return; }
+    if (d.atRegion) { ui.region = d.atRegion; render(); return; }
+    if (d.atPaint) {
+      var pr = C.colorRegion(save, ui.page, ui.region, +d.atPaint);
+      if (pr.error) ui.msg = t("at_err_" + pr.error);
+      else {
+        ui.region = null; ui.msg = "";
+        if (pr.done) { say("page_done"); addMsg(t("at_page_done", { name: loc(C.page(ui.page).name), exp: D.PAGE_REWARD.exp, ash: D.PAGE_REWARD.ash })); }
+        ideas(); persist();
+      }
+      render(); return;
+    }
+    if (d.atSell) {
+      var price = C.sell(save, +d.atSell, now());
+      if (price !== null) { ui.msg = t("at_sold", { n: price }); say("sold"); ideas(); persist(); }
+      render(); return;
+    }
+    if (d.atBuycat) { if (C.buyCatalyst(save, d.atBuycat)) { say("upgrade"); persist(); } render(); return; }
+    if (b.id === "at-buy-basket") { if (C.buyBasket(save, now())) persist(); render(); return; }
     if (b.id === "at-finish") {
       var item = C.finishSynthesis(save, s, ui.traits, now());
       if (item.error) { ui.msg = t("at_err_" + item.error); render(); return; }
@@ -520,6 +632,12 @@
     if (x.id === "at-catalyst") { ui.catalyst = x.value; render(); return; }
     if (x.id === "at-catalyst-el") { ui.catalystEl = x.value; render(); return; }
     if (x.id === "at-advanced") { C.setAdvanced(save, x.checked); persist(); render(); return; }
+    if (x.id === "at-title-select") { C.setTitle(save, x.value); persist(); render(); return; }
+    if (x.dataset.atDeco !== undefined) {
+      var re = C.setDeco(save, +x.dataset.atDeco, x.value || null);
+      if (re) { say(re === "like" ? "deco_like" : re === "dislike" ? "deco_dislike" : "deco_ok"); persist(); }
+      render(); return;
+    }
     if (x.dataset.atSlot !== undefined) { ui.slots[+x.dataset.atSlot] = x.value ? +x.value : undefined; render(); return; }
     if (x.dataset.atSub) {
       var u = +x.dataset.atSub, k = ui.subs.indexOf(u);
@@ -535,7 +653,10 @@
   window.addEventListener("i18n:change", render);
   setInterval(function () { if (ui.tab === "gather" || (ui.tab === "lab" && !ui.session)) { if (!CAM.isOpen()) render(); } }, 30000);
 
+  var visit = C.dailyVisit(save, now());                                       // §10.5 每天第一次開啟
+  if (visit && visit.aff > 0) { say("visit"); ui.msg = t("at_visit", { n: visit.aff }); }
   ideas();
+  persist();
   window.PriTestAtelier = { _debugState: function () { return save; }, _debugUi: function () { return ui; } };
   render();
 })();
