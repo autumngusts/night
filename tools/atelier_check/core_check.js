@@ -122,4 +122,82 @@ test("採集籃：每次消耗 1，用完不能採；20 分回復 1，不超過�
   assert(s.seen.akane || s.seen.beni || Object.keys(s.seen).length === 1);
 });
 
+// ---------- 棋盤 ----------
+function session(mats, ability) {
+  return Board.create(C.recipe("heal"), mats, D.CAULDRONS.copper, ability || {});
+}
+
+test("棋盤：銅之大釜 5×5，色格與加成格依 pattern", function () {
+  var s = session([mat(1, "wind", "plant", [[0, 0]])]);
+  assert.strictEqual(s.size, 5);
+  assert.deepStrictEqual(s.cells[0], { color: "fire", bonus: false });
+  assert.deepStrictEqual(s.cells[2], { color: null, bonus: true });
+  assert.deepStrictEqual(s.cells[6], { color: "fire", bonus: true });
+});
+
+test("放置：超出邊界或重複放置不行", function () {
+  var s = session([mat(1, "wind", "plant", [[0, 0], [1, 0]])]);
+  assert.strictEqual(Board.canPlace(s, 0, 4, 0, 0), false);
+  assert.strictEqual(Board.canPlace(s, 0, 4, 0, 1), true);     // 旋轉後變直的就放得下
+  assert(Board.place(s, 0, 3, 0, 0).ok);
+  assert.strictEqual(Board.place(s, 0, 0, 0, 0).ok, false);
+});
+
+test("量表：一般格 power、同色格 ×2、加成格 +2／同色 +4", function () {
+  // (0,4) 是風色格 w；(1,3) 是風色加成格 W；(1,1) 是火色加成格 F
+  var s = session([mat(1, "wind", "plant", [[0, 0]], 50, 2), mat(2, "wind", "plant", [[0, 0]], 50, 2),
+    mat(3, "wind", "plant", [[0, 0]], 50, 2), mat(4, "wind", "plant", [[0, 0]], 50, 2)]);
+  Board.place(s, 0, 1, 0, 0);   // 一般格：2
+  Board.place(s, 1, 0, 4, 0);   // 同色格：2+2＝4
+  Board.place(s, 2, 1, 3, 0);   // 同色加成格：2+2+4＝8
+  Board.place(s, 3, 1, 1, 0);   // 異色加成格：2+2＝4
+  var ev = Board.evaluate(s, false);
+  assert.strictEqual(ev.gauges.wind, 2 + 4 + 8 + 4);
+  assert.strictEqual(ev.covered, 4);
+});
+
+test("瑠璃的能力：同色格每格再 +1", function () {
+  var s = session([mat(1, "wind", "plant", [[0, 0]], 50, 2)], { matchBonus: 1 });
+  Board.place(s, 0, 0, 4, 0);
+  assert.strictEqual(Board.evaluate(s, false).gauges.wind, 5);
+});
+
+test("覆蓋：被蓋掉的格子不再計算；完全被蓋掉的素材 visible＝0；Undo 還原", function () {
+  var s = session([mat(1, "fire", "mineral", [[0, 0]]), mat(2, "wind", "plant", [[0, 0], [1, 0]])]);
+  Board.place(s, 0, 1, 0, 0);
+  var info = Board.place(s, 1, 0, 0, 0);
+  assert.strictEqual(info.overwritten, 1);
+  var ev = Board.evaluate(s, false);
+  assert.strictEqual(ev.visible[0], 0);
+  assert.strictEqual(ev.gauges.fire, 0);
+  assert(Board.undo(s));
+  assert.strictEqual(Board.evaluate(s, false).visible[0], 1);
+  assert.strictEqual(s.placed[1], false);
+});
+
+test("最後一推：佔比最多的屬性 × 佔比 × 0.5", function () {
+  var s = session([mat(1, "wind", "plant", [[0, 0], [1, 0], [2, 0]], 50, 2), mat(2, "fire", "mineral", [[0, 0]], 50, 2)]);
+  Board.place(s, 0, 1, 2, 0);    // (1,2) 一般、(2,2) 靈色格（異色）、(3,2) 一般 → 6
+  Board.place(s, 1, 0, 1, 0);    // (0,1) 一般 → 2
+  var ev = Board.evaluate(s, true);
+  assert.strictEqual(ev.dominant, "wind");
+  assert.strictEqual(ev.push, Math.round(6 * 0.75 * D.FINAL_PUSH_RATE));
+  assert.strictEqual(ev.gauges.wind, 6 + ev.push);
+});
+
+test("品質：看得到的素材平均＋每格 × 釜的品質上升率", function () {
+  var s = session([mat(1, "wind", "plant", [[0, 0], [1, 0]], 40), mat(2, "wind", "plant", [[0, 0]], 60)]);
+  Board.place(s, 0, 1, 2, 0);
+  Board.place(s, 1, 0, 0, 0);
+  assert.strictEqual(Board.evaluate(s, true).quality, Math.round(50 + 0.6 * 3));
+});
+
+test("預覽不改動 session", function () {
+  var s = session([mat(1, "wind", "plant", [[0, 0]])]);
+  var p = Board.preview(s, 0, 0, 4, 0);
+  assert.strictEqual(p.after.gauges.wind > p.before.gauges.wind, true);
+  assert.strictEqual(s.placed[0], false);
+  assert.strictEqual(s.owner[20], -1);
+});
+
 console.log("\n" + passed + " passed");
