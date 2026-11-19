@@ -1,5 +1,5 @@
 // 煉金術士（atelier）第 4 階段 Playwright 流程檢查：
-//   彩虹條紋照片（虹、配色、季節色彩祭）→ 四色照片 → 繪本「金魚」填完（經驗、稱號「繪本畫家」）
+//   彩虹條紋照片（虹、配色、季節色彩祭）→ 兩張兩色照片 → 繪本「金魚」填完（經驗、稱號「繪本畫家」）
 //   → 稱號顯示在頁首 → 裝飾繪本（瑠璃喜歡）→ 調和色彩墨水 → 店鋪賣出 → 語言切換 → 手機寬度 → 沒有 console error
 // 前置：py -3 generate.py ； py -3 -m http.server 8973 --directory dist
 // 執行：node tools/atelier_check/ui4_check.js
@@ -51,8 +51,9 @@ var KEY = "pritest-atelier-save-v1";
   assert(s.mats.filter(function (m) { return !m.rainbow; })[0].traits.indexOf("harmony") >= 0);
 
   // 四色照片 → 繪本「金魚」
-  await captureAll(["#1E50A2", "#3EB370", "#EE7800", "#D7003A"], 3);
-  await captureAll(["#1E50A2", "#3EB370", "#EE7800", "#D7003A"], 3);
+  // 每張只放 2 色並全部選取（4 色一張只能選 3 色，哪 3 色取決於 seed，會不穩定）
+  await captureAll(["#1E50A2", "#3EB370"], 2);
+  await captureAll(["#EE7800", "#D7003A"], 2);
   await tap('[data-at-tab="book"]');
   assert(await page.$("#at-book"));
   for (var region of ["water", "weed", "body", "tail"]) {
