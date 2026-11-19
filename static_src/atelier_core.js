@@ -229,6 +229,11 @@
       titles: {}, title: "", greatCount: 0 };
     Object.keys(def).forEach(function (k) { if (save[k] === undefined) save[k] = def[k]; });
     if (!save.cauldrons.copper) save.cauldrons.copper = 1;
+    Object.keys(HOSTS || {}).forEach(function (id) {                         // §11 第 5 階段
+      if (!save.hosts[id]) save.hosts[id] = { aff: 0, task: 0, tut: 0 };
+      if (save.hosts[id].tut === undefined) save.hosts[id].tut = 0;
+    });
+    if (!HOSTS || !HOSTS[save.host]) save.host = "ruri";
     return save;
   }
   function refillBasket(save, now) {
@@ -264,7 +269,8 @@
     var res = { mats: [], newColors: [], daily: false, streak: n, exp: 0 };
     swatches.forEach(function (s) {
       var hit = isDailyHit(s.rgb, now);
-      var m = makeMaterial(s, now, save.nextUid++, { wb: wb, streakBonus: streakBonus(n), daily: hit, harmony: !!extra.harmony });
+      var m = makeMaterial(s, now, save.nextUid++, { wb: wb, streakBonus: streakBonus(n) + (host(save).ability.captureQuality || 0),
+        daily: hit, harmony: !!extra.harmony });
       save.mats.push(m);
       if (!save.seen[m.colorId]) { save.seen[m.colorId] = true; res.newColors.push(m.colorId); res.exp += D.DEX_EXP; }
       if (hit && save.daily.date !== today) { save.daily = { date: today }; res.daily = true; res.exp += D.DAILY_EXP; }
@@ -432,6 +438,15 @@
   function recipesFor(save, now) { return D.RECIPES.filter(function (r) { return recipeAvailable(save, r, now); }); }
   function slotOk(need, mat) { return need === "*" || need === mat.category; }
 
+  // ---------- 第 5 階段：工房主人（§11.1） ----------
+  function hostUnlocked(save, id) { var h = HOSTS[id]; return !!h && (!h.unlock || level(save) >= h.unlock.lv); }
+  function setHost(save, id) {
+    if (!hostUnlocked(save, id)) return false;
+    save.host = id;
+    if (!save.hosts[id]) save.hosts[id] = { aff: 0, task: 0, tut: 0 };
+    return true;
+  }
+
   // ---------- 第 3 階段：進階棋盤、觸媒（§9.1） ----------
   function advancedOn(save) { return level(save) >= D.ADVANCED_LV && !!save.settings.advanced; }
   function setAdvanced(save, on) { save.settings.advanced = !!on; }
@@ -463,16 +478,38 @@
   function greatChance(save, session, ev) {
     ev = ev || methods[session.method].evaluate(session, true);
     var all = effectLevels(session.recipe, ev.gauges).every(function (e) { return e.level >= 1; });
-    return D.GREAT_BASE + save.hosts[save.host].aff * D.GREAT_PER_AFF + (all ? D.GREAT_ALL_LV : 0);
+    return D.GREAT_BASE + save.hosts[save.host].aff * D.GREAT_PER_AFF + (all ? D.GREAT_ALL_LV : 0) + ((session.ability || {}).greatBonus || 0);
   }
   // ---------- C7 瑠璃出手（§9.4） ----------
+  // 調和方式有自己的 bestPlacement 就用它；否則用 options＋preview 計分（與棋盤相同的分數）
+  function placementScore(session, ev) {
+    var score = ev.quality / 1000;
+    session.recipe.gauges.forEach(function (g) {
+      var top = g.steps[g.steps.length - 1].at, v = ev.gauges[g.el], lv = 0;
+      g.steps.forEach(function (st, i) { if (v >= st.at) lv = i + 1; });
+      score += lv * 10 + Math.min(v, top) / top;
+    });
+    return score;
+  }
+  function bestPlacement(session, mi) {
+    var impl = methods[session.method];
+    if (impl.bestPlacement) return impl.bestPlacement(session, mi);
+    var best = null;
+    impl.options(session, mi).forEach(function (o) {
+      var pv = impl.preview(session, mi, o[0], o[1], o[2]);
+      if (!pv) return;
+      var sc = placementScore(session, pv.after);
+      if (!best || sc > best.score) best = { x: o[0], y: o[1], rot: o[2], score: sc };
+    });
+    return best;
+  }
   function helpAvailable(save, session) {
     var impl = methods[session.method];
-    return save.hosts[save.host].aff >= D.HELP_AFF && !session.helped && !!impl.bestPlacement && !impl.done(session);
+    return save.hosts[save.host].aff >= D.HELP_AFF && !session.helped && !!(impl.bestPlacement || impl.options) && !impl.done(session);
   }
   function useHelp(save, session, mi) {
     if (!helpAvailable(save, session)) return null;
-    var impl = methods[session.method], bp = impl.bestPlacement(session, mi);
+    var impl = methods[session.method], bp = bestPlacement(session, mi);
     if (!bp) return null;
     var info = impl.place(session, mi, bp.x, bp.y, bp.rot);
     if (info.ok) session.helped = true;
@@ -784,7 +821,8 @@
     if (great) save.greatCount = (save.greatCount || 0) + 1;
     if (session.recipe.tool && effects.some(function (e) { return e.level >= 1; })) save.tools[session.recipe.tool] = true;   // §10.3
     var used = session.mats.map(function (m) { return m.uid; }), ash = 0;
-    session.mats.forEach(function (m, i) { ash += m.shape.length - ev.visible[i]; });   // C10：被蓋掉的格子變成灰燼
+    if (ev.lost !== undefined) ash = ev.lost;                                  // §11：循環派環滿後流掉的量
+    else session.mats.forEach(function (m, i) { ash += m.shape.length - ev.visible[i]; });   // C10：被蓋掉的格子變成灰燼
     if (item.quality < D.ASH_LOW_QUALITY) ash += D.ASH_FAIL_BONUS;
     item.ash = ash;
     save.ash += ash;
@@ -796,7 +834,8 @@
     save.cooldownUntil = now + D.COOLDOWN_MS;
     save.hosts[save.host].aff = Math.min(100, save.hosts[save.host].aff + D.AFF_PER_SYNTH);
     if (!save.best[item.recipe] || item.quality > save.best[item.recipe]) save.best[item.recipe] = item.quality;
-    if (save.tutorial < 3) save.tutorial++;
+    if (save.host === "ruri") { if (save.tutorial < 3) save.tutorial++; }
+    else if (save.hosts[save.host].tut < host(save).tutorial.length) save.hosts[save.host].tut++;
     return item;
   }
 
@@ -845,6 +884,7 @@
     displayed: displayed, decoOptions: decoOptions, decoTaste: decoTaste, setDeco: setDeco, dailyVisit: dailyVisit,
     hotElement: hotElement, priceOf: priceOf, sell: sell, buyCatalyst: buyCatalyst, buyBasket: buyBasket,
     titleMet: titleMet, checkTitles: checkTitles, setTitle: setTitle,
+    hostUnlocked: hostUnlocked, setHost: setHost, bestPlacement: bestPlacement, placementScore: placementScore,
     hexToRgb: hexToRgb, rgbToHex: rgbToHex, rgbToHsv: rgbToHsv, rgbToLab: rgbToLab, deltaE: deltaE,
     nearestColor: nearestColor, elementOf: elementOf, categoryOf: categoryOf,
     kmeans: kmeans, shapeFromGrid: shapeFromGrid, normalizeShape: normalizeShape, rotateShape: rotateShape, analyze: analyze,

@@ -298,6 +298,15 @@
         { id: "snow", group: "mono", rects: [[0, 1, 6, 1], [0, 5, 6, 1]] }
       ] }
     ],
+    // ---------- 第 5 階段（§11 工房主人與調和方式） ----------
+    HOST_ORDER: ["ruri", "akane", "sui", "shizuku", "kokuyou"],
+    RING_NODES: 8, RING_CAP: 4, RING_MATCH_MULT: 2, RING_CLOSE_BONUS: 2,
+    BREW_START: 20, BREW_MAX: 120, BREW_BOIL: 100, BREW_NEAR: 10,
+    BREW_HEATS: [-15, 10, 25],               // 加水／小火／大火
+    BREW_MAT_HEAT: { fire: 10, ice: -10 },
+    BREW_ZONES: { fire: [70, 100], bolt: [55, 85], wind: [40, 70], spirit: [25, 55], ice: [10, 40] },
+    PALETTE_MAX_PARTS: 3, PALETTE_GAUGE_DE: 25, PALETTE_QUALITY_DE: 30,
+    GRAVITY_LINE_BONUS: 3,
     // §10.8 稱號
     TITLES: [
       { id: "novice", cond: { made: 1 }, name: { zh: "見習煉金術士", ja: "見習い錬金術士", en: "Apprentice" } },

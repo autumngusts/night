@@ -2,7 +2,7 @@
 
 用相機採集真實世界的顏色，回到工房在色彩棋盤上調和道具（第 1 階段：瑠璃的工房）。
 static/atelier_data.js（數值）→ atelier_colors.js（傳統色）→ atelier_hosts.js（工房主人）
-→ atelier_core.js（規則）→ atelier_method_board.js（色彩棋盤）→ atelier_camera.js（取色）→ atelier.js（畫面、存檔）。
+→ atelier_core.js（規則）→ atelier_method_*.js（各工房主人的調和方式）→ atelier_camera.js（取色）→ atelier.js（畫面、存檔）。
 2026-11-19 依使用者需求新增；首頁 test 分頁只顯示、不能點，要自己輸入 /atelier 進入。
 """
 
@@ -16,6 +16,10 @@ ATELIER_SCRIPTS: tuple[str, ...] = (
     "atelier_hosts.js",
     "atelier_core.js",
     "atelier_method_board.js",
+    "atelier_method_ring.js",
+    "atelier_method_brew.js",
+    "atelier_method_palette.js",
+    "atelier_method_gravity.js",
     "atelier_camera.js",
     "atelier.js",
 )

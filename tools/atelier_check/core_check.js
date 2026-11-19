@@ -13,6 +13,9 @@ var C = require(path.join(SRC, "atelier_core.js"));
 global.PriTestAtelierCore = C;
 var Board = require(path.join(SRC, "atelier_method_board.js"));
 C.registerMethod("board", Board);
+// 2026-11-20 第 5 階段（§11）新增工房主人與調和方式：「資料完整性」會檢查每位工房主人的 method 都已登記，
+// 所以這裡也要載入其他調和方式（期望值不變，只是補上載入）。
+["ring", "brew", "palette", "gravity"].forEach(function (id) { C.registerMethod(id, require(path.join(SRC, "atelier_method_" + id + ".js"))); });
 var D = global.PriTestAtelierData;
 
 var passed = 0;
