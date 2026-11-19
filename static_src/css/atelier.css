@@ -13,7 +13,7 @@
 .at-bubble { grid-column: 1 / -1; margin: 0.25rem 0 0; padding: 0.6rem 0.8rem; background: #fff; border: 1px solid var(--at-line); border-radius: 10px; }
 .at-tutorial { border-color: var(--at-accent); border-width: 2px; }
 .at-tabs { display: flex; gap: 0.25rem; margin: 0.75rem 0; }
-.at-tabs button { flex: 1; }
+.at-tabs button { flex: 1; min-width: 0; padding: 0.45rem 0.2rem; white-space: nowrap; }
 .at-tabs .at-on { background: var(--at-soft); border-color: var(--at-accent); font-weight: bold; }
 .at-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
 .at-msg { padding: 0.4rem 0.6rem; background: var(--at-soft); border-radius: 8px; }
