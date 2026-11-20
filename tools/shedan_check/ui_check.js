@@ -426,10 +426,12 @@ async function smokeAllRelics(browser) {
     var card = await page.evaluate(function () {
       var h = document.querySelector('[data-i18n="project_shedan_name"]');
       var c = h && h.closest(".project-card");
-      return c ? { tag: c.tagName, nolink: c.classList.contains("project-card-nolink"), href: c.getAttribute("href") } : null;
+      var panel = c && c.closest(".home-tab-panel");
+      return c ? { tag: c.tagName, href: c.getAttribute("href"), tab: panel && panel.getAttribute("data-tab") } : null;
     });
-    assert.ok(card && card.nolink && card.tag === "DIV" && !card.href, "首頁卡片不能點 " + JSON.stringify(card));
-    console.log("ok - 首頁卡片不能點");
+    // 舊期望值「首頁卡片不能點」（2026-11-17 指定）已過時：2026-11-20 使用者指定移到「付款」分頁，輸入密碼後可以點
+    assert.ok(card && card.tag === "A" && card.href === "shedan/index.html" && card.tab === "pay", "首頁卡片在付款分頁 " + JSON.stringify(card));
+    console.log("ok - 首頁卡片在付款分頁");
   } finally {
     await browser.close();
   }
