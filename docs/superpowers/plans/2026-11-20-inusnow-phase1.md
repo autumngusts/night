@@ -137,7 +137,8 @@ Core.newSave() → save；Core.migrate(obj) → save
 **Files:** Create `static_src/inusnow_core.js`；Modify `tools/inusnow_check/core_check.js`
 
 - [ ] `makeGates`：沿雪道每 25～30 m 一座，左右交錯，側向偏移由 seed 決定，不超出雪道寬度的 35%。
-- [ ] `gateCheck`：這一步的移動線段和旗門橫線相交時，看交點在旗竿的哪一側，判定通過或漏門。
+- [ ] `gateCheck`：這一步的移動線段和旗門橫線相交時，看交點在旗竿的哪一側，判定通過或漏門；通過時回傳和旗竿的距離。
+- [ ] G4 完美旗門（設計 §4.1）：距離 < 0.5 m＝完美，給 `run.boost`（倍率與剩餘步數），`Phys.step` 的 env 帶入倍率；連續完美累加、普通通過歸零。數值放 `GATES.perfect`。
 - [ ] `newRun`／`stepRun`：起跑 3 秒倒數 → 滑行 → 通過終點線＝`finish`；漏門＝`dsq`；離開雪道 60 m 以上或停在原地 8 秒＝`dsq`；單趟超過 180 秒＝`dsq`。2 趟合計時，第 2 趟換一組旗門（seed＋1）。
 - [ ] `encode`／`decode`：每步輸入轉成 4 個小整數，行程長度編碼成 base36 字串。
 - [ ] `replay`：用同一份 opts 與紀錄重跑，回傳時間、狀態、每 2 步一格的位置（給幽靈用）。
@@ -147,6 +148,7 @@ Core.newSave() → save；Core.migrate(obj) → save
   - 寫一個簡單的自動駕駛（朝下一座旗門內側轉向）在八方跑完一趟 → `finish`，時間在 30～180 秒。
   - 把自動駕駛的輸入 `encode` 再 `replay` → 時間與最後位置完全相同。
   - 故意朝外側滑 → `dsq`。
+  - 完美旗門：把狗放在離旗竿 0.3 m 處通過 → `perfect`，速度倍率 ×1.03；接著 1.5 m 處通過 → 連續數歸零。
   - 8 個雪場各跑一次自動駕駛 → 全部能 `finish`（找出雪道或旗門配置不合理的雪場）。
 - [ ] Commit: `feat(inusnow): 大曲道旗門、比賽流程、輸入紀錄與重播`
 
@@ -178,7 +180,7 @@ Core.newSave() → save；Core.migrate(obj) → save
 **Files:** Modify `static_src/inusnow.js`、`static_src/css/inusnow.css`、`site_src/i18n_inusnow.py`；Create `tools/inusnow_check/ui_check.js`
 
 - [ ] 滿版畫面與「☰」導覽列（比照 shedan 設計 §1.1）。
-- [ ] 畫面：首頁（選雪場：名稱、縣、大曲道雪道的長度與高低差）→ 選犬種與名字 → 選 1 趟或 2 趟、有無幽靈 → 比賽（倒數、計時、速度、下一座旗門、通過數）→ 結果（時間、最佳紀錄、重播按鈕、分享紀錄碼）。
+- [ ] 畫面：首頁（選雪場：名稱、縣、大曲道雪道的長度與高低差）→ 選犬種與名字 → 選 1 趟或 2 趟、有無幽靈 → 比賽（倒數、計時、速度、下一座旗門、通過數、完美旗門的連續數與特效）→ 結果（時間、最佳紀錄、重播按鈕、分享紀錄碼）。
 - [ ] 載入畫面與「關於」顯示資料出處（設計 §2.1）。
 - [ ] 存檔：最佳紀錄與輸入紀錄存在 `best`；讀檔 try/catch。
 - [ ] `_debug`：`window.PriTestInusnowApp._debug = { state, autopilot(on), start(resort, opts) }`，給 Playwright 用。
@@ -203,7 +205,7 @@ Core.newSave() → save；Core.migrate(obj) → save
 |---|---|
 | §2 8 個雪場、OSM＋地理院、出處、雪道指南只確認事實 | 2、8 |
 | §3 單板物理、只用加減乘除與 sqrt、輸入紀錄 | 3、4、5 |
-| §4.1 大曲道：旗門、漏門失格、2 趟合計 | 5 |
+| §4.1 大曲道：旗門、漏門失格、2 趟合計、G4 完美旗門 | 5、8 |
 | §5.1 犬種 8 種 | 3、7 |
 | §7.1 自己的最佳幽靈 | 5、7、8 |
 | §10 three.js、鏡頭、拖曳／陀螺儀／鍵盤、滿版 | 6、7、8 |
