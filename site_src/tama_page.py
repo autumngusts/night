@@ -21,6 +21,7 @@ def build_tama_html() -> str:
     </div>
 """
     return page_shell(
+        paid=True,
         title="百鬼轉珠",
         body=body,
         static_prefix="../static/",

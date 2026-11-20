@@ -184,6 +184,18 @@ characters/index.html?game=<id>
 
 進入頁面。
 
+## 4.3.1 「付款」分頁的遊戲（2026-11-20 起）
+
+tama、kyuka、shedan、atelier 在首頁的「付款」分頁，頁面本身也會先用 `window.prompt` 問密碼
+（`nightnight`，`site_src/layout.py` 的 `PAY_PASSWORD`），答錯或沒處理 dialog 就會被導回首頁。
+Playwright 測試在開頁前先寫入解鎖旗標：
+
+```js
+await page.addInitScript(function () { localStorage.setItem("pritest-pay-unlocked", "1"); });
+```
+
+新遊戲要放進付款分頁時：`projects.py` 的 `pay` 分頁加入 id，頁面的 `page_shell(...)` 加上 `paid=True`。
+
 ## 4.4 不要手工建立不完整 state
 
 不要在第一次載入頁面前直接寫入：

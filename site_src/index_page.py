@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from site_src.layout import page_shell
+from site_src.layout import PAY_PASSWORD, PAY_STORAGE_KEY, page_shell
 from site_src.projects import PROJECT_TABS, PROJECTS
 
 _PROJECTS_BY_ID = {project["id"]: project for project in PROJECTS}
 
 # 標籤切換：一開始全部隱藏；按下標籤顯示該組，再按一次同一標籤則收起。
 _TAB_SCRIPT = """    <script>
+    var PAY_PASSWORD = "__PAY_PASSWORD__", PAY_KEY = "__PAY_KEY__";
     (function () {
       var tabs = document.querySelectorAll(".home-tab");
       var panels = document.querySelectorAll(".home-tab-panel");
@@ -24,9 +25,19 @@ _TAB_SCRIPT = """    <script>
         }
         hint.hidden = !!id;
       }
+      // 付款分頁：沒解鎖就先問密碼，對了記在這台裝置上
+      function payUnlocked() {
+        try { return localStorage.getItem(PAY_KEY) === "1"; } catch (e) { return false; }
+      }
       for (var k = 0; k < tabs.length; k++) {
         tabs[k].addEventListener("click", function () {
           var id = this.getAttribute("data-tab");
+          if (this.hasAttribute("data-paid") && !this.classList.contains("is-active") && !payUnlocked()) {
+            var input = window.prompt(window.I18N.t("home_pay_prompt"));
+            if (input === null) return;
+            if (input !== PAY_PASSWORD) { window.alert(window.I18N.t("home_pay_wrong")); return; }
+            try { localStorage.setItem(PAY_KEY, "1"); } catch (e) {}
+          }
           show(this.classList.contains("is-active") ? null : id);
         });
       }
@@ -56,7 +67,7 @@ def _tab_button(tab: dict) -> str:
     )
     return (
         f'      <button type="button" class="home-tab" role="tab" aria-selected="false" '
-        f'data-tab="{tab["id"]}" {label}</button>'
+        f'data-tab="{tab["id"]}"{" data-paid" if tab.get("paid") else ""} {label}</button>'
     )
 
 
@@ -76,7 +87,7 @@ def build_index_html() -> str:
     </div>
     <p id="home-tab-hint" class="home-tab-hint" data-i18n="home_tab_hint"></p>
 {panels}
-{_TAB_SCRIPT}"""
+{_TAB_SCRIPT.replace("__PAY_PASSWORD__", PAY_PASSWORD).replace("__PAY_KEY__", PAY_STORAGE_KEY)}"""
 
     return page_shell(
         title="PriTest",

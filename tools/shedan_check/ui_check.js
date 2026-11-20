@@ -22,6 +22,8 @@ async function waitPhase(page, phase, ms) {
 
 async function checkViewport(browser, vp, tag) {
   var page = await browser.newPage({ viewport: vp });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
@@ -125,6 +127,8 @@ async function checkViewport(browser, vp, tag) {
 // 30 人煙霧測試：每 4 人一組開戰，每一發都墊滿量表並發動技能，跑完一輪（4 發＋敵人回合），不能有 console error
 async function smokeAllHeroes(browser) {
   var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
@@ -158,6 +162,8 @@ async function smokeAllHeroes(browser) {
 // 6 種戰場（星區 1～3、Boss 1～3）各跑一輪（每發發動技能），換 3 個種子；Boss 戰要有本體與部位
 async function smokeArenas(browser) {
   var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
@@ -195,6 +201,8 @@ async function smokeArenas(browser) {
 // 一整局遠征（全部透過畫面按鈕）：戰鬥用 debug 強制勝利，其他節點選第一個能按的選項；走到通關，沒有 console error
 async function smokeRun(browser, seed) {
   var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
@@ -248,6 +256,8 @@ async function smokeRun(browser, seed) {
 // 第 5 階段：星艦據點解鎖、存檔續玩（地圖中／戰鬥中重新整理）、每日星圖、難度選擇、遠征結束給星塵
 async function checkMeta(browser) {
   var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
@@ -302,6 +312,8 @@ async function checkMeta(browser) {
 
   // 每日星圖：只有初始 8 人、出發後 run.daily = 今天、難度 0
   var p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await p2.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   p2.on("pageerror", function (e) { errors.push(String(e)); });
   await p2.goto(BASE);
   await p2.waitForSelector('[data-act="mode-daily"]');
@@ -319,6 +331,8 @@ async function checkMeta(browser) {
 
   // 一整局（debug 開局、畫面操作）結束 → 星塵增加、存檔刪除、難度 1 解鎖
   var p3 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await p3.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   p3.on("pageerror", function (e) { errors.push(String(e)); });
   await p3.goto(BASE);
   await p3.waitForSelector(".sd-pick-card");
@@ -363,6 +377,8 @@ async function playRun(page, seed) {
 // 100 件遺物同時持有：在 4 種戰場各打一輪（每發發動技能），不能有 console error
 async function smokeAllRelics(browser) {
   var page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
@@ -404,6 +420,8 @@ async function smokeAllRelics(browser) {
     await smokeAllHeroes(browser);
     await smokeArenas(browser);
     var page = await browser.newPage();
+    // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+    await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
     await page.goto(ROOT + "index.html");
     var card = await page.evaluate(function () {
       var h = document.querySelector('[data-i18n="project_shedan_name"]');

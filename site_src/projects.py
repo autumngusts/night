@@ -201,32 +201,28 @@ PROJECTS = [
         "href": "tama/index.html",
         "name_key": "project_tama_name",
         "desc_key": "project_tama_desc",
-        # 使用者指定 2026-11-16：只在 test 分頁顯示、不能點進去，要自己在網址列輸入 /tama 進入
-        "link": False,
+        # 使用者指定 2026-11-20：移到「付款」分頁，輸入密碼後才看得到、可以點
     },
     {
         "id": "kyuka",
         "href": "kyuka/index.html",
         "name_key": "project_kyuka_name",
         "desc_key": "project_kyuka_desc",
-        # 使用者指定 2026-11-16：試作頁比照百鬼轉珠，只顯示、不能點，要自己輸入 /kyuka 進入
-        "link": False,
+        # 使用者指定 2026-11-20：移到「付款」分頁，輸入密碼後才看得到、可以點
     },
     {
         "id": "shedan",
         "href": "shedan/index.html",
         "name_key": "project_shedan_name",
         "desc_key": "project_shedan_desc",
-        # 使用者指定 2026-11-17：test 分頁只顯示、不能點，要自己輸入 /shedan 進入
-        "link": False,
+        # 使用者指定 2026-11-20：移到「付款」分頁，輸入密碼後才看得到、可以點
     },
     {
         "id": "atelier",
         "href": "atelier/index.html",
         "name_key": "project_atelier_name",
         "desc_key": "project_atelier_desc",
-        # 使用者指定 2026-11-19：先在 PriTest 試作，test 分頁只顯示、不能點，要自己輸入 /atelier 進入
-        "link": False,
+        # 使用者指定 2026-11-20：移到「付款」分頁，輸入密碼後才看得到、可以點
     },
 ]
 
@@ -238,6 +234,8 @@ PROJECT_TABS = [
     {"id": "v1_0j", "label": "v1.0j", "projects": ("utau",)},
     {"id": "v1_5", "label": "v1.5", "projects": ("yukimura", "reiwa", "jomon", "starv", "wanren", "jikan", "denshi")},
     {"id": "v2_0", "label": "v2.0", "projects": ("sennyu", "ennichi")},
-    {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone", "tama", "kyuka", "shedan", "atelier")},
+    {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone")},
+    # 使用者指定 2026-11-20：11-12 之後新完成的遊戲放「付款」分頁，輸入 nightnight 才顯示（遊戲頁本身也會要求，見 layout.page_shell(paid=True)）
+    {"id": "pay", "label_key": "home_tab_pay", "paid": True, "projects": ("tama", "kyuka", "shedan", "atelier")},
     {"id": "abandoned", "label_key": "home_tab_abandoned", "projects": ("fist", "zombie", "natsu")},
 ]

@@ -20,6 +20,7 @@ def build_kyuka_html() -> str:
     </div>
 """
     return page_shell(
+        paid=True,
         title="九華",
         body=body,
         static_prefix="../static/",

@@ -36,6 +36,7 @@ def build_shedan_html() -> str:
     </div>
 """
     return page_shell(
+        paid=True,
         title="射彈宇宙",
         body=body,
         static_prefix="../static/",

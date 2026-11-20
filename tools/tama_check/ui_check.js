@@ -22,6 +22,8 @@ function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   var browser = await chromium.launch();
   var page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });

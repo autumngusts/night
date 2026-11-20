@@ -31,6 +31,7 @@ def build_atelier_html() -> str:
     </div>
 """
     return page_shell(
+        paid=True,
         title="煉金術士",
         body=body,
         static_prefix="../static/",

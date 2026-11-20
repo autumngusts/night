@@ -14,6 +14,8 @@ var BASE = (process.env.ATELIER_ROOT || "http://localhost:8973/") + "atelier/ind
 (async function () {
   var browser = await chromium.launch();
   var page = await browser.newPage({ viewport: { width: 375, height: 800 } }), errors = [];
+  // 2026-11-20 起這個遊戲在「付款」分頁，頁面會先問密碼；測試前先寫入解鎖旗標（layout.PAY_STORAGE_KEY）
+  await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
   async function state() { return page.evaluate(function () { return JSON.parse(JSON.stringify(window.PriTestAtelier._debugState())); }); }
