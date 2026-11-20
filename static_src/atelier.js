@@ -247,6 +247,7 @@
       var idx = y * s.size + x, cell = s.cells[idx], o = s.owner[idx], cls = "at-cell";
       var bg = cell.color ? el(cell.color).color : "";
       var inner = cell.color ? el(cell.color).icon : "";
+      if (!cell.color) cls += " at-plain";
       if (cell.bonus) cls += " at-bonus";
       if (o >= 0) { cls += " at-filled"; bg = s.mats[o].hex; inner = el(s.mats[o].element).icon; }
       if (ghostSet[x + "," + y]) cls += " at-ghost";
