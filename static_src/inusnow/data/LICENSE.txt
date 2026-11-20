@@ -1,0 +1,17 @@
+イヌスノー（狗雪）雪場資料 static/inusnow/data/*.json
+
+這些檔案是由 tools/inusnow_data/fetch.py 從下列公開資料轉換而成的衍生資料。
+
+1. 雪道、纜車的路線、名稱與難度
+   © OpenStreetMap contributors
+   以 Open Database License（ODbL）1.0 提供：https://opendatacommons.org/licenses/odbl/
+   本資料夾中由 OpenStreetMap 衍生的資料，同樣以 ODbL 1.0 提供。
+   https://www.openstreetmap.org/copyright
+
+2. 地形高度
+   出典：国土地理院 標高タイル（DEM5A、DEM10B）
+   https://maps.gsi.go.jp/development/ichiran.html
+   經過重新取樣（10 m 格網）、雪道外的區域降低解析度等加工。
+
+雪場與雪道名稱只用於標示地點，與各雪場無關，也不代表各雪場的認可。
+雪道形狀與高低來自上述公開資料，和實際雪場可能有差異。
