@@ -1,0 +1,302 @@
+/* イヌスノー（狗雪）規則核心（docs/inusnow_design.md §3.4、§4.1、§13）：旗門、比賽流程、輸入紀錄、重播、存檔格式。
+   不碰 DOM、不讀寫 localStorage；只用 + − × ÷、Math.sqrt、Math.floor、Math.abs、Math.imul（設計 §11）。 */
+(function (root) {
+  "use strict";
+
+  var D = root.PriTestInusnowData || (typeof require === "function" ? require("./inusnow_data.js") : null);
+  var T = root.PriTestInusnowTerrain || (typeof require === "function" ? require("./inusnow_terrain.js") : null);
+  var Phys = root.PriTestInusnowPhys || (typeof require === "function" ? require("./inusnow_phys.js") : null);
+  var G = D.GATES;
+
+  // ---------------- 亂數 ----------------
+  function hash(str) {
+    var h = 2166136261 >>> 0;
+    str = String(str);
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+  }
+  // mulberry32（整數運算）
+  function makeRng(seed) {
+    var a = (typeof seed === "number" ? seed : hash(seed)) >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------------- 旗門 ----------------
+  // 每座旗門：轉彎旗竿 I（離雪道中心 side×off）與外側旗竿 O（再往外 G.width）。
+  // side：+1＝旗門在中心線右側；color 交替（0 紅、1 藍）。
+  function makeGates(terrain, pisteId, seed) {
+    var pi = T.piste(terrain, pisteId);
+    var rng = makeRng(seed);
+    var gates = [];
+    var s = G.first;
+    var side = rng() < 0.5 ? -1 : 1;
+    var finishS = pi.len - G.finishMargin;
+    while (s < finishS - G.endMargin) {
+      var a = T.at(pi, s);
+      var off = pi.width * (G.offsetMin + (G.offsetMax - G.offsetMin) * rng());
+      if (off > pi.width * G.maxOffset) off = pi.width * G.maxOffset;
+      var rx = -a.tz, rz = a.tx;              // 行進方向的右側
+      var ix = a.x + rx * side * off, iz = a.z + rz * side * off;
+      gates.push({
+        n: gates.length, s: s, side: side, color: gates.length % 2,
+        ix: ix, iz: iz, ox: ix + rx * side * G.width, oz: iz + rz * side * G.width,
+        tx: a.tx, tz: a.tz,
+      });
+      side = -side;
+      s += G.spacingMin + (G.spacingMax - G.spacingMin) * rng();
+    }
+    return gates;
+  }
+
+  // 這一步的移動（a→b）有沒有越過旗門所在的橫線；越過時看交點在兩根旗竿之間（通過）或外面（漏門）。
+  // 回傳 null（還沒到）或 {r: "pass"|"miss", dist: 和轉彎旗竿的距離}
+  function gateCheck(ax, az, bx, bz, gate) {
+    var ua = (ax - gate.ix) * gate.tx + (az - gate.iz) * gate.tz;
+    var ub = (bx - gate.ix) * gate.tx + (bz - gate.iz) * gate.tz;
+    if (!(ua < 0 && ub >= 0)) return null;
+    var ox = (gate.ox - gate.ix) / G.width, oz = (gate.oz - gate.iz) / G.width;   // I→O 的單位向量
+    var la = (ax - gate.ix) * ox + (az - gate.iz) * oz;
+    var lb = (bx - gate.ix) * ox + (bz - gate.iz) * oz;
+    var lat = la + (lb - la) * (-ua) / (ub - ua);
+    if (lat >= 0 && lat <= G.width) return { r: "pass", dist: lat };
+    return { r: "miss", dist: lat };
+  }
+
+  // ---------------- 比賽 ----------------
+  // opts：{piste, seed, dog, snow, runNo}
+  function newRun(terrain, opts) {
+    var pi = T.piste(terrain, opts.piste);
+    var a = T.at(pi, G.startS);
+    var gates = makeGates(terrain, opts.piste, (opts.seed >>> 0) + (opts.runNo || 0));
+    var fin = T.at(pi, pi.len - G.finishMargin);
+    return {
+      terrain: terrain, opts: opts, piste: pi, gates: gates,
+      finish: { x: fin.x, z: fin.z, tx: fin.tx, tz: fin.tz },
+      st: Phys.create(terrain, a, opts.dog),
+      next: 0, perfect: 0, chain: 0, still: 0, near: null,
+      status: "run", reason: null, missGate: -1, steps: 0, inputs: [], events: [],
+    };
+  }
+
+  function boostMult(chain) {
+    var pf = G.perfect;
+    var m = pf.mult + pf.chainStep * (chain - 1);
+    return m > pf.chainMax ? pf.chainMax : m;
+  }
+
+  function stepRun(run, input) {
+    if (run.status !== "run") return run.status;
+    var inp = { s: input.s | 0, c: input.c ? 1 : 0, j: input.j ? 1 : 0, g: input.g | 0 };
+    if (inp.s > 8) inp.s = 8; else if (inp.s < -8) inp.s = -8;
+    run.inputs.push(inp);
+    var st = run.st;
+    var ax = st.p[0], az = st.p[2];
+    var ev = Phys.step(st, inp, { terrain: run.terrain, snow: run.opts.snow });
+    run.steps += 1;
+    var bx = st.p[0], bz = st.p[2];
+    for (var e = 0; e < ev.length; e++) run.events.push({ k: run.steps, e: ev[e] });
+
+    // 旗門
+    if (run.next < run.gates.length) {
+      var gate = run.gates[run.next];
+      var r = gateCheck(ax, az, bx, bz, gate);
+      if (r) {
+        if (r.r === "miss") {
+          run.status = "dsq"; run.reason = "miss"; run.missGate = run.next + 1;
+          return run.status;
+        }
+        if (r.dist < G.perfect.dist) {
+          run.chain += 1; run.perfect += 1;
+          var mul = boostMult(run.chain);
+          st.v[0] *= mul; st.v[1] *= mul; st.v[2] *= mul;
+          run.events.push({ k: run.steps, e: "perfect", n: run.chain });
+        } else {
+          run.chain = 0;
+          run.events.push({ k: run.steps, e: "gate" });
+        }
+        run.next += 1;
+      }
+    }
+    // 終點
+    var f = run.finish;
+    var fa = (ax - f.x) * f.tx + (az - f.z) * f.tz, fb = (bx - f.x) * f.tx + (bz - f.z) * f.tz;
+    if (fa < 0 && fb >= 0 && run.next >= run.gates.length) {
+      // 用越線的比例補到步內的時間
+      run.time = (run.steps - 1 + (-fa) / (fb - fa)) / D.PHYS.hz;
+      run.status = "finish";
+      return run.status;
+    }
+    // 離開雪道、停住、超時
+    run.near = T.nearest(run.piste, bx, bz, run.near ? run.near.i : null);
+    if (Math.abs(run.near.d) > run.piste.width / 2 + G.offCourse) { run.status = "dsq"; run.reason = "off"; return run.status; }
+    if (Phys.speed(st) < G.stopSpeed) run.still += 1; else run.still = 0;
+    if (run.still > G.stopSec * D.PHYS.hz) { run.status = "dsq"; run.reason = "stop"; return run.status; }
+    if (run.steps > G.maxSec * D.PHYS.hz) { run.status = "dsq"; run.reason = "time"; return run.status; }
+    return run.status;
+  }
+
+  // ---------------- 自動駕駛（測試、開發面板；第 2 階段的 CPU 也用它） ----------------
+  // 路線＝出發點 → 每座旗門的通過點（轉彎旗竿往外 want 公尺）→ 終點後方。用 pure pursuit 沿路線往前看 L 公尺，
+  // 把需要的曲率換算成轉向輸入。aggr：0～1，越大越貼旗竿（want 越小）。
+  function racingLine(run, aggr) {
+    var key = "a" + aggr;
+    if (run._line && run._line.key === key) return run._line;
+    var want = 1.2 + (1 - aggr) * 2.4;
+    var st = run.st, pts = [[st.p[0], st.p[2]]];
+    for (var i = 0; i < run.gates.length; i++) {
+      var g = run.gates[i], ox = (g.ox - g.ix) / G.width, oz = (g.oz - g.iz) / G.width;
+      pts.push([g.ix + ox * want, g.iz + oz * want]);
+    }
+    var f = run.finish;
+    pts.push([f.x, f.z]);
+    pts.push([f.x + f.tx * 40, f.z + f.tz * 40]);
+    run._line = { key: key, pts: pts, seg: 0 };
+    return run._line;
+  }
+
+  function autopilot(run, aggr) {
+    if (aggr === undefined) aggr = 0.6;
+    var line = racingLine(run, aggr), pts = line.pts;
+    var st = run.st, p = st.p, v = st.v;
+    var vh = Math.sqrt(v[0] * v[0] + v[2] * v[2]);
+    // 目前所在的線段：投影超過線段終點就往下一段（不回頭）
+    while (line.seg < pts.length - 2) {
+      var a = pts[line.seg], b = pts[line.seg + 1];
+      var dx = b[0] - a[0], dz = b[1] - a[1];
+      var u = ((p[0] - a[0]) * dx + (p[2] - a[1]) * dz) / (dx * dx + dz * dz);
+      if (u < 1) break;
+      line.seg += 1;
+    }
+    // 旗門已經通過時，路線至少要從那座旗門之後開始
+    if (line.seg < run.next) line.seg = run.next;
+    // 往前看 L 公尺
+    var L = 4 + vh * 0.32;
+    var k = line.seg, a0 = pts[k], b0 = pts[k + 1];
+    var sdx = b0[0] - a0[0], sdz = b0[1] - a0[1], sl = Math.sqrt(sdx * sdx + sdz * sdz) || 1;
+    var u0 = ((p[0] - a0[0]) * sdx + (p[2] - a0[1]) * sdz) / sl;
+    if (u0 < 0) u0 = 0;
+    var remain = L, tx = 0, tz = 0, pos = u0;
+    while (true) {
+      a0 = pts[k]; b0 = pts[k + 1];
+      sdx = b0[0] - a0[0]; sdz = b0[1] - a0[1]; sl = Math.sqrt(sdx * sdx + sdz * sdz) || 1;
+      if (pos + remain <= sl || k >= pts.length - 2) {
+        var uu = (pos + remain) / sl;
+        tx = a0[0] + sdx * uu; tz = a0[1] + sdz * uu;
+        break;
+      }
+      remain -= sl - pos; pos = 0; k += 1;
+    }
+    var ex = tx - p[0], ez = tz - p[2], el = Math.sqrt(ex * ex + ez * ez) || 1;
+    var hx = vh > 1 ? v[0] / vh : st.h[0], hz = vh > 1 ? v[2] / vh : st.h[1];
+    var cross = (ex * (-hz) + ez * hx) / el;         // 目標在右側為正（右＝(−hz, hx)）
+    var dot = (ex * hx + ez * hz) / el;
+    var kappa = 2 * cross / el;                       // pure pursuit 的曲率
+    var sp = vh > 2 ? vh : 2;
+    var wMax = D.PHYS.turnBase * st.mods.turn / (1 + sp / D.PHYS.turnSpeedRef);
+    var s = 8 * sp * kappa / wMax * 1.4;
+    if (dot < 0) s = cross >= 0 ? 8 : -8;
+    s = Math.floor(s + 0.5);
+    if (s > 8) s = 8; else if (s < -8) s = -8;
+    var c = (dot > 0.985 && Math.abs(s) <= 1) ? 1 : 0;
+    return { s: s, c: c, j: 0, g: 0 };
+  }
+
+  // ---------------- 輸入紀錄（設計 §3.4） ----------------
+  function codeOf(inp) { return (inp.s + 8) + 17 * ((inp.c ? 1 : 0) + 2 * ((inp.j ? 1 : 0) + 2 * (inp.g | 0))); }
+  function inputOf(code) {
+    var s = code % 17 - 8; code = (code - (code % 17)) / 17;
+    var c = code % 2; code = (code - c) / 2;
+    var j = code % 2; code = (code - j) / 2;
+    return { s: s, c: c, j: j, g: code };
+  }
+  function encode(inputs) {
+    var out = [], prev = -1, cnt = 0;
+    for (var i = 0; i < inputs.length; i++) {
+      var c = codeOf(inputs[i]);
+      if (c === prev) { cnt += 1; continue; }
+      if (cnt) out.push(prev.toString(36) + (cnt > 1 ? "." + cnt.toString(36) : ""));
+      prev = c; cnt = 1;
+    }
+    if (cnt) out.push(prev.toString(36) + (cnt > 1 ? "." + cnt.toString(36) : ""));
+    return out.join(",");
+  }
+  function decode(str) {
+    var out = [];
+    if (!str) return out;
+    var parts = String(str).split(",");
+    for (var i = 0; i < parts.length; i++) {
+      var seg = parts[i].split(".");
+      var code = parseInt(seg[0], 36), cnt = seg.length > 1 ? parseInt(seg[1], 36) : 1;
+      if (!(code >= 0 && code < 17 * 2 * 2 * 7) || !(cnt >= 1)) throw new Error("bad record");
+      var inp = inputOf(code);
+      for (var k = 0; k < cnt; k++) out.push(inp);
+    }
+    return out;
+  }
+
+  // 重播：同一份 opts＋紀錄 → 同樣的結果。frames：每 every 步一格 [x, y, z, hx, hz, edge, crouch, air]
+  function replay(terrain, opts, rec, every) {
+    var inputs = typeof rec === "string" ? decode(rec) : rec;
+    var run = newRun(terrain, opts);
+    every = every || 2;
+    var frames = [];
+    for (var i = 0; i < inputs.length && run.status === "run"; i++) {
+      stepRun(run, inputs[i]);
+      if (run.steps % every === 0) frames.push(frameOf(run.st));
+    }
+    return { time: run.time || null, status: run.status, reason: run.reason, steps: run.steps, perfect: run.perfect, frames: frames, every: every, run: run };
+  }
+  function frameOf(st) { return [st.p[0], st.p[1], st.p[2], st.h[0], st.h[1], st.edge, st.crouch, st.air ? 1 : 0]; }
+
+  // 分享碼：resort|piste|seed|runNo|breed|record
+  function shareCode(o) { return ["inu1", o.resort, o.piste, o.seed >>> 0, o.runNo | 0, o.breed, o.rec].join("|"); }
+  function parseShare(str) {
+    var a = String(str || "").trim().split("|");
+    if (a.length !== 7 || a[0] !== "inu1") return null;
+    try { decode(a[6]); } catch (e) { return null; }
+    return { resort: a[1], piste: a[2], seed: parseInt(a[3], 10) >>> 0, runNo: parseInt(a[4], 10) | 0, breed: a[5], rec: a[6] };
+  }
+
+  // ---------------- 存檔格式（設計 §13） ----------------
+  function newSave() {
+    return { v: 1, dog: { breed: "shiba", name: "" }, best: {}, settings: { control: "drag", camera: "chase", runs: 1, ghost: true }, ghostImport: null };
+  }
+  function migrate(obj) {
+    var s = newSave();
+    if (!obj || typeof obj !== "object" || obj.v !== 1) return s;
+    if (obj.dog && typeof obj.dog.breed === "string") s.dog = { breed: obj.dog.breed, name: String(obj.dog.name || "") };
+    if (obj.best && typeof obj.best === "object") s.best = obj.best;
+    if (obj.settings && typeof obj.settings === "object") {
+      for (var k in s.settings) if (Object.prototype.hasOwnProperty.call(obj.settings, k)) s.settings[k] = obj.settings[k];
+    }
+    if (obj.ghostImport && typeof obj.ghostImport === "object") s.ghostImport = obj.ghostImport;
+    return s;
+  }
+
+  // 固定的每日 seed 以外，第 1 階段每個雪場的旗門 seed 固定（同一條雪道的紀錄才能比較）
+  function courseSeed(resort, piste) { return hash("inusnow|" + resort + "|" + piste); }
+
+  function breed(id) {
+    for (var i = 0; i < D.BREEDS.length; i++) if (D.BREEDS[i].id === id) return D.BREEDS[i];
+    return D.BREEDS[0];
+  }
+
+  var Core = {
+    hash: hash, makeRng: makeRng, makeGates: makeGates, gateCheck: gateCheck,
+    newRun: newRun, stepRun: stepRun, autopilot: autopilot, boostMult: boostMult,
+    encode: encode, decode: decode, replay: replay, frameOf: frameOf,
+    shareCode: shareCode, parseShare: parseShare,
+    newSave: newSave, migrate: migrate, courseSeed: courseSeed, breed: breed,
+  };
+  root.PriTestInusnowCore = Core;
+  if (typeof module !== "undefined" && module.exports) module.exports = Core;
+})(typeof window !== "undefined" ? window : globalThis);
