@@ -1,0 +1,270 @@
+/* ===================== イヌスノー（狗雪，inusnow） ===================== */
+/* 滿版畫面：導覽列平時藏在上方，左上 ☰ 展開（比照射彈宇宙）。只用 inu- 前綴。 */
+body.inu-body {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #dfeaf5;
+  color: #17283a;
+  height: 100dvh;
+  overscroll-behavior: none;
+}
+body.inu-body > main { padding: 0; }
+body.inu-body > .site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: .5rem 1rem .5rem 3.4rem;
+  background: rgba(240, 246, 252, .96);
+  border-bottom: 1px solid rgba(40, 80, 130, .2);
+  transform: translateY(-110%);
+}
+body.inu-body.inu-nav-anim > .site-header { transition: transform .22s ease; }
+body.inu-body.inu-nav-open > .site-header { transform: translateY(0); }
+
+#inu-nav-toggle {
+  position: fixed;
+  top: .5rem;
+  left: .5rem;
+  z-index: 60;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid rgba(40, 80, 130, .3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .7);
+  color: #17283a;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+#inu-app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: "Segoe UI", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", sans-serif;
+}
+
+/* ---------- 一般頁面（雪場、設定、成績） ---------- */
+.inu-page {
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 3.4rem 1rem 2rem;
+  max-width: 980px;
+  margin: 0 auto;
+  -webkit-overflow-scrolling: touch;
+}
+.inu-hero { text-align: center; margin-bottom: 1rem; }
+.inu-title {
+  margin: 0;
+  font-size: 2.2rem;
+  letter-spacing: .08em;
+  color: #0f4f8f;
+  text-shadow: 0 2px 0 #fff;
+}
+.inu-sub { margin: .3rem 0 0; color: #4a6078; }
+.inu-h2 { font-size: 1.2rem; margin: 1rem 0 .6rem; }
+.inu-h2 small, .inu-h3 small { font-weight: normal; color: #4a6078; font-size: .85em; }
+.inu-h3 { font-size: 1rem; margin: 1rem 0 .4rem; }
+.inu-muted { color: #5b6f84; font-size: .9rem; }
+.inu-msg { color: #b0401a; font-weight: bold; }
+.inu-link { background: none; border: 0; color: #1f5fa8; cursor: pointer; padding: .2rem 0; font: inherit; }
+
+.inu-resorts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: .7rem;
+}
+.inu-resort {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: .2rem .5rem;
+  text-align: left;
+  border: 1px solid rgba(40, 80, 130, .18);
+  border-radius: 14px;
+  padding: .8rem .9rem;
+  background: linear-gradient(160deg, #ffffff, #eef5fc);
+  box-shadow: 0 2px 6px rgba(20, 50, 90, .08);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.inu-resort:hover { border-color: #3b82c9; }
+.inu-resort-name { font-weight: bold; font-size: 1.05rem; }
+.inu-resort-pref { color: #5b6f84; font-size: .85rem; align-self: center; }
+.inu-resort-piste { grid-column: 1 / -1; font-size: .85rem; color: #34495e; display: flex; align-items: center; gap: .35rem; }
+.inu-resort-best { grid-column: 1 / -1; font-size: .85rem; color: #0f4f8f; font-variant-numeric: tabular-nums; }
+.inu-diff { display: inline-block; width: .8rem; height: .8rem; border-radius: 2px; background: #d23c3c; flex: none; }
+.inu-diff-easy, .inu-diff-novice { background: #3cb44b; border-radius: 50%; }
+.inu-diff-intermediate { background: #d23c3c; }
+.inu-diff-advanced, .inu-diff-expert { background: #222; transform: rotate(45deg) scale(.85); }
+
+.inu-breeds {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .5rem;
+}
+.inu-breed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .3rem;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: .6rem .5rem;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(20, 50, 90, .1);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.inu-breed.is-on { border-color: #2a6fd6; background: #f0f6ff; }
+.inu-breed-face {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 70%, var(--c2) 0 38%, var(--c1) 40%);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .08);
+}
+.inu-breed-name { font-weight: bold; font-size: .9rem; text-align: center; }
+.inu-stats { width: 100%; display: grid; gap: 2px; }
+.inu-stat { display: grid; grid-template-columns: 4.2em 1fr; align-items: center; gap: .3rem; font-size: .7rem; color: #4a6078; }
+.inu-stat em { font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inu-stat b { display: block; height: 5px; border-radius: 3px; background: linear-gradient(90deg, #6fb2ff, #2a6fd6); }
+
+.inu-field { display: flex; align-items: center; gap: .6rem; margin: .8rem 0; }
+.inu-field input { flex: 1; max-width: 16rem; padding: .45rem .6rem; border: 1px solid #b8c8da; border-radius: 8px; font: inherit; }
+.inu-opt { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: .5rem 0; flex-wrap: wrap; }
+.inu-seg { display: inline-flex; border: 1px solid #b8c8da; border-radius: 10px; overflow: hidden; }
+.inu-seg button { border: 0; background: #fff; padding: .4rem .8rem; font: inherit; cursor: pointer; color: #34495e; }
+.inu-seg button + button { border-left: 1px solid #b8c8da; }
+.inu-seg button.is-on { background: #2a6fd6; color: #fff; }
+.inu-help { font-size: .85rem; color: #4a6078; background: rgba(255, 255, 255, .6); border-radius: 10px; padding: .6rem .8rem; line-height: 1.6; }
+.inu-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.inu-primary, .inu-secondary {
+  border-radius: 999px;
+  padding: .65rem 1.4rem;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+.inu-primary { border: 0; background: linear-gradient(180deg, #3d8bf0, #1f62c4); color: #fff; box-shadow: 0 3px 8px rgba(31, 98, 196, .35); }
+.inu-secondary { border: 1px solid #9fb6cf; background: #fff; color: #1f4f86; }
+.inu-about { margin-top: 1.5rem; font-size: .85rem; color: #4a6078; }
+.inu-about summary { cursor: pointer; }
+
+.inu-loading { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1rem; }
+.inu-attr { font-size: .8rem; }
+
+/* ---------- 比賽 ---------- */
+.inu-race { position: absolute; inset: 0; }
+.inu-stage { position: absolute; inset: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.inu-canvas { display: block; width: 100%; height: 100%; }
+.inu-hud { position: absolute; inset: 0; pointer-events: none; }
+.inu-hud-top {
+  position: absolute;
+  top: .5rem;
+  left: 3.4rem;
+  right: 8.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem .8rem;
+  align-items: baseline;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+  font-variant-numeric: tabular-nums;
+}
+.inu-hud-time { font-size: 1.6rem; font-weight: bold; }
+.inu-hud-run, .inu-hud-gate, .inu-hud-speed { font-size: .95rem; }
+.inu-hud-right { position: absolute; top: .5rem; right: .5rem; display: flex; gap: .3rem; pointer-events: auto; }
+.inu-chip {
+  border: 1px solid rgba(255, 255, 255, .6);
+  background: rgba(10, 30, 60, .45);
+  color: #fff;
+  border-radius: 999px;
+  padding: .35rem .7rem;
+  font: inherit;
+  font-size: .85rem;
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+}
+.inu-banner {
+  position: absolute;
+  top: 32%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 3.2rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, .5);
+  opacity: 0;
+}
+.inu-banner.is-show { animation: inu-pop .9s ease-out forwards; }
+.inu-banner.is-go { color: #ffe066; }
+.inu-banner.is-warn { color: #ff8a6a; }
+@keyframes inu-pop {
+  0% { opacity: 0; transform: scale(1.6); }
+  20% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.inu-chain {
+  position: absolute;
+  top: 22%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #ffd84a;
+  text-shadow: 0 2px 6px rgba(120, 60, 0, .6);
+  opacity: 0;
+}
+.inu-chain.is-pop { animation: inu-pop 1s ease-out forwards; }
+.inu-hud-help {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-size: .85rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+  transition: opacity 1s;
+}
+.inu-hud-help.is-fade { opacity: 0; }
+.inu-pausebox {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .8rem;
+  background: rgba(10, 25, 45, .45);
+}
+.inu-pausebox[hidden] { display: none; }
+
+/* ---------- 成績 ---------- */
+.inu-result { text-align: center; }
+.inu-result .inu-actions { justify-content: center; }
+.inu-bigtime { font-size: 3rem; font-weight: 900; margin: .5rem 0; color: #0f4f8f; font-variant-numeric: tabular-nums; }
+.inu-bigtime.is-dsq { color: #b0401a; }
+.inu-newbest { color: #d97a00; font-weight: bold; font-size: 1.2rem; margin: 0; }
+.inu-total { font-size: 1.3rem; font-weight: bold; }
+
+@media (max-width: 560px) {
+  .inu-title { font-size: 1.8rem; }
+  .inu-hud-time { font-size: 1.3rem; }
+  .inu-hud-top { right: 7.5rem; }
+  .inu-banner { font-size: 2.4rem; }
+  .inu-breeds { grid-template-columns: repeat(2, 1fr); }
+}

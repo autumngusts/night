@@ -186,7 +186,7 @@ characters/index.html?game=<id>
 
 ## 4.3.1 「付款」分頁的遊戲（2026-11-20 起）
 
-tama、kyuka、shedan、atelier 在首頁的「付款」分頁，頁面本身也會先用 `window.prompt` 問密碼
+tama、kyuka、shedan、atelier、inusnow 在首頁的「付款」分頁，頁面本身也會先用 `window.prompt` 問密碼
 （`nightnight`，`site_src/layout.py` 的 `PAY_PASSWORD`），答錯或沒處理 dialog 就會被導回首頁。
 Playwright 測試在開頁前先寫入解鎖旗標：
 
@@ -447,7 +447,7 @@ site_src/i18n_data.py
   在 `generate.py` 的 `GAME_I18N_PREFIXES` 登記前綴，建置時會輸出成 `static/i18n/<name>.js`（`I18N.extend`），
   頁面用 `page_shell(extra_i18n=("i18n/<name>.js",))` 載入。首頁會用到的 `project_<name>_*` 留在共用的 `i18n.js`。
 
-目前已分開的遊戲：yellow、katana、fist、dejavu、gousei、toushou、utau、starv、saigo、wanren、reiwa、jikan、jomon、zombie、denshi、yukimura、mahou、izakaya、yoi、sennyu、champ、natsu、tour、shutter、nest、maou、isle、phone、ennichi、tama、kyuka、shedan、atelier。
+目前已分開的遊戲：yellow、katana、fist、dejavu、gousei、toushou、utau、starv、saigo、wanren、reiwa、jikan、jomon、zombie、denshi、yukimura、mahou、izakaya、yoi、sennyu、champ、natsu、tour、shutter、nest、maou、isle、phone、ennichi、tama、kyuka、shedan、atelier、inusnow。
 
 ---
 

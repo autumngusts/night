@@ -50,6 +50,7 @@ from site_src.ennichi_page import ENNICHI_LAB_SCRIPTS, ENNICHI_SCRIPTS, build_en
 from site_src.tama_page import TAMA_SCRIPTS, build_tama_html
 from site_src.kyuka_page import KYUKA_SCRIPTS, build_kyuka_html
 from site_src.shedan_page import SHEDAN_SCRIPTS, build_shedan_html
+from site_src.inusnow_page import INUSNOW_SCRIPTS, build_inusnow_html
 from site_src.atelier_page import ATELIER_SCRIPTS, build_atelier_html
 
 ROOT = Path(__file__).parent
@@ -92,6 +93,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "kyuka": ("ky_",),
     "shedan": ("sd_",),
     "atelier": ("at_",),
+    "inusnow": ("inu_",),
 }
 
 
@@ -208,6 +210,7 @@ def build_static_assets() -> None:
         *KYUKA_SCRIPTS,
         *SHEDAN_SCRIPTS,
         *ATELIER_SCRIPTS,
+        *INUSNOW_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -245,6 +248,11 @@ def build_static_assets() -> None:
     models_src = STATIC_SRC_DIR / "models"
     if models_src.is_dir():
         shutil.copytree(models_src, static_dist / "models")
+
+    # イヌスノー的雪場資料（tools/inusnow_data/fetch.py 產生；頁面依選到的雪場動態載入）
+    inusnow_src = STATIC_SRC_DIR / "inusnow"
+    if inusnow_src.is_dir():
+        shutil.copytree(inusnow_src, static_dist / "inusnow")
 
     vendor_src = STATIC_SRC_DIR / "vendor"
     if vendor_src.is_dir():
@@ -396,10 +404,14 @@ def build_pages() -> None:
     atelier_dir.mkdir(parents=True, exist_ok=True)
     (atelier_dir / "index.html").write_text(build_atelier_html(), encoding="utf-8")
 
+    inusnow_dir = DIST_DIR / "inusnow"
+    inusnow_dir.mkdir(parents=True, exist_ok=True)
+    (inusnow_dir / "index.html").write_text(build_inusnow_html(), encoding="utf-8")
+
 
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "shutter", "nest", "maou", "isle", "phone", "ennichi", "tama", "kyuka", "shedan", "atelier", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "shutter", "nest", "maou", "isle", "phone", "ennichi", "tama", "kyuka", "shedan", "atelier", "inusnow", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)

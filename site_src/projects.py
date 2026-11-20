@@ -224,6 +224,13 @@ PROJECTS = [
         "desc_key": "project_atelier_desc",
         # 使用者指定 2026-11-20：移到「付款」分頁，輸入密碼後才看得到、可以點
     },
+    {
+        "id": "inusnow",
+        "href": "inusnow/index.html",
+        "name_key": "project_inusnow_name",
+        "desc_key": "project_inusnow_desc",
+        # 使用者指定 2026-11-20：新遊戲放「付款」分頁
+    },
 ]
 
 # 首頁的分類標籤（使用者指定 2026-11-13）：一開始不顯示任何遊戲，按下標籤才依此順序列出。
@@ -236,6 +243,6 @@ PROJECT_TABS = [
     {"id": "v2_0", "label": "v2.0", "projects": ("sennyu", "ennichi")},
     {"id": "test", "label_key": "home_tab_test", "projects": ("izakaya", "yoi", "champ", "tour", "shutter", "nest", "maou", "isle", "phone")},
     # 使用者指定 2026-11-20：11-12 之後新完成的遊戲放「付款」分頁，輸入 nightnight 才顯示（遊戲頁本身也會要求，見 layout.page_shell(paid=True)）
-    {"id": "pay", "label_key": "home_tab_pay", "paid": True, "projects": ("tama", "kyuka", "shedan", "atelier")},
+    {"id": "pay", "label_key": "home_tab_pay", "paid": True, "projects": ("tama", "kyuka", "shedan", "atelier", "inusnow")},
     {"id": "abandoned", "label_key": "home_tab_abandoned", "projects": ("fist", "zombie", "natsu")},
 ]
