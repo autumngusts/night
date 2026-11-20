@@ -387,9 +387,10 @@
     } else if (c === "stages") {
       body.push(el("div", { class: "yk-cxgrid" }, D.STAGES.map(function (st, i) {
         return el("div", { class: "yk-cx", style: "border-left:4px solid " + hex(st.color) }, [el("strong", null, [t("yk_stage_n", { n: i + 1 }), " ", D.FEATS[st.feat].icon, " ", L(st.name)]), el("div", { class: "yk-small" }, [L(st.desc)]),
-          el("div", { class: "yk-small" }, [t("yk_map"), "：", st.maps.map(function (m) { return L(D.MAPS[m].name); }).join("／")]),
+          el("div", { class: "yk-small" }, [t("yk_map"), "：", st.maps.map(function (m) { return L(D.MAPS[m].name) + " " + Object.keys(D.MAPS[m].gm || {}).map(function (k) { return D.GIMMICKS[k].icon; }).join(""); }).join("／")]),
           el("div", { class: "yk-small" }, [t("yk_mid"), "：", st.mid.map(function (m) { return L(D.BOSSES[m].name); }).join("／"), "・", t("yk_boss"), "：", L(D.BOSSES[st.boss].name)])]);
       })));
+      body.push(panel(t("yk_gm_title"), [el("div", { class: "yk-cxgrid" }, Object.keys(D.GIMMICKS).map(function (k) { var G = D.GIMMICKS[k]; return el("div", { class: "yk-cx" }, [el("strong", null, [G.icon, " ", L(G.name)]), el("div", { class: "yk-small" }, [L(G.desc)])]); }))]));
       body.push(panel(t("yk_cx_maps", { n: D.MAPS.length }), [el("div", { class: "yk-chips" }, D.MAPS.map(function (m) { return el("span", { class: "yk-chip" }, [L(m.name), "・", L(D.PREFS[m.pref].name)]); }))]));
     } else {
       body.push(el("ul", { class: "yk-rules" }, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (i) { return el("li", null, [t("yk_rule_" + i)]); })));
@@ -518,17 +519,19 @@
     if (!r || !r.isHost()) return;
     var cfg = r.cfg || {};
     var s = Core.create({ stage: cfg.stage | 0, map: cfg.map === undefined ? -1 : cfg.map, diff: cfg.diff, dur: cfg.dur || 900, seed: (Date.now() & 0x7fffffff), mode: cfg.mode, heat: cfg.heat | 0 });
-    if (s.map < 0 || cfg.map < 0) s.map = D.STAGES[s.stage].maps[Math.floor(Math.random() * 2)];
+    if (s.map < 0 || cfg.map < 0) { s.map = D.STAGES[s.stage].maps[Math.floor(Math.random() * D.STAGES[s.stage].maps.length)]; resetMap(s); }
     r.list().forEach(function (p) { if (!p.away) Core.addPlayer(s, p.pid, p.name, p.dm, p.meta); });
     r.startGame(Core.serializeNet(s));
     ui.pendingHostState = s;
   }
 
   // ---------------- 場次 ----------------
+  // 隨機地圖在 create 之後才決定：重新算一次這張地圖的機關
+  function resetMap(s) { s.M = D.mapGimmicks(s.map); s.Mst = s.M.map(function () { return [0, 0]; }); }
   function startSolo(mode) {
     mode = mode === "tenka" ? "tenka" : "normal";
     var s = Core.create({ stage: ui.stage, map: ui.map, diff: ui.diff, dur: ui.dur, seed: (Date.now() & 0x7fffffff), mode: mode, heat: mode === "tenka" ? tkProgress().heat : 0 });
-    if (ui.map < 0) s.map = D.STAGES[ui.stage].maps[Math.floor(Math.random() * 2)];
+    if (ui.map < 0) { s.map = D.STAGES[ui.stage].maps[Math.floor(Math.random() * D.STAGES[ui.stage].maps.length)]; resetMap(s); }
     s.solo = true;
     var P = Core.addPlayer(s, "me", myName(), ui.dm, sortieMeta(mode));
     P.local = 1;
@@ -734,9 +737,9 @@
     } else {
       var v = sess.view, mine = v && v.P[sess.pid];
       if (mine && local.me && !mine.down && !mine.opts && !(mine.pend > 0) && !(mine.arcQ > 0) && !(hud && hud.modal && !hud.modal.classList.contains("yk-hidden")) && v.ph === "play") {
-        var tmp = { x: local.me.x, z: local.me.z, fx: local.me.fx, fz: local.me.fz };
+        var tmp = { x: local.me.x, z: local.me.z, fx: local.me.fx, fz: local.me.fz, _wcd: local.me._wcd || 0 };
         Core.stepMove(v, tmp, mvx, mvz, dt, mine.sp || 4.2);
-        local.me.x = tmp.x; local.me.z = tmp.z; local.me.fx = tmp.fx; local.me.fz = tmp.fz;
+        local.me.x = tmp.x; local.me.z = tmp.z; local.me.fx = tmp.fx; local.me.fz = tmp.fz; local.me._wcd = tmp._wcd;
       }
       sess.tick(dt);
     }
@@ -910,6 +913,7 @@
     if (m.k === "renkei") { var Q2 = v.P[m.a]; return "🔥 " + t("yk_msg_renkei", { a: nm, b: Q2 ? (Q2.name || L(D.DAIMYO[Q2.dm].name)) : "" }); }
     if (m.k === "ultup") return "🌟 " + t("yk_msg_ultup", { n: nm, t: m.a });
     if (m.k === "pick" && mine && m.a && m.a.t === "m") return D.MODS[m.a.m].icon + " " + t("yk_msg_mod", { w: L(D.WEAPONS[m.a.id].name), m: L(D.MODS[m.a.m].name) });
+    if (m.k === "gm" && D.GIMMICKS[m.a]) return D.GIMMICKS[m.a].icon + " " + t("yk_gm_msg_" + m.a, { n: nm });
     if (m.k === "combo") return "🔥 " + t("yk_msg_combo", { n: nm, c: m.a });
     if (m.k === "arc" && TK.ARC[m.a]) return TK.ARC[m.a].icon + " " + t("yk_tk_msg_arc", { n: nm, a: L(TK.ARC[m.a].name) });
     if (m.k === "tkev") { var ev = TK.EVENTS.filter(function (x) { return x.k === m.a; })[0]; return ev ? ev.icon + " " + t("yk_tk_ev_" + m.a) : ""; }
@@ -1014,6 +1018,13 @@
     // 正在祠旁祈願：顯示進度
     if (me && !me.down) (v.D || []).forEach(function (d) {
       if (d.k === "hokora" && (d.x - me.x) * (d.x - me.x) + (d.z - me.z) * (d.z - me.z) < 2.4 * 2.4) ft = "⛩ " + t("yk_praying", { n: Math.min(100, Math.round((sess.host ? d.p : d.p) / 3 * 100)) });
+    });
+    // 地圖機關：站在旁邊時顯示名稱與進度
+    if (me && !me.down && v.M) v.M.forEach(function (g, gi) {
+      if ((g.x - me.x) * (g.x - me.x) + (g.z - me.z) * (g.z - me.z) > g.r * g.r) return;
+      var G = D.GIMMICKS[g.k], stt = sess.host ? (v.Mst && v.Mst[gi] ? (v.Mst[gi][1] > 0 ? -1 : v.Mst[gi][0] * 10) : 0) : (v.ms && v.ms[gi] || 0);
+      if (g.k === "kusa" || g.k === "torii" || g.k === "kagari") return;
+      ft = G.icon + " " + L(G.name) + (stt < 0 ? "（" + t("yk_gm_cd") + "）" : G.hold ? " " + Math.min(100, Math.round(stt / 10 / G.hold * 100)) + "%" : g.k === "taru" && stt > 0 ? " 💥" : "");
     });
     if (ft) { hud.feat.classList.remove("yk-hidden"); if (hud.feat.textContent !== ft) hud.feat.textContent = ft; } else hud.feat.classList.add("yk-hidden");
     // 連斬
