@@ -162,7 +162,8 @@ var BASE = (process.env.ATELIER_ROOT || "http://localhost:8973/") + "atelier/ind
 
   // 語言切換、手機寬度
   await page.evaluate(function () { window.I18N.setLang("ja"); });
-  assert.strictEqual((await page.textContent('[data-at-tab="dex"]')).trim(), "図鑑");
+  // 2026-11-21 起分頁加上圖示（.at-tab-icon），只比對文字標籤
+  assert.strictEqual((await page.textContent('[data-at-tab="dex"] .at-tab-label')).trim(), "図鑑");
   await page.evaluate(function () { window.I18N.setLang("zh"); });
   for (var tab of ["gather", "box", "lab", "tasks", "dex", "shop"]) {
     await tap('[data-at-tab="' + tab + '"]');

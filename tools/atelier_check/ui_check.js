@@ -119,7 +119,8 @@ var BASE = (process.env.ATELIER_ROOT || "http://localhost:8973/") + "atelier/ind
 
   // 語言切換
   await page.evaluate(function () { window.I18N.setLang("ja"); });
-  assert.strictEqual((await page.textContent('[data-at-tab="gather"]')).trim(), "色あつめ");
+  // 2026-11-21 起分頁加上圖示（.at-tab-icon），只比對文字標籤
+  assert.strictEqual((await page.textContent('[data-at-tab="gather"] .at-tab-label')).trim(), "色あつめ");
   await page.evaluate(function () { window.I18N.setLang("zh"); });
 
   // 手機寬度不橫向捲動

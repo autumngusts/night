@@ -201,3 +201,118 @@
   .at-wrap .at-board .at-cell { background: #3a3150; box-shadow: none; text-shadow: none; }
   .at-wrap .at-board .at-cell.at-filled { background: var(--at-c); border-color: #fff; }
 }
+
+/* 整體 UIUX 與轉場（2026-11-21）：工房外觀、上方分頁、轉場動畫。轉場只在操作後的那一次重繪加上 class（JS 的 ui.fx／ui.pop）。 */
+.at-wrap { --at-purple: #3b2f5c; --at-purple-deep: #251c38;
+  background: radial-gradient(ellipse at 50% -10%, #fffaf0 0%, rgba(255, 250, 240, 0) 60%),
+    linear-gradient(180deg, #fbf6ec 0%, #f4ead6 100%);
+  border: 1px solid #e6d7b9; box-shadow: inset 0 0 0 4px #fbf6ec, inset 0 0 0 5px #e9dcc0, 0 6px 24px rgba(80, 60, 30, 0.12); }
+.at-wrap h3 { position: relative; margin: 1rem 0 0.5rem; padding-bottom: 0.3rem; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif TC", "Noto Serif JP", serif;
+  color: var(--at-purple); letter-spacing: 0.04em; }
+.at-wrap h3::after { content: ""; position: absolute; left: 0; bottom: 0; width: 3.5rem; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--at-gold), rgba(230, 180, 34, 0)); }
+
+/* --- 頁首：工房主人 --- */
+.at-head { padding: 0.2rem 0; }
+.at-avatar { position: relative; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--at-gold), 0 3px 10px rgba(43, 36, 51, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+.at-who b { font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif TC", "Noto Serif JP", serif; font-size: 1.05rem; }
+.at-bubble { position: relative; margin-top: 0.55rem; border-color: #e0cfae; border-radius: 14px;
+  background: linear-gradient(180deg, #fff, #fffaf0); box-shadow: 0 2px 8px rgba(90, 64, 30, 0.08); }
+.at-bubble::before { content: ""; position: absolute; top: -7px; left: 1.1rem; width: 12px; height: 12px; background: #fff;
+  border-left: 1px solid #e0cfae; border-top: 1px solid #e0cfae; transform: rotate(45deg); }
+.at-bubble.at-tutorial::before { border-color: var(--at-accent); border-width: 2px 0 0 2px; top: -8px; }
+
+/* --- 上方分頁：圖示＋文字，目前分頁深紫底＋金色底線 --- */
+.at-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.35rem; margin: 0.9rem 0 1rem; padding: 0.35rem;
+  background: linear-gradient(180deg, #efe3c9, #e6d6b6); border-radius: 14px; box-shadow: inset 0 1px 3px rgba(90, 64, 30, 0.25); }
+@media (min-width: 46rem) { .at-tabs { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+.at-wrap .at-tabs .at-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.4rem 0.15rem 0.45rem;
+  border: 1px solid transparent; border-radius: 10px; background: linear-gradient(180deg, #fffdf8, #f6eedd); color: #6a5a48;
+  box-shadow: 0 1px 0 #fff inset, 0 2px 0 #d8c6a2; transition: transform 0.15s, background 0.2s, color 0.2s, box-shadow 0.2s; }
+.at-tab-icon { font-size: 1.2rem; line-height: 1.2; filter: grayscale(0.45) opacity(0.8); transition: transform 0.2s, filter 0.2s; }
+.at-tab-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; font-weight: bold; letter-spacing: 0; }
+@media (max-width: 24rem) { .at-tab-label { font-size: 0.68rem; } }
+.at-wrap .at-tabs .at-tab:active { transform: translateY(1px); box-shadow: 0 1px 0 #d8c6a2; }
+@media (hover: hover) {
+  .at-wrap .at-tabs .at-tab:hover:not(.at-on) { color: var(--at-purple); background: linear-gradient(180deg, #fff, #fbf3e2); }
+  .at-wrap .at-tabs .at-tab:hover:not(.at-on) .at-tab-icon { filter: none; transform: translateY(-2px); }
+}
+.at-wrap .at-tabs .at-tab.at-on { color: #fff8e1; border-color: var(--at-purple-deep); outline: none;
+  background: radial-gradient(ellipse at 50% 0%, #5b4890 0%, var(--at-purple) 55%, var(--at-purple-deep) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 3px 0 #1a1328, 0 6px 14px rgba(43, 36, 51, 0.35); transform: translateY(-2px); }
+.at-wrap .at-tabs .at-tab.at-on .at-tab-icon { filter: drop-shadow(0 0 4px rgba(255, 224, 138, 0.8)); transform: scale(1.12); }
+.at-wrap .at-tabs .at-tab.at-on::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 3px; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--at-gold-soft), var(--at-gold)); box-shadow: 0 0 6px rgba(255, 210, 74, 0.9); }
+.at-wrap .at-tabs .at-tab:focus-visible { outline: 2px solid var(--at-gold); outline-offset: 2px; }
+
+/* --- 按鈕 --- */
+.at-wrap button { transition: transform 0.12s, box-shadow 0.15s, background 0.15s; }
+.at-wrap :where(button:not(.at-cell):not(.at-node):not(.at-tab)) { box-shadow: 0 2px 0 #e0d0b0; }
+.at-wrap .at-tray button { box-shadow: 0 2px 0 #1a1328; }
+.at-wrap :where(button:not(.at-cell):not(.at-node):not(.at-tab)):active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 #e0d0b0; }
+.at-wrap .at-main { border-color: #163d7c; background: linear-gradient(180deg, #3a6cc0, var(--at-accent)); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 3px 0 #123266, 0 5px 10px rgba(30, 80, 162, 0.25); font-weight: bold; }
+.at-wrap .at-main:active:not(:disabled) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 0 #123266; }
+#at-start.at-main:not(:disabled), #at-finish.at-main:not(:disabled) { background: linear-gradient(180deg, #f2c94c, #d39a16); border-color: #9c6f08; color: #3b2600;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 3px 0 #8a6006, 0 0 14px rgba(230, 180, 34, 0.45);
+  animation: at-cta-glow 2.2s ease-in-out infinite; }
+@keyframes at-cta-glow { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.08); } }
+.at-msg { border: 1px solid #e3d3b2; background: linear-gradient(180deg, #fff8e8, #f6ebd3); }
+.at-result { border-radius: 14px; box-shadow: 0 8px 24px rgba(30, 80, 162, 0.18); }
+.at-great { background: radial-gradient(ellipse at 50% 0%, #fff7d6, #fff 70%); }
+
+/* --- 轉場：分頁左右滑入、畫面淡入 --- */
+.at-fx-next { animation: at-slide-next 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.at-fx-prev { animation: at-slide-prev 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.at-fx-in { animation: at-rise 0.3s ease-out; }
+@keyframes at-slide-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes at-slide-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes at-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.at-wrap { overflow: hidden; }
+
+/* --- 調和開始：釜升起，格子依序浮現 --- */
+.at-fx-brew .at-board { animation: at-cauldron-in 0.6s 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards; }
+.at-fx-brew .at-board .at-cell { animation: at-cell-in 0.35s backwards; animation-delay: calc(0.6s + var(--i, 0) * 22ms); }
+.at-fx-brew .at-gauges, .at-fx-brew .at-tray, .at-fx-brew .at-ring, .at-fx-brew .at-thermo, .at-fx-brew .at-palette { animation: at-rise 0.4s 0.8s ease-out backwards; }
+@keyframes at-cauldron-in { from { opacity: 0; transform: translateY(24px) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes at-cell-in { from { opacity: 0; transform: scale(0.4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+
+/* --- 放下素材：只有剛放的格子變成寶石彈出 --- */
+.at-wrap .at-board .at-cell.at-pop { animation: at-gem-pop 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.4); z-index: 1; }
+@keyframes at-gem-pop { 0% { transform: scale(0.5); filter: brightness(1.8); } 60% { transform: scale(1.12); } 100% { transform: none; filter: none; } }
+
+/* --- 完成：結果卡片彈出 --- */
+.at-fx-done .at-result, .at-fx-great .at-result { animation: at-card-pop 0.55s 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.25) backwards; }
+@keyframes at-card-pop { from { opacity: 0; transform: translateY(18px) scale(0.85); } to { opacity: 1; transform: none; } }
+
+/* --- 全畫面轉場層（不擋點擊，動畫結束由 JS 移除） --- */
+.at-trans { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; }
+.at-trans-text { position: relative; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif TC", "Noto Serif JP", serif; font-size: 2.2rem; letter-spacing: 0.2em; }
+.at-trans-brew { background: radial-gradient(circle at 50% 50%, rgba(70, 54, 110, 0.92) 0%, rgba(21, 15, 34, 0.96) 70%); animation: at-trans-brew 1.15s ease-in-out forwards; }
+.at-trans-swirl { position: absolute; width: 70vmin; height: 70vmin; border-radius: 50%;
+  background: conic-gradient(from 0deg, #e0523a, #e0b83a, #3ab36a, #3a7be0, #9a5ae0, #e0523a);
+  -webkit-mask: radial-gradient(circle, transparent 38%, #000 40%, #000 46%, transparent 48%, transparent 58%, #000 60%, #000 63%, transparent 65%);
+  mask: radial-gradient(circle, transparent 38%, #000 40%, #000 46%, transparent 48%, transparent 58%, #000 60%, #000 63%, transparent 65%);
+  filter: blur(1px) drop-shadow(0 0 12px rgba(200, 170, 255, 0.8)); animation: at-swirl 1.15s ease-in forwards; }
+.at-trans-brew .at-trans-text { color: #ffe08a; text-shadow: 0 0 12px rgba(255, 210, 74, 0.9), 0 2px 0 #6b3f1d; animation: at-trans-word 1.15s ease-out forwards; }
+@keyframes at-trans-brew { 0% { opacity: 0; } 18% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes at-swirl { from { transform: scale(0.3) rotate(0deg); opacity: 0.2; } 50% { opacity: 1; } to { transform: scale(1.4) rotate(300deg); opacity: 0; } }
+@keyframes at-trans-word { 0% { opacity: 0; transform: scale(0.7); letter-spacing: 0.6em; } 30% { opacity: 1; transform: scale(1); letter-spacing: 0.2em; } 75% { opacity: 1; } 100% { opacity: 0; transform: scale(1.08); } }
+.at-trans-done, .at-trans-great { background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 244, 205, 0.85) 35%, rgba(255, 236, 170, 0) 75%);
+  animation: at-trans-flash 1.2s ease-out forwards; }
+.at-trans-great { background: radial-gradient(circle at 50% 50%, #fff 0%, rgba(255, 224, 138, 0.95) 35%, rgba(230, 180, 34, 0.35) 75%); animation-duration: 1.5s; }
+.at-trans-rays { position: absolute; width: 160vmax; height: 160vmax; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 210, 74, 0.55) 0deg 6deg, rgba(255, 210, 74, 0) 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 0%, transparent 60%); mask: radial-gradient(circle, #000 0%, transparent 60%); animation: at-rays 1.5s linear forwards; }
+.at-trans-done .at-trans-text, .at-trans-great .at-trans-text { color: #8a5a00; text-shadow: 0 0 10px #fff, 0 0 22px rgba(230, 180, 34, 0.9); animation: at-trans-word 1.2s ease-out forwards; }
+.at-trans-great .at-trans-text { font-size: 2.6rem; animation-duration: 1.5s; }
+@keyframes at-trans-flash { 0% { opacity: 0; } 12% { opacity: 1; } 65% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes at-rays { from { transform: rotate(0deg) scale(0.6); } to { transform: rotate(60deg) scale(1.1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .at-fx-next, .at-fx-prev, .at-fx-in, .at-fx-brew .at-board, .at-fx-brew .at-board .at-cell, .at-fx-brew .at-gauges, .at-fx-brew .at-tray,
+  .at-fx-brew .at-ring, .at-fx-brew .at-thermo, .at-fx-brew .at-palette, .at-wrap .at-board .at-cell.at-pop,
+  .at-fx-done .at-result, .at-fx-great .at-result, #at-start.at-main:not(:disabled), #at-finish.at-main:not(:disabled) { animation: none; }
+  .at-trans { display: none; }
+}

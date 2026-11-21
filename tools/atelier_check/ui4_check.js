@@ -108,7 +108,8 @@ var KEY = "pritest-atelier-save-v1";
 
   // 語言、手機寬度
   await page.evaluate(function () { window.I18N.setLang("ja"); });
-  assert.strictEqual((await page.textContent('[data-at-tab="book"]')).trim(), "絵本");
+  // 2026-11-21 起分頁加上圖示（.at-tab-icon），只比對文字標籤
+  assert.strictEqual((await page.textContent('[data-at-tab="book"] .at-tab-label')).trim(), "絵本");
   await page.evaluate(function () { window.I18N.setLang("zh"); });
   for (var tab of ["gather", "box", "lab", "tasks", "dex", "book", "shop"]) {
     await tap('[data-at-tab="' + tab + '"]');

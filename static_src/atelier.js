@@ -5,6 +5,8 @@
   var CAM = window.PriTestAtelierCamera, COLORS = window.PriTestAtelierColors;
   var KEY = "pritest-atelier-save-v1";
   var TABS = ["gather", "box", "lab", "tasks", "dex", "book", "shop"];
+  // 分頁圖示（只用於外觀）
+  var TAB_ICONS = { gather: "🎨", box: "📦", lab: "⚗️", tasks: "📜", dex: "📖", book: "🖌️", shop: "🏠" };
   var app = document.getElementById("at-app");
   if (!app) return;
 
@@ -12,7 +14,8 @@
   var ui = { tab: "gather", swatches: null, picks: [], scene: null, recipe: null, slots: [], cauldron: "copper", session: null,
     sel: -1, rot: 0, ghost: null, traits: [], result: null, line: null, dev: false, resetArm: false, msg: "", wbMode: false, subs: [],
     catalyst: "", catalystEl: "fire", challengeResult: null, replay: null,
-    harmony: null, rainbow: false, filter: false, page: "goldfish", region: null };
+    harmony: null, rainbow: false, filter: false, page: "goldfish", region: null,
+    fx: null, pop: null };   // fx／pop：只在下一次重繪生效的轉場效果（畫面每次操作都會整個重繪，動畫不能常駐）
   var replayTimer = null;
 
   // ---------- 共用 ----------
@@ -90,6 +93,7 @@
     var tutStep = save.host === "ruri" ? save.tutorial : (hs.tut || 0);
     var tutorial = ui.tab === "lab" && tutStep < h.tutorial.length ? h.tutorial[tutStep] : null;
     var line = tutorial || ui.line || h.lines.greet[0];
+    var fx = ui.fx; ui.fx = null;
     var html = '<header class="at-head">' +
       '<div class="at-avatar" style="background:' + h.color + '">' + h.glyph + "</div>" +
       '<div class="at-who"><b>' + esc(loc(h.name)) + "</b> <small>" + esc(loc(h.title)) + "</small><br><small>" +
@@ -97,12 +101,16 @@
       (save.title ? '<br><span class="at-title-tag" id="at-title">〈' + esc(loc(titleById(save.title).name)) + "〉</span>" : "") + "</small></div>" +
       '<p id="at-line" class="at-bubble' + (tutorial ? " at-tutorial" : "") + '">' + esc(loc(line)) + "</p></header>" +
       '<nav class="at-tabs">' + TABS.map(function (k) {
-        return '<button type="button" data-at-tab="' + k + '" class="' + (ui.tab === k ? "at-on" : "") + '">' + t("at_tab_" + k) + "</button>";
+        var on = ui.tab === k;
+        return '<button type="button" data-at-tab="' + k + '" class="at-tab' + (on ? " at-on" : "") + '" aria-pressed="' + on + '"' + (on ? ' aria-current="page"' : "") + ">" +
+          '<span class="at-tab-icon" aria-hidden="true">' + TAB_ICONS[k] + '</span><span class="at-tab-label">' + t("at_tab_" + k) + "</span></button>";
       }).join("") + "</nav>";
     if (ui.msg) html += '<p class="at-msg" id="at-msg">' + esc(ui.msg) + "</p>";
     if (ui.replay) html += renderReplay();
-    html += '<section class="at-body">' + ({ gather: renderGather, box: renderBox, lab: renderLab, tasks: renderTasks, dex: renderDex, book: renderBook, shop: renderShop })[ui.tab]() + "</section>";
+    html += '<section class="at-body' + (fx ? " at-fx-" + fx : "") + '">' + ({ gather: renderGather, box: renderBox, lab: renderLab, tasks: renderTasks, dex: renderDex, book: renderBook, shop: renderShop })[ui.tab]() + "</section>";
     html += renderDev();
+    html += transHtml(fx);
+    ui.pop = null;
     var video = app.querySelector("#at-video");
     app.innerHTML = html;
     // 相機播放中時保留同一個 <video>，避免每次重繪都斷線
@@ -114,6 +122,16 @@
     }
   }
 
+  // 調和開始／完成的全畫面轉場（pointer-events: none，動畫結束後移除）
+  function transHtml(fx) {
+    if (fx === "brew") {
+      return '<div class="at-trans at-trans-brew" aria-hidden="true"><span class="at-trans-swirl"></span><b class="at-trans-text">' + t("at_fx_brew") + "</b></div>";
+    }
+    if (fx === "done" || fx === "great") {
+      return '<div class="at-trans at-trans-' + fx + '" aria-hidden="true"><span class="at-trans-rays"></span><b class="at-trans-text">' + t("at_fx_" + fx) + "</b></div>";
+    }
+    return "";
+  }
   function renderGather() {
     var b = save.basket, n = now(), mins = b.n >= D.BASKET_MAX ? 0 : Math.ceil((b.at + D.BASKET_REFILL_MS - n) / 60000);
     var daily = C.dailyColor(n), doneToday = save.daily.date === C.jstDate(n);
@@ -251,7 +269,8 @@
       if (cell.bonus) cls += " at-bonus";
       if (o >= 0) { cls += " at-filled"; bg = s.mats[o].hex; inner = el(s.mats[o].element).icon; }
       if (ghostSet[x + "," + y]) cls += " at-ghost";
-      out += (id ? '<button type="button" data-at-cell="' + x + "," + y + '"' : "<span") + ' class="' + cls + '" style="--at-c:' + (bg || "var(--at-line)") + '">' + inner + (id ? "</button>" : "</span>");
+      if (id && ui.pop && ui.pop[idx]) cls += " at-pop";
+      out += (id ? '<button type="button" data-at-cell="' + x + "," + y + '"' : "<span") + ' class="' + cls + '" style="--i:' + idx + ";--at-c:" + (bg || "var(--at-line)") + '">' + inner + (id ? "</button>" : "</span>");
     }
     return out + "</div>";
   }
@@ -558,6 +577,7 @@
     var res = C.startSynthesis(save, ui.recipe, ui.slots.slice(), ui.cauldron, now(), { catalyst: cat });
     if (res.error) { ui.msg = t("at_err_" + res.error); say(res.error === "cooldown" ? "cooldown" : "miss"); render(); return; }
     ui.session = res; ui.sel = 0; ui.rot = 0; ui.ghost = null; ui.traits = []; ui.msg = "";
+    ui.fx = "brew"; stopReplay(); ui.replay = null;   // 回放的計時重繪會打斷轉場
     render();
   }
   function pickCauldron(recipeId) {
@@ -569,8 +589,9 @@
     var s = ui.session, impl = C.method(s.method);
     if (ui.sel < 0) return;
     if (ui.ghost && ui.ghost.x === x && ui.ghost.y === y) {   // 第 2 次點同一格：放下
-      var before = impl.evaluate(s, false), info = impl.place(s, ui.sel, x, y, ui.rot);
+      var before = impl.evaluate(s, false), owners = s.owner ? s.owner.slice() : null, info = impl.place(s, ui.sel, x, y, ui.rot);
       if (info.ok) {
+        if (owners) { ui.pop = {}; s.owner.forEach(function (o, i) { if (o !== owners[i]) ui.pop[i] = true; }); }
         say(C.react(save, before, impl.evaluate(s, impl.done(s)), info));
         ui.sel = s.placed.indexOf(false); ui.rot = 0;
       }
@@ -582,11 +603,16 @@
     render();
   }
 
+  app.addEventListener("animationend", function (ev) {
+    if (ev.target.classList && ev.target.classList.contains("at-trans")) ev.target.parentNode.removeChild(ev.target);
+  });
   app.addEventListener("click", function (ev) {
     var b = ev.target.closest("button, summary");
     if (!b || b.disabled) return;
     var d = b.dataset, s = ui.session;
-    if (d.atTab) { ui.tab = d.atTab; ui.msg = ""; ui.subs = []; if (ui.tab !== "gather") CAM.close(app.querySelector("#at-video")); render(); return; }
+    if (d.atTab) {
+      if (d.atTab !== ui.tab) ui.fx = TABS.indexOf(d.atTab) > TABS.indexOf(ui.tab) ? "next" : "prev";
+      ui.tab = d.atTab; ui.msg = ""; ui.subs = []; if (ui.tab !== "gather") CAM.close(app.querySelector("#at-video")); render(); return; }
     if (b.id === "at-cam-open") {
       CAM.open(app.querySelector("#at-video")).then(render, function () { ui.msg = t("at_cam_denied"); render(); });
       render(); return;
@@ -601,8 +627,8 @@
       render(); return;
     }
     if (b.id === "at-collect") { collect(); return; }
-    if (d.atRecipe) { ui.recipe = d.atRecipe; ui.slots = []; ui.cauldron = pickCauldron(d.atRecipe); render(); return; }
-    if (b.id === "at-back") { ui.recipe = null; ui.slots = []; render(); return; }
+    if (d.atRecipe) { ui.fx = "in"; ui.recipe = d.atRecipe; ui.slots = []; ui.cauldron = pickCauldron(d.atRecipe); render(); return; }
+    if (b.id === "at-back") { ui.fx = "in"; ui.recipe = null; ui.slots = []; render(); return; }
     if (b.id === "at-start") { startSession(); return; }
     if (d.atCell) { var xy = d.atCell.split(","); tapCell(+xy[0], +xy[1]); return; }
     if (d.atMat !== undefined) { ui.sel = +d.atMat; ui.rot = 0; ui.ghost = null; render(); return; }
@@ -612,7 +638,7 @@
       render(); return;
     }
     if (b.id === "at-undo") { C.method(s.method).undo(s); ui.sel = s.placed.indexOf(false); ui.rot = 0; ui.ghost = null; ui.traits = []; render(); return; }
-    if (b.id === "at-abort") { ui.session = null; ui.ghost = null; render(); return; }
+    if (b.id === "at-abort") { ui.fx = "in"; ui.session = null; ui.ghost = null; render(); return; }
     if (b.id === "at-help") {
       var hinfo = C.useHelp(save, s, ui.sel);
       if (hinfo) { say("help"); ui.sel = s.placed.indexOf(false); ui.rot = 0; ui.ghost = null; }
@@ -621,12 +647,12 @@
     if (b.id === "at-finish" && s && s.challenge) {
       var cr = C.finishChallenge(save, s, now());
       if (cr.error) { ui.msg = t("at_err_" + cr.error); render(); return; }
-      ui.challengeResult = cr; ui.session = null; ideas(); persist(); render(); return;
+      ui.challengeResult = cr; ui.session = null; ui.fx = "done"; ideas(); persist(); render(); return;
     }
-    if (b.id === "at-challenge-close") { ui.challengeResult = null; render(); return; }
+    if (b.id === "at-challenge-close") { ui.fx = "in"; ui.challengeResult = null; render(); return; }
     if (b.id === "at-weekly-start") {
       ui.session = C.startChallenge(save, now()); ui.sel = 0; ui.rot = 0; ui.ghost = null; ui.traits = []; ui.result = null;
-      ui.tab = "lab"; ui.msg = ""; render(); return;
+      ui.tab = "lab"; ui.msg = ""; ui.fx = "brew"; stopReplay(); ui.replay = null; render(); return;
     }
     if (d.atReplay) { stopReplay(); ui.replay = { uid: +d.atReplay, step: 0 }; render(); return; }
     if (b.id === "at-replay-prev") { stopReplay(); ui.replay.step--; render(); return; }
@@ -673,10 +699,11 @@
       var item = C.finishSynthesis(save, s, ui.traits, now());
       if (item.error) { ui.msg = t("at_err_" + item.error); render(); return; }
       ui.result = item; ui.session = null; ui.recipe = null; ui.slots = []; ui.msg = ""; ui.catalyst = "";
+      ui.fx = item.great ? "great" : "done";
       say(item.great ? "great" : item.overheat ? "overheat" : item.quality >= 50 ? "finish_good" : "finish_bad");
       ideas(); persist(); render(); return;
     }
-    if (b.id === "at-result-close") { ui.result = null; render(); return; }
+    if (b.id === "at-result-close") { ui.fx = "in"; ui.result = null; render(); return; }
     if (d.atDeliver) { if (C.deliver(save, +d.atDeliver)) { say("finish_good"); ideas(); persist(); } render(); return; }
     if (b.id === "at-sublimate") {
       var m = C.sublimate(save, ui.subs.slice(), now());
@@ -727,7 +754,10 @@
     }
   });
   window.addEventListener("i18n:change", render);
-  setInterval(function () { if (ui.tab === "gather" || (ui.tab === "lab" && !ui.session)) { if (!CAM.isOpen()) render(); } }, 30000);
+  setInterval(function () {
+    if (app.querySelector(".at-trans")) return;                                 // 轉場播放中不重繪
+    if (ui.tab === "gather" || (ui.tab === "lab" && !ui.session)) { if (!CAM.isOpen()) render(); }
+  }, 30000);
 
   var visit = C.dailyVisit(save, now());                                       // §10.5 每天第一次開啟
   if (visit && visit.aff > 0) { say("visit"); ui.msg = t("at_visit", { n: visit.aff }); }
