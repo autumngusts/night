@@ -15,8 +15,8 @@
     sel: -1, rot: 0, ghost: null, traits: [], result: null, line: null, dev: false, resetArm: false, msg: "", wbMode: false, subs: [],
     catalyst: "", catalystEl: "fire", challengeResult: null, replay: null,
     harmony: null, rainbow: false, filter: false, page: "goldfish", region: null,
-    fx: null, pop: null };   // fx／pop：只在下一次重繪生效的轉場效果（畫面每次操作都會整個重繪，動畫不能常駐）
-  var replayTimer = null;
+    fx: null, fxData: null, pop: null, pickPop: -1 };   // fx／pop：只在下一次重繪生效的轉場效果（畫面每次操作都會整個重繪，動畫不能常駐）
+  var replayTimer = null, transUntil = 0;
 
   // ---------- 共用 ----------
   function now() { return Date.now() + (save.offsetMs || 0); }
@@ -93,7 +93,7 @@
     var tutStep = save.host === "ruri" ? save.tutorial : (hs.tut || 0);
     var tutorial = ui.tab === "lab" && tutStep < h.tutorial.length ? h.tutorial[tutStep] : null;
     var line = tutorial || ui.line || h.lines.greet[0];
-    var fx = ui.fx; ui.fx = null;
+    var fx = ui.fx, fxData = ui.fxData; ui.fx = null; ui.fxData = null;
     var html = '<header class="at-head">' +
       '<div class="at-avatar" style="background:' + h.color + '">' + h.glyph + "</div>" +
       '<div class="at-who"><b>' + esc(loc(h.name)) + "</b> <small>" + esc(loc(h.title)) + "</small><br><small>" +
@@ -105,12 +105,14 @@
         return '<button type="button" data-at-tab="' + k + '" class="at-tab' + (on ? " at-on" : "") + '" aria-pressed="' + on + '"' + (on ? ' aria-current="page"' : "") + ">" +
           '<span class="at-tab-icon" aria-hidden="true">' + TAB_ICONS[k] + '</span><span class="at-tab-label">' + t("at_tab_" + k) + "</span></button>";
       }).join("") + "</nav>";
-    if (ui.msg) html += '<p class="at-msg" id="at-msg">' + esc(ui.msg) + "</p>";
+    if (ui.msg) html += '<p class="at-msg' + (fx === "fail" ? " at-msg-fail" : "") + '" id="at-msg">' + esc(ui.msg) + "</p>";
     if (ui.replay) html += renderReplay();
     html += '<section class="at-body' + (fx ? " at-fx-" + fx : "") + '">' + ({ gather: renderGather, box: renderBox, lab: renderLab, tasks: renderTasks, dex: renderDex, book: renderBook, shop: renderShop })[ui.tab]() + "</section>";
     html += renderDev();
-    html += transHtml(fx);
-    ui.pop = null;
+    var trans = transHtml(fx, fxData);
+    if (trans) transUntil = Date.now() + 2500;                                 // 轉場播放期間（定期重繪會跳過）
+    html += trans;
+    ui.pop = null; ui.pickPop = -1;
     var video = app.querySelector("#at-video");
     app.innerHTML = html;
     // 相機播放中時保留同一個 <video>，避免每次重繪都斷線
@@ -123,11 +125,33 @@
   }
 
   // 調和開始／完成的全畫面轉場（pointer-events: none，動畫結束後移除）
-  function transHtml(fx) {
+  function bits(n, fn) { var out = ""; for (var i = 0; i < n; i++) out += fn(i); return out; }
+  function transHtml(fx, data) {
+    if (fx === "great") {   // 大成功：彩虹爆發＋四散的星星
+      return '<div class="at-trans at-trans-great" aria-hidden="true"><span class="at-trans-rays"></span><span class="at-trans-rainbow"></span>' +
+        bits(14, function (i) { return '<i class="at-star" style="--a:' + (i * 360 / 14) + "deg;--d:" + (28 + (i % 3) * 9) + "vmin;--k:" + i + '">✦</i>'; }) +
+        '<b class="at-trans-text">' + t("at_fx_great") + "</b></div>";
+    }
+    if (fx === "low") {     // 品質偏低：灰藍霧氣與滴落
+      return '<div class="at-trans at-trans-low" aria-hidden="true">' +
+        bits(5, function (i) { return '<i class="at-drip" style="--k:' + i + '"></i>'; }) + '<b class="at-trans-text">' + t("at_fx_low") + "</b></div>";
+    }
+    if (fx === "overheat") { // 過熱：紅光閃爍＋冒煙
+      return '<div class="at-trans at-trans-overheat" aria-hidden="true">' +
+        bits(7, function (i) { return '<i class="at-smoke" style="--k:' + i + ";--l:" + (6 + i * 13) + "%;--dl:" + [0, 0.18, 0.06, 0.24, 0.1, 0.3, 0.14][i] + 's"></i>'; }) + '<b class="at-trans-text">' + t("at_fx_overheat") + "</b></div>";
+    }
+    if (fx === "collect" && data) {   // 採集：顏色光球飛進採集籃
+      var n = data.colors.length;
+      return '<div class="at-trans at-trans-collect' + (data.rainbow ? " at-collect-rainbow" : "") + '" aria-hidden="true"><span class="at-basket-glow"></span>' +
+        data.colors.map(function (c, i) { return '<i class="at-orb" style="--c:' + c + ";--x:" + Math.round((i - (n - 1) / 2) * 90) + "px;--k:" + i + '"></i>'; }).join("") +
+        '<span class="at-basket-ico">🧺</span><b class="at-trans-text">+' + n + "</b>" +
+        (data.daily ? '<span class="at-collect-flag at-flag-daily">★ ' + t("at_fx_daily") + "</span>" : "") +
+        (data.fresh ? '<span class="at-collect-flag">' + t("at_new") + " ×" + data.fresh + "</span>" : "") + "</div>";
+    }
     if (fx === "brew") {
       return '<div class="at-trans at-trans-brew" aria-hidden="true"><span class="at-trans-swirl"></span><b class="at-trans-text">' + t("at_fx_brew") + "</b></div>";
     }
-    if (fx === "done" || fx === "great") {
+    if (fx === "done") {
       return '<div class="at-trans at-trans-' + fx + '" aria-hidden="true"><span class="at-trans-rays"></span><b class="at-trans-text">' + t("at_fx_" + fx) + "</b></div>";
     }
     return "";
@@ -163,7 +187,7 @@
       out += '<p class="at-hint">' + t("at_pick_hint", { n: D.PICK_MAX }) + '</p><ul class="at-swatches" id="at-swatches">';
       ui.swatches.forEach(function (s, i) {
         var m = C.makeMaterial(s, n, 0, { daily: C.isDailyHit(s.rgb, n) }), on = ui.picks.indexOf(i) >= 0;
-        out += '<li><button type="button" data-at-pick="' + i + '" class="at-swatch' + (on ? " at-on" : "") + '">' +
+        out += '<li style="--i:' + i + '"><button type="button" data-at-pick="' + i + '" class="at-swatch' + (on ? " at-on" : "") + (ui.pickPop === i ? " at-pick-pop" : "") + '">' +
           '<span class="at-chip" style="background:' + s.hex + '"></span>' + shapeHtml(m) + matHtml(m) +
           (save.seen[m.colorId] ? "" : '<span class="at-tag at-new">' + t("at_new") + "</span>") +
           '<span class="at-tag">' + Math.round(s.frac * 100) + "%</span></button></li>";
@@ -557,11 +581,14 @@
     ui.swatches = C.analyze(rgba, D.SRC_SIZE, D.SRC_SIZE, String(n), C.analyzeOpts(save));
     ui.harmony = C.harmonyOf(ui.swatches);                                     // §10.1 B1
     ui.picks = []; ui.scene = sceneUrl || null; ui.msg = "";
+    ui.fx = "scan";
     render();
   }
   function collect() {
     var r = C.captureEx(save, ui.picks.map(function (k) { return ui.swatches[k]; }), now(), { harmony: ui.harmony, rainbow: ui.rainbow }), msgs = [];
-    if (r.error) { ui.msg = t(r.error === "basket" ? "at_collect_fail_basket" : r.error === "full" ? "at_collect_fail_full" : "at_err_pick"); render(); return; }
+    if (r.error) { ui.msg = t(r.error === "basket" ? "at_collect_fail_basket" : r.error === "full" ? "at_collect_fail_full" : "at_err_pick"); ui.fx = "fail"; render(); return; }
+    ui.fx = "collect";
+    ui.fxData = { colors: r.mats.map(function (m) { return m.hex; }), fresh: r.newColors.length, daily: !!r.daily, rainbow: !!r.rainbow };
     ui.swatches = null; ui.scene = null; ui.picks = [];
     msgs.push(t("at_collect_ok", { n: r.mats.length }));
     if (r.newColors.length) msgs.push(t("at_new_colors", { names: r.newColors.map(function (id) { return loc(colorOf(id).name); }).join("、") }));
@@ -575,7 +602,7 @@
   function startSession() {
     var cat = ui.catalyst ? { id: ui.catalyst, el: D.CATALYSTS[ui.catalyst].needsEl ? ui.catalystEl : null } : null;
     var res = C.startSynthesis(save, ui.recipe, ui.slots.slice(), ui.cauldron, now(), { catalyst: cat });
-    if (res.error) { ui.msg = t("at_err_" + res.error); say(res.error === "cooldown" ? "cooldown" : "miss"); render(); return; }
+    if (res.error) { ui.msg = t("at_err_" + res.error); say(res.error === "cooldown" ? "cooldown" : "miss"); ui.fx = "fail"; render(); return; }
     ui.session = res; ui.sel = 0; ui.rot = 0; ui.ghost = null; ui.traits = []; ui.msg = "";
     ui.fx = "brew"; stopReplay(); ui.replay = null;   // 回放的計時重繪會打斷轉場
     render();
@@ -614,7 +641,7 @@
       if (d.atTab !== ui.tab) ui.fx = TABS.indexOf(d.atTab) > TABS.indexOf(ui.tab) ? "next" : "prev";
       ui.tab = d.atTab; ui.msg = ""; ui.subs = []; if (ui.tab !== "gather") CAM.close(app.querySelector("#at-video")); render(); return; }
     if (b.id === "at-cam-open") {
-      CAM.open(app.querySelector("#at-video")).then(render, function () { ui.msg = t("at_cam_denied"); render(); });
+      CAM.open(app.querySelector("#at-video")).then(render, function () { ui.msg = t("at_cam_denied"); ui.fx = "fail"; render(); });
       render(); return;
     }
     if (b.id === "at-cam-close") { CAM.close(app.querySelector("#at-video")); render(); return; }
@@ -623,7 +650,7 @@
     if (b.id === "at-wb") { ui.wbMode = !ui.wbMode; ui.swatches = null; render(); return; }
     if (d.atPick !== undefined) {
       var i = +d.atPick, at = ui.picks.indexOf(i);
-      if (at >= 0) ui.picks.splice(at, 1); else if (ui.picks.length < D.PICK_MAX) ui.picks.push(i);
+      if (at >= 0) ui.picks.splice(at, 1); else if (ui.picks.length < D.PICK_MAX) { ui.picks.push(i); ui.pickPop = i; }
       render(); return;
     }
     if (b.id === "at-collect") { collect(); return; }
@@ -646,7 +673,7 @@
     }
     if (b.id === "at-finish" && s && s.challenge) {
       var cr = C.finishChallenge(save, s, now());
-      if (cr.error) { ui.msg = t("at_err_" + cr.error); render(); return; }
+      if (cr.error) { ui.msg = t("at_err_" + cr.error); ui.fx = "fail"; render(); return; }
       ui.challengeResult = cr; ui.session = null; ui.fx = "done"; ideas(); persist(); render(); return;
     }
     if (b.id === "at-challenge-close") { ui.fx = "in"; ui.challengeResult = null; render(); return; }
@@ -673,7 +700,7 @@
     if (d.atRegion) { ui.region = d.atRegion; render(); return; }
     if (d.atPaint) {
       var pr = C.colorRegion(save, ui.page, ui.region, +d.atPaint);
-      if (pr.error) ui.msg = t("at_err_" + pr.error);
+      if (pr.error) { ui.msg = t("at_err_" + pr.error); ui.fx = "fail"; }
       else {
         ui.region = null; ui.msg = "";
         if (pr.done) { say("page_done"); addMsg(t("at_page_done", { name: loc(C.page(ui.page).name), exp: D.PAGE_REWARD.exp, ash: D.PAGE_REWARD.ash })); }
@@ -697,9 +724,9 @@
     if (b.id === "at-buy-basket") { if (C.buyBasket(save, now())) persist(); render(); return; }
     if (b.id === "at-finish") {
       var item = C.finishSynthesis(save, s, ui.traits, now());
-      if (item.error) { ui.msg = t("at_err_" + item.error); render(); return; }
+      if (item.error) { ui.msg = t("at_err_" + item.error); ui.fx = "fail"; render(); return; }
       ui.result = item; ui.session = null; ui.recipe = null; ui.slots = []; ui.msg = ""; ui.catalyst = "";
-      ui.fx = item.great ? "great" : "done";
+      ui.fx = item.great ? "great" : item.overheat ? "overheat" : item.quality >= 50 ? "done" : "low";   // 與台詞的分級一致
       say(item.great ? "great" : item.overheat ? "overheat" : item.quality >= 50 ? "finish_good" : "finish_bad");
       ideas(); persist(); render(); return;
     }
@@ -707,7 +734,7 @@
     if (d.atDeliver) { if (C.deliver(save, +d.atDeliver)) { say("finish_good"); ideas(); persist(); } render(); return; }
     if (b.id === "at-sublimate") {
       var m = C.sublimate(save, ui.subs.slice(), now());
-      if (m.error) ui.msg = t("at_err_" + m.error);
+      if (m.error) { ui.msg = t("at_err_" + m.error); ui.fx = "fail"; }
       else { ui.msg = t("at_sublimate_ok", { q: m.quality }); say("sublimate"); persist(); }
       ui.subs = []; render(); return;
     }
@@ -728,7 +755,7 @@
   app.addEventListener("change", function (ev) {
     var x = ev.target;
     if (x.id === "at-file" && x.files && x.files[0]) {
-      CAM.fromFile(x.files[0]).then(function (rgba) { showSwatches(rgba); }, function () { ui.msg = t("at_err_image"); render(); });
+      CAM.fromFile(x.files[0]).then(function (rgba) { showSwatches(rgba); }, function () { ui.msg = t("at_err_image"); ui.fx = "fail"; render(); });
       return;
     }
     if (x.id === "at-cauldron") { ui.cauldron = x.value; render(); return; }
@@ -755,7 +782,7 @@
   });
   window.addEventListener("i18n:change", render);
   setInterval(function () {
-    if (app.querySelector(".at-trans")) return;                                 // 轉場播放中不重繪
+    if (Date.now() < transUntil) return;                                        // 轉場播放中不重繪
     if (ui.tab === "gather" || (ui.tab === "lab" && !ui.session)) { if (!CAM.isOpen()) render(); }
   }, 30000);
 

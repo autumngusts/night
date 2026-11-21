@@ -316,3 +316,113 @@
   .at-fx-done .at-result, .at-fx-great .at-result, #at-start.at-main:not(:disabled), #at-finish.at-main:not(:disabled) { animation: none; }
   .at-trans { display: none; }
 }
+
+/* 結果分級演出、失敗回饋、採集動畫（2026-11-21） */
+
+/* --- 大成功：彩虹爆發＋星星四散，比一般完成更久更華麗 --- */
+.at-trans-great { background: radial-gradient(circle at 50% 50%, #fff 0%, rgba(255, 236, 170, 0.95) 30%, rgba(154, 90, 224, 0.45) 70%, rgba(37, 28, 56, 0.6) 100%);
+  animation: at-trans-flash 2.1s ease-out forwards; }
+.at-trans-great .at-trans-rays { animation-duration: 2.1s; }
+.at-trans-rainbow { position: absolute; width: 20vmin; height: 20vmin; border-radius: 50%;
+  background: conic-gradient(#e0523a, #e0b83a, #3ab36a, #3a7be0, #9a5ae0, #e0523a);
+  -webkit-mask: radial-gradient(circle, transparent 55%, #000 57%, #000 68%, transparent 70%);
+  mask: radial-gradient(circle, transparent 55%, #000 57%, #000 68%, transparent 70%);
+  filter: drop-shadow(0 0 10px #fff); animation: at-rainbow-burst 1.4s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; }
+@keyframes at-rainbow-burst { 0% { transform: scale(0.2) rotate(0deg); opacity: 1; } 100% { transform: scale(6) rotate(90deg); opacity: 0; } }
+.at-star { position: absolute; font-style: normal; font-size: 1.6rem; color: #fff6c8; text-shadow: 0 0 8px #ffd24a, 0 0 16px #e6b422;
+  animation: at-star-fly 1.6s cubic-bezier(0.15, 0.8, 0.3, 1) forwards; animation-delay: calc(0.15s + var(--k) * 20ms); opacity: 0; }
+@keyframes at-star-fly {
+  0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(0.4); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--d) * -1)) scale(1.1) rotate(180deg); }
+}
+.at-trans-great .at-trans-text { font-size: 3rem; color: #7a4a00;
+  background: linear-gradient(90deg, #e0523a, #e0b83a, #3ab36a, #3a7be0, #9a5ae0); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px #fff) drop-shadow(0 2px 0 rgba(122, 74, 0, 0.5)); animation: at-great-word 2.1s ease-out forwards; }
+@keyframes at-great-word { 0% { opacity: 0; transform: scale(2.2); } 18% { opacity: 1; transform: scale(0.95); } 26% { transform: scale(1.05); } 32% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.1); } }
+.at-fx-great .at-result { animation: at-card-pop 0.6s 1.2s cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards, at-great-shine 2.4s 1.8s ease-in-out infinite; }
+@keyframes at-great-shine { 0%, 100% { box-shadow: 0 0 0 3px rgba(230, 180, 34, 0.35), 0 8px 24px rgba(230, 180, 34, 0.2); } 50% { box-shadow: 0 0 0 3px rgba(230, 180, 34, 0.7), 0 0 26px rgba(255, 210, 74, 0.6); } }
+
+/* --- 品質偏低：灰藍霧氣、滴落，文字往下垂 --- */
+.at-trans-low { background: radial-gradient(circle at 50% 45%, rgba(220, 228, 240, 0.95) 0%, rgba(150, 165, 190, 0.8) 45%, rgba(70, 80, 105, 0.6) 100%);
+  animation: at-trans-flash 1.4s ease-out forwards; }
+.at-trans-low .at-trans-text { color: #4a5670; font-size: 1.9rem; text-shadow: 0 1px 0 #fff; animation: at-low-word 1.4s ease-out forwards; }
+@keyframes at-low-word { 0% { opacity: 0; transform: translateY(-14px); } 25% { opacity: 1; transform: none; } 60% { transform: translateY(4px) rotate(-3deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(14px) rotate(-4deg); } }
+.at-drip { position: absolute; top: 38%; left: calc(36% + var(--k) * 7%); width: 8px; height: 12px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: #8d9bb8; opacity: 0; animation: at-drip 1.1s ease-in forwards; animation-delay: calc(0.3s + var(--k) * 0.12s); }
+@keyframes at-drip { 0% { opacity: 0; transform: translateY(0) scaleY(0.6); } 20% { opacity: 0.9; } 100% { opacity: 0; transform: translateY(32vh) scaleY(1.3); } }
+.at-fx-low .at-result { animation: at-card-drop 0.5s 0.6s ease-out backwards; border-color: #8d9bb8; }
+@keyframes at-card-drop { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+
+/* --- 過熱：紅光閃爍、冒煙、畫面震動 --- */
+.at-trans-overheat { background: radial-gradient(circle at 50% 60%, rgba(255, 170, 60, 0.9) 0%, rgba(224, 82, 58, 0.85) 40%, rgba(60, 20, 20, 0.85) 100%);
+  animation: at-trans-heat 1.5s ease-out forwards; }
+@keyframes at-trans-heat { 0% { opacity: 0; } 8% { opacity: 1; } 16% { opacity: 0.6; } 24% { opacity: 1; } 32% { opacity: 0.7; } 40%, 70% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+.at-trans-overheat .at-trans-text { color: #fff3e0; font-size: 2.4rem; text-shadow: 0 0 10px #ff7a3a, 0 0 24px #e0523a, 0 2px 0 #5a1a0a;
+  animation: at-heat-word 1.5s ease-out forwards; }
+@keyframes at-heat-word {
+  0% { opacity: 0; transform: scale(1.4); } 15% { opacity: 1; transform: scale(1) translateX(0); }
+  20% { transform: translateX(-6px); } 25% { transform: translateX(6px); } 30% { transform: translateX(-4px); } 35% { transform: translateX(3px); } 40% { transform: none; }
+  80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); }
+}
+.at-smoke { position: absolute; bottom: 14%; left: var(--l); width: 18vmin; height: 18vmin; border-radius: 50%;
+  background: radial-gradient(circle, rgba(70, 60, 60, 0.75) 0%, rgba(70, 60, 60, 0) 70%); opacity: 0;
+  animation: at-smoke 1.4s ease-out forwards; animation-delay: var(--dl); }
+@keyframes at-smoke { 0% { opacity: 0; transform: translateY(0) scale(0.4); } 30% { opacity: 0.9; } 100% { opacity: 0; transform: translateY(-50vh) scale(1.6); } }
+.at-fx-overheat { animation: at-shake 0.45s 0.1s ease-in-out; }
+.at-fx-overheat .at-result { animation: at-card-pop 0.5s 0.8s ease-out backwards; border-color: #e0523a; box-shadow: 0 0 0 3px rgba(224, 82, 58, 0.25), 0 8px 24px rgba(224, 82, 58, 0.2); }
+@keyframes at-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+
+/* --- 失敗回饋：訊息列變紅並搖晃 --- */
+.at-msg.at-msg-fail { color: #8f1d14; border-color: #e7a59c; background: linear-gradient(180deg, #fff1ee, #fbdcd6);
+  animation: at-shake 0.4s ease-in-out, at-fail-flash 0.8s ease-out; }
+.at-msg.at-msg-fail::before { content: "✖ "; font-weight: bold; }
+@keyframes at-fail-flash { from { box-shadow: 0 0 0 4px rgba(224, 82, 58, 0.45); } to { box-shadow: 0 0 0 0 rgba(224, 82, 58, 0); } }
+
+/* --- 採集：取色後色票像顏料滴一樣依序落下，照片掃描光 --- */
+.at-fx-scan .at-swatches li { animation: at-drop-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards; animation-delay: calc(0.25s + var(--i, 0) * 0.09s); }
+@keyframes at-drop-in { from { opacity: 0; transform: translateY(-22px) scale(0.92); } to { opacity: 1; transform: none; } }
+.at-fx-scan .at-swatch .at-chip { animation: at-chip-splash 0.5s ease-out backwards; animation-delay: calc(0.35s + var(--i, 0) * 0.09s); }
+@keyframes at-chip-splash { 0% { transform: scale(0); } 60% { transform: scale(1.25); } 100% { transform: none; } }
+.at-scene { position: relative; box-shadow: 0 3px 10px rgba(43, 36, 51, 0.25); border: 3px solid #fff; }
+.at-fx-scan .at-scene { animation: at-scene-scan 0.7s ease-out; }
+@keyframes at-scene-scan { 0% { filter: brightness(1.8) saturate(0); clip-path: inset(0 0 100% 0); } 100% { filter: none; clip-path: inset(0 0 0 0); } }
+.at-fx-scan .at-push { animation: at-rise 0.4s 0.2s ease-out backwards; }
+/* 點選色票：彈一下 */
+.at-wrap .at-swatch.at-pick-pop { animation: at-pick-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.5); }
+.at-wrap .at-swatch.at-pick-pop::before { animation: at-check-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.6); }
+@keyframes at-pick-pop { 0% { transform: scale(0.96); } 55% { transform: scale(1.03); } 100% { transform: none; } }
+@keyframes at-check-in { from { transform: scale(0) rotate(-90deg); } to { transform: none; } }
+
+/* --- 採集完成：光球飛進採集籃 --- */
+.at-trans-collect { background: radial-gradient(circle at 50% 58%, rgba(255, 250, 235, 0.9) 0%, rgba(251, 246, 236, 0.75) 40%, rgba(251, 246, 236, 0) 75%);
+  animation: at-trans-flash 1.5s ease-out forwards; }
+.at-basket-ico { position: absolute; top: 56%; font-size: 3.4rem; transform-origin: 50% 80%; filter: drop-shadow(0 4px 6px rgba(90, 64, 30, 0.35));
+  animation: at-basket-catch 1.5s ease-out forwards; }
+@keyframes at-basket-catch { 0% { transform: translateY(20px) scale(0.6); opacity: 0; } 20% { transform: none; opacity: 1; } 55% { transform: none; } 62% { transform: scale(1.15, 0.88); } 72% { transform: scale(0.95, 1.06); } 82%, 100% { transform: none; } }
+.at-basket-glow { position: absolute; top: 56%; width: 9rem; height: 9rem; margin-top: -2rem; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 224, 138, 0.9) 0%, rgba(255, 224, 138, 0) 70%); opacity: 0; animation: at-basket-glow 1.5s ease-out forwards; }
+@keyframes at-basket-glow { 0%, 50% { opacity: 0; transform: scale(0.5); } 65% { opacity: 1; transform: scale(1.1); } 100% { opacity: 0; transform: scale(1.4); } }
+.at-collect-rainbow .at-basket-glow { background: conic-gradient(rgba(224, 82, 58, 0.7), rgba(224, 184, 58, 0.7), rgba(58, 179, 106, 0.7), rgba(58, 123, 224, 0.7), rgba(154, 90, 224, 0.7), rgba(224, 82, 58, 0.7));
+  -webkit-mask: radial-gradient(circle, #000 0%, transparent 70%); mask: radial-gradient(circle, #000 0%, transparent 70%); }
+.at-orb { position: absolute; top: 56%; width: 2.6rem; height: 2.6rem; margin-top: 0.4rem; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 40%), var(--c);
+  box-shadow: 0 0 14px var(--c), inset -3px -4px 6px rgba(0, 0, 0, 0.25);
+  animation: at-orb-fly 0.95s cubic-bezier(0.5, 0, 0.6, 1) forwards; animation-delay: calc(0.1s + var(--k) * 0.12s); }
+@keyframes at-orb-fly {
+  0% { opacity: 0; transform: translate(var(--x), -34vh) scale(0.6); }
+  25% { opacity: 1; transform: translate(var(--x), -30vh) scale(1.15); }
+  100% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+}
+.at-trans-collect .at-trans-text { position: absolute; top: calc(56% - 4.6rem); color: #8a5a00; font-size: 2.2rem; text-shadow: 0 0 8px #fff, 0 0 16px rgba(230, 180, 34, 0.8);
+  opacity: 0; animation: at-plus-up 1.5s ease-out forwards; }
+@keyframes at-plus-up { 0%, 55% { opacity: 0; transform: translateY(10px) scale(0.6); } 68% { opacity: 1; transform: scale(1.15); } 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-14px); } }
+.at-collect-flag { position: absolute; top: calc(56% + 4.6rem); padding: 0.2rem 0.7rem; border-radius: 999px; font-weight: bold; font-size: 0.95rem;
+  color: var(--at-accent); background: #fff; border: 2px solid var(--at-accent); opacity: 0; animation: at-plus-up 1.5s 0.1s ease-out forwards; }
+.at-collect-flag.at-flag-daily { top: calc(56% + 6.8rem); color: #7a4a00; border-color: var(--at-gold); background: linear-gradient(180deg, #fff8dc, #ffe9a0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .at-fx-great .at-result, .at-fx-low .at-result, .at-fx-overheat, .at-fx-overheat .at-result, .at-msg.at-msg-fail,
+  .at-fx-scan .at-swatches li, .at-fx-scan .at-swatch .at-chip, .at-fx-scan .at-scene, .at-fx-scan .at-push,
+  .at-wrap .at-swatch.at-pick-pop, .at-wrap .at-swatch.at-pick-pop::before { animation: none; }
+}
