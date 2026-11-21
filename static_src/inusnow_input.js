@@ -1,5 +1,6 @@
-/* イヌスノー（狗雪）操作輸入（docs/inusnow_design.md §10）：拖曳、陀螺儀、鍵盤 → 每個物理步的量化輸入 {s, c, j, g}。
-   只負責讀取裝置輸入，不含規則。 */
+/* イヌスノー（狗雪）操作輸入（docs/inusnow_design.md §10、§17.9）：拖曳、陀螺儀、鍵盤、手機 HUD 按鈕 → 每個物理步的量化輸入 {s, c, j, g, z}。
+   只負責讀取裝置輸入，不含規則。
+   鍵盤（P2）：Z／X／C／V＝抓板 1～4、B＝咬尾（5）、N＝吠叫（6，一步）、Shift＝興奮度發動。 */
 (function (root) {
   "use strict";
 
@@ -9,12 +10,15 @@
   var FLICK_MS = 150;
   var TILT_FULL = 25;       // 傾斜 25°＝滿格
   var KEY_RAMP_MS = 200;    // 按住方向鍵 0.2 秒內漸增到滿格
+  var GRAB_KEYS = { z: 1, x: 2, c: 3, v: 4, b: 5 };
 
   var mode = "drag";
   var el = null;
   var ptr = null;            // {id, x0, y0, x, y, hist: [[t, y]]}
-  var jumpQueued = false;
+  var jumpQueued = false, barkQueued = false, zoomQueued = false;
   var keys = { left: 0, right: 0, down: false };
+  var grabHeld = [];         // 按住中的抓板鍵（最後按的優先）
+  var vGrab = 0;             // 手機 HUD 的抓板鍵
   var tilt = { gamma: 0, ok: false };
   var listening = false;
 
@@ -42,10 +46,19 @@
   }
   function onKey(e, down) {
     var k = e.key;
+    var lk = typeof k === "string" ? k.toLowerCase() : k;
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (k === "ArrowLeft") keys.left = down ? (keys.left || now()) : 0;
     else if (k === "ArrowRight") keys.right = down ? (keys.right || now()) : 0;
     else if (k === "ArrowDown") keys.down = down;
     else if (k === " " || k === "ArrowUp") { if (down && !e.repeat) jumpQueued = true; }
+    else if (k === "Shift") { if (down && !e.repeat) zoomQueued = true; }
+    else if (lk === "n") { if (down && !e.repeat) barkQueued = true; }
+    else if (GRAB_KEYS[lk]) {
+      var g = GRAB_KEYS[lk], i = grabHeld.indexOf(g);
+      if (i >= 0) grabHeld.splice(i, 1);
+      if (down) grabHeld.push(g);
+    }
     else return;
     e.preventDefault();
   }
@@ -84,7 +97,7 @@
 
   // 每個物理步呼叫一次
   function sample() {
-    var s = 0, c = 0, j = 0;
+    var s = 0, c = 0, j = 0, g = 0, z = 0;
     var t = now();
     if (keys.left || keys.right) {
       var l = keys.left ? Math.min(1, (t - keys.left) / KEY_RAMP_MS) : 0;
@@ -100,11 +113,23 @@
     }
     if (keys.down || (ptr && ptr.y - ptr.y0 > TUCK_PX)) c = 1;
     if (jumpQueued) { j = 1; jumpQueued = false; }
-    return { s: s, c: c, j: j, g: 0 };
+    g = grabHeld.length ? grabHeld[grabHeld.length - 1] : vGrab;
+    if (barkQueued) { g = 6; barkQueued = false; }
+    if (zoomQueued) { z = 1; zoomQueued = false; }
+    var o = { s: s, c: c, j: j, g: g };
+    if (z) o.z = 1;
+    return o;
   }
 
-  function reset() { ptr = null; jumpQueued = false; keys.left = 0; keys.right = 0; keys.down = false; }
+  function reset() { ptr = null; jumpQueued = false; barkQueued = false; zoomQueued = false; keys.left = 0; keys.right = 0; keys.down = false; grabHeld = []; vGrab = 0; }
 
-  var Input = { attach: attach, enableTilt: enableTilt, setMode: setMode, sample: sample, reset: reset, tiltReady: function () { return tilt.ok; } };
+  var Input = {
+    attach: attach, enableTilt: enableTilt, setMode: setMode, sample: sample, reset: reset, tiltReady: function () { return tilt.ok; },
+    // 手機 HUD 用
+    setGrab: function (g) { vGrab = g | 0; },
+    bark: function () { barkQueued = true; },
+    zoom: function () { zoomQueued = true; },
+    jump: function () { jumpQueued = true; },
+  };
   root.PriTestInusnowInput = Input;
 })(typeof window !== "undefined" ? window : globalThis);

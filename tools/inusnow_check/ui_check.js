@@ -2,7 +2,7 @@
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8975 --directory dist
 //   3. node tools/inusnow_check/ui_check.js   （INUSNOW_ROOT 可改網址）
-// 依據計畫 docs/superpowers/plans/2026-11-20-inusnow-phase1.md Task 8。截圖存在 SHOT_DIR（預設系統暫存資料夾）。
+// 依據計畫 docs/superpowers/plans/2026-11-20-inusnow-phase1.md Task 8、2026-11-21-inusnow-phase2.md T10。截圖存在 SHOT_DIR（預設系統暫存資料夾）。
 "use strict";
 var path = require("path");
 var os = require("os");
@@ -48,7 +48,8 @@ async function fullRun(page, resort, opts) {
       assert.strictEqual((await page.$$(".inu-resort")).length, 8, "雪場 8 個");
       await page.dispatchEvent('.inu-resort[data-resort="happo"]', "click");
       await page.waitForSelector(".inu-breed");
-      assert.strictEqual((await page.$$(".inu-breed")).length, 8, "犬種 8 種");
+      // 2026-11-21：第 2 階段犬種補到 24 種（設計 §5.1），舊的期望值 8 種已過時
+      assert.strictEqual((await page.$$(".inu-breed")).length, 24, "犬種 24 種");
       await page.dispatchEvent('.inu-breed[data-breed="husky"]', "click");
       await page.evaluate(function () { window.PriTestInusnowApp._debug.autopilot(true); });
       await page.dispatchEvent('[data-act="start"]', "click");
@@ -75,7 +76,8 @@ async function fullRun(page, resort, opts) {
     await fullRun(p2, "naeba", { ghost: true });
     await p2.reload();
     await p2.waitForSelector(".inu-resort");
-    var best = await p2.$eval('.inu-resort[data-resort="naeba"] .inu-resort-best', function (e) { return e.textContent; });
+    // 2026-11-21：雪場卡片改成 4 個賽事的徽章（第 1 個＝大曲道最佳時間），原本的 .inu-resort-best 已移除
+    var best = await p2.$eval('.inu-resort[data-resort="naeba"] .inu-badge', function (e) { return e.textContent; });
     assert.ok(/\d:\d\d\.\d\d/.test(best), "重新整理後最佳紀錄還在：" + best);
     await p2.evaluate(function () {
       var d = window.PriTestInusnowApp._debug;
@@ -135,6 +137,69 @@ async function fullRun(page, resort, opts) {
     assert.deepStrictEqual(p4._errors, [], "沒有 console error");
     ok("8 個雪場都能載入並開賽");
     await p4.close();
+
+    // 5. 第 2 階段：賽事選擇、各賽事完賽與成績畫面、手機 HUD 按鈕（計畫 2026-11-21-inusnow-phase2.md T10）
+    var p5 = await newPage(browser, { width: 390, height: 844 });
+    await p5.goto(BASE);
+    await p5.waitForSelector(".inu-resort");
+    await p5.dispatchEvent('.inu-resort[data-resort="naeba"]', "click");
+    await p5.waitForSelector(".inu-event");
+    assert.strictEqual((await p5.$$(".inu-event")).length, 4, "賽事 4 種");
+    await p5.dispatchEvent('.inu-event[data-event="slope"]', "click");
+    await p5.waitForSelector(".inu-course-feats .inu-feat");
+    assert.strictEqual((await p5.$$(".inu-course-feats .inu-feat")).length, 6, "Slopestyle 6 個地形");
+    await p5.dispatchEvent('[data-opt="mode"][data-val="race"]', "click");
+    assert.ok(await p5.$('[data-opt="mode"][data-val="race"].is-on'), "切換到比賽模式");
+    await p5.dispatchEvent('[data-opt="mode"][data-val="practice"]', "click");
+    var flows = [
+      { ev: "slope", mode: "practice", check: async function (pg) { assert.strictEqual((await pg.$$(".inu-judge")).length, 3, "評審 3 位"); assert.strictEqual((await pg.$$(".inu-featrow")).length, 6, "地形別分數 6 列"); } },
+      { ev: "gs", mode: "race", check: async function (pg) { assert.strictEqual((await pg.$$(".inu-table tbody tr")).length, 8, "大曲道比賽：名次表 8 隻"); assert.ok(await pg.$(".inu-table tr.is-me"), "名次表有自己"); } },
+      { ev: "slope", mode: "race", check: async function (pg) { assert.strictEqual((await pg.$$(".inu-table tbody tr")).length, 8, "Slopestyle 比賽：名次表 8 隻"); } },
+      { ev: "cross", mode: "race", check: async function (pg) { assert.strictEqual((await pg.$$(".inu-table tbody tr")).length, 6, "Cross：名次表 6 隻"); assert.ok(await pg.$(".inu-podium"), "頒獎台"); } },
+    ];
+    for (var fi = 0; fi < flows.length; fi++) {
+      var fl = flows[fi];
+      await p5.evaluate(function (a) { var d = window.PriTestInusnowApp._debug; d.autopilot(true); d.speedUp(10); d.start("naeba", { event: a.ev, mode: a.mode, ghost: false }); }, { ev: fl.ev, mode: fl.mode });
+      await p5.waitForFunction(function () { return window.PriTestInusnowApp._debug.state().phase === "run"; }, null, { timeout: 60000 });
+      if (fl.ev === "cross") assert.strictEqual((await state(p5)).cpus, 5, "Cross：CPU 5 隻");
+      await p5.waitForFunction(function () { return window.PriTestInusnowApp._debug.state().screen === "result"; }, null, { timeout: 240000 });
+      await fl.check(p5);
+      await p5.screenshot({ path: path.join(SHOT_DIR, "inusnow_p2_" + fl.ev + "_" + fl.mode + ".png") });
+      ok("第 2 階段：" + fl.ev + "／" + fl.mode + " 完賽與成績畫面");
+    }
+    // Slopestyle 的手機 HUD：抓板鍵（按住）、吠叫鍵、骨頭鍵
+    await p5.evaluate(function () { var d = window.PriTestInusnowApp._debug; d.autopilot(false); d.speedUp(1); d.start("naeba", { event: "slope", mode: "practice", ghost: false }); });
+    await p5.waitForSelector("#btn-inu-grab");
+    await p5.dispatchEvent("#btn-inu-grab", "pointerdown", { clientX: 300, clientY: 780, pointerId: 3 });
+    var sg = await p5.evaluate(function () { return window.PriTestInusnowApp._debug.sample(); });
+    assert.strictEqual(sg.g, 1, "按住抓板鍵＝g 1");
+    await p5.dispatchEvent("#btn-inu-grab", "pointerup", { clientX: 300, clientY: 780, pointerId: 3 });
+    await p5.dispatchEvent("#btn-inu-bark", "pointerdown", { clientX: 340, clientY: 700, pointerId: 4 });
+    sg = await p5.evaluate(function () { return window.PriTestInusnowApp._debug.sample(); });
+    assert.strictEqual(sg.g, 6, "吠叫鍵＝g 6（一步）");
+    await p5.dispatchEvent("#btn-inu-zoom", "click");
+    sg = await p5.evaluate(function () { return window.PriTestInusnowApp._debug.sample(); });
+    assert.strictEqual(sg.z, 1, "骨頭鍵＝z");
+    await p5.dispatchEvent("#btn-inu-pause", "click");
+    await p5.dispatchEvent("#btn-inu-quit", "click");
+    await p5.waitForSelector(".inu-event");
+    ok("手機 HUD：抓板、吠叫、興奮度");
+    // 自由滑行：坐纜車、結束、收集存檔
+    await p5.evaluate(function () { var d = window.PriTestInusnowApp._debug; d.autopilot(true); d.speedUp(1); d.fastLift(true); d.start("naeba", { event: "free" }); });
+    await p5.waitForFunction(function () { return window.PriTestInusnowApp._debug.state().phase === "run"; }, null, { timeout: 60000 });
+    assert.ok(await p5.$("#inu-minimap"), "自由滑行有小地圖");
+    await p5.evaluate(function () { window.PriTestInusnowApp._debug.toLift(0); });
+    await p5.waitForFunction(function () { return window.PriTestInusnowApp._debug.state().liftNear === 0; }, null, { timeout: 10000 });
+    await p5.dispatchEvent("#btn-inu-lift", "click");
+    await p5.waitForTimeout(500);
+    assert.ok((await state(p5)).liftNear !== 0, "坐纜車上山");
+    await p5.screenshot({ path: path.join(SHOT_DIR, "inusnow_p2_free.png") });
+    await p5.dispatchEvent("#btn-inu-end", "click");
+    await p5.waitForSelector(".inu-collect");
+    assert.ok((await state(p5)).free.naeba, "自由滑行的收集存檔");
+    ok("自由滑行：小地圖、坐纜車、結束、存檔");
+    assert.deepStrictEqual(p5._errors, [], "沒有 console error");
+    await p5.close();
     console.log("inusnow ui_check OK（截圖：" + SHOT_DIR + "）");
   } finally {
     await browser.close();

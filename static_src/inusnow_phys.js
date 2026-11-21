@@ -1,12 +1,14 @@
 /* イヌスノー（狗雪）單板物理（docs/inusnow_design.md §3）。固定步長 1/60 秒。
    不碰 DOM、不讀寫 localStorage；只用 + − × ÷、Math.sqrt、Math.abs、比較（設計 §11：之後移植成 Go，同一組輸入要得到同樣的結果）。
-   輸入：{s: −8..8 轉向（右為正）, c: 0/1 蹲低, j: 0/1 起跳, g: 0..6 抓板}。 */
+   輸入：{s: −8..8 轉向（右為正）, c: 0/1 蹲低, j: 0/1 起跳, g: 0..6 抓板, z: 0/1 興奮度發動（P2）}。
+   env：{terrain, snow, spinMul?（Slopestyle 的轉體倍率）, rut?（G1 溝痕）}；沒有這些欄位時與第 1 階段完全相同。 */
 (function (root) {
   "use strict";
 
   var D = root.PriTestInusnowData || (typeof require === "function" ? require("./inusnow_data.js") : null);
   var T = root.PriTestInusnowTerrain || (typeof require === "function" ? require("./inusnow_terrain.js") : null);
   var P = D.PHYS;
+  var Z = D.ZOOM, RU = D.RUT;
   var DT = 1 / P.hz;
 
   function statMul(v) { return D.STAT_LO + D.STAT_SPAN * v / 100; }
@@ -35,6 +37,7 @@
       h: [start.tx, start.tz],
       air: false, crouch: 0, edge: 0, yawAir: 0, airSteps: 0,
       fall: 0, t: 0, mods: dogMods(dog), boost: 1,
+      zoom: 0, zoomT: 0,
     };
   }
 
@@ -62,6 +65,17 @@
 
     var v = st.v, p = st.p;
 
+    // S2 興奮度：量表滿時輸入 z 發動 240 步（設計 §17.5）
+    if (input.z && st.zoomT === 0 && st.zoom >= Z.max && st.fall === 0) {
+      st.zoomT = Z.steps; st.zoom = 0;
+      ev.push("zoom");
+    }
+    var zooming = st.zoomT > 0;
+    if (zooming) {
+      st.zoomT -= 1;
+      if (st.zoomT === 0) ev.push("zoomEnd");
+    }
+
     if (st.fall > 0) {
       st.fall -= 1;
       v[0] *= 0.94; v[1] *= 0.94; v[2] *= 0.94;
@@ -81,9 +95,17 @@
       v[2] += (0 - (-g * n[1]) * n[2]) * DT;
       var sp = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 
+      // G1 溝痕：所在格的深度 d（0～1）
+      var rd = 0, rc = null;
+      if (env.rut) {
+        rc = T.rutAt(env.rut, p[0], p[2]);
+        if (rc) { rd = rc.n / RU.max; if (rd <= RU.minD) rd = 0; }
+      }
       if (st.fall === 0) {
         // 轉向：低速好轉、蹲低難轉
         var w = steer * P.turnBase * m.turn / (1 + sp / P.turnSpeedRef) * (1 - P.crouchTurn * st.crouch);
+        if (zooming) w *= Z.turn;
+        if (rd > 0) w *= 1 - RU.turn * rd;
         turnHeading(st, w);
         // 板子在坡面上的方向 b（速度在板子後方時視為反腳滑行，b 反向）
         var bx = st.h[0], bz = st.h[1];
@@ -94,7 +116,7 @@
         if (vb < 0) { bx = -bx; by = -by; bz = -bz; vb = -vb; }
         var lx = v[0] - vb * bx, ly = v[1] - vb * by, lz = v[2] - vb * bz;
         var lat = Math.sqrt(lx * lx + ly * ly + lz * lz);
-        var cap = P.gripAccel * snow.grip * m.grip * DT;
+        var cap = P.gripAccel * snow.grip * m.grip * DT * (zooming ? Z.grip : 1) * (env.grip || 1);
         if (lat <= cap) {
           // 刻滑：側向速度轉成板子方向，速度大小幾乎不變
           var keep = sp * (1 - P.carveLoss * lat);
@@ -110,6 +132,31 @@
             v[0] *= f; v[1] *= f; v[2] *= f;
           }
           if (lat - cap > 1.2) ev.push("skid");
+        }
+      }
+      // 溝痕：速度方向和溝的方向差 > 20° 時減速，並被帶往溝的方向
+      if (rd > 0 && st.fall === 0) {
+        var rl = Math.sqrt(rc.dx * rc.dx + rc.dz * rc.dz);
+        var vhs = Math.sqrt(v[0] * v[0] + v[2] * v[2]);
+        if (rl > 0 && vhs > 0.5) {
+          var rx = rc.dx / rl, rz = rc.dz / rl;
+          var cs = (rx * v[0] + rz * v[2]) / vhs;
+          if (cs < 0) { rx = -rx; rz = -rz; cs = -cs; }
+          if (cs < RU.cosLimit) {
+            var kd2 = 1 - RU.decel * rd * DT / vhs;
+            if (kd2 < 0) kd2 = 0;
+            v[0] *= kd2; v[1] *= kd2; v[2] *= kd2;
+            var px2 = rx - cs * v[0] / vhs, pz2 = rz - cs * v[2] / vhs, pl = Math.sqrt(px2 * px2 + pz2 * pz2);
+            if (pl > 0) { v[0] += px2 / pl * RU.pull * rd * DT; v[2] += pz2 / pl * RU.pull * rd * DT; }
+          }
+        }
+      }
+      // 興奮度：沿速度方向加速
+      if (zooming && st.fall === 0) {
+        var sz = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (sz > 0.1) {
+          var ka = 1 + Z.accel * m.push * DT / sz;
+          v[0] *= ka; v[1] *= ka; v[2] *= ka;
         }
       }
       // 雪面摩擦
@@ -130,7 +177,7 @@
       // 空中：重力；轉向輸入＝轉體
       v[1] -= P.g * DT;
       if (st.fall === 0 && steer !== 0) {
-        var ws = steer * P.spinRate * m.spin;
+        var ws = steer * P.spinRate * m.spin * (env.spinMul || 1);
         turnHeading(st, ws);
         st.yawAir += ws * DT;
       }
@@ -190,7 +237,16 @@
     }
   }
 
-  var Phys = { create: create, step: step, speed: speed, dogMods: dogMods, DT: DT };
+  // 撞到障礙（樹、Cross 的空中碰撞）：直接摔倒
+  function knock(st) {
+    if (st.fall > 0) return false;
+    st.v[0] *= P.fallKeep; st.v[1] *= P.fallKeep; st.v[2] *= P.fallKeep;
+    st.fall = P.fallSteps;
+    st.zoomT = 0;
+    return true;
+  }
+
+  var Phys = { create: create, step: step, speed: speed, dogMods: dogMods, knock: knock, DT: DT };
   root.PriTestInusnowPhys = Phys;
   if (typeof module !== "undefined" && module.exports) module.exports = Phys;
 })(typeof window !== "undefined" ? window : globalThis);

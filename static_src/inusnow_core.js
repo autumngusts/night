@@ -7,6 +7,8 @@
   var T = root.PriTestInusnowTerrain || (typeof require === "function" ? require("./inusnow_terrain.js") : null);
   var Phys = root.PriTestInusnowPhys || (typeof require === "function" ? require("./inusnow_phys.js") : null);
   var G = D.GATES;
+  var Z = D.ZOOM, AI = D.CPU_AI;
+  var PI = 3.141592653589793;
 
   // ---------------- 亂數 ----------------
   function hash(str) {
@@ -83,8 +85,39 @@
       finish: { x: fin.x, z: fin.z, tx: fin.tx, tz: fin.tz },
       st: Phys.create(terrain, a, opts.dog),
       next: 0, perfect: 0, chain: 0, still: 0, near: null,
-      status: "run", reason: null, missGate: -1, steps: 0, inputs: [], events: [],
+      status: "run", reason: null, missGate: -1, steps: 0, inputs: [], events: [], gateT: [],
+      kind: "gs", rut: opts.rut || null,
     };
+  }
+
+  // 轉體角度（rad）→ 四捨五入到 180 的倍數（度）
+  function spinDeg(yaw) {
+    var deg = (yaw < 0 ? -yaw : yaw) * 180 / PI;
+    return Math.floor(deg / 180 + 0.5) * 180;
+  }
+
+  // S2 興奮度量表的累積（設計 §17.5）：只依物理事件與時間，重播一致。發動中不累積
+  function zoomGain(st, n) {
+    if (st.zoomT > 0) return;
+    st.zoom += n;
+    if (st.zoom > Z.max) st.zoom = Z.max;
+    if (st.zoom < 0) st.zoom = 0;
+  }
+  function zoomTick(st, ev) {
+    var g = 0;
+    for (var i = 0; i < ev.length; i++) {
+      if (ev[i] === "land" && st.airSteps >= Z.landMinAir) g += spinDeg(st.yawAir) >= 360 ? Z.trick : Z.land;
+      else if (ev[i] === "fall") g += Z.fall;
+    }
+    if (Phys.speed(st) > Z.fastMs) g += Z.fastPerSec / D.PHYS.hz;
+    if (g !== 0) zoomGain(st, g);
+  }
+  function normInput(input) {
+    var inp = { s: input.s | 0, c: input.c ? 1 : 0, j: input.j ? 1 : 0, g: input.g | 0 };
+    if (input.z) inp.z = 1;
+    if (inp.s > 8) inp.s = 8; else if (inp.s < -8) inp.s = -8;
+    if (inp.g < 0 || inp.g > 6) inp.g = 0;
+    return inp;
   }
 
   function boostMult(chain) {
@@ -95,13 +128,13 @@
 
   function stepRun(run, input) {
     if (run.status !== "run") return run.status;
-    var inp = { s: input.s | 0, c: input.c ? 1 : 0, j: input.j ? 1 : 0, g: input.g | 0 };
-    if (inp.s > 8) inp.s = 8; else if (inp.s < -8) inp.s = -8;
+    var inp = normInput(input);
     run.inputs.push(inp);
     var st = run.st;
     var ax = st.p[0], az = st.p[2];
-    var ev = Phys.step(st, inp, { terrain: run.terrain, snow: run.opts.snow });
+    var ev = Phys.step(st, inp, { terrain: run.terrain, snow: run.opts.snow, rut: run.rut });
     run.steps += 1;
+    zoomTick(st, ev);
     var bx = st.p[0], bz = st.p[2];
     for (var e = 0; e < ev.length; e++) run.events.push({ k: run.steps, e: ev[e] });
 
@@ -119,10 +152,12 @@
           var mul = boostMult(run.chain);
           st.v[0] *= mul; st.v[1] *= mul; st.v[2] *= mul;
           run.events.push({ k: run.steps, e: "perfect", n: run.chain });
+          zoomGain(st, Z.perfect);
         } else {
           run.chain = 0;
           run.events.push({ k: run.steps, e: "gate" });
         }
+        run.gateT.push(run.steps);
         run.next += 1;
       }
     }
@@ -211,12 +246,17 @@
   }
 
   // ---------------- 輸入紀錄（設計 §3.4） ----------------
-  function codeOf(inp) { return (inp.s + 8) + 17 * ((inp.c ? 1 : 0) + 2 * ((inp.j ? 1 : 0) + 2 * (inp.g | 0))); }
+  // z（興奮度發動）時再 +476，舊紀錄不受影響（設計 §3.6）
+  function codeOf(inp) { return (inp.s + 8) + 17 * ((inp.c ? 1 : 0) + 2 * ((inp.j ? 1 : 0) + 2 * (inp.g | 0))) + (inp.z ? 476 : 0); }
   function inputOf(code) {
+    var z = 0;
+    if (code >= 476) { z = 1; code -= 476; }
     var s = code % 17 - 8; code = (code - (code % 17)) / 17;
     var c = code % 2; code = (code - c) / 2;
     var j = code % 2; code = (code - j) / 2;
-    return { s: s, c: c, j: j, g: code };
+    var o = { s: s, c: c, j: j, g: code };
+    if (z) o.z = 1;
+    return o;
   }
   function encode(inputs) {
     var out = [], prev = -1, cnt = 0;
@@ -236,7 +276,7 @@
     for (var i = 0; i < parts.length; i++) {
       var seg = parts[i].split(".");
       var code = parseInt(seg[0], 36), cnt = seg.length > 1 ? parseInt(seg[1], 36) : 1;
-      if (!(code >= 0 && code < 17 * 2 * 2 * 7) || !(cnt >= 1)) throw new Error("bad record");
+      if (!(code >= 0 && code < 17 * 2 * 2 * 7 * 2) || !(cnt >= 1)) throw new Error("bad record");
       var inp = inputOf(code);
       for (var k = 0; k < cnt; k++) out.push(inp);
     }
@@ -257,6 +297,112 @@
   }
   function frameOf(st) { return [st.p[0], st.p[1], st.p[2], st.h[0], st.h[1], st.edge, st.crouch, st.air ? 1 : 0]; }
 
+  // ---------------- CPU 選手（設計 §5.2、§17.3） ----------------
+  // 比賽 seed：比賽模式每場不同（練習模式用固定的 courseSeed）
+  function raceSeed(resort, when) { return hash("race|" + resort + "|" + when); }
+  // 比賽模式的旗門：有些 seed 會在平緩段排出大彎而停住，所以依序試 8 個 seed，取慢速自動駕駛（aggr 0.2）能完賽的第一個（確定性）
+  function pickGsSeed(terrain, piste, resort, when, dog) {
+    var first = 0;
+    for (var k = 0; k < 8; k++) {
+      var sd = raceSeed(resort, when + "#" + k);
+      if (k === 0) first = sd;
+      var run = newRun(terrain, { piste: piste, seed: sd, dog: dog, snow: "groomed", runNo: 0 });
+      while (run.status === "run") stepRun(run, autopilot(run, 0.2));
+      if (run.status === "finish") return sd;
+    }
+    return first;
+  }
+  // 從名冊抽 n 隻（同一場比賽固定）
+  function cpuField(seed, n) {
+    var rng = makeRng((seed ^ hash("field")) >>> 0);
+    var pool = D.CPU.slice(), out = [];
+    while (out.length < n && pool.length) {
+      var k = Math.floor(rng() * pool.length);
+      out.push(pool[k]);
+      pool.splice(k, 1);
+    }
+    return out;
+  }
+  function cpuBaseAggr(cpu) { return AI.aggrBase + AI.aggrLv * cpu.lv + (AI.styleAggr[cpu.style] || 0); }
+  // 大曲道 CPU 的輸入產生器：每座旗門抽一次 aggr 的變動與失誤；輸入延遲（環形緩衝）
+  function cpuGsController(cpu, seed) {
+    var rng = makeRng(seed >>> 0);
+    var base = cpuBaseAggr(cpu), delay = AI.delayBase - cpu.lv;
+    if (delay < 0) delay = 0;
+    var buf = [], seen = -1, aggr = base;
+    return function (run) {
+      if (run.next !== seen) {
+        seen = run.next;
+        aggr = base + (rng() * 2 - 1) * AI.vary;
+        if (rng() < AI.missK * (6 - cpu.lv)) aggr -= AI.missDrop;
+        if (aggr < 0.05) aggr = 0.05; else if (aggr > AI.aggrMax) aggr = AI.aggrMax;
+        aggr = Math.floor(aggr * 100 + 0.5) / 100;
+      }
+      var inp = autopilot(run, aggr);
+      buf.push(inp);
+      var out = buf.length > delay ? buf.shift() : { s: 0, c: 0, j: 0, g: 0 };
+      if (run.st.zoom >= Z.max && run.st.zoomT === 0) {
+        var g = run.gates[run.next], st = run.st;
+        var far = g ? (g.ix - st.p[0]) * (g.ix - st.p[0]) + (g.iz - st.p[2]) * (g.iz - st.p[2]) > Z.straight * Z.straight : true;
+        if (far) out = { s: out.s, c: out.c, j: out.j, g: out.g, z: 1 };
+      }
+      return out;
+    };
+  }
+  // 一隻 CPU 跑完一趟（frames 每步一格，給幽靈與溝痕用）
+  function simCpuGs(terrain, base, cpu, seed, idx, rut) {
+    var o = {};
+    for (var k in base) if (Object.prototype.hasOwnProperty.call(base, k)) o[k] = base[k];
+    o.dog = breed(cpu.breed); o.rut = rut || null;
+    var run = newRun(terrain, o);
+    var ctl = cpuGsController(cpu, (seed + idx + 1) >>> 0);
+    var frames = [frameOf(run.st)];
+    while (run.status === "run") {
+      stepRun(run, ctl(run));
+      frames.push(frameOf(run.st));
+    }
+    return { cpu: cpu, status: run.status, reason: run.reason, time: run.status === "finish" ? run.time : null, perfect: run.perfect,
+      gateT: run.gateT, frames: frames, rec: encode(run.inputs) };
+  }
+  // 大曲道比賽：CPU 依出發順序跑，後出發的走在前面選手的溝痕上（G1）。回傳 {cpus, rut（給玩家用）}
+  function simGsField(terrain, base, field, seed) {
+    var rut = newRut(), out = [];
+    for (var i = 0; i < field.length; i++) {
+      var r = simCpuGs(terrain, base, field[i], seed, i, rut.count ? rut : null);
+      out.push(r);
+      rutAdd(rut, r.frames);
+    }
+    return { cpus: out, rut: rut };
+  }
+
+  // ---------------- G1 溝痕（設計 §17.6） ----------------
+  // 稀疏 1 m 格網：先出發者的軌跡經過一格就 +18（同一次經過只算一次），並累積方向
+  function newRut() { return { cells: {}, count: 0 }; }
+  function rutAdd(rut, frames) {
+    var R = D.RUT, prev = null, px = 0, pz = 0;
+    for (var i = 0; i < frames.length; i++) {
+      var f = frames[i];
+      if (f[7]) { prev = null; continue; }
+      var ci = Math.floor(f[0]), cj = Math.floor(f[2]);
+      var key = (ci + 32768) * 65536 + (cj + 32768);
+      if (key !== prev && prev !== null) {
+        var c = rut.cells[key];
+        if (!c) { c = { n: 0, dx: 0, dz: 0 }; rut.cells[key] = c; }
+        c.n += R.add;
+        if (c.n > R.max) c.n = R.max;
+        var dx = f[0] - px, dz = f[2] - pz, dl = Math.sqrt(dx * dx + dz * dz);
+        if (dl > 0) {
+          // 方向不分前後：和累積方向反向時翻轉再加
+          if (dx * c.dx + dz * c.dz < 0) { dx = -dx; dz = -dz; }
+          c.dx += dx / dl; c.dz += dz / dl;
+        }
+      }
+      prev = key; px = f[0]; pz = f[2];
+    }
+    rut.count += 1;
+    return rut;
+  }
+
   // 分享碼：resort|piste|seed|runNo|breed|record
   function shareCode(o) { return ["inu1", o.resort, o.piste, o.seed >>> 0, o.runNo | 0, o.breed, o.rec].join("|"); }
   function parseShare(str) {
@@ -268,7 +414,8 @@
 
   // ---------------- 存檔格式（設計 §13） ----------------
   function newSave() {
-    return { v: 1, dog: { breed: "shiba", name: "" }, best: {}, settings: { control: "drag", camera: "chase", runs: 1, ghost: true }, ghostImport: null };
+    // P2 追加：settings.event／mode／lift、free（自由滑行的收集）
+    return { v: 1, dog: { breed: "shiba", name: "" }, best: {}, settings: { control: "drag", camera: "chase", runs: 1, ghost: true, event: "gs", mode: "practice", lift: 0 }, ghostImport: null, free: {} };
   }
   function migrate(obj) {
     var s = newSave();
@@ -279,6 +426,7 @@
       for (var k in s.settings) if (Object.prototype.hasOwnProperty.call(obj.settings, k)) s.settings[k] = obj.settings[k];
     }
     if (obj.ghostImport && typeof obj.ghostImport === "object") s.ghostImport = obj.ghostImport;
+    if (obj.free && typeof obj.free === "object") s.free = obj.free;
     return s;
   }
 
@@ -294,7 +442,10 @@
     hash: hash, makeRng: makeRng, makeGates: makeGates, gateCheck: gateCheck,
     newRun: newRun, stepRun: stepRun, autopilot: autopilot, boostMult: boostMult,
     encode: encode, decode: decode, replay: replay, frameOf: frameOf,
-    shareCode: shareCode, parseShare: parseShare,
+    shareCode: shareCode, parseShare: parseShare, normInput: normInput,
+    spinDeg: spinDeg, zoomTick: zoomTick, zoomGain: zoomGain,
+    raceSeed: raceSeed, pickGsSeed: pickGsSeed, cpuField: cpuField, cpuBaseAggr: cpuBaseAggr, cpuGsController: cpuGsController, simCpuGs: simCpuGs, simGsField: simGsField,
+    newRut: newRut, rutAdd: rutAdd,
     newSave: newSave, migrate: migrate, courseSeed: courseSeed, breed: breed,
   };
   root.PriTestInusnowCore = Core;

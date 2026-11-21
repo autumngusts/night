@@ -1,6 +1,6 @@
 # イヌスノー（inusnow）遊戲設計
 
-> 狀態：**設計定稿 v2（2026-11-20）**。第 1 階段已完成（v2.82.0）；第 2～6 階段的規格寫在 §17～§21，可以直接據此寫各階段的實作計畫。
+> 狀態：**設計定稿 v2（2026-11-20）**。第 1 階段完成（v2.82.0）、第 2 階段完成（v2.83.0，G2 嗅覺捷徑除外，見 §0.5）；第 3～6 階段的規格寫在 §18～§21。
 > 中文名「狗雪」、日文名「イヌスノー」、英文 Inu Snow。前綴：JS `window.PriTestInusnow*`、i18n `inu_`、CSS `inu-`
 > （不用 `is-`：會和全站共用的 `.is-active` 等狀態 class 撞名）。
 > 先在 PriTest 以純前端試作，最終移植到 RMD。
@@ -17,8 +17,8 @@
 | 階段 | 狀態 | 版本 |
 |---|---|---|
 | P1 單板大曲道（8 個真實雪場、物理、旗門、紀錄與幽靈、3D、操作） | **完成** | v2.82.0（2026-11-20） |
-| P2 Slopestyle、CPU、Snowboard Cross、興奮度、溝痕、嗅覺捷徑、自由滑行、犬種 24 種 | 未開始：規格見 §17 | |
-| P3 競猜、教練模式、雪質天氣夜間、救難犬、世界盃、雪崩逃脫、每日雪況 | 未開始：規格見 §18 | |
+| P2 Slopestyle、CPU、Snowboard Cross、興奮度、溝痕、自由滑行、犬種 24 種；畫面特效與 UIUX 全面升級 | **完成**（G2 嗅覺捷徑延到 P3 開頭，§0.5） | v2.83.0（2026-11-21） |
+| P3 G2 嗅覺捷徑（P2 留下）、競猜、教練模式、雪質天氣夜間、救難犬、世界盃、雪崩逃脫、每日雪況 | 未開始：規格見 §17.7、§18 | |
 | P4 即時同場、4 人平行大曲道、雪橇犬接力、精彩重播 | 未開始：規格見 §19 | |
 | P5 成長、裝備、打蠟、解鎖、收集章、主人好感、主場、換裝、公園編輯器、季節、溫泉美食、雙板 | 未開始：規格見 §20 | |
 | P6 RMD 移植準備 | 未開始：規格見 §21 | |
@@ -37,9 +37,10 @@
 ```bash
 py -3 generate.py
 node --check static_src/inusnow_*.js
-node tools/inusnow_check/core_check.js            # 規則（Node）：確定性掃描、地形、物理、旗門、重播、8 個雪場 × 2 趟完賽
+node tools/inusnow_check/core_check.js            # 規則（Node）：確定性掃描、地形、物理、旗門、重播、8 個雪場 × 2 趟完賽；P2：附加物、興奮度、CPU、溝痕、Slopestyle、Cross、自由滑行
 py -3 -m http.server 8975 --directory dist
-node tools/inusnow_check/ui_check.js              # 畫面（Playwright）：手機／桌機完賽、存檔與幽靈、2 趟、重播、拖曳、8 個雪場
+node tools/inusnow_check/ui_check.js              # 畫面（Playwright）：手機／桌機完賽、存檔與幽靈、2 趟、重播、拖曳、8 個雪場；P2：4 種賽事、HUD 按鈕、自由滑行
+node tools/inusnow_data/add_events.js             # （改選段規則時）Slopestyle／Cross 的雪道選段，離線、可重複執行
 py -3 tools/split_css.py --check
 ```
 
@@ -62,7 +63,7 @@ py -3 tools/inusnow_data/fetch.py --fallback appi # 替補雪場
 | # | 問題 | 備註 |
 |---|---|---|
 | K1 | 自動駕駛跑一趟 54～119 秒，比真實大曲道慢 | 物理數值與自動駕駛都暫定；玩家手感優先，試玩後調 `PHYS` |
-| K2 | 狗的模型是基本形狀組合，沒有動作 | P2 起加上轉體、抓板、甩雪的姿勢（§17.2） |
+| K2 | 狗的模型是基本形狀組合，沒有動作 | P2 已加上抓板、咬尾、吠叫、甩雪、摔倒、興奮的姿勢，耳朵與尾巴隨速度擺動（2026-11-21） |
 | K3 | 陀螺儀操作只在桌機模擬測過，沒有實機測試 | 實機（iOS／Android）試玩時確認方向與靈敏度 |
 | K4 | 札幌手稻的格網範圍小，樹林稀疏；遠景 40 m 網格的山稜比較粗 | 畫面品質，非規則 |
 | K5 | `dogMods` 的 `push`（力量）與 `cld`（耐寒）目前沒有作用 | `push` 在 P2 興奮度、`cld` 在 P3 天氣接上 |
@@ -116,6 +117,34 @@ py -3 tools/inusnow_data/fetch.py --fallback appi # 替補雪場
 | 出發初速 | 3 m/s | **6 m/s** | 從出發門蹬出去；平緩起點不會停住 |
 | 完美旗門 | 加速持續 1 秒 | **通過當下速度 ×1.03** | 效果相近，規則單純 |
 | 刻滑損失 | 0.012 | **0.002** | 0.012 時連續轉彎每秒少 17% 速度，平緩路段會停住 |
+
+### 0.5 實作中確定的變更（2026-11-21，第 2 階段）
+
+| 項目 | 原設計 | 實作 | 理由 |
+|---|---|---|---|
+| 附加物的法線 | 中央差分（±0.25 m） | **解析梯度**（各形狀對 u、w 的偏微分，`gradOf`） | 中央差分跨過跳台唇口的落差時會算出近乎垂直的法線，速度在唇口歸零 |
+| Slopestyle 的轉體速度 | `spinRate` | **×3.0**（`SLOPE.spinMul`，只在 Slopestyle） | 原速度在 L 跳台的滯空時間內只轉得到約 180°；大曲道不受影響 |
+| CPU 的 aggr | 0.30＋0.06·等級、風格 ±0.08、變動 ±0.08、失誤 −0.25 | **0.16＋0.05·等級**、風格 ±0.05、變動 ±0.05、失誤 −0.2、上限 0.5 | 自動駕駛在 aggr ≥ 0.6 容易漏門 |
+| 比賽模式的大曲道 seed | `hash(日期時間＋雪場)` | 依序試 8 個 seed，取慢速自動駕駛（aggr 0.2）能完賽的第一個（`pickGsSeed`） | 有些 seed 在平緩段排出大彎，全部 CPU 都會停住 |
+| G1 溝痕的範圍 | 比賽模式＋2 趟制的第 2 趟 | **只在比賽模式** | 練習模式的紀錄與第 1 階段的最佳紀錄、幽靈、分享碼保持可以比較 |
+| 溝痕「往溝中心側推」 | 往溝中心 | 往**溝的方向**修正速度（1 m 格的中心沒有意義） | 效果同樣是「被帶偏」 |
+| 興奮度的落地加分 | 每次乾淨落地 | 滯空 ≥ 20 步（1/3 秒）的落地才算 | 地形起伏的小彈跳每秒會觸發好幾次 |
+| Cross 的選段 | 80 m 區間坡度 ≥ 3° | **≥ 5°，且 30 m 內方向變化 ≤ 60°**（沒有急彎） | 3° 與髮夾彎會讓選手停住 |
+| Cross 的跳台 | M 或 L | **S 或 M**，橫跨整個雪道；跳台與波浪只放在前 30 m～後 15 m 每 5 m 坡度 ≥ 0.08、沒有急彎的地方 | L 跳台在低速時像一面牆 |
+| Cross 的護牆彎 | 直線雪道時中心線往內偏 6 m | 不偏移，只交錯放在左右 | 中心線偏移會讓旗門以外的判定變複雜；效果差不多 |
+| 終點線 | 越過終點的橫線 | 再加上「沿雪道的距離 > 終點 − 30 m」 | 彎曲的雪道會在起點附近就越過終點橫線的延長線 |
+| Slopestyle 的公園雪道 | 名稱含パーク優先 | 公園雪道也要 ≥ 450 m | 八方的 HAPPO PARKS 只有 300 m，排不下 6 個地形 |
+| Slopestyle 的趟數 | 2 趟取高分 | 練習：1 趟或 2 趟取高分；**比賽模式 1 趟** | 比賽模式的 CPU 只模擬 1 趟 |
+| Slopestyle 的 CPU | 50-50 或板滑 | 只做 50-50（直直上桿） | 板滑要在空中轉 90° 再上桿，AI 太容易失敗 |
+| Cross | 練習與比賽 | 一律 6 隻、每場 seed 不同；成績畫面不提供重播 | P4 的精彩重播再做 |
+| 自由滑行的纜車 | 纜車的首尾 | 只用格網範圍內的點（最低＝山腳站、最高＝山頂站） | 有些纜車（例：苗場 ドラゴンドラ）延伸到格網外 |
+| 雪道章 | 所有雪道 | 長度 ≥ 150 m 的雪道 | 幾十公尺的連絡道一下就拿到 |
+| 興奮度與練習模式 | 所有模式 | 大曲道**練習模式不能發動**（量表照樣累積，骨頭鍵隱藏） | 和溝痕同樣的理由：練習紀錄與第 1 階段可以比較 |
+| 自由滑行的出發點 | 隨機一座纜車 | 設定畫面選出發纜車（預設第 1 座） | 想去的區域可以直接選 |
+| 小地圖的骨頭 | 已拿的骨頭 | 沒拿的橘色、已拿的灰色 | 找下一個骨頭比較方便 |
+| 溝痕的光柵化 | 半徑 0.4 m | 1 m 格，只記軌跡經過的那一格 | 1 m 格時半徑 0.4 m 幾乎就是同一格 |
+| Cross CPU 的路線 | 依名次選內外線 | 每隻固定一條偏好的線（seed）＋超車時偏 2 m | 簡化；名次變化仍來自超車與碰撞 |
+| **G2 嗅覺捷徑** | P2 | **延到 P3 開頭**（尚未實作） | 樹林中的捷徑路線與腳印標示需要另外設計路徑產生，這次先完成其他項目 |
 
 ### 0.4 待確認事項（下次開工前可問；沒有回答就用「預設」）
 
@@ -261,7 +290,7 @@ static_src/inusnow/data/index.json   // 雪場清單用：{v, resorts: [{id, nam
 
 ```
 heightAt(x, z) = 格網高度 + Σ feature.offset(x, z)       // 只加總包圍盒內的附加物
-normalAt(x, z) = 有附加物時用中央差分（±0.25 m）求梯度，否則用格網的解析梯度
+normalAt(x, z) = 格網的解析梯度 ＋ Σ feature 的解析梯度（2026-11-21 起；見 §0.5）
 ```
 
 附加物在自己的座標系（中心點、沿雪道單位向量 `t`、右側 `r`）中定義，`u`＝沿 `t` 的距離、`w`＝沿 `r` 的距離：
@@ -444,6 +473,18 @@ normalAt(x, z) = 有附加物時用中央差分（±0.25 m）求梯度，否則�
 | `static_src/css/inusnow.css` | 樣式（只用 `inu-`） |
 | `site_src/inusnow_page.py`、`site_src/i18n_inusnow.py` | 頁面與字串（`inu_`） |
 | `tools/inusnow_check/core_check.js`、`ui_check.js` | 規則與畫面檢查 |
+| `tools/inusnow_data/add_events.js` | （P2）Slopestyle／Cross 的雪道選段（離線，讀格網高度） |
+| `static_src/inusnow_slope.js` | （P2）`PriTestInusnowSlope`：`makePark`、`newSlope`、`stepSlope`、`trickPoints`、`runScore`、`cpuController`、`simCpu`、`replay`、`steerTo` |
+| `static_src/inusnow_cross.js` | （P2）`PriTestInusnowCross`：`makeCross`、`newCross`、`stepCross`、`rankOrder`、`cpuController`、`controllers`、`replay` |
+| `static_src/inusnow_free.js` | （P2）`PriTestInusnowFree`：`makeWorld`（樹、纜車、骨頭、隱藏地點）、`newFree`、`stepFree`、`teleport` |
+| `static_src/inusnow_fx.js` | （P2，只有畫面）`PriTestInusnowFx`：`Particles`、`Snowfall`、`Trail`、`Sky`、`nameTag`、`bannerTex`、各種貼圖 |
+
+- P2 追加的 `Core`：`normInput`、`spinDeg`、`zoomTick`、`zoomGain`、`raceSeed`、`pickGsSeed`、`cpuField`、`cpuGsController`、`simCpuGs`、`simGsField`、`newRut`、`rutAdd`。
+- P2 追加的 `Terrain`：`withFeatures`、`featLocal`、`featOffset`、`offsetOf`、`prepFeat`、`rutAt`、`gridHeight`；`Phys.knock`；`env.spinMul`、`env.rut`、`env.grip`。
+- `Inusnow3D.create(container, terrain, opts)` 的 opts（P2）：`{mode, terrain（附加物包裝）, piste, gates, finish, feats, breed, others: [{breed, ghost, name}], ruts, world, got, camera}`；
+  `render(frame, vel, othersFrames, dt, info)`、`gatePassed(n, perfect)`、`fx(kind, at)`、`hideBone`、`teleported`、`setSnow`。
+- 事件（P2 追加）：`zoom`、`zoomEnd`、`grind`、`railOff`、`railFail`、`trick`、`shake`、`bump`、`pass`、`finish`（Cross）、`bone`、`spot`、`stamp`、`tree`、`lift`。
+- 存檔（P2）：`best["<雪場>/slope"]＝{score, rec, breed, seed, piste, runNo}`、`best["<雪場>/sloperace"]`、`best["<雪場>/gsrace"]`、`best["<雪場>/cross"]＝{place, time}`、`free[雪場]＝{bones, spots, stamps}`、`settings.event／mode／lift`。
 
 - frame 格式：`[x, y, z, hx, hz, edge, crouch, air]`（`Core.frameOf`；重播與幽靈每 `every` 步一格）。
 - 比賽物件 `run`：`{terrain, opts: {piste, seed, dog, snow, runNo}, piste, gates, finish, st, next, perfect, chain, still, near, status: "run"|"finish"|"dsq", reason: "miss"|"off"|"stop"|"time", missGate, steps, inputs, events: [{k, e, n?}], time}`。
