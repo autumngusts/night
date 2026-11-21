@@ -15,7 +15,11 @@
     sel: -1, rot: 0, ghost: null, traits: [], result: null, line: null, dev: false, resetArm: false, msg: "", wbMode: false, subs: [],
     catalyst: "", catalystEl: "fire", challengeResult: null, replay: null,
     harmony: null, rainbow: false, filter: false, page: "goldfish", region: null,
-    fx: null, fxData: null, pop: null, pickPop: -1 };   // fx／pop：只在下一次重繪生效的轉場效果（畫面每次操作都會整個重繪，動畫不能常駐）
+    fx: null, fxData: null, pop: null, pickPop: -1,   // fx／pop：只在下一次重繪生效的轉場效果（畫面每次操作都會整個重繪，動畫不能常駐）
+    rcat: "all", rview: "all", story: null, storyQueue: [] };   // §12：配方列表的篩選、劇情視窗
+  var STORY = window.PriTestAtelierStory || [];
+  // 類別圖示（只用於外觀）
+  var CAT_ICONS = { liquid: "💧", plant: "🌿", mineral: "🪨", essence: "✨", crystal: "💎", shadow: "🌑" };
   var replayTimer = null, transUntil = 0;
 
   // ---------- 共用 ----------
@@ -41,13 +45,39 @@
   function addMsg(text) { ui.msg = (ui.msg ? ui.msg + "　" : "") + text; }
   function ideas() {
     var got = C.checkIdeas(save);
-    if (got.length) { say("idea"); addMsg(t("at_idea_new", { names: got.map(recipeName).join("、") })); }
+    if (got.length) {
+      say("idea");
+      addMsg(t("at_idea_new", { names: got.slice(0, 5).map(recipeName).join("、") + (got.length > 5 ? t("at_and_more", { n: got.length - 5 }) : "") }));
+      toast("💡", t("at_toast_idea", { n: got.length }), "idea");
+    }
     var titles = C.checkTitles(save);                                   // §10.8 稱號
     if (titles.length) {
       say("title");
       addMsg(t("at_title_new", { names: titles.map(function (id) { return loc(titleById(id).name); }).join("、") }));
+      toast("🏅", titles.map(function (id) { return loc(titleById(id).name); }).join("、"), "title");
     }
+    C.checkStory(save).forEach(function (c) { ui.storyQueue.push(c); });   // §12.4 劇情（解鎖時給的擴充在劇情最後顯示）
+    if (!ui.story && ui.storyQueue.length) openStory(ui.storyQueue.shift());
     return got;
+  }
+  // §12 劇情視窗：c＝{index, box, basket}（重看時沒有獎勵）
+  function openStory(c, replay) { ui.story = { i: c.index, line: 0, fresh: true, reward: replay ? null : { box: c.box, basket: c.basket } }; }
+  // §12 右上角的小通知（掛在 body 上，不受整頁重繪影響；動畫結束後移除）
+  function toast(icon, text, kind) {
+    var box = document.getElementById("at-toasts");
+    if (!box) {
+      box = document.createElement("div"); box.id = "at-toasts"; box.className = "at-toasts"; box.setAttribute("aria-live", "polite");
+      document.body.appendChild(box);
+    }
+    var node = document.createElement("div");
+    node.className = "at-toast at-toast-" + kind;
+    node.innerHTML = '<span class="at-toast-ico" aria-hidden="true">' + icon + "</span><span>" + esc(text) + "</span>";
+    node.addEventListener("animationend", function (e) { if (e.animationName === "at-toast-out" && node.parentNode) node.parentNode.removeChild(node); });
+    box.appendChild(node);
+  }
+  function growToast(g) {
+    if (g.box) toast("📦", t("at_toast_box", { n: g.box, max: C.matMax(save) }), "box");
+    if (g.basket) toast("🧺", t("at_toast_basket", { n: g.basket, max: C.basketMax(save) }), "box");
   }
   function titleById(id) { return D.TITLES.filter(function (x) { return x.id === id; })[0]; }
   function matName(m) {
@@ -81,8 +111,10 @@
     if (i.seen) return t("at_idea_seen", { color: loc(colorOf(i.seen).name) });
     if (i.seenCount) return t("at_idea_seenCount", { n: i.seenCount });
     if (i.seenEl) return t("at_idea_seenEl", { n: i.seenEl.n, el: t("at_el_" + i.seenEl.el) });
-    if (i.made) return t("at_idea_made", { recipe: recipeName(i.made) });
-    if (i.quality) return t("at_idea_quality", { recipe: recipeName(i.quality.recipe), n: i.quality.n });
+    // 前一個配方還沒發想時不洩漏名稱（第 6 階段的系列是一條鏈）
+    function nameIfKnown(id) { return C.recipeKnown(save, C.recipe(id)) ? recipeName(id) : "？？？"; }
+    if (i.made) return t("at_idea_made", { recipe: nameIfKnown(i.made) });
+    if (i.quality) return t("at_idea_quality", { recipe: nameIfKnown(i.quality.recipe), n: i.quality.n });
     return "";
   }
 
@@ -112,6 +144,7 @@
     var trans = transHtml(fx, fxData);
     if (trans) transUntil = Date.now() + 2500;                                 // 轉場播放期間（定期重繪會跳過）
     html += trans;
+    html += renderStory(!!trans);
     ui.pop = null; ui.pickPop = -1;
     var video = app.querySelector("#at-video");
     app.innerHTML = html;
@@ -122,6 +155,34 @@
       slot.appendChild(video);
       if (CAM.isOpen() && video.paused) video.play().catch(function () { /* 重新掛上後自動播放失敗時，等使用者再按一次 */ });
     }
+  }
+
+  // §12.4 劇情視窗：一句一句播放，最後顯示擴充獎勵。afterTrans＝同一次重繪有全畫面轉場時，等轉場播完再出現
+  function renderStory(afterTrans) {
+    var st = ui.story;
+    if (!st) return "";
+    var ch = STORY[st.i], end = st.line >= ch.lines.length;
+    var out = '<div class="at-story' + (st.fresh ? " at-story-fresh" : "") + '" id="at-story" role="dialog" aria-modal="true" aria-label="' + esc(loc(ch.title)) + '"' +
+      (st.fresh && afterTrans ? ' style="--at-story-delay:1.9s"' : "") + '><div class="at-story-card"><span class="at-story-sparkle" aria-hidden="true"></span>' +
+      '<p class="at-story-title">' + esc(loc(ch.title)) + "</p>";
+    st.fresh = false;
+    if (!end) {
+      var l = ch.lines[st.line], h = H[l.who];
+      out += '<div class="at-story-line' + (h ? "" : " at-story-narr") + '" id="at-story-line">' +
+        (h ? '<span class="at-avatar at-story-ava" style="background:' + h.color + '">' + h.glyph + '</span><b class="at-story-who">' + esc(loc(h.name)) + "</b>"
+          : '<span class="at-story-book" aria-hidden="true">📖</span>') +
+        '<p class="at-story-text">' + esc(loc(l)) + "</p></div>" +
+        '<div class="at-story-foot"><small class="at-story-page">' + (st.line + 1) + " / " + ch.lines.length + "</small>" +
+        '<button type="button" id="at-story-skip">' + t("at_story_skip") + '</button><button type="button" id="at-story-next" class="at-main">' + t("at_story_next") + "</button></div>";
+    } else {
+      var rw = st.reward;
+      out += '<div class="at-story-reward" id="at-story-reward">' + (!rw ? "<p>" + t("at_story_replayed") + "</p>"
+        : (rw.box || rw.basket ? (rw.box ? '<p class="at-reward-pop" style="--k:0"><span aria-hidden="true">📦</span>' + t("at_reward_box", { n: rw.box, max: C.matMax(save) }) + "</p>" : "") +
+          (rw.basket ? '<p class="at-reward-pop" style="--k:1"><span aria-hidden="true">🧺</span>' + t("at_reward_basket", { n: rw.basket, max: C.basketMax(save) }) + "</p>" : "")
+          : "<p>" + t("at_reward_capped") + "</p>")) +
+        '</div><div class="at-story-foot"><button type="button" id="at-story-close" class="at-main">' + t("at_story_close") + "</button></div>";
+    }
+    return out + "</div></div>";
   }
 
   // 調和開始／完成的全畫面轉場（pointer-events: none，動畫結束後移除）
@@ -156,13 +217,53 @@
     }
     return "";
   }
+  // §12.1 配方列表：200 種，用類別與狀態篩選；上方顯示做過幾種與下一章劇情還差幾種
+  function seriesOf(id) { return (D.RECIPE_SERIES || []).filter(function (s) { return s.id === id; })[0] || null; }
+  function renderRecipes() {
+    var n = now(), lv = C.level(save), made = C.recipesMade(save), total = D.RECIPES.length, next = C.nextChapter(save);
+    var out = '<div class="at-rprog" id="at-rprog"><div class="at-rprog-top"><b>' + t("at_recipes_made", { n: made, total: total }) + "</b>" +
+      (next ? "<small>" + t("at_story_until", { n: next.recipes - made }) + "</small>" : "") + "</div>" +
+      '<div class="at-rprog-bar"><i style="width:' + (made * 100 / total).toFixed(1) + '%"></i></div></div>';
+    out += '<div class="at-chips" id="at-rcats">' + ["all"].concat(D.CATEGORIES).map(function (c) {
+      return '<button type="button" data-at-rcat="' + c + '" class="at-chipbtn' + (ui.rcat === c ? " at-on" : "") + '">' +
+        (c === "all" ? t("at_rcat_all") : CAT_ICONS[c] + " " + t("at_cat_" + c)) + "</button>";
+    }).join("") + '</div><div class="at-chips" id="at-rviews">' + ["all", "ready", "fresh"].map(function (v) {
+      return '<button type="button" data-at-rview="' + v + '" class="at-chipbtn' + (ui.rview === v ? " at-on" : "") + '">' + t("at_rview_" + v) + "</button>";
+    }).join("") + "</div>";
+    var list = D.RECIPES.filter(function (r) {
+      if (ui.rcat !== "all" && r.cat !== ui.rcat) return false;
+      var ok = C.recipeAvailable(save, r, n);
+      if (ui.rview === "ready") return ok;
+      if (ui.rview === "fresh") return ok && !save.made[r.id];
+      return true;
+    });
+    out += "<h3>" + t("at_recipes") + ' <small class="at-rcount">' + list.length + "</small></h3>";
+    if (!list.length) return out + '<p class="at-hint" id="at-recipes-empty">' + t("at_recipes_empty") + '</p><ul class="at-list at-rgrid" id="at-recipes"></ul>';
+    return out + '<ul class="at-list at-rgrid" id="at-recipes">' + list.map(function (r, i) {
+      var lvOk = r.lv <= lv, known = C.recipeKnown(save, r), ok = C.recipeAvailable(save, r, n), done = !!save.made[r.id];
+      var note = !lvOk ? t("at_recipe_locked", { n: r.lv }) + (known ? "" : "　" + ideaHint(r)) : !known ? t("at_recipe_idea") + "　" + ideaHint(r) :
+        (save.best[r.id] ? t("at_best", { n: save.best[r.id] }) : "");
+      if (r.season) note = t("at_recipe_season", { season: t("at_season_" + r.season) }) + (note ? "　" + note : "");
+      var se = r.series ? seriesOf(r.series) : null;
+      return '<li style="--k:' + Math.min(i, 24) + '"><button type="button" data-at-recipe="' + r.id + '" class="at-rcard at-rcat-' + r.cat +
+        (ok ? "" : " at-rcard-lock") + (done ? " at-rcard-done" : ok ? " at-rcard-new" : "") + '"' + (ok ? "" : " disabled") + ">" +
+        '<span class="at-rcard-ico" aria-hidden="true">' + (known ? CAT_ICONS[r.cat] : "？") + "</span>" +
+        '<span class="at-rcard-main"><span class="at-rcard-name">' + esc(known ? loc(r.name) : "？？？") + "</span>" +
+        '<small class="at-rcard-sub">Lv' + r.lv + (se ? "・" + esc(loc(se.name)) : "") + (known ? "　" + r.gauges.map(function (g) {
+          var e = el(g.el); return '<span class="at-rcard-el" style="color:' + e.color + '">' + e.icon + "</span>";
+        }).join("") : "") + "</small>" + (note ? '<small class="at-rcard-note">' + esc(note) + "</small>" : "") + "</span>" +
+        (done ? '<span class="at-rcard-badge at-rcard-badge-done" aria-hidden="true">✓</span>' : ok ? '<span class="at-rcard-badge">NEW</span>' : "") +
+        "</button></li>";
+    }).join("") + "</ul>";
+  }
+
   function renderGather() {
-    var b = save.basket, n = now(), mins = b.n >= D.BASKET_MAX ? 0 : Math.ceil((b.at + D.BASKET_REFILL_MS - n) / 60000);
+    var b = save.basket, n = now(), mins = b.n >= C.basketMax(save) ? 0 : Math.ceil((b.at + D.BASKET_REFILL_MS - n) / 60000);
     var daily = C.dailyColor(n), doneToday = save.daily.date === C.jstDate(n);
     var st = save.streak, stN = st.date && C.dayDiff(st.date, C.jstDate(n)) <= 1 ? st.n : 0;
     var out = '<div class="at-daily" id="at-daily"><span class="at-chip" style="background:' + daily.hex + '"></span>' +
       t("at_daily", { name: loc(daily.name) }) + (doneToday ? " " + t("at_daily_done") : "") + "</div>" +
-      '<p class="at-basket" id="at-basket">' + t("at_basket", { n: b.n, max: D.BASKET_MAX }) +
+      '<p class="at-basket" id="at-basket">' + t("at_basket", { n: b.n, max: C.basketMax(save) }) +
       (mins > 0 ? "　" + t("at_basket_next", { m: mins }) : "") + "<br>" +
       '<span id="at-streak">' + t("at_streak", { n: stN, b: C.streakBonus(stN) }) + "</span><br>" +
       '<span id="at-wb-status">' + (C.wbActive(save, n) ? t("at_wb_on", { m: Math.ceil((save.wb.until - n) / 60000) }) : "") + "</span></p>" +
@@ -238,16 +339,7 @@
     if (ui.session) return renderBoard();
     var left = save.cooldownUntil - now();
     if (left > 0) return '<p id="at-cooldown" class="at-cooldown">' + t("at_cooldown", { m: Math.ceil(left / 60000) }) + "</p>";
-    if (!ui.recipe) {
-      return "<h3>" + t("at_recipes") + '</h3><ul class="at-list" id="at-recipes">' + D.RECIPES.map(function (r) {
-        var lvOk = r.lv <= C.level(save), known = C.recipeKnown(save, r), ok = C.recipeAvailable(save, r, now());
-        var note = !lvOk ? t("at_recipe_locked", { n: r.lv }) + (known ? "" : "　" + ideaHint(r)) : !known ? t("at_recipe_idea") + "　" + ideaHint(r) :
-          (save.best[r.id] ? t("at_best", { n: save.best[r.id] }) : "");
-        if (r.season) note = t("at_recipe_season", { season: t("at_season_" + r.season) }) + (note ? "　" + note : "");
-        return '<li><button type="button" data-at-recipe="' + r.id + '"' + (ok ? "" : " disabled") + ">" +
-          esc(known ? loc(r.name) : "？？？") + (note ? " — " + esc(note) : "") + "</button></li>";
-      }).join("") + "</ul>";
-    }
+    if (!ui.recipe) return renderRecipes();
     var r = C.recipe(ui.recipe), out = "<h3>" + esc(loc(r.name)) + "</h3>";
     out += '<label class="at-slot">' + t("at_cauldron") + '<select id="at-cauldron">' + D.CAULDRON_ORDER.filter(function (id) { return C.cauldronLv(save, id); }).map(function (id) {
       var c = D.CAULDRONS[id], good = c.affinity.indexOf(r.id) >= 0;
@@ -426,17 +518,54 @@
     return '<div class="at-weekly" id="at-weekly"><h3>' + t("at_weekly", { key: wc.key }) + "</h3><p>" +
       t("at_weekly_info", { recipe: recipeName(wc.recipe), best: w.best, plays: w.plays }) + '</p><button type="button" id="at-weekly-start">' + t("at_weekly_start") + "</button></div>";
   }
-  function renderTasks() {
-    var task = C.currentTask(save);
-    if (!task) return '<p id="at-task">' + t("at_task_done") + "</p>" + renderWeekly();
-    var out = renderWeekly() + '<div id="at-task"><h3>' + t("at_task_now") + "</h3><p>" + esc(loc(task.text)) + "</p><p><small>" +
-      t("at_task_need", { recipe: recipeName(task.recipe), q: task.minQuality }) +
-      (task.minLevel ? t("at_task_lv", { n: task.minLevel }) : "") + '</small></p></div><ul class="at-list">';
-    save.items.forEach(function (it) {
-      var ok = C.taskMet(task, it);
-      out += "<li>" + itemHtml(it) + ' <button type="button" data-at-deliver="' + it.uid + '"' + (ok ? "" : " disabled") + ">" + t("at_deliver") + "</button></li>";
+  // §12.4 劇情：已讀的章節可以重看，下一章顯示還差幾種配方
+  function renderStoryList() {
+    var made = C.recipesMade(save);
+    return '<div class="at-storybox" id="at-storybox"><h3>📖 ' + t("at_story") + '</h3><div class="at-chapters" id="at-chapters">' + STORY.map(function (ch, i) {
+      if (i < save.story) return '<button type="button" data-at-chapter="' + i + '" class="at-chapter at-chapter-on">' + esc(loc(ch.title)) + "</button>";
+      if (i === save.story) {
+        return '<span class="at-chapter at-chapter-next"><b>？？？</b><small>' + t("at_story_lock", { n: ch.recipes, left: ch.recipes - made }) + "</small>" +
+          '<span class="at-chapter-bar"><i style="width:' + Math.min(100, made * 100 / ch.recipes).toFixed(1) + '%"></i></span></span>';
+      }
+      return "";
+    }).join("") + (STORY.length - save.story > 1 ? '<span class="at-chapter at-chapter-off">' + t("at_story_more", { n: STORY.length - save.story - 1 }) + "</span>" : "") +
+      '</div><p class="at-hint" id="at-capacity">' + t("at_capacity", { box: C.matMax(save), boxCap: D.MAT_CAP, basket: C.basketMax(save), basketCap: D.BASKET_CAP }) + "</p></div>";
+  }
+  // §12.3 町的委託：同時 3 件，交貨得銀幣與經驗，前 10 件還會擴充素材箱
+  function renderReqs() {
+    var n = now(), left = Math.max(0, D.REQ_BOX_N - save.reqDone);
+    var out = '<div class="at-reqbox" id="at-reqbox"><h3>🏘️ ' + t("at_reqs") + ' <small>' + t("at_reqs_done", { n: save.reqDone }) + "</small></h3>" +
+      '<p class="at-hint">' + (left ? t("at_reqs_hint", { n: left, box: D.REQ_BOX }) : t("at_reqs_hint_done")) + '</p><ul class="at-reqs" id="at-reqs">';
+    save.reqs.forEach(function (q, i) {
+      var r = C.recipe(q.recipe), cost = C.rerollCost(save, q, n), who = D.REQ_CLIENTS[q.who] || D.REQ_CLIENTS[0];
+      var items = save.items.filter(function (it) { return C.reqMet(q, it) && !C.displayed(save, it.uid); });
+      out += '<li class="at-req" style="--k:' + i + '" data-at-reqcard="' + q.id + '"><div class="at-req-head"><span class="at-req-ico" aria-hidden="true">' + CAT_ICONS[r.cat] + "</span>" +
+        '<span class="at-req-who">' + esc(loc(who)) + "</span></div>" +
+        '<p class="at-req-text">' + t("at_req_text", { recipe: esc(recipeName(q.recipe)), q: q.q }) + (q.minLevel ? t("at_task_lv", { n: q.minLevel }) : "") + "</p>" +
+        '<p class="at-req-reward"><span class="at-tag">💰 ' + q.coins + '</span><span class="at-tag">⭐ ' + t("at_exp", { n: q.exp }) + "</span>" +
+        (save.reqDone < D.REQ_BOX_N ? '<span class="at-tag">📦 +' + D.REQ_BOX + "</span>" : "") + "</p><div class=\"at-row\">" +
+        items.map(function (it) {
+          return '<button type="button" class="at-main" data-at-fulfill="' + q.id + ":" + it.uid + '">' + t("at_req_give", { q: it.quality }) + "</button>";
+        }).join("") +
+        '<button type="button" data-at-reroll="' + q.id + '"' + (save.coins >= cost ? "" : " disabled") + ">" + (cost ? t("at_req_reroll", { n: cost }) : t("at_req_reroll_free")) + "</button>" +
+        "</div></li>";
     });
-    return out + "</ul>";
+    return out + "</ul></div>";
+  }
+  function renderTasks() {
+    var task = C.currentTask(save), out = renderStoryList();
+    if (!task) out += '<p id="at-task">' + t("at_task_done") + "</p>";
+    else {
+      out += '<div id="at-task" class="at-taskbox"><h3>' + t("at_task_now") + ' <small>📦 +' + D.BOX_PER_TASK + "</small></h3><p>" + esc(loc(task.text)) + "</p><p><small>" +
+        t("at_task_need", { recipe: recipeName(task.recipe), q: task.minQuality }) +
+        (task.minLevel ? t("at_task_lv", { n: task.minLevel }) : "") + '</small></p><ul class="at-list">';
+      save.items.forEach(function (it) {
+        var ok = C.taskMet(task, it);
+        out += "<li>" + itemHtml(it) + ' <button type="button" data-at-deliver="' + it.uid + '"' + (ok ? "" : " disabled") + ">" + t("at_deliver") + "</button></li>";
+      });
+      out += "</ul></div>";
+    }
+    return out + renderReqs() + renderWeekly();
   }
 
   // C2 圖鑑：依色系分組，沒拍過的只顯示「？」
@@ -509,7 +638,7 @@
       out += "<li>" + itemHtml(it) + ' <button type="button" data-at-sell="' + it.uid + '"' + (shown ? " disabled" : "") + ">" +
         (shown ? t("at_displayed") : t("at_sell", { price: C.priceOf(it, n) })) + "</button></li>";
     });
-    out += '</ul><div class="at-row">' + '<button type="button" id="at-buy-basket"' + (save.coins >= D.BASKET_COINS && save.basket.n < D.BASKET_MAX ? "" : " disabled") + ">" +
+    out += '</ul><div class="at-row">' + '<button type="button" id="at-buy-basket"' + (save.coins >= D.BASKET_COINS && save.basket.n < C.basketMax(save) ? "" : " disabled") + ">" +
       t("at_buy_basket", { coins: D.BASKET_COINS }) + "</button>" +
       (C.level(save) >= D.ADVANCED_LV ? D.CATALYST_ORDER.map(function (id) {
         return '<button type="button" data-at-buycat="' + id + '"' + (save.coins >= D.CATALYST_COINS[id] ? "" : " disabled") + ">" +
@@ -534,7 +663,11 @@
       var c = D.CAULDRONS[id], lv = C.cauldronLv(save, id), eff = C.effectiveCauldron(save, id);
       out += "<li><b>" + esc(loc(c.name)) + "</b> <small>" +
         t("at_cauldron_info", { size: c.pattern.length, q: eff ? eff.qualityPerCell : c.qualityPerCell, lv: lv || "-" }) + "<br>" +
-        t("at_affinity") + "：" + c.affinity.map(function (rid) { return C.recipeKnown(save, C.recipe(rid)) ? esc(recipeName(rid)) : "？？？"; }).join("、") + "</small> ";
+        t("at_affinity") + "：" + c.affinity.filter(function (rid) { return !C.recipe(rid).series; }).map(function (rid) {
+          return C.recipeKnown(save, C.recipe(rid)) ? esc(recipeName(rid)) : "？？？";
+        }).concat((D.RECIPE_SERIES || []).filter(function (se) { return se.cauldron === id; }).map(function (se) {   // §12 系列只列系列名
+          return t("at_series_name", { name: esc(loc(se.name)) });
+        })).join("、") + "</small> ";
       if (!lv) out += '<button type="button" data-at-unlock="' + id + '"' + (C.canUnlockCauldron(save, id) ? "" : " disabled") + ">" + t("at_unlock", { lv: c.unlock.lv, ash: c.unlock.ash }) + "</button>";
       else {
         var cost = C.upgradeCost(save, id);
@@ -554,9 +687,8 @@
     } else {
       out += '<p class="at-hint" id="at-advanced-locked">' + t("at_advanced_locked") + "</p><ul class=\"at-hidden\">";
     }
-    var sc = C.shelfCost(save);
-    out += '</ul><p>' + t("at_box_cap", { n: C.matMax(save) }) + " " + (sc === null ? "<small>" + t("at_shelf_max") + "</small>"
-      : '<button type="button" id="at-shelf"' + (save.ash >= sc ? "" : " disabled") + ">" + t("at_shelf", { n: D.SHELF_STEP, ash: sc }) + "</button>") + "</p>";
+    // §12.2 素材箱不再用灰燼擴充，改由任務、委託、劇情擴充
+    out += '</ul><p id="at-box-cap">' + t("at_box_cap", { n: C.matMax(save) }) + ' <small class="at-hint">' + t("at_box_how", { cap: D.MAT_CAP }) + "</small></p>";
     return out + renderStore();
   }
 
@@ -637,6 +769,30 @@
     var b = ev.target.closest("button, summary");
     if (!b || b.disabled) return;
     var d = b.dataset, s = ui.session;
+    // §12.4 劇情視窗
+    if (b.id === "at-story-next") { ui.story.line++; render(); return; }
+    if (b.id === "at-story-skip") { ui.story.line = STORY[ui.story.i].lines.length; render(); return; }
+    if (b.id === "at-story-close") {
+      if (ui.story.reward) growToast(ui.story.reward);
+      ui.story = null;
+      if (ui.storyQueue.length) openStory(ui.storyQueue.shift());
+      render(); return;
+    }
+    if (d.atChapter !== undefined) { openStory({ index: +d.atChapter }, true); render(); return; }
+    // §12.1 配方列表的篩選
+    if (d.atRcat) { ui.rcat = d.atRcat; render(); return; }
+    if (d.atRview) { ui.rview = d.atRview; render(); return; }
+    // §12.3 町的委託
+    if (d.atFulfill) {
+      var fp = d.atFulfill.split(":"), fr = C.fulfillReq(save, +fp[0], +fp[1], now());
+      if (fr) {
+        say("finish_good"); ui.msg = t("at_req_ok", { coins: fr.coins, exp: fr.exp });
+        toast("💰", "+" + fr.coins, "coin"); growToast(fr);
+        ideas(); persist();
+      }
+      render(); return;
+    }
+    if (d.atReroll) { if (C.rerollReq(save, +d.atReroll, now())) persist(); render(); return; }
     if (d.atTab) {
       if (d.atTab !== ui.tab) ui.fx = TABS.indexOf(d.atTab) > TABS.indexOf(ui.tab) ? "next" : "prev";
       ui.tab = d.atTab; ui.msg = ""; ui.subs = []; if (ui.tab !== "gather") CAM.close(app.querySelector("#at-video")); render(); return; }
@@ -731,7 +887,11 @@
       ideas(); persist(); render(); return;
     }
     if (b.id === "at-result-close") { ui.fx = "in"; ui.result = null; render(); return; }
-    if (d.atDeliver) { if (C.deliver(save, +d.atDeliver)) { say("finish_good"); ideas(); persist(); } render(); return; }
+    if (d.atDeliver) {
+      var box0 = C.matMax(save);
+      if (C.deliver(save, +d.atDeliver)) { say("finish_good"); growToast({ box: C.matMax(save) - box0, basket: 0 }); C.refreshReqs(save, now()); ideas(); persist(); }
+      render(); return;
+    }
     if (b.id === "at-sublimate") {
       var m = C.sublimate(save, ui.subs.slice(), now());
       if (m.error) { ui.msg = t("at_err_" + m.error); ui.fx = "fail"; }
@@ -740,7 +900,6 @@
     }
     if (d.atUnlock) { if (C.unlockCauldron(save, d.atUnlock)) { say("upgrade"); persist(); } render(); return; }
     if (d.atUpgrade) { if (C.upgradeCauldron(save, d.atUpgrade)) { say("upgrade"); persist(); } render(); return; }
-    if (b.id === "at-shelf") { if (C.upgradeShelf(save)) { say("upgrade"); persist(); } render(); return; }
     if (b.id === "at-dev-toggle") { ui.dev = !ui.dev; return; }
     if (b.id === "at-dev-time") { save.offsetMs = (save.offsetMs || 0) + 20 * 60000; persist(); render(); return; }
     if (b.id === "at-dev-day") { save.offsetMs = (save.offsetMs || 0) + 86400000; persist(); render(); return; }
@@ -749,7 +908,8 @@
     if (b.id === "at-reset") {
       if (!ui.resetArm) { ui.resetArm = true; render(); return; }
       try { localStorage.removeItem(KEY); } catch (e) { /* 忽略 */ }
-      save = C.newSave(Date.now()); ui.resetArm = false; ui.session = null; ui.result = null; ui.recipe = null; render();
+      save = C.newSave(Date.now()); ui.resetArm = false; ui.session = null; ui.result = null; ui.recipe = null;
+      ui.story = null; ui.storyQueue = []; C.refreshReqs(save, now()); render();
     }
   });
   app.addEventListener("change", function (ev) {
@@ -780,15 +940,22 @@
       render();
     }
   });
+  // 劇情視窗：Esc 先跳到最後，再按一次關閉
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape" || !ui.story) return;
+    var btn = app.querySelector(ui.story.line >= STORY[ui.story.i].lines.length ? "#at-story-close" : "#at-story-skip");
+    if (btn) btn.click();
+  });
   window.addEventListener("i18n:change", render);
   setInterval(function () {
-    if (Date.now() < transUntil) return;                                        // 轉場播放中不重繪
+    if (Date.now() < transUntil || ui.story) return;                            // 轉場播放中、劇情視窗開著時不重繪
     if (ui.tab === "gather" || (ui.tab === "lab" && !ui.session)) { if (!CAM.isOpen()) render(); }
   }, 30000);
 
   var visit = C.dailyVisit(save, now());                                       // §10.5 每天第一次開啟
   if (visit && visit.aff > 0) { say("visit"); ui.msg = t("at_visit", { n: visit.aff }); }
   ideas();
+  C.refreshReqs(save, now());                                                  // §12.3 町的委託補滿
   persist();
   window.PriTestAtelier = { _debugState: function () { return save; }, _debugUi: function () { return ui; } };
   render();

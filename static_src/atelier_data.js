@@ -36,7 +36,10 @@
     PURITY_RANGE: 40,                // 與最近傳統色的 ΔE 超過 40 視為純度 0（暫定）
     BASKET_MAX: 6,                   // 採集籃（O5，暫定）
     BASKET_REFILL_MS: 20 * 60000,    // 每 20 分回復 1（暫定）
-    MAT_MAX: 60,                     // 素材箱上限（暫定）
+    // 素材箱（§12.2）：一開始 40，靠任務、町的委託、劇情擴充，上限 MAT_CAP。
+    // PriTest 的上限約 100；移植到 RMD 時改成 1000（存檔只記擴充量 boxPlus，上限放寬後自動生效）
+    MAT_BASE: 40, MAT_CAP: 100,
+    BASKET_CAP: 10,                  // 採集籃也會靠劇情擴充（BASKET_MAX＋basketPlus，最多 10）
 
     // §4 調和（蘇菲範圍：形狀、旋轉、覆蓋、同色格、加成格、最後一推、品質依釜）
     BONUS: 2, BONUS_MATCH: 4,        // 加成格：一般 +2、同色 +4（暫定）
@@ -78,7 +81,8 @@
     CAULDRON_LV_MAX: 3,
     CAULDRON_UPGRADE_ASH: [10, 25],  // B6：Lv1→2、Lv2→3 的灰燼（暫定）
     CAULDRON_LV_QUALITY: 0.1,        // 每升 1 級，品質上升率 +0.1（暫定）
-    SHELF_STEP: 20, SHELF_ASH: [8, 16, 30],   // B6 素材箱擴充：每級 +20，共 3 級（暫定）
+    // 舊版（第 2～5 階段）的素材箱：基本 60、用灰燼擴充每級 +20。第 6 階段讀檔時換算成 boxPlus，容量不會變少
+    LEGACY_BOX: 20, LEGACY_SHELF_STEP: 20,
     ASH_LOW_QUALITY: 30, ASH_FAIL_BONUS: 2,   // C10：品質未滿 30 的成品另外 +2 灰燼（暫定）
     // 配方：needs＝各素材格要求的類別（* 任意）；gauges＝量表與門檻（第 n 段達成就是效果 Lv n）
     RECIPES: [
@@ -320,9 +324,35 @@
       { id: "painter", cond: { pages: 1 }, name: { zh: "繪本畫家", ja: "絵本作家", en: "Painter" } },
       { id: "illustrator", cond: { pagesAll: true }, name: { zh: "繪本大師", ja: "絵本の名人", en: "Illustrator" } },
       { id: "merchant", cond: { coins: 500 }, name: { zh: "商人", ja: "商人", en: "Merchant" } },
-      { id: "friend", cond: { aff: 100 }, name: { zh: "瑠璃的摯友", ja: "瑠璃の親友", en: "Ruri's Best Friend" } }
+      { id: "friend", cond: { aff: 100 }, name: { zh: "瑠璃的摯友", ja: "瑠璃の親友", en: "Ruri's Best Friend" } },
+      // 第 6 階段（§12）
+      { id: "recipe50", cond: { recipes: 50 }, name: { zh: "配方研究家", ja: "レシピ研究家", en: "Recipe Researcher" } },
+      { id: "recipe200", cond: { recipes: 200 }, name: { zh: "萬色煉金術士", ja: "万色の錬金術士", en: "Alchemist of All Colors" } },
+      { id: "townhelper", cond: { reqs: 30 }, name: { zh: "町的好幫手", ja: "町の頼れる人", en: "Town Helper" } }
+    ],
+
+    // ---------- 第 6 階段（§12：200 種配方、町的委託、劇情、容量擴充；數值皆暫定） ----------
+    BOX_PER_TASK: 2,                 // 完成工房主人的任務：素材箱 +2
+    REQ_SLOTS: 3,                    // 町的委託同時 3 件
+    REQ_BOX: 2, REQ_BOX_N: 10,       // 前 10 件委託每件素材箱 +2
+    REQ_EXP: 15, REQ_EXP_PER_LV: 3,  // 委託的經驗＝15＋配方 Lv×3
+    REQ_REROLL_COINS: 10,            // 換一件委託（配方目前不能調和時免費）
+    REQ_Q_MIN: 20, REQ_Q_MAX: 90,
+    // 委託人（只有名字，台詞用共用的範本）
+    REQ_CLIENTS: [
+      { zh: "麵包店的小麥", ja: "パン屋のコムギ", en: "Komugi the Baker" },
+      { zh: "郵差阿風", ja: "郵便屋のフウ", en: "Fuu the Mail Carrier" },
+      { zh: "花店的小鈴", ja: "花屋のスズ", en: "Suzu the Florist" },
+      { zh: "鐵匠老岩", ja: "鍛冶屋のイワ爺", en: "Old Iwa the Smith" },
+      { zh: "畫家灯子", ja: "画家のトウコ", en: "Touko the Painter" },
+      { zh: "旅人奏多", ja: "旅人のカナタ", en: "Kanata the Traveler" },
+      { zh: "町長大人", ja: "町長さん", en: "The Mayor" },
+      { zh: "書店的栞", ja: "本屋のシオリ", en: "Shiori the Bookseller" }
     ]
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = data;
+  if (typeof module !== "undefined" && module.exports) {
+    require("./atelier_recipes.js")(data);               // 第 6 階段的配方系列（瀏覽器由 atelier_recipes.js 自己展開）
+    module.exports = data;
+  }
   else window.PriTestAtelierData = data;
 })();

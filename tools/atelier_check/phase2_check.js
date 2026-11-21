@@ -136,12 +136,14 @@ test("白平衡 30 分內有效，有效期間素材品質 ×1.1", function () {
 test("配方發想：沒有發想條件的配方一開始就會；有條件的要等級與發想都滿足", function () {
   var s = C.newSave(T0);
   var ids = C.recipesFor(s).map(function (r) { return r.id; });
-  assert.deepStrictEqual(ids, ["heal", "ink", "neutral"]);
+  // 2026-11-21 第 6 階段（§12.1）新增 23 個配方系列：藥湯、繪具系列的第 1 個配方沒有發想條件，一開始就會
+  assert.deepStrictEqual(ids, ["heal", "ink", "neutral", "elixir1", "paint1"]);
   s.exp = D.EXP_PER_LV;                       // Lv2
   assert.strictEqual(C.recipeAvailable(s, C.recipe("bomb")), false, "Lv2 但還沒做過中和劑");
   assert.deepStrictEqual(C.checkIdeas(s), []);
   s.made.neutral = 1;
-  assert.deepStrictEqual(C.checkIdeas(s), ["bomb"]);
+  // 第 6 階段：料理、泉水系列的第 1 個配方也是「做過中和劑」
+  assert.deepStrictEqual(C.checkIdeas(s), ["bomb", "cuisine1", "spring1"]);
   assert.deepStrictEqual(C.checkIdeas(s), [], "同一個配方只會想到一次");
   assert.strictEqual(C.recipeAvailable(s, C.recipe("bomb")), true);
 });
@@ -224,12 +226,12 @@ test("灰燼：被蓋掉的格子變成灰燼；品質未滿 30 再 +2；記錄�
   assert.strictEqual(s.made.heal, 1);
 });
 
-test("素材箱擴充：每級 +20，滿了就不能採", function () {
+// 2026-11-21 第 6 階段（§12.2）：素材箱改成「基本 40、靠任務／委託／劇情擴充、上限 MAT_CAP」，不再用灰燼擴充
+test("素材箱擴充：擴充後容量增加，滿了就不能採", function () {
   var s = C.newSave(T0);
-  assert.strictEqual(C.matMax(s), D.MAT_MAX);
-  s.ash = D.SHELF_ASH[0];
-  assert.strictEqual(C.upgradeShelf(s), true);
-  assert.strictEqual(C.matMax(s), D.MAT_MAX + D.SHELF_STEP);
+  assert.strictEqual(C.matMax(s), D.MAT_BASE);
+  assert.deepStrictEqual(C.grow(s, 20, 0), { box: 20, basket: 0 });
+  assert.strictEqual(C.matMax(s), D.MAT_BASE + 20);
   for (var i = 0; i < C.matMax(s); i++) s.mats.push(mat(1000 + i, "fire", "mineral", [[0, 0]]));
   assert.strictEqual(C.captureEx(s, [sw("#1E50A2")], T0).error, "full");
 });

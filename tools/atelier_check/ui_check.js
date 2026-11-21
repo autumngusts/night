@@ -87,8 +87,14 @@ var BASE = (process.env.ATELIER_ROOT || "http://localhost:8973/") + "atelier/ind
   for (var k = 0; k < 3; k++) await placeSelected();
   await page.waitForSelector("#at-traits");
   assert(await page.$("#at-push"), "放完後要顯示最後一推");
-  var trait = await page.$("[data-at-trait]");
-  if (trait) await page.check("[data-at-trait]");
+  // 2026-11-21：色彩散步的顏色依時間而變，第一個特性可能是「色之祝福」（成本 18 > Lv1 上限 15）而讓完成鍵停用。
+  // 改成只勾成本在上限內的特性（規格沒變，只是讓測試不受當下時間影響）
+  var fit = await page.evaluate(function () {
+    var A = window.PriTestAtelier, C = window.PriTestAtelierCore, D = window.PriTestAtelierData, cap = C.traitCap(A._debugState());
+    var el = Array.prototype.filter.call(document.querySelectorAll("[data-at-trait]"), function (x) { return D.TRAITS[x.dataset.atTrait].cost <= cap; })[0];
+    return el ? el.dataset.atTrait : null;
+  });
+  if (fit) await page.check('[data-at-trait="' + fit + '"]');
   await tap("#at-finish");
   await page.waitForSelector("#at-result");
   s = await state();

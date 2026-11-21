@@ -5,6 +5,8 @@
   "use strict";
   var root = typeof window !== "undefined" ? window : globalThis;
   var D = root.PriTestAtelierData, COLORS = root.PriTestAtelierColors, HOSTS = root.PriTestAtelierHosts;
+  // §12.4 劇情（node 測試時沒有掛在 global 就直接讀檔）
+  var STORY = root.PriTestAtelierStory || (typeof module !== "undefined" && module.exports ? require("./atelier_story.js") : []);
   var JST = 9 * 3600000;
   var methods = {};
 
@@ -227,6 +229,14 @@
       weekly: { key: "", best: 0, plays: 0 },
       coins: 0, coinsEarned: 0, tools: {}, coloring: {}, pagesDone: {}, deco: [null, null, null], visitDate: "",
       titles: {}, title: "", greatCount: 0 };
+    // §12.2 第 6 階段：舊存檔（已經玩過）把舊的素材箱容量（60＋灰燼擴充）與已完成的任務換算成 boxPlus，容量不會變少
+    if (save.boxPlus === undefined) {
+      var done = 0;
+      Object.keys(save.hosts || {}).forEach(function (id) { done += save.hosts[id].task || 0; });
+      save.boxPlus = save.nextUid > 1 ? D.LEGACY_BOX + (save.shelf || 0) * D.LEGACY_SHELF_STEP + done * D.BOX_PER_TASK : 0;
+      save.boxFloor = save.nextUid > 1 ? D.MAT_BASE + D.LEGACY_BOX + (save.shelf || 0) * D.LEGACY_SHELF_STEP : 0;
+    }
+    def.basketPlus = 0; def.reqs = []; def.reqSeq = 0; def.reqDone = 0; def.story = 0;
     Object.keys(def).forEach(function (k) { if (save[k] === undefined) save[k] = def[k]; });
     if (!save.cauldrons.copper) save.cauldrons.copper = 1;
     Object.keys(HOSTS || {}).forEach(function (id) {                         // §11 第 5 階段
@@ -238,11 +248,12 @@
   }
   function refillBasket(save, now) {
     var b = save.basket;
-    if (b.n >= D.BASKET_MAX) { b.at = now; return b.n; }
+    var max = basketMax(save);
+    if (b.n >= max) { b.at = now; return b.n; }
     var gained = Math.floor((now - b.at) / D.BASKET_REFILL_MS);
     if (gained > 0) {
-      b.n = Math.min(D.BASKET_MAX, b.n + gained);
-      b.at = b.n >= D.BASKET_MAX ? now : b.at + gained * D.BASKET_REFILL_MS;
+      b.n = Math.min(max, b.n + gained);
+      b.at = b.n >= max ? now : b.at + gained * D.BASKET_REFILL_MS;
     }
     return b.n;
   }
@@ -263,7 +274,7 @@
     if (!swatches.length || swatches.length > D.PICK_MAX) return { error: "pick" };
     if (save.basket.n <= 0) return { error: "basket" };
     if (save.mats.length + swatches.length > matMax(save)) return { error: "full" };
-    if (save.basket.n >= D.BASKET_MAX) save.basket.at = now;
+    if (save.basket.n >= basketMax(save)) save.basket.at = now;
     save.basket.n--;
     var n = updateStreak(save, now), wb = wbActive(save, now), today = jstDate(now);
     var res = { mats: [], newColors: [], daily: false, streak: n, exp: 0 };
@@ -389,14 +400,10 @@
     return { id: id, lv: lv, name: c.name, pattern: c.pattern, affinity: c.affinity, affinityMult: D.AFFINITY_MULT,
       qualityPerCell: Math.round((c.qualityPerCell + (lv - 1) * D.CAULDRON_LV_QUALITY) * 100) / 100 };
   }
-  function matMax(save) { return D.MAT_MAX + (save.shelf || 0) * D.SHELF_STEP; }
-  function shelfCost(save) { var c = D.SHELF_ASH[save.shelf]; return c === undefined ? null : c; }
-  function upgradeShelf(save) {
-    var cost = shelfCost(save);
-    if (cost === null || save.ash < cost) return false;
-    save.ash -= cost; save.shelf++;
-    return true;
-  }
+  // §12.2 素材箱與採集籃的容量（第 6 階段起不再用灰燼擴充，改由任務、委託、劇情擴充）
+  // boxFloor：舊存檔原本的容量（舊版最多 120，可能超過上限），換算後不會變少
+  function matMax(save) { return Math.max(save.boxFloor || 0, Math.min(D.MAT_CAP, D.MAT_BASE + (save.boxPlus || 0))); }
+  function basketMax(save) { return Math.min(D.BASKET_CAP, D.BASKET_MAX + (save.basketPlus || 0)); }
 
   // ---------- O9 成品再投入、B9 素材升華 ----------
   function itemAsMaterial(item) {
@@ -434,7 +441,14 @@
   function level(save) { return Math.min(D.LV_MAX, 1 + Math.floor(save.exp / D.EXP_PER_LV)); }
   function traitCap(save) { return D.TRAIT_CAP_BASE + D.TRAIT_CAP_PER_LV * level(save); }
   function canSynth(save, now) { return now >= save.cooldownUntil; }
-  function recipe(id) { for (var i = 0; i < D.RECIPES.length; i++) if (D.RECIPES[i].id === id) return D.RECIPES[i]; return null; }
+  var recipeIndex = null;                                                       // 第 6 階段配方有 200 種，改用索引查詢
+  function recipe(id) {
+    if (!recipeIndex || recipeIndex.n !== D.RECIPES.length) {
+      recipeIndex = { n: D.RECIPES.length, map: {} };
+      D.RECIPES.forEach(function (r) { recipeIndex.map[r.id] = r; });
+    }
+    return Object.prototype.hasOwnProperty.call(recipeIndex.map, id) ? recipeIndex.map[id] : null;
+  }
   function recipesFor(save, now) { return D.RECIPES.filter(function (r) { return recipeAvailable(save, r, now); }); }
   function slotOk(need, mat) { return need === "*" || need === mat.category; }
 
@@ -537,7 +551,7 @@
   }
   function weeklyChallenge(now) {
     var key = weekKey(now), rng = makeRng("weekly:" + key);
-    var pool = D.RECIPES.filter(function (r) { return r.lv <= 2 && !r.season && !r.tool; });
+    var pool = D.RECIPES.filter(function (r) { return r.lv <= 2 && !r.season && !r.tool && !r.series; });   // 第 6 階段的系列配方不列入（維持原本的挑戰）
     var r = pool[Math.floor(rng() * pool.length)], noon = Date.parse(key + "T03:00:00Z");
     var mats = r.needs.map(function (n, i) {
       var rgb = hsvToRgb(rng() * 360, 0.5 + rng() * 0.5, 0.45 + rng() * 0.5);
@@ -711,9 +725,9 @@
   }
   function buyBasket(save, now) {
     refillBasket(save, now);
-    if (save.basket.n >= D.BASKET_MAX || save.coins < D.BASKET_COINS) return false;
+    if (save.basket.n >= basketMax(save) || save.coins < D.BASKET_COINS) return false;
     save.coins -= D.BASKET_COINS; save.basket.n++;
-    if (save.basket.n >= D.BASKET_MAX) save.basket.at = now;
+    if (save.basket.n >= basketMax(save)) save.basket.at = now;
     return true;
   }
 
@@ -732,6 +746,8 @@
     if (c.pagesAll) return pages >= D.PAGES.length;
     if (c.coins) return save.coinsEarned >= c.coins;
     if (c.aff) return save.hosts[save.host].aff >= c.aff;
+    if (c.recipes) return recipesMade(save) >= c.recipes;                       // §12
+    if (c.reqs) return save.reqDone >= c.reqs;
     return false;
   }
   function checkTitles(save) {
@@ -852,8 +868,78 @@
     save.items = save.items.filter(function (it) { return it !== item; });
     var hs = save.hosts[save.host];
     hs.task++; hs.aff = Math.min(100, hs.aff + D.AFF_PER_TASK); save.exp += task.exp;
+    grow(save, D.BOX_PER_TASK, 0);                                              // §12.2 任務擴充素材箱
     return true;
   }
+
+  // ---------- §12 第 6 階段：容量擴充、町的委託、劇情 ----------
+  function recipesMade(save) { return Object.keys(save.made).filter(function (k) { return save.made[k] > 0 && recipe(k); }).length; }
+  // 擴充素材箱／採集籃。回傳實際增加的容量 {box, basket}（到上限後就不再增加）
+  function grow(save, box, basket) {
+    var b0 = matMax(save), k0 = basketMax(save);
+    save.boxPlus += box || 0; save.basketPlus += basket || 0;
+    var out = { box: matMax(save) - b0, basket: basketMax(save) - k0 };
+    if (out.basket > 0) save.basket.n += out.basket;                            // 多出來的籃子直接裝滿
+    return out;
+  }
+  // 委託：從目前可以調和的配方中依 seed 選一個（seed＝req:<序號>，可重現）
+  function makeReq(save, now) {
+    var rng = makeRng("req:" + save.reqSeq), lv = level(save);
+    var pool = D.RECIPES.filter(function (r) { return !r.tool && recipeAvailable(save, r, now); });
+    if (!pool.length) pool = D.RECIPES.filter(function (r) { return r.lv === 1 && !r.idea; });
+    var r = pool[Math.floor(rng() * pool.length)];
+    var q = clamp(D.REQ_Q_MIN + Math.floor(rng() * 20) + lv * 3 + (save.made[r.id] ? 5 : 0), D.REQ_Q_MIN, D.REQ_Q_MAX);
+    var minLevel = rng() < 0.35 ? 1 : 0, who = Math.floor(rng() * D.REQ_CLIENTS.length);
+    save.reqSeq++;
+    return { id: save.reqSeq, recipe: r.id, q: q, minLevel: minLevel, who: who,
+      coins: Math.round((D.RECIPE_PRICE[r.id] || 30) * (1 + q / 100)), exp: D.REQ_EXP + r.lv * D.REQ_EXP_PER_LV };
+  }
+  // 補滿委託（配方資料不存在的委託先丟掉）
+  function refreshReqs(save, now) {
+    save.reqs = save.reqs.filter(function (q) { return !!recipe(q.recipe); });
+    while (save.reqs.length < D.REQ_SLOTS) save.reqs.push(makeReq(save, now));
+    return save.reqs;
+  }
+  function reqMet(req, item) {
+    if (!req || item.recipe !== req.recipe || item.quality < req.q) return false;
+    return !req.minLevel || item.effects.some(function (e) { return e.level >= req.minLevel; });
+  }
+  // 交貨：回傳 {coins, exp, box, basket} 或 null
+  function fulfillReq(save, reqId, itemUid, now) {
+    var req = save.reqs.filter(function (q) { return q.id === reqId; })[0];
+    var item = save.items.filter(function (it) { return it.uid === itemUid; })[0];
+    if (!req || !item || !reqMet(req, item) || displayed(save, itemUid)) return null;
+    save.items = save.items.filter(function (it) { return it !== item; });
+    save.reqs = save.reqs.filter(function (q) { return q !== req; });
+    save.coins += req.coins; save.coinsEarned += req.coins; save.exp += req.exp;
+    save.reqDone++;
+    var g = save.reqDone <= D.REQ_BOX_N ? grow(save, D.REQ_BOX, 0) : { box: 0, basket: 0 };
+    refreshReqs(save, now);
+    return { coins: req.coins, exp: req.exp, box: g.box, basket: g.basket };
+  }
+  // 換一件委託：配方目前不能調和時免費，否則花銀幣
+  function rerollCost(save, req, now) { var r = recipe(req.recipe); return r && recipeAvailable(save, r, now) ? D.REQ_REROLL_COINS : 0; }
+  function rerollReq(save, reqId, now) {
+    var req = save.reqs.filter(function (q) { return q.id === reqId; })[0];
+    if (!req) return false;
+    var cost = rerollCost(save, req, now);
+    if (save.coins < cost) return false;
+    save.coins -= cost;
+    save.reqs = save.reqs.filter(function (q) { return q !== req; });
+    refreshReqs(save, now);
+    return true;
+  }
+  // 劇情：依做過的配方種類數解鎖；第一次解鎖時給擴充。回傳這次新解鎖的章節 index（含獎勵）
+  function checkStory(save) {
+    var out = [], n = recipesMade(save);
+    while (save.story < STORY.length && n >= STORY[save.story].recipes) {
+      var ch = STORY[save.story], g = grow(save, ch.box, ch.basket);
+      out.push({ index: save.story, box: g.box, basket: g.basket });
+      save.story++;
+    }
+    return out;
+  }
+  function nextChapter(save) { return STORY[save.story] || null; }
   // 依放置前後的評估與這一手的資訊，回傳工房主人台詞的鍵（A3）
   function react(save, before, after, info) {
     var r = info.recipe;
@@ -873,7 +959,9 @@
     setWhiteBalance: setWhiteBalance, wbActive: wbActive, dexGroup: dexGroup, dexGroups: dexGroups, dexProgress: dexProgress,
     ideaMet: ideaMet, recipeKnown: recipeKnown, recipeAvailable: recipeAvailable, checkIdeas: checkIdeas,
     cauldronLv: cauldronLv, canUnlockCauldron: canUnlockCauldron, unlockCauldron: unlockCauldron, upgradeCost: upgradeCost,
-    upgradeCauldron: upgradeCauldron, effectiveCauldron: effectiveCauldron, matMax: matMax, shelfCost: shelfCost, upgradeShelf: upgradeShelf,
+    upgradeCauldron: upgradeCauldron, effectiveCauldron: effectiveCauldron, matMax: matMax, basketMax: basketMax,
+    recipesMade: recipesMade, grow: grow, makeReq: makeReq, refreshReqs: refreshReqs, reqMet: reqMet, fulfillReq: fulfillReq,
+    rerollCost: rerollCost, rerollReq: rerollReq, checkStory: checkStory, nextChapter: nextChapter, story: function () { return STORY; },
     itemAsMaterial: itemAsMaterial, findMat: findMat, sublimate: sublimate,
     advancedOn: advancedOn, setAdvanced: setAdvanced, makeCatalyst: makeCatalyst, catalystOk: catalystOk,
     fuseTraits: fuseTraits, traitCost: traitCost, greatChance: greatChance, helpAvailable: helpAvailable, useHelp: useHelp,
