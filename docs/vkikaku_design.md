@@ -1,6 +1,10 @@
 # V 企劃室（vkikaku）遊戲設計
 
-> 狀態：**設計定稿 v1（2026-11-21）**。尚未實作；P1 實作計畫：`docs/superpowers/plans/2026-11-21-vkikaku-phase1.md`。
+> **2026-11-21 起，這個遊戲不在 PriTest 實作，直接寫進 RMD**（使用者指示）。P1 已在 RMD 完成（RMD ADR-173）。
+> 之後的規格與進度以 RMD 的 `docs/superpowers/specs/2026-11-21-vkikaku-design.md` 為準（含實作時的數值調整與差異），
+> 本文件保留為原始設計，不再更新。下文中 PriTest 的檔名、首頁付款分頁等安排都不再適用。
+>
+> 狀態：**設計定稿 v1（2026-11-21）**。P1 實作計畫：`docs/superpowers/plans/2026-11-21-vkikaku-phase1.md`（RMD 版在 RMD 的同路徑）。
 > 中文名「V 企劃室」、日文名「ブイ企画室」、英文 V Planning Room。前綴：JS `window.PriTestVkikaku*`、i18n `vk_`、CSS `vk-`
 > （2026-11-21 已用 grep 確認 `site_src/`、`static_src/` 沒有撞名）。
 > 放在首頁「付款」分頁（`paid=True`，密碼門見 CLAUDE.md §4.3.1）。先在 PriTest 以純前端試作，最終移植到 RMD。
@@ -16,7 +20,7 @@
 
 | 階段 | 內容 | 狀態 |
 |---|---|---|
-| P1 | 完整一週循環＋24 週與結局（§1～§4 標「P1」的部分） | 未開始 |
+| P1 | 完整一週循環＋24 週與結局（§1～§4 標「P1」的部分） | **完成（在 RMD，ADR-173）** |
 | P2 | 會議與直播的進階機制（§2、§3 標「P2」的部分） | 未開始 |
 | P3 | 事務所擴張：招募、聯動、對手、工作人員、周邊、其他路線 | 未開始 |
 | P4 | RMD 移植準備 | 未開始 |
