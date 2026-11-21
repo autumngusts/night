@@ -28,6 +28,7 @@ INUSNOW_SCRIPTS: tuple[str, ...] = (
     "inusnow_bet.js",
     "inusnow_mission.js",
     "inusnow_season.js",
+    "inusnow_prog.js",
     "inusnow_relay.js",
     "inusnow_highlight.js",
     "inusnow_room.js",
@@ -39,6 +40,7 @@ INUSNOW_SCRIPTS: tuple[str, ...] = (
     "inusnow_3d.js",
     "inusnow_ui3.js",
     "inusnow_ui4.js",
+    "inusnow_ui5.js",
     "inusnow.js",
 )
 

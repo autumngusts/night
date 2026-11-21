@@ -126,6 +126,7 @@
   // S2 興奮度量表的累積（設計 §17.5）：只依物理事件與時間，重播一致。發動中不累積
   function zoomGain(st, n) {
     if (st.zoomT > 0) return;
+    if (n > 0 && st.mods && st.mods.zoomMul) n = n * st.mods.zoomMul;     // P5 好感度
     st.zoom += n;
     if (st.zoom > Z.max) st.zoom = Z.max;
     if (st.zoom < 0) st.zoom = 0;
@@ -371,7 +372,7 @@
         seen = run.next;
         aggr = base + (rng() * 2 - 1) * AI.vary;
         if (rng() < AI.missK * (6 - (cpu.lv || 3)) * (cpu.missMul || 1) && !calm) aggr -= AI.missDrop;
-        if (calm) aggr -= CO.calmAggr;
+        if (calm) aggr -= CO.calmAggr * (coach.calmMul || 1);
         if (aggr < 0.05) aggr = 0.05; else if (aggr > AI.aggrMax) aggr = AI.aggrMax;
         aggr = Math.floor(aggr * 100 + 0.5) / 100;
       }
@@ -395,7 +396,7 @@
     var CO = D.COACH, s0 = run.st;
     for (var ci = 0; ci < cmds.length; ci++) {
       var cm = cmds[ci];
-      if (cm.a === "dash" && run.steps === cm.k && s0.zoom >= CO.dashMin && s0.zoomT === 0) { s0.zoomT = CO.dashSteps; s0.zoomHalf = true; s0.zoom = 0; run.events.push({ k: run.steps, e: "zoom" }); }
+      if (cm.a === "dash" && run.steps === cm.k && s0.zoom >= CO.dashMin && s0.zoomT === 0) { s0.zoomT = cm.m ? Math.floor(CO.dashSteps * cm.m) : CO.dashSteps; s0.zoomHalf = true; s0.zoom = 0; run.events.push({ k: run.steps, e: "zoom" }); }
     }
   }
   // 一隻 CPU 跑完一趟（frames 每步一格，給幽靈與溝痕用）
@@ -457,10 +458,12 @@
   function shareCode(o) { return ["inu1", o.resort, o.piste, o.seed >>> 0, o.runNo | 0, o.breed, o.rec].join("|"); }
   function parseShare(str) {
     var a = String(str || "").trim().split("|");
-    if (a.length === 8 && /^h:\d+-\d+$/.test(a[7])) a.pop();     // P4：精彩片段（設計 §19.4）
+    // P4：精彩片段 |h:a-b；P5：選手規格 |d:<spec>
+    var ex = {};
+    while (a.length > 7 && /^[hd]:/.test(a[a.length - 1])) { var x = a.pop(); ex[x.charAt(0)] = x.slice(2); }
     if (a.length !== 7 || a[0] !== "inu1") return null;
     try { decode(a[6]); } catch (e) { return null; }
-    return { resort: a[1], piste: a[2], seed: parseInt(a[3], 10) >>> 0, runNo: parseInt(a[4], 10) | 0, breed: a[5], rec: a[6] };
+    return { resort: a[1], piste: a[2], seed: parseInt(a[3], 10) >>> 0, runNo: parseInt(a[4], 10) | 0, breed: a[5], rec: a[6], spec: ex.d || "" };
   }
 
   // ---------------- 存檔格式（設計 §13） ----------------
@@ -469,7 +472,9 @@
     // P3 追加：settings.cond／condPick／coach*、coins／coinsDay／bets／daily／season（設計 §13）
     return { v: 1, dog: { breed: "shiba", name: "" }, best: {},
       settings: { control: "drag", camera: "chase", runs: 1, ghost: true, event: "gs", mode: "practice", lift: 0, cond: "std", condPick: { snow: "groomed", weather: "clear", night: false }, coachRoute: "std", coachSpin: 540, coachZoom: "auto", relayLeg: 0 },
-      ghostImport: null, free: {}, coins: D.BET ? D.BET.coinsStart : 1000, coinsDay: "", bets: [], daily: null, season: null, betLog: [] };
+      ghostImport: null, free: {}, coins: D.BET ? D.BET.coinsStart : 1000, coinsDay: "", bets: [], daily: null, season: null, betLog: [],
+      // P5（設計 §13、§20）：每隻狗的等級與好感、裝備、換裝、打蠟、解鎖、稱號、自訂公園
+      dogs: {}, gear: { owned: [] }, cosm: { owned: [] }, wax: { sel: "", stock: {} }, unlocked: null, titles: {}, parks: {}, totalExp: 0 };
   }
   function migrate(obj) {
     var s = newSave();
@@ -487,6 +492,11 @@
     if (obj.betLog && obj.betLog.length !== undefined) s.betLog = obj.betLog.slice(-30);
     if (obj.daily && typeof obj.daily === "object") s.daily = obj.daily;
     if (obj.season && typeof obj.season === "object") s.season = obj.season;
+    ["dogs", "gear", "cosm", "wax", "titles", "parks"].forEach(function (k) { if (obj[k] && typeof obj[k] === "object" && obj[k].length === undefined) s[k] = obj[k]; });
+    if (Array.isArray(obj.unlocked) && obj.unlocked.length) s.unlocked = obj.unlocked.filter(function (x) { return typeof x === "string"; });
+    if (!Array.isArray(s.gear.owned)) s.gear.owned = [];
+    if (!Array.isArray(s.cosm.owned)) s.cosm.owned = [];
+    if (typeof obj.totalExp === "number" && obj.totalExp >= 0) s.totalExp = obj.totalExp;
     return s;
   }
 

@@ -37,7 +37,8 @@ async function run(page, resort, opts, fast) {
     // 分頁
     var tabs = await page.$$eval(".inu-tab", function (l) { return l.map(function (b) { return b.getAttribute("data-tab"); }); });
     // 2026-11-21：第 4 階段加上「連線」分頁（設計 §19）
-    assert.deepStrictEqual(tabs, ["resorts", "bet", "cup", "daily", "room"], "首頁 5 個分頁");
+    // 2026-11-21：第 5 階段加上「犬舍」「商店」分頁（設計 §20）
+    assert.deepStrictEqual(tabs, ["resorts", "bet", "cup", "daily", "room", "kennel", "shop"], "首頁 7 個分頁");
     assert.ok(await page.$(".inu-coins"), "顯示狗幣");
     await shot(page, "home");
 

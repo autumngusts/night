@@ -1034,3 +1034,133 @@ body.inu-body.inu-nav-open > .site-header { transform: translateY(0); }
 .inu-roompage.is-static .inu-roombox, .inu-roompage.is-static .inu-members li, .inu-roompage.is-static .inu-lanes li { animation: none; }
 .inu-race-room #btn-inu-pause { display: none; }
 .inu-hlplay .inu-replay-badge { bottom: auto; top: calc(9vh + 3.6rem); }
+
+/* ===================== 第 5 階段（2026-11-21）：犬舍、商店、雪場鎖、季節、設施、獎勵、公園編輯器 ===================== */
+.inu-resort.is-locked { filter: grayscale(.75); opacity: .72; }
+.inu-resort.is-locked:hover { transform: none; }
+.inu-resort.is-shake { animation: inu-shake .4s ease; }
+@keyframes inu-shake { 25% { transform: translateX(-6px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+.inu-lock { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; align-content: center; gap: .3rem; padding: 1rem; border-radius: inherit; background: rgba(240, 246, 252, .55); color: var(--inu-ink); font-size: .75rem; font-weight: bold; text-align: center; backdrop-filter: blur(2px); }
+.inu-lock b { font-size: 1.6rem; }
+.inu-title-badge, .inu-onsen-badge { position: absolute; top: .5rem; right: .6rem; z-index: 1; font-size: 1.1rem; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .3)); }
+.inu-onsen-badge { right: 2.2rem; color: #e2453c; font-weight: 900; }
+.inu-title-badge.is-home { animation: inu-float 2.4s ease-in-out infinite; }
+.inu-season { display: flex; align-items: center; gap: .6rem; margin: -1.2rem auto 1rem; padding: .6rem 1rem; width: fit-content; max-width: 100%; border-radius: 16px; position: relative; z-index: 1; box-shadow: 0 6px 18px rgba(20, 50, 90, .15); animation: inu-card-in .5s ease both; }
+.inu-season span { font-size: 1.4rem; }
+.inu-season small { color: var(--inu-sub); }
+.inu-season-dream { background: linear-gradient(135deg, #e6f2ff, #c9e2ff 50%, #f0e6ff); }
+.inu-season-spring { background: linear-gradient(135deg, #fff0f5, #ffe0ec); }
+.inu-tag { display: inline-flex; align-items: center; padding: .15rem .6rem; border-radius: 999px; background: #eef3f8; color: var(--inu-sub); font-size: .72rem; font-weight: bold; }
+.inu-tag-home { background: #e7f8ee; color: #157a42; }
+.inu-tag-tired { background: #ffe8e4; color: #b0362b; }
+.inu-tag-food { background: #fff3d6; color: #8a5a00; }
+.inu-tag-wax { background: #e6f1ff; color: var(--inu-blue2); }
+.inu-heart { display: inline-block; width: 4.5rem; height: 7px; border-radius: 4px; background: #f3dce2; overflow: hidden; vertical-align: middle; }
+.inu-heart i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ff8fb1, #e2456c); }
+.inu-facil { margin: .6rem 0 1rem; padding: .7rem .9rem; border-radius: 18px; background: var(--inu-card); box-shadow: 0 3px 12px rgba(20, 50, 90, .08); }
+.inu-facil-dog { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+.inu-facil-dog .inu-face.is-mini { width: 2.2rem; height: 2rem; }
+.inu-facil-btns { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+.inu-facil-btn { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: .5rem; align-items: center; padding: .55rem .9rem; border: 0; border-radius: 14px; font: inherit; font-weight: bold; text-align: left; cursor: pointer; transition: transform .15s, box-shadow .2s; }
+.inu-facil-btn span { grid-row: 1 / 3; font-size: 1.5rem; }
+.inu-facil-btn small { font-weight: normal; font-size: .72rem; opacity: .85; }
+.inu-facil-btn:hover { transform: translateY(-2px); }
+.inu-facil-btn[disabled] { opacity: .5; transform: none; cursor: default; }
+.inu-onsen { background: linear-gradient(135deg, #ffe6e0, #ffd0c2); color: #8a2a18; box-shadow: 0 4px 12px rgba(226, 69, 60, .2); }
+.inu-food { background: linear-gradient(135deg, #fff5d6, #ffe59a); color: #6a4a00; box-shadow: 0 4px 12px rgba(200, 140, 0, .2); }
+.inu-parkbtn { background: linear-gradient(135deg, #e6f1ff, #cfe3fb); color: var(--inu-blue2); box-shadow: 0 4px 12px rgba(31, 98, 196, .18); }
+/* 獎勵彈出 */
+.inu-award { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; pointer-events: auto; background: rgba(10, 30, 60, .25); animation: inu-fadein .3s ease both; }
+.inu-award.is-out { animation: inu-fadeout .45s ease both; }
+@keyframes inu-fadein { from { opacity: 0; } }
+@keyframes inu-fadeout { to { opacity: 0; } }
+.inu-award-card { display: grid; justify-items: center; gap: .2rem; min-width: 15rem; padding: 1.2rem 1.6rem; border-radius: 24px; background: radial-gradient(circle at 50% 0, #fff8dc, #fff 60%); box-shadow: 0 0 0 4px rgba(255, 197, 49, .6), 0 18px 40px rgba(20, 50, 90, .35); animation: inu-award-pop .55s cubic-bezier(.2, 1.4, .4, 1) both; }
+.inu-award-card b { font-size: 1.25rem; color: #7a5200; }
+.inu-award-card p { margin: 0; font-weight: bold; color: var(--inu-ink); animation: inu-card-in .4s ease both; }
+.inu-award-card p:nth-of-type(2) { animation-delay: .25s; }
+.inu-award-card p:nth-of-type(3) { animation-delay: .5s; }
+.inu-award-ico { font-size: 2.6rem; animation: inu-spinpop .8s ease both; }
+@keyframes inu-award-pop { from { transform: scale(.6); opacity: 0; } }
+@keyframes inu-spinpop { from { transform: rotate(-180deg) scale(0); } }
+/* 犬舍 */
+.inu-kennel { padding: 1rem; border-radius: 22px; background: var(--inu-card); box-shadow: 0 4px 16px rgba(20, 50, 90, .1); }
+.inu-kcard { display: flex; gap: 1rem; align-items: center; }
+.inu-kface { position: relative; display: grid; place-items: center; width: 6.5rem; height: 6.5rem; flex: none; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #fff, #dbe9f7); box-shadow: inset 0 -6px 0 rgba(42, 111, 214, .12); }
+.inu-kface .inu-face { transform: scale(1.6); }
+.inu-klv { position: absolute; bottom: -.2rem; right: -.2rem; display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: linear-gradient(180deg, #ffd23f, #e8a400); color: #5a3c00; font-size: .6rem; font-weight: 900; line-height: 1; box-shadow: 0 3px 8px rgba(200, 140, 0, .4); }
+.inu-klv b { font-size: 1.05rem; }
+.inu-kinfo { flex: 1; min-width: 0; }
+.inu-kinfo .inu-h2 { margin: 0 0 .3rem; }
+.inu-expbar { position: relative; height: 14px; border-radius: 7px; background: #e3ebf4; overflow: hidden; }
+.inu-expbar i { display: block; height: 100%; background: linear-gradient(90deg, #7fd0ff, #2a6fd6); transition: width .5s ease; }
+.inu-expbar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: .66rem; font-weight: bold; color: #13263d; }
+.inu-kpts { margin: .35rem 0; font-size: .82rem; color: var(--inu-sub); }
+.inu-kpts.is-on { color: #e07a20; font-weight: 900; animation: inu-ready 1.2s ease-in-out infinite; }
+.inu-kaff { display: flex; align-items: center; gap: .4rem; color: #e2456c; }
+.inu-kaff .inu-heart { width: 8rem; height: 9px; }
+.inu-kstate { display: flex; flex-wrap: wrap; gap: .3rem; margin: .4rem 0 0; }
+.inu-kstats { display: grid; gap: .35rem; margin: 1rem 0 .4rem; }
+.inu-kstat { display: grid; grid-template-columns: 4.2rem 1fr 3.2rem 2rem; align-items: center; gap: .5rem; font-size: .82rem; }
+.inu-kstat em { font-style: normal; color: var(--inu-sub); }
+.inu-kbar { position: relative; height: 10px; border-radius: 5px; background: #e8eef5; overflow: hidden; }
+.inu-kbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #7fb2ec, #2a6fd6); border-radius: 5px; }
+.inu-kbar b { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #ffd23f, #ff8a2a); transition: width .3s; }
+.inu-kbar u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #c0392b; }
+.inu-kstat strong { font-variant-numeric: tabular-nums; }
+.inu-kstat strong small { color: #e07a20; margin-left: .15rem; }
+.inu-kplus { width: 1.8rem; height: 1.8rem; border: 0; border-radius: 50%; background: linear-gradient(180deg, #ff9b3d, #ff6a1a); color: #fff; font-weight: 900; cursor: pointer; transition: transform .12s; }
+.inu-kplus:active { transform: scale(.85); }
+.inu-kplus[disabled] { background: #d8e0e8; cursor: default; }
+.inu-kdogs { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.2rem, 1fr)); gap: .4rem; }
+.inu-kdog { display: grid; justify-items: center; gap: .1rem; padding: .4rem; border: 2px solid transparent; border-radius: 14px; background: var(--inu-card); font: inherit; font-size: .72rem; cursor: pointer; }
+.inu-kdog.is-on { border-color: #ff8a2a; background: #fff4e6; }
+.inu-kdog b { color: var(--inu-blue2); }
+.inu-titles { display: flex; flex-wrap: wrap; gap: .4rem; }
+.inu-titlecard { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem .7rem; border-radius: 12px; background: #eef3f8; color: var(--inu-sub); font-size: .8rem; }
+.inu-titlecard.is-on { background: linear-gradient(135deg, #fff7da, #ffe59a); color: #6a4a00; font-weight: bold; }
+.inu-titlecard.is-home { box-shadow: 0 0 0 2px #3ed47a; }
+.inu-titlecard.is-locked { opacity: .55; }
+.inu-titlecard small { color: #157a42; }
+/* 商店 */
+.inu-shophead { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; padding: .9rem 1rem; border-radius: 20px; background: linear-gradient(135deg, #fff7da, #ffe9a8 60%, #ffd98a); box-shadow: 0 6px 20px rgba(200, 140, 0, .18); }
+.inu-shophead p { flex: 1 1 100%; margin: 0; color: #6a4a00; }
+.inu-shopgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .45rem; }
+.inu-shopitem { display: flex; align-items: center; gap: .5rem; padding: .55rem .7rem; border: 2px solid transparent; border-radius: 14px; background: var(--inu-card); box-shadow: 0 2px 8px rgba(20, 50, 90, .06); animation: inu-card-in .35s ease both; }
+.inu-shopitem.is-eq { border-color: #3ed47a; background: #effcf4; }
+.inu-shopname { flex: 1; display: grid; font-weight: bold; font-size: .86rem; }
+.inu-shopname small { font-weight: normal; color: var(--inu-sub); font-size: .7rem; }
+.inu-shopeq { color: #157a42; font-size: .75rem; font-weight: 900; }
+.inu-shopbuy { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem .7rem; border: 0; border-radius: 999px; background: linear-gradient(180deg, #fff6d6, #ffe59a); color: #7a5200; font: inherit; font-weight: 900; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(200, 140, 0, .35); }
+.inu-shopbuy i { width: .9rem; height: .9rem; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #ffc531 45%, #d99200); }
+.inu-shopbuy[disabled] { opacity: .45; cursor: default; }
+.inu-swatch { width: 1.6rem; height: 1.6rem; flex: none; border-radius: 50%; border: 2px dashed #c0c8d2; }
+.inu-swatch[style*="#"] { border-style: solid; border-color: #fff; box-shadow: 0 0 0 1px #c0c8d2; }
+.inu-wax { width: 1.6rem; height: 1.6rem; flex: none; border-radius: 6px; transform: rotate(-12deg); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .15); }
+.inu-wax-groomed { background: #7fb2ec; }
+.inu-wax-powder { background: #e8f4ff; border: 1px solid #b8c8da; }
+.inu-wax-ice { background: #9fe3f0; }
+.inu-wax-spring { background: #ffb3c6; }
+.inu-waxitem .inu-chip { margin-left: .2rem; }
+/* 公園編輯器 */
+.inu-parkmap { width: 100%; height: auto; margin: .4rem 0 .8rem; border-radius: 14px; background: linear-gradient(180deg, #d9ebfb, #f4f9fe); }
+.inu-parkmap-piste { fill: #fff; stroke: #b8d0ea; stroke-width: 2; }
+.inu-pm-kicker { fill: #ff8a2a; }
+.inu-pm-rail { fill: #2a6fd6; }
+.inu-pm-roller { fill: none; stroke: #27a35a; stroke-width: 3; }
+.inu-pm-t { font-size: 9px; font-weight: bold; fill: #4a6078; }
+.inu-parklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.inu-parklist li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .45rem .6rem; border-radius: 12px; background: var(--inu-card); animation: inu-card-in .3s ease both; }
+.inu-parklist select, .inu-parklist input[type="number"] { padding: .3rem .4rem; border: 1px solid #b8c8da; border-radius: 8px; font: inherit; }
+.inu-parklist input[type="number"] { width: 5rem; }
+.inu-pk-no { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #1b4f9e; color: #fff; font-weight: 900; font-size: .75rem; }
+.inu-pk-f { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; color: var(--inu-sub); }
+.inu-pk-f b { min-width: 1.6rem; color: var(--inu-ink); font-variant-numeric: tabular-nums; }
+.inu-msg.is-ok { background: #e7f8ee; color: #157a42; }
+@media (max-width: 560px) {
+  .inu-kcard { flex-direction: column; text-align: center; }
+  .inu-kaff, .inu-kstate { justify-content: center; }
+  .inu-kstat { grid-template-columns: 3.6rem 1fr 2.8rem 1.8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inu-kpts.is-on, .inu-title-badge.is-home, .inu-award-card, .inu-award-ico { animation: none; }
+}

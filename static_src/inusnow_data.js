@@ -267,6 +267,77 @@
   // R5 精彩重播（§19.4）
   D.HIGHLIGHT = { fastSec: 10, jumpMinSteps: 20, jumpMinH: 1, before: 90, after: 60, trickBefore: 150, passBefore: 180 };
 
+  // ================= 第 5 階段（設計 §20） =================
+  // 技術等級（§20.1）
+  D.PROG = { finish: 20, place: [30, 20, 10], trick360: 2, stamp: 10, mission: 20, levelBase: 100, pts: 3, addMax: 25, statMax: 100, lvMax: 50 };
+  // 裝備（§20.2）：mods 是乘數（turn 轉向、drag 空氣阻力、spin 轉體、grip 抓地），cld 加耐寒，fog 霧距倍率。std＝一開始的標準裝備（沒有效果）
+  D.GEAR = {
+    board: [
+      { id: "std", price: 0, name: C("スタンダード", "標準板", "Standard") },
+      { id: "S-soft", price: 300, turn: 1.06, drag: 1.03, spin: 1.08, grip: 0.96, name: C("ショート・ソフト", "短・軟", "Short soft") },
+      { id: "S-hard", price: 300, turn: 1.06, drag: 1.03, spin: 0.92, grip: 1.04, name: C("ショート・ハード", "短・硬", "Short hard") },
+      { id: "M-soft", price: 300, spin: 1.08, grip: 0.96, name: C("ミドル・ソフト", "中・軟", "Mid soft") },
+      { id: "M-hard", price: 300, spin: 0.92, grip: 1.04, name: C("ミドル・ハード", "中・硬", "Mid hard") },
+      { id: "L-soft", price: 300, turn: 0.94, drag: 0.97, spin: 1.08, grip: 0.96, name: C("ロング・ソフト", "長・軟", "Long soft") },
+      { id: "L-hard", price: 300, turn: 0.94, drag: 0.97, spin: 0.92, grip: 1.04, name: C("ロング・ハード", "長・硬", "Long hard") },
+    ],
+    bind: [
+      { id: "b0", price: 0, name: C("ベーシック", "基本型", "Basic") },
+      { id: "b1", price: 200, grip: 1.03, name: C("レスポンス", "反應型", "Response") },
+      { id: "b2", price: 400, grip: 1.06, name: C("レーシング", "競速型", "Racing") },
+    ],
+    goggle: [
+      { id: "g0", price: 0, fog: 1, name: C("クリア", "透明鏡片", "Clear") },
+      { id: "g1", price: 150, fog: 1.3, name: C("ライトブースト", "增光鏡片", "Light boost") },
+      { id: "g2", price: 300, fog: 1.6, name: C("フォグカット", "抗霧鏡片", "Fog cut") },
+    ],
+    jacket: [
+      { id: "j0", price: 0, cld: 0, name: C("ライト", "輕量", "Light") },
+      { id: "j1", price: 150, cld: 10, name: C("ダウン", "羽絨", "Down") },
+      { id: "j2", price: 300, cld: 20, name: C("エクスペディション", "極地", "Expedition") },
+    ],
+    // 雙板（§20.10）：長度 3 種，共通的物理差異在 D.SKI
+    ski: [
+      { id: "ski-S", price: 500, turn: 1.06, drag: 1.03, name: C("スキー・ショート", "雙板・短", "Ski short") },
+      { id: "ski-M", price: 500, name: C("スキー・ミドル", "雙板・中", "Ski mid") },
+      { id: "ski-L", price: 500, turn: 0.94, drag: 0.97, name: C("スキー・ロング", "雙板・長", "Ski long") },
+    ],
+  };
+  D.SKI = { grip: 1.1, turn: 1.08, spin: 0.85, startV: 1, crouchDrag: 0.5, backCos: -0.5, backSpeed: 3 };
+  // 打蠟（§20.3）：選對雪質 μ ×0.9、選錯 ×1.05
+  D.WAX = { price: 20, good: 0.9, bad: 1.05, kinds: ["groomed", "powder", "ice", "spring"] };
+  // 雪場解鎖（§20.3）：一開始 3 個；其他依序以「已開放雪場的比賽前 3 名」或「累積經驗」解鎖
+  D.UNLOCK = { start: ["happo", "naeba", "teine"], order: ["yakebitai", "hirafu", "zao", "nozawa", "rusutsu"], exp: 150 };
+  // 好感度（§20.4）
+  D.AFF = { max: 100, race: 2, care: 5, feed: 10, coachDiv: 200, zoomDiv: 400 };
+  // 犬種主場（§20.5）
+  D.HOME = { bonus: 2, region: { hokkaido: ["hokkaido", "husky", "malamute", "samoyed"], tohoku: ["akita"], nagano: ["kai", "kishu", "shikoku", "shiba"], niigata: ["kai", "kishu", "shikoku", "shiba"] } };
+  // 溫泉與在地美食（§20.9）、疲勞
+  D.ONSEN = { resorts: ["nozawa", "zao", "happo"], price: 20 };
+  D.FOOD = {
+    price: 30, bonus: 4,
+    items: {
+      happo: { stat: "pow", name: C("おやき", "信州烤餅", "Oyaki") },
+      yakebitai: { stat: "tec", name: C("信州そば", "信州蕎麥麵", "Shinshu soba") },
+      teine: { stat: "pow", name: C("ジンギスカン", "成吉思汗烤肉", "Genghis Khan BBQ") },
+      hirafu: { stat: "bal", name: C("じゃがバター", "奶油馬鈴薯", "Jaga-butter") },
+      zao: { stat: "bal", name: C("玉こんにゃく", "玉蒟蒻", "Tama konnyaku") },
+      nozawa: { stat: "cld", name: C("野沢菜", "野澤菜", "Nozawana") },
+      naeba: { stat: "tec", name: C("へぎそば", "片木蕎麥麵", "Hegi soba") },
+      rusutsu: { stat: "brv", name: C("夕張メロン", "夕張哈密瓜", "Yubari melon") },
+    },
+  };
+  D.FATIGUE = { races: 5, minus: 3 };
+  // 換裝（§20.6）：不影響數值
+  D.COSMETIC = {
+    coat: [{ id: "none", price: 0, color: null }, { id: "red", price: 80, color: "#e2453c" }, { id: "navy", price: 80, color: "#1f3a6e" }, { id: "mint", price: 80, color: "#3ec7a0" }, { id: "gold", price: 120, color: "#f0b429" }],
+    goggle: [{ id: "orange", price: 0, color: "#ff9a1e" }, { id: "blue", price: 60, color: "#3aa0ff" }, { id: "pink", price: 60, color: "#ff6fb0" }, { id: "mirror", price: 100, color: "#c0c8d2" }],
+    hat: [{ id: "none", price: 0, color: null }, { id: "beanie", price: 70, color: "#e2453c" }, { id: "green", price: 70, color: "#27a35a" }, { id: "white", price: 70, color: "#f4f6f8" }],
+    boots: [{ id: "black", price: 0, color: "#2b3440" }, { id: "red", price: 50, color: "#c0392b" }, { id: "yellow", price: 50, color: "#f0b429" }],
+  };
+  // 公園編輯器（§20.7）
+  D.PARKED = { min: 4, max: 8, step: 5, lat: 10, gap: 40, kinds: ["kickerS", "kickerM", "kickerL", "rail", "box", "roller"], roller: { A: 1.0, len: 10, W: 10 } };
+
   // 第一批雪場（設計 §2.2；資料在 static/inusnow/data/<id>.json）
   D.RESORTS = ["happo", "yakebitai", "teine", "hirafu", "zao", "nozawa", "naeba", "rusutsu"];
 

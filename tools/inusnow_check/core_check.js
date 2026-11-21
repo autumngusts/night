@@ -365,6 +365,8 @@ loadResort("happo").then(function (r) {
 }).then(function () {
   return require("./p4_check.js")();
 }).then(function () {
+  return require("./p5_check.js")();
+}).then(function () {
   console.log("inusnow core_check OK");
 }).catch(function (e) {
   console.error(e);

@@ -1,6 +1,6 @@
 # イヌスノー（inusnow）遊戲設計
 
-> 狀態：**設計定稿 v2（2026-11-20）**。第 1 階段完成（v2.82.0）、第 2 階段完成（v2.83.0）、第 3、4 階段完成（v2.85.0，2026-11-21）；第 5、6 階段的規格寫在 §20、§21。
+> 狀態：**設計定稿 v2（2026-11-20）**。第 1 階段完成（v2.82.0）、第 2 階段完成（v2.83.0）、第 3、4 階段完成（v2.85.0）、第 5 階段完成（v2.86.0，2026-11-21）＝PriTest 側完成；第 6 階段（RMD 移植準備）的規格寫在 §21。
 > 中文名「狗雪」、日文名「イヌスノー」、英文 Inu Snow。前綴：JS `window.PriTestInusnow*`、i18n `inu_`、CSS `inu-`
 > （不用 `is-`：會和全站共用的 `.is-active` 等狀態 class 撞名）。
 > 先在 PriTest 以純前端試作，最終移植到 RMD。
@@ -20,7 +20,7 @@
 | P2 Slopestyle、CPU、Snowboard Cross、興奮度、溝痕、自由滑行、犬種 24 種；畫面特效與 UIUX 全面升級 | **完成**（G2 嗅覺捷徑延到 P3 開頭，§0.5） | v2.83.0（2026-11-21） |
 | P3 G2 嗅覺捷徑（P2 留下）、競猜、教練模式、雪質天氣夜間、救難犬、世界盃、雪崩逃脫、每日雪況；首頁分頁（雪場／競猜／世界盃／今日雪況） | **完成**（實作差異見 §0.6） | v2.85.0（2026-11-21，和 P4 一起推送） |
 | P4 即時同場（4 人平行大曲道、8 人 Slopestyle、房間接力、觀戰者單勝彩池）、雪橇犬接力（單人）、精彩重播與分享片段；首頁「連線」分頁 | **完成**（實作差異見 §0.7） | v2.85.0（2026-11-21） |
-| P5 成長、裝備、打蠟、解鎖、收集章、主人好感、主場、換裝、公園編輯器、季節、溫泉美食、雙板 | 未開始：規格見 §20 | |
+| P5 成長、裝備、打蠟、解鎖、收集章、主人好感、主場、換裝、公園編輯器、季節、溫泉美食、雙板；首頁「犬舍」「商店」分頁 | **完成**（實作差異見 §0.8） | v2.86.0（2026-11-21） |
 | P6 RMD 移植準備 | 未開始：規格見 §21 | |
 
 ### A.2 下一步的做法
@@ -42,6 +42,7 @@ py -3 -m http.server 8975 --directory dist
 node tools/inusnow_check/ui_check.js              # 畫面（Playwright）：手機／桌機完賽、存檔與幽靈、2 趟、重播、拖曳、8 個雪場；P2：4 種賽事、HUD 按鈕、自由滑行
 node tools/inusnow_check/ui_p3_check.js           # 畫面（P3）：分頁、雪況設定、教練指令、濃霧箭頭、嗅覺量表、救難犬、雪崩、競猜（買票→觀戰→結算）、世界盃第 1 站、今日挑戰
 node tools/inusnow_check/ui_p4_check.js           # 畫面（P4）：單人接力、精彩重播；3 個瀏覽器的房間（假 Firebase）：建房→加入→觀戰下注→同時出發→名次一致→派彩
+node tools/inusnow_check/ui_p5_check.js           # 畫面（P5，日期固定 1 月）：雪場鎖、犬舍、商店、雙板比賽的獎勵與 /ski 紀錄、spec 幽靈、溫泉美食、公園編輯器
 node tools/inusnow_data/add_events.js             # （改選段規則時）Slopestyle／Cross 的雪道選段，離線、可重複執行
 py -3 tools/split_css.py --check
 ```
@@ -195,6 +196,28 @@ py -3 tools/inusnow_data/fetch.py --fallback appi # 替補雪場
 | 平行大曲道的 CPU 路線 | — | CPU、自動駕駛的瞄準點也用賽道的旗門寬（`gate.w`） | 用 8 m 會瞄到旗門外，部分雪場的賽道幾乎跑不完 |
 
 - 已知限制（P6 處理）：房間狗幣與下注任何客戶端都能寫（沒有帳號）；過期退款時，玩家可以先在別的瀏覽器看結果再決定要不要出發（狗幣只是遊戲內點數）。
+
+### 0.8 實作中確定的變更（2026-11-21，第 5 階段）
+
+| 項目 | 原設計 | 實作 | 理由 |
+|---|---|---|---|
+| 等級的單位 | 選手一個等級 | **每隻狗（犬種）各自**的等級、經驗、能力點、好感、疲勞（`save.dogs[犬種]`）；`totalExp` 是全部的合計（解鎖用） | 能力點本來就依犬種分開（§20.1） |
+| 紀錄與裝備 | 未定 | 有效選手（能力點、主場、疲勞、美食、裝備、打蠟、好感）寫成規格字串 `spec`，存進最佳紀錄；幽靈與重播用它還原；分享碼加上 `|d:<spec>` | 成長後的狗和犬種本身的數值不同，不存下來重播會對不上 |
+| 標準裝備 | 雪板 6 種 | 再加一個「標準板」（沒有效果，一開始就有）、固定器／雪鏡／雪衣的第 1 種也免費 | 沒買裝備的選手和第 4 階段完全相同 |
+| 雙板的反腳 | 速度在板子後方超過 60°＝摔倒 | 地面上水平速度 > 3 m/s、板頭與速度夾角 > 120°（cos < −0.5）＝摔倒 | 「後方超過 60°」＝與後方夾角 < 60° |
+| 雙板的雪板長度 | 3 種長度 | 長度效果同雪板（短：轉向 +6%／阻力 +3%；長相反），再乘上 §20.10 的雙板共通差異；固定器照樣有效 | |
+| 打蠟 | 每場消耗 1 個 | 在商店「使用」一種蠟；有庫存時每場（自由滑行除外）消耗 1 個 | |
+| 解鎖的經驗條件 | 累積經驗 | 每多開放 1 個需要累積經驗 150（`UNLOCK.exp`）；前 3 名條件只算在已開放雪場的比賽模式 | |
+| 雪場鎖的範圍 | 未定 | 只擋首頁的雪場清單；世界盃、今日挑戰、競猜、房間的雪場不受限制 | 那些是被指定的場地 |
+| 溫泉 | 未定價 | 20 狗幣（野沢、蔵王、白馬八方） | |
+| 疲勞 | 連續 5 場 | 同一天（JST）第 6 場起全能力 −3；溫泉或隔天清除 | |
+| 夢之雪 | 雪面淡藍、只有晴天 | 5～11 月：全部雪場開放、「隨機」雪況的天氣固定晴天、地面材質帶淡藍色 | |
+| 公園編輯器的計分 | 本機最佳 | 每個雪場存一個自訂公園（`save.parks[雪場]`），改動地形時最佳分數歸零；自訂公園不寫一般 Slopestyle 紀錄與幽靈 | |
+| 主場犬種限定的收集章 | 特別圖案 | 稱號（集滿雪道章）用主場犬種拿到時是特別版（綠框） | |
+| 夢之雪的天氣 | 只有晴 | 在 `Env.conditions` 處理（月份 5～11 且沒有指定天氣時固定晴天、沒有天候變化），所以隨機雪況、今日雪況、競猜、世界盃、房間都一樣；設定畫面「指定」的天氣照玩家的選擇 | |
+| 好感度與教練 | 指令效果 ×(1＋好感/200) | 「衝！」的持續時間（大曲道、Slopestyle）與大曲道「穩住！」的 aggr 下降幅度乘倍率；Slopestyle 的「穩住！」（目標轉體少 180°）不乘 | 轉體只能以 180° 為單位 |
+| 房間比賽與成長 | 未定 | 房間比賽用犬種本身的數值（大家公平）；有經驗，但不消耗蠟與美食、不算疲勞；觀戰者沒有獎勵 | |
+| 名次經驗 | 比賽模式名次 | 大曲道、Slopestyle 只算比賽模式（教練模式不算）；Cross 一律有名次所以都算 | |
 
 ### 0.4 待確認事項（下次開工前可問；沒有回答就用「預設」）
 
@@ -548,6 +571,12 @@ normalAt(x, z) = 格網的解析梯度 ＋ Σ feature 的解析梯度（2026-11-
   - `static_src/inusnow_ui4.js`：連線分頁、大廳、房間比賽（賽事種類 `room`）、房間成績、單人接力（賽事種類 `relay`）、精彩重播（`UI.hook("highlight"／"shareClip"／"playShared")`）。
   - Core：`laneW(pi)`；`newRun` 的 `opts.lane`／`laneW`（平行大曲道）、`opts.from`／`to`（接力的半段）、`opts.cmds`（教練）；`finish.s`；`parseShare` 接受 `|h:a-b`。
   - `tools/inusnow_check/p4_check.js`（由 `core_check.js` 呼叫）、`tools/inusnow_check/ui_p4_check.js`。
+- P5 追加的檔案：
+  - `static_src/inusnow_prog.js`（`PriTestInusnowProg`）：`dogOf`、`expFor`、`addExp`、`allocate`、`isHome`、`tired`、`gearOf`、`fogMul`、`waxMu`、`effDog(save, 犬種, {resort, snow, date})`、`spec`／`fromSpec`、`afterRace`、`care`、`coachMul`、`season`、`unlockedList`／`checkUnlock`、`stampTitle`、`validatePark`／`parkCode`／`parseParkCode`。
+  - `static_src/inusnow_ui5.js`：犬舍、商店分頁；hook `dog`／`spec`／`fromSpec`／`gearSuffix`／`view`／`locked`／`banner`／`setupExtra`／`award`；公園編輯器（畫面 `park`）。
+  - 物理：`dog.gear`（turn、drag、spin、grip、startV、crouchDrag、ski、mu）、`dog.zoomMul`；Slopestyle 的 `opts.park`；`inusnow_3d.js` 的 `opts.look`（ski、coat、goggle、hat、boots）、`fogMul`、`dream`。
+  - 存檔（§13）：`dogs`、`gear`、`cosm`、`wax`、`unlocked`、`titles`、`parks`、`totalExp`。
+  - `tools/inusnow_check/p5_check.js`（由 `core_check.js` 呼叫）、`tools/inusnow_check/ui_p5_check.js`。
 - P2 追加的 `Terrain`：`withFeatures`、`featLocal`、`featOffset`、`offsetOf`、`prepFeat`、`rutAt`、`gridHeight`；`Phys.knock`；`env.spinMul`、`env.rut`、`env.grip`。
 - `Inusnow3D.create(container, terrain, opts)` 的 opts（P2）：`{mode, terrain（附加物包裝）, piste, gates, finish, feats, breed, others: [{breed, ghost, name}], ruts, world, got, camera}`；
   `render(frame, vel, othersFrames, dt, info)`、`gatePassed(n, perfect)`、`fx(kind, at)`、`hideBone`、`teleported`、`setSnow`。

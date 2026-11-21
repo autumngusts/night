@@ -47,8 +47,34 @@
 
   // ---------------- 比賽 ----------------
   // opts：{piste, seed, dog, snow, runNo}
+  // P5 公園編輯器（設計 §20.7）：list＝[{kind: "kickerS"|"kickerM"|"kickerL"|"rail"|"box"|"roller", s, lat}]（已檢查過）
+  function makeParkFrom(terrain, pisteId, list) {
+    var pi = T.piste(terrain, pisteId), feats = [], id = 0, kinds = [], last = 0;
+    var sorted = list.slice().sort(function (a, b) { return a.s - b.s; });
+    for (var i = 0; i < sorted.length; i++) {
+      var it = sorted[i], s = it.s, lat = it.lat, a = T.at(pi, s);
+      var rx = -a.tz, rz = a.tx, cx = a.x + rx * lat, cz = a.z + rz * lat;
+      if (it.kind === "roller") {
+        var RO = D.PARKED.roller;
+        feats.push({ k: "roller", x: cx, z: cz, tx: a.tx, tz: a.tz, s: s, A: RO.A, len: RO.len, W: RO.W });
+      } else if (it.kind.indexOf("kicker") === 0) {
+        var K = SL.kicker[it.kind.charAt(6)];
+        feats.push({ k: "kicker", id: id, kind: it.kind, x: cx, z: cz, tx: a.tx, tz: a.tz, L: K.L, H: K.H, W: K.W, s: s, lat: lat });
+        kinds.push(it.kind); id += 1;
+      } else {
+        var R = it.kind === "box" ? SL.box : SL.rail;
+        feats.push({ k: "kicker", id: id, kind: "ramp", ramp: true, x: cx, z: cz, tx: a.tx, tz: a.tz, L: SL.ramp.L, H: SL.ramp.H, W: SL.ramp.W, s: s, lat: lat });
+        var ex = cx + a.tx * R.len, ez = cz + a.tz * R.len;
+        feats.push({ k: it.kind, id: id, kind: it.kind, x: cx, z: cz, tx: a.tx, tz: a.tz, len: R.len, w: R.w, s: s, lat: lat,
+          y0: T.height(terrain, cx, cz) + R.top, y1: T.height(terrain, ex, ez) + R.top });
+        kinds.push(it.kind); id += 1;
+      }
+      last = s;
+    }
+    return { feats: feats, finishS: last + SL.rail.len + SL.finishAfter, kinds: kinds };
+  }
   function newSlope(terrain, opts) {
-    var park = makePark(terrain, opts.piste, opts.seed);
+    var park = opts.park ? makeParkFrom(terrain, opts.piste, opts.park) : makePark(terrain, opts.piste, opts.seed);
     var tw = T.withFeatures(terrain, park.feats);
     var pi = T.piste(tw, opts.piste);
     var a = T.at(pi, G.startS);
@@ -64,7 +90,8 @@
       status: "run", reason: null, time: null, steps: 0, still: 0, near: null, next: 0,
       inputs: [], events: [],
       air: null, grind: null, railOff: null, tried: {}, shakeWin: 0, prevG: 0, lastTrick: null,
-      tricks: [], featScore: [0, 0, 0, 0, 0, 0], seen: {}, score: 0, judges: null, final: 0,
+      tricks: [], featScore: park.kinds ? park.kinds.map(function () { return 0; }) : [0, 0, 0, 0, 0, 0], seen: {}, score: 0, judges: null, final: 0,
+      parkKinds: park.kinds || null,
     };
   }
 

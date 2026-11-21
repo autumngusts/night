@@ -75,7 +75,12 @@
   };
   var FEAT_ICON = { box: "▭", rail: "━", kickerS: "◢", kickerM: "◢", kickerL: "◢" };
 
-  function bestKey(resort, runNo) { return resort + "/gs/" + runNo; }
+  // P5：雙板的紀錄分開（設計 §20.10：best 的鍵加上 /ski）
+  function sfx() { return HOOKS.gearSuffix ? HOOKS.gearSuffix() : ""; }
+  function bestKey(resort, runNo) { return resort + "/gs/" + runNo + sfx(); }
+  function slopeKey(resort) { return resort + "/slope" + sfx(); }
+  // 紀錄裡的選手（P5 起有 spec：能力點、裝備等；沒有 spec＝犬種本身）
+  function specDog(breedId, spec) { return spec && HOOKS.fromSpec ? HOOKS.fromSpec(spec, breedId) : Core.breed(breedId); }
   function resortInfo(id) {
     var list = (S.index && S.index.resorts) || [];
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
@@ -89,7 +94,8 @@
     var html = '<div class="inu-page inu-anim-in"><header class="inu-hero"><div class="inu-hero-snow" aria-hidden="true"></div>'
       + '<div class="inu-hero-mtn" aria-hidden="true"></div><div class="inu-hero-dog" aria-hidden="true"><span></span></div>'
       + '<h1 class="inu-title">' + esc(t("inu_title")) + '</h1><p class="inu-sub">' + esc(t("inu_subtitle")) + "</p>"
-      + '<p class="inu-hero-tags"><span>' + esc(t("inu_event_gs")) + "</span><span>" + esc(t("inu_event_slope")) + "</span><span>" + esc(t("inu_event_cross")) + "</span><span>" + esc(t("inu_event_free")) + "</span></p></header>";
+      + '<p class="inu-hero-tags"><span>' + esc(t("inu_event_gs")) + "</span><span>" + esc(t("inu_event_slope")) + "</span><span>" + esc(t("inu_event_cross")) + "</span><span>" + esc(t("inu_event_free")) + "</span></p></header>"
+      + (HOOKS.banner ? HOOKS.banner() : "");
     html += tabsHtml();
     var tab = null;
     for (var ti = 0; ti < TABS.length; ti++) if (TABS[ti].id === S.tab && TABS[ti].render) tab = TABS[ti];
@@ -107,10 +113,13 @@
       html += '<div class="inu-resorts">';
       S.index.resorts.forEach(function (r, i) {
         if (D.RESORTS.indexOf(r.id) < 0) return;
-        var best = save.best[bestKey(r.id, 0)], sl = save.best[r.id + "/slope"], cx = save.best[r.id + "/cross"], fr = save.free[r.id];
+        var best = save.best[bestKey(r.id, 0)], sl = save.best[slopeKey(r.id)], cx = save.best[r.id + "/cross" + sfx()], fr = save.free[r.id];
         var hues = [205, 190, 220, 200, 215, 185, 210, 195];
-        html += '<button type="button" class="inu-resort" data-resort="' + esc(r.id) + '" style="--hue:' + hues[i % 8] + ";--d:" + (i * 0.05) + 's">'
+        var lk = HOOKS.locked ? HOOKS.locked(r.id) : null;
+        html += '<button type="button" class="inu-resort' + (lk ? " is-locked" : "") + '" data-resort="' + esc(r.id) + '" style="--hue:' + hues[i % 8] + ";--d:" + (i * 0.05) + 's">'
           + '<span class="inu-resort-art" aria-hidden="true"><i></i><i></i><i></i></span>'
+          + (lk ? '<span class="inu-lock"><b aria-hidden="true">🔒</b>' + esc(lk) + "</span>" : "")
+          + (HOOKS.resortBadge ? HOOKS.resortBadge(r.id) : "")
           + '<span class="inu-resort-name">' + esc(L(r.name)) + '</span><span class="inu-resort-pref">' + esc(L(r.pref)) + "</span>"
           + '<span class="inu-resort-piste"><i class="inu-diff inu-diff-' + esc(r.gs.diff) + '"></i>' + esc(t("inu_piste_info", { piste: L(r.gs.name), len: Math.round(r.gs.len), drop: Math.round(r.gs.drop) })) + "</span>"
           + '<span class="inu-resort-badges">'
@@ -126,7 +135,10 @@
     app.innerHTML = html;
     bindTabs();
     Array.prototype.forEach.call(app.querySelectorAll(".inu-resort"), function (b) {
-      b.addEventListener("click", function () { S.resort = b.getAttribute("data-resort"); S.msg = ""; show("setup"); });
+      b.addEventListener("click", function () {
+        if (b.classList.contains("is-locked")) { b.classList.remove("is-shake"); void b.offsetWidth; b.classList.add("is-shake"); return; }
+        S.resort = b.getAttribute("data-resort"); S.msg = ""; show("setup");
+      });
     });
   }
 
@@ -176,11 +188,12 @@
     } else if (pinfo) {
       html += '<p class="inu-course-line"><i class="inu-diff inu-diff-' + esc(pinfo.diff) + '"></i>' + esc(t("inu_piste_info", { piste: L(pinfo.name) || "—", len: Math.round(pinfo.len), drop: Math.round(pinfo.drop) })) + "</p>";
       if (ev === "slope") html += '<p class="inu-course-feats">' + D.SLOPE.order.map(function (k, i) { return '<span class="inu-feat inu-feat-' + k + '"><b>' + (i + 1) + "</b>" + esc(t("inu_feat_" + k)) + "</span>"; }).join("") + "</p>";
-      var bk = ev === "gs" ? save.best[bestKey(S.resort, 0)] : save.best[S.resort + "/" + ev];
+      var bk = ev === "gs" ? save.best[bestKey(S.resort, 0)] : ev === "slope" ? save.best[slopeKey(S.resort)] : save.best[S.resort + "/" + ev];
       if (bk) html += '<p class="inu-course-best">' + esc(ev === "gs" ? t("inu_best", { time: fmtTime(bk.time) }) : ev === "slope" ? t("inu_best_score", { score: fmtScore(bk.score) }) : t("inu_best_place", { n: bk.place })) + "</p>";
     }
     if (KINDS[ev] && KINDS[ev].setupInfo) html += KINDS[ev].setupInfo(r);
     html += "</div>";
+    if (HOOKS.setupExtra) html += HOOKS.setupExtra(r, ev);
     if (ev === "gs" || ev === "slope") html += opt("mode", t("inu_mode"), [["practice", t("inu_mode_practice")], ["race", t("inu_mode_race")], ["coach", t("inu_mode_coach")]], st.mode);
     if ((ev === "gs" || ev === "slope") && st.mode === "coach") {
       html += '<div class="inu-coachbox"><p class="inu-coach-note">' + esc(t("inu_coach_note")) + "</p>";
@@ -232,6 +245,7 @@
         persist(); S.msg = ""; var y = app.querySelector(".inu-page").scrollTop; render(); var pg = app.querySelector(".inu-page"); if (pg) pg.scrollTop = y;
       });
     });
+    if (HOOKS.setupBind) HOOKS.setupBind(r);
     var lift = document.getElementById("inu-lift");
     if (lift) lift.addEventListener("change", function () { save.settings.lift = +lift.value; persist(); });
     Array.prototype.forEach.call(app.querySelectorAll("[data-cond]"), function (sel) {
@@ -286,7 +300,9 @@
     var st = save.settings;
     if (!Env || st.cond !== "random" && st.cond !== "pick") return Env ? Env.standard() : null;
     if (st.cond === "pick") { var cp = st.condPick || {}; return { snow: cp.snow || "groomed", weather: cp.weather || "clear", night: !!cp.night, change: null }; }
-    return Env.conditions(Core.hash(whenKey() + "|" + resort), resort, +jstDate().slice(5, 7), {});
+    var c = Env.conditions(Core.hash(whenKey() + "|" + resort), resort, +jstDate().slice(5, 7), {});
+    if (HOOKS.season && HOOKS.season() === "dream") { c.weather = "clear"; c.change = null; }      // P5 夢之雪：只有晴天
+    return c;
   }
   var WX_ICON = { clear: "☀", cloudy: "☁", snow: "❄", blizzard: "🌨", fog: "🌫" };
   function condLabel(c) {
@@ -362,25 +378,29 @@
 
   function ghostFor(resort, piste, runNo) {
     var gi = save.ghostImport;
-    if (gi && gi.resort === resort && gi.piste === piste && gi.runNo === runNo) return { rec: gi.rec, breed: gi.breed, seed: gi.seed };
+    if (gi && gi.resort === resort && gi.piste === piste && gi.runNo === runNo) return { rec: gi.rec, breed: gi.breed, seed: gi.seed, spec: gi.spec || "" };
     var b = save.best[bestKey(resort, runNo)];
-    if (b && b.rec && b.piste === piste) return { rec: b.rec, breed: b.breed, seed: b.seed };
+    if (b && b.rec && b.piste === piste) return { rec: b.rec, breed: b.breed, seed: b.seed, spec: b.spec || "" };
     return null;
   }
   function whenKey() { var d = new Date(); return d.toISOString().slice(0, 19); }
 
   function beginRace(resort, terrain, opts) {
     var info = resortInfo(resort), ev = opts.event, mode = opts.mode === "race" ? "race" : opts.mode === "coach" ? "coach" : "practice";
-    var dog = opts.dog || Core.breed(save.dog.breed);
     var runNo = opts.runNo || 0;
     var cond = opts.cond || condFor(resort);
+    // P5：有效選手（能力點、主場、疲勞、美食、裝備、打蠟、好感）
+    var dog = opts.dog || (HOOKS.dog ? HOOKS.dog(resort, cond) : Core.breed(save.dog.breed));
     var std = !Env || Env.isStandard(cond);
     var r = { kind: ev, mode: mode, resort: resort, terrain: terrain, opts: opts, runNo: runNo, dog: dog, cond: cond, std: std,
       phase: "count", countLeft: 3, acc: 0, last: 0, paused: false, endAt: 0, evIdx: 0, cpus: null, ghost: null, hud: {}, shakeT: 0, barkT: 0, lastInput: { g: 0 } };
     var vopts = { mode: ev, breed: dog, camera: save.settings.camera, others: [], weather: cond };
+    r.dogSpec = HOOKS.spec ? HOOKS.spec(dog) : "";
+    if (HOOKS.view) HOOKS.view(vopts);          // 外觀（雙板、換裝）、雪鏡、季節
+    r.coachMul = HOOKS.coachMul ? HOOKS.coachMul() : 1;
     var useCond = std ? null : cond;
     if (ev !== "gs" && ev !== "slope" && mode === "coach") mode = r.mode = "practice";
-    var coach = mode === "coach" ? { aggr: D.COACH.routes[save.settings.coachRoute] || D.COACH.routes.std, zoom: save.settings.coachZoom || "auto", cmds: [] } : null;
+    var coach = mode === "coach" ? { aggr: D.COACH.routes[save.settings.coachRoute] || D.COACH.routes.std, zoom: save.settings.coachZoom || "auto", cmds: [], calmMul: r.coachMul } : null;
     r.coach = coach;
     if (KINDS[ev]) {
       KINDS[ev].begin(r, terrain, vopts, info);
@@ -401,7 +421,7 @@
         var gsrc = ghostFor(resort, piste, runNo);
         if (gsrc) {
           try {
-            var rp = Core.replay(terrain, { piste: piste, seed: gsrc.seed, dog: Core.breed(gsrc.breed), snow: "groomed", runNo: runNo }, gsrc.rec, 1);
+            var rp = Core.replay(terrain, { piste: piste, seed: gsrc.seed, dog: specDog(gsrc.breed, gsrc.spec), snow: "groomed", runNo: runNo }, gsrc.rec, 1);
             r.ghost = { frames: rp.frames, breed: Core.breed(gsrc.breed) };
             vopts.others = [{ breed: r.ghost.breed, ghost: true, name: t("inu_ghost_label") }];
           } catch (e) { r.ghost = null; }
@@ -412,7 +432,8 @@
     } else if (ev === "slope") {
       var sp = info.slope ? info.slope.piste : info.gs.piste;
       var sseed = opts.seed !== undefined ? opts.seed : mode !== "practice" ? Core.raceSeed(resort, whenKey()) : Core.courseSeed(resort, sp);
-      var so = { piste: sp, seed: sseed, dog: dog, snow: "groomed", runNo: mode !== "practice" ? 0 : runNo, cond: useCond, cmds: coach ? coach.cmds : null };
+      var so = { piste: sp, seed: sseed, dog: dog, snow: "groomed", runNo: mode !== "practice" ? 0 : runNo, cond: useCond, cmds: coach ? coach.cmds : null, park: opts.park || null };
+      r.noBest = !!opts.park;
       r.run = SLP.newSlope(terrain, so);
       r.autoCtl = coach ? SLP.cpuController({ lv: 4, style: "trick", spinCap: +save.settings.coachSpin || 540, zoom: coach.zoom, cmds: coach.cmds }, (sseed ^ Core.hash("coach")) >>> 0)
         : SLP.cpuController({ lv: 4, style: "trick" }, 7);
@@ -420,11 +441,11 @@
         var sfield = opts.field || Core.cpuField(sseed, D.CPU_AI.field);
         r.cpus = sfield.map(function (c, i) { return SLP.simCpu(terrain, { piste: sp, seed: sseed, snow: "groomed", runNo: 0, cond: useCond }, c, sseed, i); });
         vopts.others = r.cpus.map(function (c) { return { breed: Core.breed(c.cpu.breed), ghost: true, name: cpuName(c.cpu) }; });
-      } else if (save.settings.ghost && std) {
-        var sb = save.best[resort + "/slope"];
+      } else if (save.settings.ghost && std && !opts.park) {
+        var sb = save.best[slopeKey(resort)];
         if (sb && sb.rec && sb.piste === sp && sb.seed === sseed) {
           try {
-            var srp = SLP.replay(terrain, { piste: sp, seed: sb.seed, dog: Core.breed(sb.breed), snow: "groomed", runNo: sb.runNo || 0 }, sb.rec, 1);
+            var srp = SLP.replay(terrain, { piste: sp, seed: sb.seed, dog: specDog(sb.breed, sb.spec), snow: "groomed", runNo: sb.runNo || 0 }, sb.rec, 1);
             r.ghost = { frames: srp.frames, breed: Core.breed(sb.breed) };
             vopts.others = [{ breed: r.ghost.breed, ghost: true, name: t("inu_ghost_label") }];
           } catch (e) { r.ghost = null; }
@@ -546,7 +567,7 @@
         e.stopPropagation();
         if (!r.coach || r.phase !== "run" || b.disabled) return;
         var run = r.run;
-        r.coach.cmds.push({ k: run.steps + D.COACH.lead, a: a });
+        r.coach.cmds.push({ k: run.steps + D.COACH.lead, a: a, m: r.coachMul && r.coachMul !== 1 ? r.coachMul : undefined });
         b.disabled = true; b.classList.add("is-sent");
         toastText(t(a === "dash" ? "inu_cmd_dash_sent" : "inu_cmd_calm_sent"), a === "dash" ? "is-gold" : "is-blue");
       });
@@ -999,6 +1020,7 @@
   }
 
   function showResult(r) {
+    if (HOOKS.award && !r.awarded) { r.awarded = true; HOOKS.award(r); }      // P5：經驗、好感、疲勞、解鎖
     if (r.opts.after && r.opts.after(r) === true) return;
     if (KINDS[r.kind]) return KINDS[r.kind].result(r);
     if (r.kind === "slope") return showSlopeResult(r);
@@ -1015,7 +1037,7 @@
       var b = save.best[key];
       if (b) diff = run.time - b.time;
       if (!b || run.time < b.time) {
-        save.best[key] = { time: run.time, rec: rec, breed: save.dog.breed, seed: run.opts.seed, piste: run.opts.piste, at: Date.now() };
+        save.best[key] = { time: run.time, rec: rec, breed: save.dog.breed, seed: run.opts.seed, piste: run.opts.piste, at: Date.now(), spec: r.dogSpec || "" };
         newBest = true;
       }
     }
@@ -1024,7 +1046,7 @@
     var total = null;
     if (!race && r.std && isLast && run.status === "finish" && totalRuns === 2 && times.length === 2) {
       total = times[0] + times[1];
-      var tk = r.resort + "/gs/total";
+      var tk = r.resort + "/gs/total" + sfx();
       if (!save.best[tk] || total < save.best[tk].time) save.best[tk] = { time: total, at: Date.now() };
     }
     var place = 0, table = "";
@@ -1088,7 +1110,7 @@
     on("setup", function () { show("setup"); });
     on("resorts", function () { show("resorts"); });
     on("share", function () {
-      var code = Core.shareCode({ resort: r.resort, piste: run.opts.piste, seed: run.opts.seed, runNo: r.runNo, breed: save.dog.breed, rec: rec });
+      var code = Core.shareCode({ resort: r.resort, piste: run.opts.piste, seed: run.opts.seed, runNo: r.runNo, breed: save.dog.breed, rec: rec }) + (r.dogSpec ? "|d:" + r.dogSpec : "");
       var done = function () { var bt = app.querySelector('[data-act="share"]'); if (bt) bt.textContent = t("inu_share_done"); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, function () { window.prompt(t("inu_share"), code); });
       else window.prompt(t("inu_share"), code);
@@ -1104,10 +1126,10 @@
     var isLast = r.runNo + 1 >= totalRuns;
     var bestOf = Math.max.apply(null, scores);
     var newBest = false;
-    if (!race && r.std && run.status !== "dsq") {
-      var b = save.best[r.resort + "/slope"];
+    if (!race && r.std && !r.noBest && run.status !== "dsq") {
+      var b = save.best[slopeKey(r.resort)];
       if (!b || run.final > b.score) {
-        save.best[r.resort + "/slope"] = { score: run.final, rec: rec, breed: save.dog.breed, seed: run.opts.seed, piste: run.opts.piste, runNo: run.opts.runNo || 0, at: Date.now() };
+        save.best[slopeKey(r.resort)] = { score: run.final, rec: rec, breed: save.dog.breed, seed: run.opts.seed, piste: run.opts.piste, runNo: run.opts.runNo || 0, at: Date.now(), spec: r.dogSpec || "" };
         newBest = true;
       }
     }
@@ -1136,7 +1158,7 @@
     if (totalRuns === 2 && isLast) html += '<p class="inu-total">' + esc(t("inu_best2_total", { v: fmtScore(bestOf) })) + "</p>";
     // 地形別分數
     html += '<h3 class="inu-h3">' + esc(t("inu_feat_table")) + '</h3><ol class="inu-feats">';
-    D.SLOPE.order.forEach(function (k, i) {
+    (run.parkKinds || D.SLOPE.order).forEach(function (k, i) {
       var best = null;
       run.tricks.forEach(function (tr) { if (tr.feat === i && (!best || tr.pts > best.pts)) best = tr; });
       html += '<li class="inu-featrow" style="--d:' + (0.5 + i * 0.08) + 's"><span class="inu-feat-ico">' + FEAT_ICON[k] + "</span><span class=\"inu-feat-name\">" + esc(t("inu_feat_" + k)) + '</span><span class="inu-feat-trick">'
@@ -1153,8 +1175,8 @@
     if (run.status !== "dsq") countUp(document.getElementById("inu-bigscore"), run.final, function (v) { return v.toFixed(1); }, 1100);
     var on = function (act, fn) { var bt = app.querySelector('[data-act="' + act + '"]'); if (bt) bt.addEventListener("click", fn); };
     on("hl", function () { HOOKS.highlight(r); });
-    on("next", function () { startRace(r.resort, { event: "slope", mode: "practice", runs: totalRuns, runNo: r.runNo + 1, prevScores: scores }); });
-    on("retry", function () { startRace(r.resort, { event: "slope", mode: r.mode, runs: totalRuns }); });
+    on("next", function () { startRace(r.resort, { event: "slope", mode: "practice", runs: totalRuns, runNo: r.runNo + 1, prevScores: scores, park: r.opts.park }); });
+    on("retry", function () { startRace(r.resort, { event: "slope", mode: r.mode, runs: totalRuns, park: r.opts.park }); });
     on("replay", function () { startReplay(r); });
     on("setup", function () { show("setup"); });
     on("resorts", function () { show("resorts"); });
@@ -1167,7 +1189,7 @@
       return { name: k ? cpuName(c) : (save.dog.name || t("inu_you")), breed: k ? Core.breed(c.breed) : r.dog, lv: c ? c.lv : 0, me: !k, place: x.place, val: x.dnf ? t("inu_dnf") : fmtTime(x.time) };
     });
     list.sort(function (p, q) { return p.place - q.place; });
-    var bk = r.resort + "/cross";
+    var bk = r.resort + "/cross" + sfx();
     if (!save.best[bk] || me.place < save.best[bk].place) save.best[bk] = { place: me.place, time: me.time, at: Date.now() };
     persist();
     S.screen = "result";

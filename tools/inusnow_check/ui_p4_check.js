@@ -86,7 +86,8 @@ function fakeHub() {
     await p.goto(BASE);
     await p.waitForSelector(".inu-resort");
     var tabs = await p.$$eval(".inu-tab", function (l) { return l.map(function (b) { return b.getAttribute("data-tab"); }); });
-    assert.deepStrictEqual(tabs, ["resorts", "bet", "cup", "daily", "room"], "首頁 5 個分頁");
+    // 2026-11-21：第 5 階段加上「犬舍」「商店」分頁（設計 §20）
+    assert.deepStrictEqual(tabs, ["resorts", "bet", "cup", "daily", "room", "kennel", "shop"], "首頁 7 個分頁");
     await p.dispatchEvent('.inu-resort[data-resort="happo"]', "click");
     await p.waitForSelector('.inu-event[data-event="relay"]');
     await p.dispatchEvent('.inu-event[data-event="relay"]', "click");

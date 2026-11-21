@@ -18,7 +18,7 @@
   // 犬種能力 → 物理乘數（設計 §5.1）
   function dogMods(dog) {
     var st = (dog && dog.stats) || { bal: 50, pow: 50, brv: 50, tec: 50, siz: 50, cld: 50 };
-    return {
+    var mods = {
       grip: statMul(st.bal),
       land: statMul(st.bal),
       skid: 2 - statMul(st.pow),          // 力量越高，橫滑減速越少
@@ -28,17 +28,32 @@
       spin: statMul(st.tec),
       drag: 2 - statMul(st.siz),          // 體型越大，每單位質量的空氣阻力越小
     };
+    // P5：裝備與雙板（設計 §20.2、§20.10）、打蠟（mu）、好感度（zoomMul）。沒有 gear 時與第 4 階段完全相同
+    var g = dog && dog.gear, m = mods;
+    if (g) {
+      if (g.turn) m.turn *= g.turn;
+      if (g.drag) m.drag *= g.drag;
+      if (g.spin) m.spin *= g.spin;
+      if (g.grip) m.grip *= g.grip;
+      if (g.startV) m.startV = g.startV;
+      if (g.crouchDrag !== undefined) m.crouchDrag = g.crouchDrag;
+      if (g.ski) m.ski = true;
+      if (g.mu) m.mu = g.mu;
+    }
+    if (dog && dog.zoomMul) m.zoomMul = dog.zoomMul;
+    return m;
   }
 
   function create(terrain, start, dog) {
     var y = T.height(terrain, start.x, start.z);
-    var sp = P.startSpeed;
+    var mods = dogMods(dog);
+    var sp = P.startSpeed + (mods.startV || 0);
     return {
       p: [start.x, y, start.z],
       v: [start.tx * sp, 0, start.tz * sp],
       h: [start.tx, start.tz],
       air: false, crouch: 0, edge: 0, yawAir: 0, airSteps: 0,
-      fall: 0, t: 0, mods: dogMods(dog), boost: 1,
+      fall: 0, t: 0, mods: mods, boost: 1,
       zoom: 0, zoomT: 0, zoomHalf: false, scent: 0, scentShow: 0, scentIn: -1,
     };
   }
@@ -105,6 +120,11 @@
         rc = T.rutAt(env.rut, p[0], p[2]);
         if (rc) { rd = rc.n / RU.max; if (rd <= RU.minD) rd = 0; }
       }
+      // P5 雙板：不能反腳滑行（速度在板子後方超過 60°＝摔倒）
+      if (m.ski && st.fall === 0) {
+        var shv = Math.sqrt(v[0] * v[0] + v[2] * v[2]);
+        if (shv > D.SKI.backSpeed && (st.h[0] * v[0] + st.h[1] * v[2]) < D.SKI.backCos * shv && knock(st)) ev.push("fall");
+      }
       if (st.fall === 0) {
         // 轉向：低速好轉、蹲低難轉
         var w = steer * P.turnBase * m.turn / (1 + sp / P.turnSpeedRef) * (1 - P.crouchTurn * st.crouch);
@@ -166,7 +186,7 @@
       // 雪面摩擦
       sp = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
       if (sp > 0) {
-        var fr = (snow.mu + (env.muAdd || 0)) * P.g * n[1] * DT;
+        var fr = (snow.mu + (env.muAdd || 0)) * (m.mu || 1) * P.g * n[1] * DT;
         var k = sp > fr ? (sp - fr) / sp : 0;
         v[0] *= k; v[1] *= k; v[2] *= k;
       }
@@ -196,7 +216,7 @@
     // 空氣阻力（蹲低減阻）與完美旗門的加速倍率
     var spd = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     if (spd > 0) {
-      var drag = P.kAir * m.drag * (1 - P.crouchDrag * st.crouch) * spd * DT;
+      var drag = P.kAir * m.drag * (1 - (m.crouchDrag !== undefined ? m.crouchDrag : P.crouchDrag) * st.crouch) * spd * DT;
       var kd = drag < 1 ? 1 - drag : 0;
       v[0] *= kd; v[1] *= kd; v[2] *= kd;
     }

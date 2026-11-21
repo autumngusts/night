@@ -40,6 +40,8 @@
     if (ov.night !== undefined && ov.night !== null) night = !!ov.night;
     var change = to !== weather && hasCh ? { to: to, at: at, chance: Math.floor(chance * 100 + 0.5) / 100, happen: happen } : null;
     if (ov.change === false) change = null;
+    // P5 夢之雪（設計 §20.8）：5～11 月只有晴天（亂數照樣抽，結果不受影響的部分保持不變）
+    if (month >= 5 && month <= 11 && !ov.weather) { weather = "clear"; change = null; }
     return { snow: snow, weather: weather, night: night, change: change };
   }
 

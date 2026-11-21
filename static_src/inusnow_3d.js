@@ -126,17 +126,34 @@
     }
     var m1 = mat(L.c1), m2 = mat(L.c2), mDark = mat(0x1d1d1d), mWhite = mat(0xffffff);
     var boardCol = ghost ? 0x88ccff : (o.board || BOARD_COLORS[0]);
-    var board = new THREE.Mesh(boardGeo(THREE), mat(boardCol));
-    grp.add(board);
-    var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 1.3), mat(0xffffff));
-    stripe.position.set(0, 0.092, 0);
-    grp.add(stripe);
+    var look = o.look || {};
     var bindMat = mat(0x222831);
-    [-0.25, 0.25].forEach(function (zz) {
-      var bd = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.12), bindMat);
-      bd.position.set(0, 0.11, zz);
-      grp.add(bd);
-    });
+    if (look.ski) {
+      // P5 雙板（設計 §20.10）：兩片細長的板、前端翹起、四隻腳的固定器
+      [-0.11, 0.11].forEach(function (xx) {
+        var sk = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.025, 1.45), mat(boardCol));
+        sk.position.set(xx, 0.05, -0.05);
+        grp.add(sk);
+        var tip = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.025, 0.16), sk.material);
+        tip.position.set(xx, 0.085, 0.72); tip.rotation.x = -0.6;
+        grp.add(tip);
+        var line = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.008, 1.2), mat(0xffffff));
+        line.position.set(xx, 0.066, -0.05);
+        grp.add(line);
+        [-0.18, 0.18].forEach(function (zz) { var bd = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), bindMat); bd.position.set(xx, 0.085, zz); grp.add(bd); });
+      });
+    } else {
+      var board = new THREE.Mesh(boardGeo(THREE), mat(boardCol));
+      grp.add(board);
+      var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 1.3), mat(0xffffff));
+      stripe.position.set(0, 0.092, 0);
+      grp.add(stripe);
+      [-0.25, 0.25].forEach(function (zz) {
+        var bd = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.12), bindMat);
+        bd.position.set(0, 0.11, zz);
+        grp.add(bd);
+      });
+    }
     var dog = new THREE.Group();
     dog.scale.set(sc, sc, sc);
     var bodyLen = 0.55 * L.body, leg = 0.28 * L.leg;
@@ -159,6 +176,16 @@
         tuft.position.set((fz % 2 ? 1 : -1) * 0.14, 0.08, bodyLen * (0.3 - fz * 0.18));
         body.add(tuft);
       }
+    }
+    // P5 換裝：雪衣（背上的外套）
+    if (look.coat && !ghost) {
+      var coat = new THREE.Mesh(new THREE.SphereGeometry(0.212, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat(look.coat));
+      coat.scale.set(0.92 + fluff * 0.12, 0.88 + fluff * 0.1, bodyLen / 0.4 * 0.86);
+      coat.position.y = 0.01;
+      body.add(coat);
+      var trim = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.018, 4, 18), mat(0xffffff));
+      trim.rotation.x = Math.PI / 2; trim.scale.set(0.92 + fluff * 0.12, bodyLen / 0.4 * 0.86, 1); trim.position.y = -0.04;
+      body.add(trim);
     }
     // 圍巾（隊伍色）
     var scarf = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.035, 6, 14), mat(o.scarf || (ghost ? 0xaee0ff : 0xff5a3c)));
@@ -183,7 +210,7 @@
       paw.position.set(0, -(leg + 0.07), 0.02);
       piv.add(paw);
       // 狗靴
-      var boot = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.055, 0.06, 7), mat(0x2b3440));
+      var boot = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.055, 0.06, 7), mat(look.boots || 0x2b3440));
       boot.position.y = -(leg + 0.04);
       piv.add(boot);
       dog.add(piv);
@@ -233,9 +260,22 @@
       head.add(eye);
     }
     // 雪鏡（鏡片＋鏡帶）
-    var lens = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.065, 0.035), mat(0xff9a1e, { emissive: 0x552200 }));
+    var lens = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.065, 0.035), mat(look.goggle || 0xff9a1e, { emissive: 0x332211 }));
     lens.position.set(0, 0.045, 0.125);
     head.add(lens);
+    // P5 換裝：毛帽（耳朵從帽子兩側露出）
+    if (look.hat && !ghost) {
+      var hm = mat(look.hat);
+      var cap = new THREE.Mesh(new THREE.SphereGeometry(0.158, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), hm);
+      cap.position.y = 0.03;
+      head.add(cap);
+      var rim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.025, 6, 18), mat(0xffffff));
+      rim.rotation.x = Math.PI / 2; rim.position.y = 0.06;
+      head.add(rim);
+      var pom = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mat(0xffffff));
+      pom.position.y = 0.2;
+      head.add(pom);
+    }
     var strap = new THREE.Mesh(new THREE.TorusGeometry(0.152, 0.012, 4, 18), mat(0x1c1c22));
     strap.rotation.y = Math.PI / 2; strap.rotation.z = Math.PI / 2;
     strap.position.set(0, 0.045, 0);
@@ -408,6 +448,7 @@
     var mask = pisteMask(terrain);
     var snowMap = FX.snowTex(THREE);
     var groundMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: snowMap });
+    if (opts.dream) groundMat.color.setHex(0xd2e6ff);      // P5 夢之雪（設計 §20.8）：雪面帶淡藍色
     var cell = terrain.cell;
     var ni0, nj0, ni1, nj1, minX, minZ, maxX, maxZ;
     if (pi) {
@@ -631,7 +672,7 @@
       if (o.name) { tag = FX.nameTag(THREE, o.name, o.tagColor); scene.add(tag); }
       return { obj: obj, shadow: sh, tag: tag, trail: o.trail ? FX.Trail(THREE, scene, 260, o.ghost ? 0xbfd3ea : 0x8ea7c8) : null, prevAir: 0, prev: null, spd: 0, ghost: !!o.ghost };
     }
-    var player = makeRider(opts.breed, { board: opts.board || BOARD_COLORS[0], scarf: opts.scarf, trail: true });
+    var player = makeRider(opts.breed, { board: opts.board || BOARD_COLORS[0], scarf: opts.scarf, trail: true, look: opts.look || null });
     var others = (opts.others || []).map(function (o, i) {
       return makeRider(o.breed, { ghost: o.ghost, board: BOARD_COLORS[(i + 1) % BOARD_COLORS.length], scarf: o.scarf, name: o.name, tagColor: o.tagColor, trail: !o.ghost });
     });
@@ -714,8 +755,8 @@
     // 天氣：霧的距離、降雪量、夜間（設計 §18.3）；換天氣時 5 秒內漸變
     var wx = { cur: null, from: null, to: null, t: 1, night: false };
     function wxParams(key, night) {
-      var W = D.WEATHER[key] || D.WEATHER.clear;
-      var far = W.fog ? W.fog : 2600, near = W.fog ? Math.max(5, W.fog * 0.15) : 280;
+      var W = D.WEATHER[key] || D.WEATHER.clear, fm = opts.fogMul || 1;      // P5 雪鏡：霧的距離倍率
+      var far = W.fog ? W.fog * fm : 2600, near = W.fog ? Math.max(5, W.fog * fm * 0.15) : 280;
       return { near: near, far: far, flakes: W.flakes, col: night ? [0.05, 0.08, 0.16] : W.fog && W.fog < 500 ? [0.86, 0.89, 0.93] : [0.87, 0.91, 0.96], night: night };
     }
     function applyWx(p) {

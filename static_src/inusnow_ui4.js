@@ -113,6 +113,7 @@
       var c = clips[0];
       for (var i = 0; i < clips.length; i++) if (clips[i].kind === "fast") c = clips[i];
       var code = Core.shareCode({ resort: r.resort, piste: r.run.opts.piste, seed: r.run.opts.seed, runNo: r.runNo, breed: save().dog.breed, rec: Core.encode(r.run.inputs) });
+      if (r.dogSpec) code += "|d:" + r.dogSpec;      // P5 選手規格（|h: 一定要在最後）
       return HL.withClip(code, c.a, c.b);
     }
     // 收到含片段的分享碼：載入雪場後播放那一段
@@ -120,8 +121,9 @@
       var info = UI.resortInfo(p.resort);
       if (!info) return;
       UI.loadTerrain(p.resort).then(function (terrain) {
-        var gp = Core.replay(terrain, { piste: p.piste, seed: p.seed, dog: Core.breed(p.breed), snow: "groomed", runNo: p.runNo }, p.rec, 1);
-        var src = { frames: [Core.frameOf(Core.newRun(terrain, { piste: p.piste, seed: p.seed, dog: Core.breed(p.breed), snow: "groomed", runNo: p.runNo }).st)].concat(gp.frames), kind: "gs", vopts: vfor({ kind: "gs", run: gp.run }) };
+        var pd = p.spec && window.PriTestInusnowProg ? window.PriTestInusnowProg.fromSpec(p.spec, p.breed) : Core.breed(p.breed);
+        var gp = Core.replay(terrain, { piste: p.piste, seed: p.seed, dog: pd, snow: "groomed", runNo: p.runNo }, p.rec, 1);
+        var src = { frames: [Core.frameOf(Core.newRun(terrain, { piste: p.piste, seed: p.seed, dog: pd, snow: "groomed", runNo: p.runNo }).st)].concat(gp.frames), kind: "gs", vopts: vfor({ kind: "gs", run: gp.run }) };
         var b = Math.min(clip.b, src.frames.length - 1);
         if (b < 2) throw new Error("short clip");
         playClips(terrain, src, [{ kind: "fast", a: Math.max(0, Math.min(clip.a, b - 1)), b: b, val: 0 }], Core.breed(p.breed), t("inu_hl_shared"), function () { UI.S.tab = "resorts"; UI.show("setup"); });
