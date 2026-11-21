@@ -144,7 +144,8 @@ async function fullRun(page, resort, opts) {
     await p5.waitForSelector(".inu-resort");
     await p5.dispatchEvent('.inu-resort[data-resort="naeba"]', "click");
     await p5.waitForSelector(".inu-event");
-    assert.strictEqual((await p5.$$(".inu-event")).length, 4, "賽事 4 種");
+    // 2026-11-21：第 3 階段加上救難犬、雪崩逃脫（設計 §18.6、§18.8）、第 4 階段加上接力（§19.3），舊的期望值 4 種已過時
+    assert.strictEqual((await p5.$$(".inu-event")).length, 7, "賽事 7 種");
     await p5.dispatchEvent('.inu-event[data-event="slope"]', "click");
     await p5.waitForSelector(".inu-course-feats .inu-feat");
     assert.strictEqual((await p5.$$(".inu-course-feats .inu-feat")).length, 6, "Slopestyle 6 個地形");

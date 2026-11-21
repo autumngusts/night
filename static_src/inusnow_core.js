@@ -10,6 +10,15 @@
   var Z = D.ZOOM, AI = D.CPU_AI;
   var PI = 3.141592653589793;
 
+  // P3：雪況與天氣（inusnow_env.js；循環依賴，所以用到時才取）
+  function Env() { return root.PriTestInusnowEnv || (typeof require === "function" ? require("./inusnow_env.js") : null); }
+  function mergeEnv(env, E, step) {
+    if (!E) return env;
+    var o = E.env(step);
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) env[k] = o[k];
+    return env;
+  }
+
   // ---------------- 亂數 ----------------
   function hash(str) {
     var h = 2166136261 >>> 0;
@@ -35,24 +44,34 @@
   // ---------------- 旗門 ----------------
   // 每座旗門：轉彎旗竿 I（離雪道中心 side×off）與外側旗竿 O（再往外 G.width）。
   // side：+1＝旗門在中心線右側；color 交替（0 紅、1 藍）。
-  function makeGates(terrain, pisteId, seed) {
+  // P4：平行大曲道的賽道寬（設計 §19.2）與第 k 條賽道中心線的偏移
+  function laneW(pi) { var w = pi.width / 4; return w > D.ROOM.laneMax ? D.ROOM.laneMax : w; }
+  function laneOff(lane, lw) { return (lane - 1.5) * lw; }
+  // o（可省略）：{lane, laneW（平行大曲道）, from, to（接力的雪道區間）}；省略時與第 1 階段完全相同
+  function makeGates(terrain, pisteId, seed, o) {
+    o = o || {};
     var pi = T.piste(terrain, pisteId);
     var rng = makeRng(seed);
     var gates = [];
-    var s = G.first;
+    var s = o.from !== undefined ? o.from + G.first - G.startS : G.first;
     var side = rng() < 0.5 ? -1 : 1;
-    var finishS = pi.len - G.finishMargin;
+    var finishS = o.to !== undefined ? o.to : pi.len - G.finishMargin;
+    var lane = o.lane !== undefined && o.lane !== null, lw = o.laneW || 0;
     while (s < finishS - G.endMargin) {
       var a = T.at(pi, s);
       var off = pi.width * (G.offsetMin + (G.offsetMax - G.offsetMin) * rng());
       if (off > pi.width * G.maxOffset) off = pi.width * G.maxOffset;
       var rx = -a.tz, rz = a.tx;              // 行進方向的右側
-      var ix = a.x + rx * side * off, iz = a.z + rz * side * off;
-      gates.push({
+      var gw = G.width, c = 0;
+      if (lane) { off = off * lw / pi.width; gw = lw * D.ROOM.gateW; c = laneOff(o.lane, lw); }
+      var ix = a.x + rx * (c + side * off), iz = a.z + rz * (c + side * off);
+      var g = {
         n: gates.length, s: s, side: side, color: gates.length % 2,
-        ix: ix, iz: iz, ox: ix + rx * side * G.width, oz: iz + rz * side * G.width,
+        ix: ix, iz: iz, ox: ix + rx * side * gw, oz: iz + rz * side * gw,
         tx: a.tx, tz: a.tz,
-      });
+      };
+      if (lane) g.w = gw;
+      gates.push(g);
       side = -side;
       s += G.spacingMin + (G.spacingMax - G.spacingMin) * rng();
     }
@@ -65,11 +84,12 @@
     var ua = (ax - gate.ix) * gate.tx + (az - gate.iz) * gate.tz;
     var ub = (bx - gate.ix) * gate.tx + (bz - gate.iz) * gate.tz;
     if (!(ua < 0 && ub >= 0)) return null;
-    var ox = (gate.ox - gate.ix) / G.width, oz = (gate.oz - gate.iz) / G.width;   // I→O 的單位向量
+    var gw = gate.w || G.width;
+    var ox = (gate.ox - gate.ix) / gw, oz = (gate.oz - gate.iz) / gw;   // I→O 的單位向量
     var la = (ax - gate.ix) * ox + (az - gate.iz) * oz;
     var lb = (bx - gate.ix) * ox + (bz - gate.iz) * oz;
     var lat = la + (lb - la) * (-ua) / (ub - ua);
-    if (lat >= 0 && lat <= G.width) return { r: "pass", dist: lat };
+    if (lat >= 0 && lat <= gw) return { r: "pass", dist: lat };
     return { r: "miss", dist: lat };
   }
 
@@ -77,16 +97,23 @@
   // opts：{piste, seed, dog, snow, runNo}
   function newRun(terrain, opts) {
     var pi = T.piste(terrain, opts.piste);
-    var a = T.at(pi, G.startS);
-    var gates = makeGates(terrain, opts.piste, (opts.seed >>> 0) + (opts.runNo || 0));
-    var fin = T.at(pi, pi.len - G.finishMargin);
+    var a = T.at(pi, opts.from !== undefined ? opts.from : G.startS);
+    var gates = makeGates(terrain, opts.piste, (opts.seed >>> 0) + (opts.runNo || 0), opts);
+    var fs = opts.to !== undefined ? opts.to : pi.len - G.finishMargin;
+    var fin = T.at(pi, fs);
+    if (opts.lane !== undefined && opts.lane !== null) {
+      var lc = laneOff(opts.lane, opts.laneW || laneW(pi));
+      a = { x: a.x + (-a.tz) * lc, z: a.z + a.tx * lc, tx: a.tx, tz: a.tz };
+    }
     return {
       terrain: terrain, opts: opts, piste: pi, gates: gates,
-      finish: { x: fin.x, z: fin.z, tx: fin.tx, tz: fin.tz },
+      finish: { x: fin.x, z: fin.z, tx: fin.tx, tz: fin.tz, s: fs },
       st: Phys.create(terrain, a, opts.dog),
       next: 0, perfect: 0, chain: 0, still: 0, near: null,
       status: "run", reason: null, missGate: -1, steps: 0, inputs: [], events: [], gateT: [],
       kind: "gs", rut: opts.rut || null,
+      E: opts.cond ? Env().make(opts.cond, { piste: pi, seed: opts.seed, dog: opts.dog }) : null,
+      cmds: opts.cmds || null,
     };
   }
 
@@ -130,9 +157,10 @@
     if (run.status !== "run") return run.status;
     var inp = normInput(input);
     run.inputs.push(inp);
+    applyDash(run);
     var st = run.st;
     var ax = st.p[0], az = st.p[2];
-    var ev = Phys.step(st, inp, { terrain: run.terrain, snow: run.opts.snow, rut: run.rut });
+    var ev = Phys.step(st, inp, mergeEnv({ terrain: run.terrain, snow: run.opts.snow, rut: run.rut }, run.E, run.steps));
     run.steps += 1;
     zoomTick(st, ev);
     var bx = st.p[0], bz = st.p[2];
@@ -188,7 +216,7 @@
     var want = 1.2 + (1 - aggr) * 2.4;
     var st = run.st, pts = [[st.p[0], st.p[2]]];
     for (var i = 0; i < run.gates.length; i++) {
-      var g = run.gates[i], ox = (g.ox - g.ix) / G.width, oz = (g.oz - g.iz) / G.width;
+      var g = run.gates[i], gwi = g.w || G.width, ox = (g.ox - g.ix) / gwi, oz = (g.oz - g.iz) / gwi;
       pts.push([g.ix + ox * want, g.iz + oz * want]);
     }
     var f = run.finish;
@@ -325,16 +353,25 @@
   }
   function cpuBaseAggr(cpu) { return AI.aggrBase + AI.aggrLv * cpu.lv + (AI.styleAggr[cpu.style] || 0); }
   // 大曲道 CPU 的輸入產生器：每座旗門抽一次 aggr 的變動與失誤；輸入延遲（環形緩衝）
-  function cpuGsController(cpu, seed) {
+  // P3：cpu.aggrAdd／missMul（競猜的調子）；coach＝教練模式 {aggr, zoom: "auto"|"straight"|"last200", cmds: [{k, a: "dash"|"calm"}]}
+  function cpuGsController(cpu, seed, coach) {
     var rng = makeRng(seed >>> 0);
-    var base = cpuBaseAggr(cpu), delay = AI.delayBase - cpu.lv;
+    var CO = D.COACH;
+    var base = coach ? coach.aggr : cpuBaseAggr(cpu) + (cpu.aggrAdd || 0), delay = AI.delayBase - (cpu.lv || 3);
     if (delay < 0) delay = 0;
     var buf = [], seen = -1, aggr = base;
+    function cmdActive(run, a, len) {
+      if (!coach || !coach.cmds) return false;
+      for (var i = 0; i < coach.cmds.length; i++) { var c = coach.cmds[i]; if (c.a === a && run.steps >= c.k && run.steps < c.k + len) return true; }
+      return false;
+    }
     return function (run) {
+      var calm = cmdActive(run, "calm", CO.calmSteps);
       if (run.next !== seen) {
         seen = run.next;
         aggr = base + (rng() * 2 - 1) * AI.vary;
-        if (rng() < AI.missK * (6 - cpu.lv)) aggr -= AI.missDrop;
+        if (rng() < AI.missK * (6 - (cpu.lv || 3)) * (cpu.missMul || 1) && !calm) aggr -= AI.missDrop;
+        if (calm) aggr -= CO.calmAggr;
         if (aggr < 0.05) aggr = 0.05; else if (aggr > AI.aggrMax) aggr = AI.aggrMax;
         aggr = Math.floor(aggr * 100 + 0.5) / 100;
       }
@@ -344,18 +381,31 @@
       if (run.st.zoom >= Z.max && run.st.zoomT === 0) {
         var g = run.gates[run.next], st = run.st;
         var far = g ? (g.ix - st.p[0]) * (g.ix - st.p[0]) + (g.iz - st.p[2]) * (g.iz - st.p[2]) > Z.straight * Z.straight : true;
+        if (coach && coach.zoom === "last200") far = !!run.near && run.piste.len - run.near.s < 200;
         if (far) out = { s: out.s, c: out.c, j: out.j, g: out.g, z: 1 };
       }
       return out;
     };
   }
+  // 教練的「衝！」（設計 §18.2）：在比賽物件裡依 opts.cmds 的步數套用，重播會一樣
+  // 量表 ≥ 50 時發動半強度興奮度 2 秒（生效步數＝送出＋90 步）
+  function applyDash(run) {
+    var cmds = run.opts.cmds;
+    if (!cmds) return;
+    var CO = D.COACH, s0 = run.st;
+    for (var ci = 0; ci < cmds.length; ci++) {
+      var cm = cmds[ci];
+      if (cm.a === "dash" && run.steps === cm.k && s0.zoom >= CO.dashMin && s0.zoomT === 0) { s0.zoomT = CO.dashSteps; s0.zoomHalf = true; s0.zoom = 0; run.events.push({ k: run.steps, e: "zoom" }); }
+    }
+  }
   // 一隻 CPU 跑完一趟（frames 每步一格，給幽靈與溝痕用）
-  function simCpuGs(terrain, base, cpu, seed, idx, rut) {
+  function simCpuGs(terrain, base, cpu, seed, idx, rut, coach) {
     var o = {};
     for (var k in base) if (Object.prototype.hasOwnProperty.call(base, k)) o[k] = base[k];
     o.dog = breed(cpu.breed); o.rut = rut || null;
+    if (coach && coach.cmds) o.cmds = coach.cmds;
     var run = newRun(terrain, o);
-    var ctl = cpuGsController(cpu, (seed + idx + 1) >>> 0);
+    var ctl = cpuGsController(cpu, (seed + idx + 1) >>> 0, coach);
     var frames = [frameOf(run.st)];
     while (run.status === "run") {
       stepRun(run, ctl(run));
@@ -407,6 +457,7 @@
   function shareCode(o) { return ["inu1", o.resort, o.piste, o.seed >>> 0, o.runNo | 0, o.breed, o.rec].join("|"); }
   function parseShare(str) {
     var a = String(str || "").trim().split("|");
+    if (a.length === 8 && /^h:\d+-\d+$/.test(a[7])) a.pop();     // P4：精彩片段（設計 §19.4）
     if (a.length !== 7 || a[0] !== "inu1") return null;
     try { decode(a[6]); } catch (e) { return null; }
     return { resort: a[1], piste: a[2], seed: parseInt(a[3], 10) >>> 0, runNo: parseInt(a[4], 10) | 0, breed: a[5], rec: a[6] };
@@ -415,7 +466,10 @@
   // ---------------- 存檔格式（設計 §13） ----------------
   function newSave() {
     // P2 追加：settings.event／mode／lift、free（自由滑行的收集）
-    return { v: 1, dog: { breed: "shiba", name: "" }, best: {}, settings: { control: "drag", camera: "chase", runs: 1, ghost: true, event: "gs", mode: "practice", lift: 0 }, ghostImport: null, free: {} };
+    // P3 追加：settings.cond／condPick／coach*、coins／coinsDay／bets／daily／season（設計 §13）
+    return { v: 1, dog: { breed: "shiba", name: "" }, best: {},
+      settings: { control: "drag", camera: "chase", runs: 1, ghost: true, event: "gs", mode: "practice", lift: 0, cond: "std", condPick: { snow: "groomed", weather: "clear", night: false }, coachRoute: "std", coachSpin: 540, coachZoom: "auto", relayLeg: 0 },
+      ghostImport: null, free: {}, coins: D.BET ? D.BET.coinsStart : 1000, coinsDay: "", bets: [], daily: null, season: null, betLog: [] };
   }
   function migrate(obj) {
     var s = newSave();
@@ -427,6 +481,12 @@
     }
     if (obj.ghostImport && typeof obj.ghostImport === "object") s.ghostImport = obj.ghostImport;
     if (obj.free && typeof obj.free === "object") s.free = obj.free;
+    if (typeof obj.coins === "number" && obj.coins >= 0) s.coins = Math.floor(obj.coins);
+    if (typeof obj.coinsDay === "string") s.coinsDay = obj.coinsDay;
+    if (obj.bets && obj.bets.length !== undefined) s.bets = obj.bets;
+    if (obj.betLog && obj.betLog.length !== undefined) s.betLog = obj.betLog.slice(-30);
+    if (obj.daily && typeof obj.daily === "object") s.daily = obj.daily;
+    if (obj.season && typeof obj.season === "object") s.season = obj.season;
     return s;
   }
 
@@ -445,7 +505,7 @@
     shareCode: shareCode, parseShare: parseShare, normInput: normInput,
     spinDeg: spinDeg, zoomTick: zoomTick, zoomGain: zoomGain,
     raceSeed: raceSeed, pickGsSeed: pickGsSeed, cpuField: cpuField, cpuBaseAggr: cpuBaseAggr, cpuGsController: cpuGsController, simCpuGs: simCpuGs, simGsField: simGsField,
-    newRut: newRut, rutAdd: rutAdd,
+    newRut: newRut, rutAdd: rutAdd, mergeEnv: mergeEnv, applyDash: applyDash, laneW: laneW,
     newSave: newSave, migrate: migrate, courseSeed: courseSeed, breed: breed,
   };
   root.PriTestInusnowCore = Core;

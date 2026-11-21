@@ -55,7 +55,9 @@
     var fs = park.finishS;
     if (fs > pi.len - G.finishMargin) fs = pi.len - G.finishMargin;
     var fin = T.at(pi, fs);
+    var EnvM = root.PriTestInusnowEnv || (typeof require === "function" ? require("./inusnow_env.js") : null);
     return {
+      E: opts.cond ? EnvM.make(opts.cond, { piste: pi, seed: opts.seed, dog: opts.dog }) : null,
       kind: "slope", terrain: tw, base: terrain, opts: opts, piste: pi, feats: park.feats, gates: [],
       finish: { x: fin.x, z: fin.z, tx: fin.tx, tz: fin.tz, s: fs },
       st: Phys.create(tw, a, opts.dog),
@@ -226,6 +228,7 @@
     if (run.status !== "run") return run.status;
     var inp = Core.normInput(input);
     run.inputs.push(inp);
+    Core.applyDash(run);
     var st = run.st;
     var ax = st.p[0], az = st.p[2];
     var ev = [];
@@ -233,7 +236,7 @@
       grindStep(run, inp, ev);
     } else {
       var wasAir = st.air;
-      ev = Phys.step(st, inp, { terrain: run.terrain, snow: run.opts.snow, spinMul: SL.spinMul });
+      ev = Phys.step(st, inp, Core.mergeEnv({ terrain: run.terrain, snow: run.opts.snow, spinMul: SL.spinMul }, run.E, run.steps));
       var c = railCatch(run, st);
       if (c) enterGrind(run, c, ev);
       else if (!wasAir && st.air && !run.railOff) {
@@ -316,11 +319,18 @@
     var rng = Core.makeRng(seed >>> 0);
     var plan = {};
     var lvSpin = AI.slopeSpin[(cpu.lv || 3) - 1] || 540;
+    if (cpu.spinCap && lvSpin > cpu.spinCap) lvSpin = cpu.spinCap;      // 教練模式的目標難度上限
+    var cmds = cpu.cmds || null, CO = D.COACH;
     var grabKey = AI.styleGrab[cpu.style] || 2;
     var landedAt = -1, barkDone = {};
     return function (run) {
       var st = run.st, pi = run.piste, near = run.near || T.nearest(pi, st.p[0], st.p[2]);
       var out = { s: 0, c: 0, j: 0, g: 0 };
+      var calm = false;
+      if (cmds) for (var ci = 0; ci < cmds.length; ci++) {
+        var cm = cmds[ci];
+        if (cm.a === "calm" && run.steps >= cm.k && run.steps < cm.k + CO.calmSteps) calm = true;
+      }
       if (run.grind) return out;
       var sp = Phys.speed(st);
       if (st.air) {
@@ -343,7 +353,7 @@
           var w = P.spinRate * st.mods.spin * SL.spinMul * 180 / PI;
           var reach = a + w * tRem * 0.9;
           var aim = Math.floor(reach / 180) * 180;
-          if (aim > pl.target) aim = pl.target;
+          if (aim > pl.target - (calm ? 180 : 0)) aim = pl.target - (calm ? 180 : 0);
           var minAim = Math.floor((a + 25) / 180) * 180;
           if (aim < minAim) aim = minAim;
           if (a < aim - 20 - pl.short) out.s = 8 * pl.dir;
@@ -376,7 +386,8 @@
       var toLip = nf ? nf.s - near.s : 999;
       if (sp < 13 || (nf && !nf.ramp && toLip > 0 && toLip < sp * 0.5 + 2)) out.c = 1;
       if (nf && nf.ramp && toLip < 6) out.c = 0;
-      if (st.zoom >= D.ZOOM.max && st.zoomT === 0 && toLip > D.ZOOM.straight) out.z = 1;
+      if (st.zoom >= D.ZOOM.max && st.zoomT === 0 && toLip > D.ZOOM.straight && cpu.zoom !== "last200") out.z = 1;
+      if (st.zoom >= D.ZOOM.max && st.zoomT === 0 && cpu.zoom === "last200" && run.finish.s - near.s < 200) out.z = 1;
       return out;
     };
   }

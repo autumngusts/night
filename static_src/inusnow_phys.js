@@ -1,7 +1,9 @@
 /* イヌスノー（狗雪）單板物理（docs/inusnow_design.md §3）。固定步長 1/60 秒。
    不碰 DOM、不讀寫 localStorage；只用 + − × ÷、Math.sqrt、Math.abs、比較（設計 §11：之後移植成 Go，同一組輸入要得到同樣的結果）。
    輸入：{s: −8..8 轉向（右為正）, c: 0/1 蹲低, j: 0/1 起跳, g: 0..6 抓板, z: 0/1 興奮度發動（P2）}。
-   env：{terrain, snow, spinMul?（Slopestyle 的轉體倍率）, rut?（G1 溝痕）}；沒有這些欄位時與第 1 階段完全相同。 */
+   env：{terrain, snow, spinMul?（Slopestyle 的轉體倍率）, rut?（G1 溝痕）,
+        P3：surf(x, z)?（路面雪質）, grip?, muAdd?, wind?: [ax, az], cold?（每秒速度損失）, brake?（救難犬挖掘時煞停）}；
+   沒有這些欄位時與第 1 階段完全相同。 */
 (function (root) {
   "use strict";
 
@@ -37,7 +39,7 @@
       h: [start.tx, start.tz],
       air: false, crouch: 0, edge: 0, yawAir: 0, airSteps: 0,
       fall: 0, t: 0, mods: dogMods(dog), boost: 1,
-      zoom: 0, zoomT: 0,
+      zoom: 0, zoomT: 0, zoomHalf: false, scent: 0, scentShow: 0, scentIn: -1,
     };
   }
 
@@ -52,7 +54,9 @@
   }
 
   function step(st, input, env) {
-    var t = env.terrain, snow = D.SNOW[env.snow || "groomed"] || D.SNOW.groomed, m = st.mods;
+    var t = env.terrain, m = st.mods;
+    var snowKey = env.surf ? env.surf(st.p[0], st.p[2]) : (env.snow || "groomed");
+    var snow = D.SNOW[snowKey] || D.SNOW.groomed;
     var ev = [];
     st.t += 1;
     var steer = (input.s || 0) / 8;
@@ -73,7 +77,7 @@
     var zooming = st.zoomT > 0;
     if (zooming) {
       st.zoomT -= 1;
-      if (st.zoomT === 0) ev.push("zoomEnd");
+      if (st.zoomT === 0) { st.zoomHalf = false; ev.push("zoomEnd"); }
     }
 
     if (st.fall > 0) {
@@ -155,14 +159,14 @@
       if (zooming && st.fall === 0) {
         var sz = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
         if (sz > 0.1) {
-          var ka = 1 + Z.accel * m.push * DT / sz;
+          var ka = 1 + Z.accel * (st.zoomHalf ? 0.5 : 1) * m.push * DT / sz;
           v[0] *= ka; v[1] *= ka; v[2] *= ka;
         }
       }
       // 雪面摩擦
       sp = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
       if (sp > 0) {
-        var fr = snow.mu * P.g * n[1] * DT;
+        var fr = (snow.mu + (env.muAdd || 0)) * P.g * n[1] * DT;
         var k = sp > fr ? (sp - fr) / sp : 0;
         v[0] *= k; v[1] *= k; v[2] *= k;
       }
@@ -184,6 +188,11 @@
       st.airSteps += 1;
     }
 
+    // P3：側風、寒冷、挖掘時煞停
+    if (env.wind) { v[0] += env.wind[0] * DT; v[2] += env.wind[1] * DT; }
+    if (env.cold) { var kc = 1 - env.cold * DT; v[0] *= kc; v[1] *= kc; v[2] *= kc; }
+    if (env.brake && !st.air) { var kb = 1 - 6 * DT; v[0] *= kb; v[1] *= kb; v[2] *= kb; }
+
     // 空氣阻力（蹲低減阻）與完美旗門的加速倍率
     var spd = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     if (spd > 0) {
@@ -200,7 +209,7 @@
       if (p[1] <= gy) {
         p[1] = gy;
         st.air = false;
-        land(st, t, ev);
+        land(st, t, ev, snowKey);
       }
     } else if (p[1] - gy > P.takeoffGap) {
       // 地面往下掉得比速度能貼住的快：離地
@@ -213,7 +222,7 @@
   }
 
   // 落地判定（設計 §3.3）：板子與水平速度方向的夾角
-  function land(st, t, ev) {
+  function land(st, t, ev, snowKey) {
     var v = st.v;
     var n = T.normal(t, st.p[0], st.p[2]);
     var vh = Math.sqrt(v[0] * v[0] + v[2] * v[2]);
@@ -227,7 +236,7 @@
       ev.push("sketchy");
     } else {
       v[0] *= P.fallKeep; v[1] *= P.fallKeep; v[2] *= P.fallKeep;
-      st.fall = P.fallSteps;
+      st.fall = snowKey === "powder" || snowKey === "deep" ? P.fallStepsPowder : P.fallSteps;   // 粉雪摔倒只停 60 步（設計 §6）
       ev.push("fall");
     }
     // 落地後板頭對齊速度方向（較近的那一端）

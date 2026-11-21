@@ -13,6 +13,7 @@
   var FR = window.PriTestInusnowFree;
   var Input = window.PriTestInusnowInput;
   var R3 = window.PriTestInusnow3D;
+  var Env = window.PriTestInusnowEnv;
   var app = document.getElementById("inu-app");
   if (!app || !D || !Core) return;
   var dataDir = app.getAttribute("data-data-dir") || "../static/inusnow/data/";
@@ -61,9 +62,11 @@
   // ---------------- 狀態 ----------------
   var S = {
     screen: "resorts", index: null, resort: null, terrainCache: {}, worldCache: {}, race: null, view: null,
-    autopilot: false, msg: "", loop: 0,
+    autopilot: false, msg: "", loop: 0, tab: "resorts",
   };
   var EVENTS = ["gs", "slope", "cross", "free"];
+  // P3：外掛的賽事種類（inusnow_ui3.js 登記）與首頁分頁
+  var KINDS = {}, SCREENS = {}, HOOKS = {}, TABS = [{ id: "resorts", icon: "🏔", label: "inu_tab_resorts" }];
   var ICON = {
     gs: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 6v36" stroke="currentColor" stroke-width="3"/><path d="M13 7h17l-4 6 4 6H13z" fill="#e2453c"/><path d="M34 18v24" stroke="currentColor" stroke-width="3"/><path d="M35 19h9l-2 4 2 4h-9z" fill="#2a6fd6"/></svg>',
     slope: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M4 40h18c6 0 10-8 14-14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M34 6l2.6 5.4 5.9.8-4.3 4.1 1 5.9L34 19.4l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" fill="#f0a020"/></svg>',
@@ -87,6 +90,16 @@
       + '<div class="inu-hero-mtn" aria-hidden="true"></div><div class="inu-hero-dog" aria-hidden="true"><span></span></div>'
       + '<h1 class="inu-title">' + esc(t("inu_title")) + '</h1><p class="inu-sub">' + esc(t("inu_subtitle")) + "</p>"
       + '<p class="inu-hero-tags"><span>' + esc(t("inu_event_gs")) + "</span><span>" + esc(t("inu_event_slope")) + "</span><span>" + esc(t("inu_event_cross")) + "</span><span>" + esc(t("inu_event_free")) + "</span></p></header>";
+    html += tabsHtml();
+    var tab = null;
+    for (var ti = 0; ti < TABS.length; ti++) if (TABS[ti].id === S.tab && TABS[ti].render) tab = TABS[ti];
+    if (tab) {
+      html += '<div class="inu-tabbody" id="inu-tabbody"></div>' + aboutHtml() + "</div>";
+      app.innerHTML = html;
+      bindTabs();
+      tab.render(document.getElementById("inu-tabbody"));
+      return;
+    }
     html += '<h2 class="inu-h2">' + esc(t("inu_pick_resort")) + "</h2>";
     if (!S.index) {
       html += '<p class="inu-muted">' + esc(S.msg || t("inu_loading")) + "</p>";
@@ -111,11 +124,25 @@
     }
     html += aboutHtml() + "</div>";
     app.innerHTML = html;
+    bindTabs();
     Array.prototype.forEach.call(app.querySelectorAll(".inu-resort"), function (b) {
       b.addEventListener("click", function () { S.resort = b.getAttribute("data-resort"); S.msg = ""; show("setup"); });
     });
   }
 
+  function tabsHtml() {
+    if (TABS.length < 2) return "";
+    var coins = typeof save.coins === "number" ? save.coins : null;
+    return '<nav class="inu-tabs" role="tablist">' + TABS.map(function (tb) {
+      var on = tb.id === S.tab;
+      return '<button type="button" role="tab" class="inu-tab' + (on ? " is-on" : "") + '" data-tab="' + tb.id + '" aria-selected="' + on + '"><span class="inu-tab-ico" aria-hidden="true">' + tb.icon + "</span>" + esc(t(tb.label)) + "</button>";
+    }).join("") + (coins !== null ? '<span class="inu-coins" title="' + esc(t("inu_coins")) + '"><i aria-hidden="true"></i>' + coins + "</span>" : "") + "</nav>";
+  }
+  function bindTabs() {
+    Array.prototype.forEach.call(app.querySelectorAll(".inu-tab"), function (b) {
+      b.addEventListener("click", function () { S.tab = b.getAttribute("data-tab"); S.msg = ""; render(); });
+    });
+  }
   function aboutHtml() {
     return '<details class="inu-about"><summary>' + esc(t("inu_about")) + "</summary><p>" + esc(t("inu_attr_osm")) + "<br>" + esc(t("inu_attr_gsi")) + '</p><p class="inu-muted">' + esc(t("inu_attr_note")) + "</p></details>";
   }
@@ -129,11 +156,11 @@
   function renderSetup() {
     var r = resortInfo(S.resort);
     if (!r) { show("resorts"); return; }
-    var st = save.settings, ev = EVENTS.indexOf(st.event) >= 0 ? st.event : "gs";
+    var st = save.settings, evs = allEvents(), ev = evs.indexOf(st.event) >= 0 ? st.event : "gs";
     var html = '<div class="inu-page inu-anim-in"><button type="button" class="inu-link" data-act="back">← ' + esc(t("inu_back")) + "</button>";
     html += '<div class="inu-setup-head"><h2 class="inu-h2">' + esc(L(r.name)) + "　<small>" + esc(L(r.pref)) + "</small></h2></div>";
     html += '<h3 class="inu-h3">' + esc(t("inu_pick_event")) + '</h3><div class="inu-events">';
-    EVENTS.forEach(function (e) {
+    evs.forEach(function (e) {
       var on = e === ev;
       html += '<button type="button" class="inu-event inu-event-' + e + (on ? " is-on" : "") + '" data-event="' + e + '" aria-pressed="' + on + '">' + ICON[e]
         + '<span class="inu-event-name">' + esc(t("inu_event_" + e)) + '</span><span class="inu-event-desc">' + esc(t("inu_event_desc_" + e)) + "</span></button>";
@@ -152,8 +179,16 @@
       var bk = ev === "gs" ? save.best[bestKey(S.resort, 0)] : save.best[S.resort + "/" + ev];
       if (bk) html += '<p class="inu-course-best">' + esc(ev === "gs" ? t("inu_best", { time: fmtTime(bk.time) }) : ev === "slope" ? t("inu_best_score", { score: fmtScore(bk.score) }) : t("inu_best_place", { n: bk.place })) + "</p>";
     }
+    if (KINDS[ev] && KINDS[ev].setupInfo) html += KINDS[ev].setupInfo(r);
     html += "</div>";
-    if (ev === "gs" || ev === "slope") html += opt("mode", t("inu_mode"), [["practice", t("inu_mode_practice")], ["race", t("inu_mode_race")]], st.mode);
+    if (ev === "gs" || ev === "slope") html += opt("mode", t("inu_mode"), [["practice", t("inu_mode_practice")], ["race", t("inu_mode_race")], ["coach", t("inu_mode_coach")]], st.mode);
+    if ((ev === "gs" || ev === "slope") && st.mode === "coach") {
+      html += '<div class="inu-coachbox"><p class="inu-coach-note">' + esc(t("inu_coach_note")) + "</p>";
+      html += opt("coachRoute", t("inu_coach_route"), [["safe", t("inu_route_safe")], ["std", t("inu_route_std")], ["attack", t("inu_route_attack")]], st.coachRoute);
+      if (ev === "slope") html += opt("coachSpin", t("inu_coach_spin"), [[360, "360"], [540, "540"], [720, "720"], [1080, "1080"]], st.coachSpin);
+      html += opt("coachZoom", t("inu_coach_zoom"), [["auto", t("inu_czoom_straight")], ["last200", t("inu_czoom_last")]], st.coachZoom === "last200" ? "last200" : "auto");
+      html += "</div>";
+    }
     if (ev === "free" && S.worldLifts && S.worldLifts.resort === S.resort && S.worldLifts.n > 1) {
       html += '<label class="inu-field"><span>' + esc(t("inu_lift_pick")) + '</span><select id="inu-lift">';
       for (var li = 0; li < S.worldLifts.n; li++) html += '<option value="' + li + '"' + (li === (st.lift | 0) ? " selected" : "") + ">" + esc(t("inu_lift_n", { n: li + 1 })) + "</option>";
@@ -170,9 +205,11 @@
     });
     html += "</div>";
     html += '<label class="inu-field"><span>' + esc(t("inu_dog_name")) + '</span><input type="text" id="inu-name" maxlength="12" value="' + esc(save.dog.name || "") + '" placeholder="' + esc(L(Core.breed(save.dog.breed).name)) + '"></label>';
-    if (ev === "gs" && st.mode !== "race") html += opt("runs", t("inu_runs"), [[1, t("inu_runs_1")], [2, t("inu_runs_2")]], st.runs);
-    if (ev === "slope" && st.mode !== "race") html += opt("runs", t("inu_runs"), [[1, t("inu_runs_1")], [2, t("inu_runs_best2")]], st.runs);
-    if ((ev === "gs" || ev === "slope") && st.mode !== "race") html += opt("ghost", t("inu_ghost"), [[true, t("inu_on")], [false, t("inu_off")]], st.ghost);
+    var practice = st.mode !== "race" && st.mode !== "coach";
+    if (ev === "gs" && practice) html += opt("runs", t("inu_runs"), [[1, t("inu_runs_1")], [2, t("inu_runs_2")]], st.runs);
+    if (ev === "slope" && practice) html += opt("runs", t("inu_runs"), [[1, t("inu_runs_1")], [2, t("inu_runs_best2")]], st.runs);
+    if ((ev === "gs" || ev === "slope") && practice) html += opt("ghost", t("inu_ghost"), [[true, t("inu_on")], [false, t("inu_off")]], st.ghost);
+    html += condPicker(st);
     html += opt("control", t("inu_control"), [["drag", t("inu_control_drag")], ["tilt", t("inu_control_tilt")]], st.control);
     var help = ev === "gs" ? t("inu_help_gates") : t("inu_help_" + ev);
     html += '<p class="inu-help">' + esc(help) + "<br>" + esc(t(st.control === "tilt" ? "inu_help_tilt" : "inu_help_drag")) + "<br>" + esc(t("inu_help_keys")) + "<br>" + esc(t("inu_help_zoom")) + (ev === "gs" && st.mode === "race" ? "<br>" + esc(t("inu_rut_note")) : "") + "</p>";
@@ -197,6 +234,13 @@
     });
     var lift = document.getElementById("inu-lift");
     if (lift) lift.addEventListener("change", function () { save.settings.lift = +lift.value; persist(); });
+    Array.prototype.forEach.call(app.querySelectorAll("[data-cond]"), function (sel) {
+      sel.addEventListener("change", function () {
+        var k = sel.getAttribute("data-cond"), cp = save.settings.condPick || {};
+        cp[k] = k === "night" ? sel.value === "1" : sel.value;
+        save.settings.condPick = cp; persist();
+      });
+    });
     var name = document.getElementById("inu-name");
     name.addEventListener("change", function () { save.dog.name = name.value.slice(0, 12); persist(); });
     app.querySelector('[data-act="back"]').addEventListener("click", function () { S.msg = ""; show("resorts"); });
@@ -213,6 +257,42 @@
       } else go();
     });
   }
+  function allEvents() {
+    var out = EVENTS.slice();
+    for (var k in KINDS) if (Object.prototype.hasOwnProperty.call(KINDS, k) && KINDS[k].setup) out.push(k);
+    return out;
+  }
+  // 雪況（設計 §18.3）：標準（壓雪・晴・白天）／隨機（地區與月份加權）／指定
+  function condPicker(st) {
+    if (!Env) return "";
+    var h = opt("cond", t("inu_cond"), [["std", t("inu_cond_std")], ["random", t("inu_cond_random")], ["pick", t("inu_cond_pick")]], st.cond || "std");
+    if (st.cond === "pick") {
+      var cp = st.condPick || {};
+      var sel = function (k, list, cur, lab) {
+        return '<label class="inu-field inu-field-mini"><span>' + esc(lab) + '</span><select data-cond="' + k + '">' + list.map(function (o) {
+          return '<option value="' + esc(String(o[0])) + '"' + (String(o[0]) === String(cur) ? " selected" : "") + ">" + esc(o[1]) + "</option>";
+        }).join("") + "</select></label>";
+      };
+      h += '<div class="inu-condpick">'
+        + sel("snow", D.SNOW_ORDER.map(function (k) { return [k, L(D.SNOW[k].name)]; }), cp.snow || "groomed", t("inu_cond_snow"))
+        + sel("weather", D.WEATHER_ORDER.map(function (k) { return [k, L(D.WEATHER[k].name)]; }), cp.weather || "clear", t("inu_cond_weather"))
+        + sel("night", [["0", t("inu_day")], ["1", t("inu_night")]], cp.night ? "1" : "0", t("inu_cond_time"))
+        + "</div>";
+    } else if (st.cond !== "random") h += '<p class="inu-help inu-help-tight">' + esc(t("inu_cond_std_note")) + "</p>";
+    return h;
+  }
+  function jstDate() { var d = new Date(Date.now() + 9 * 3600000); return d.toISOString().slice(0, 10); }
+  function condFor(resort) {
+    var st = save.settings;
+    if (!Env || st.cond !== "random" && st.cond !== "pick") return Env ? Env.standard() : null;
+    if (st.cond === "pick") { var cp = st.condPick || {}; return { snow: cp.snow || "groomed", weather: cp.weather || "clear", night: !!cp.night, change: null }; }
+    return Env.conditions(Core.hash(whenKey() + "|" + resort), resort, +jstDate().slice(5, 7), {});
+  }
+  var WX_ICON = { clear: "☀", cloudy: "☁", snow: "❄", blizzard: "🌨", fog: "🌫" };
+  function condLabel(c) {
+    if (!c) return "";
+    return (WX_ICON[c.weather] || "") + " " + L(D.WEATHER[c.weather].name) + "・" + L(D.SNOW[c.snow].name) + (c.night ? "・" + t("inu_night") : "");
+  }
   function opt(key, label, choices, cur) {
     return '<div class="inu-opt"><span>' + esc(label) + '</span><div class="inu-seg">' + choices.map(function (c) {
       var on = String(c[0]) === String(cur);
@@ -224,6 +304,8 @@
     if (raw === null) return;
     var p = Core.parseShare(raw);
     if (!p || D.RESORTS.indexOf(p.resort) < 0) { S.msg = t("inu_import_bad"); render(); return; }
+    var HLm = window.PriTestInusnowHighlight, clip = HLm ? HLm.clipOf(raw) : null;
+    if (clip && HOOKS.playShared) { HOOKS.playShared(p, clip); return; }
     save.ghostImport = p; save.settings.event = "gs"; save.settings.mode = "practice"; persist();
     S.resort = p.resort; S.msg = t("inu_import_ok"); render();
   }
@@ -288,24 +370,34 @@
   function whenKey() { var d = new Date(); return d.toISOString().slice(0, 19); }
 
   function beginRace(resort, terrain, opts) {
-    var info = resortInfo(resort), ev = opts.event, mode = opts.mode === "race" ? "race" : "practice";
-    var dog = Core.breed(save.dog.breed);
+    var info = resortInfo(resort), ev = opts.event, mode = opts.mode === "race" ? "race" : opts.mode === "coach" ? "coach" : "practice";
+    var dog = opts.dog || Core.breed(save.dog.breed);
     var runNo = opts.runNo || 0;
-    var r = { kind: ev, mode: mode, resort: resort, terrain: terrain, opts: opts, runNo: runNo, dog: dog,
+    var cond = opts.cond || condFor(resort);
+    var std = !Env || Env.isStandard(cond);
+    var r = { kind: ev, mode: mode, resort: resort, terrain: terrain, opts: opts, runNo: runNo, dog: dog, cond: cond, std: std,
       phase: "count", countLeft: 3, acc: 0, last: 0, paused: false, endAt: 0, evIdx: 0, cpus: null, ghost: null, hud: {}, shakeT: 0, barkT: 0, lastInput: { g: 0 } };
-    var vopts = { mode: ev, breed: dog, camera: save.settings.camera, others: [] };
-    if (ev === "gs") {
+    var vopts = { mode: ev, breed: dog, camera: save.settings.camera, others: [], weather: cond };
+    var useCond = std ? null : cond;
+    if (ev !== "gs" && ev !== "slope" && mode === "coach") mode = r.mode = "practice";
+    var coach = mode === "coach" ? { aggr: D.COACH.routes[save.settings.coachRoute] || D.COACH.routes.std, zoom: save.settings.coachZoom || "auto", cmds: [] } : null;
+    r.coach = coach;
+    if (KINDS[ev]) {
+      KINDS[ev].begin(r, terrain, vopts, info);
+    } else if (ev === "gs") {
       var piste = info.gs.piste;
-      var seed = mode === "race" ? Core.pickGsSeed(terrain, piste, resort, whenKey(), dog) : Core.courseSeed(resort, piste);
-      var ro = { piste: piste, seed: seed, dog: dog, snow: "groomed", runNo: mode === "race" ? 0 : runNo };
-      if (mode === "race") {
-        var field = Core.cpuField(seed, D.CPU_AI.field);
-        var sim = Core.simGsField(terrain, { piste: piste, seed: seed, snow: "groomed", runNo: 0 }, field, seed);
+      var seed = opts.seed !== undefined ? opts.seed : opts.pickKey ? Core.pickGsSeed(terrain, piste, resort, opts.pickKey, Core.breed("shiba"))
+        : mode !== "practice" ? Core.pickGsSeed(terrain, piste, resort, whenKey(), dog) : Core.courseSeed(resort, piste);
+      var ro = { piste: piste, seed: seed, dog: dog, snow: "groomed", runNo: mode !== "practice" ? 0 : runNo, cond: useCond };
+      if (mode !== "practice") {
+        var field = opts.field || Core.cpuField(seed, D.CPU_AI.field);
+        var sim = Core.simGsField(terrain, { piste: piste, seed: seed, snow: "groomed", runNo: 0, cond: useCond }, field, seed);
         r.cpus = sim.cpus;
         ro.rut = sim.rut;
         vopts.others = sim.cpus.map(function (c) { return { breed: Core.breed(c.cpu.breed), ghost: true, name: cpuName(c.cpu) }; });
         vopts.ruts = sim.cpus.map(function (c) { return c.frames; });
-      } else if (save.settings.ghost) {
+        if (coach) { ro.cmds = coach.cmds; r.autoCtl = Core.cpuGsController({ id: "me", breed: dog.id, lv: 3, style: "std" }, (seed ^ Core.hash("coach")) >>> 0, coach); }
+      } else if (save.settings.ghost && std) {
         var gsrc = ghostFor(resort, piste, runNo);
         if (gsrc) {
           try {
@@ -319,15 +411,16 @@
       vopts.piste = piste; vopts.gates = r.run.gates; vopts.finish = r.run.finish;
     } else if (ev === "slope") {
       var sp = info.slope ? info.slope.piste : info.gs.piste;
-      var sseed = mode === "race" ? Core.raceSeed(resort, whenKey()) : Core.courseSeed(resort, sp);
-      var so = { piste: sp, seed: sseed, dog: dog, snow: "groomed", runNo: mode === "race" ? 0 : runNo };
+      var sseed = opts.seed !== undefined ? opts.seed : mode !== "practice" ? Core.raceSeed(resort, whenKey()) : Core.courseSeed(resort, sp);
+      var so = { piste: sp, seed: sseed, dog: dog, snow: "groomed", runNo: mode !== "practice" ? 0 : runNo, cond: useCond, cmds: coach ? coach.cmds : null };
       r.run = SLP.newSlope(terrain, so);
-      r.autoCtl = SLP.cpuController({ lv: 4, style: "trick" }, 7);
-      if (mode === "race") {
-        var sfield = Core.cpuField(sseed, D.CPU_AI.field);
-        r.cpus = sfield.map(function (c, i) { return SLP.simCpu(terrain, { piste: sp, seed: sseed, snow: "groomed", runNo: 0 }, c, sseed, i); });
+      r.autoCtl = coach ? SLP.cpuController({ lv: 4, style: "trick", spinCap: +save.settings.coachSpin || 540, zoom: coach.zoom, cmds: coach.cmds }, (sseed ^ Core.hash("coach")) >>> 0)
+        : SLP.cpuController({ lv: 4, style: "trick" }, 7);
+      if (mode !== "practice") {
+        var sfield = opts.field || Core.cpuField(sseed, D.CPU_AI.field);
+        r.cpus = sfield.map(function (c, i) { return SLP.simCpu(terrain, { piste: sp, seed: sseed, snow: "groomed", runNo: 0, cond: useCond }, c, sseed, i); });
         vopts.others = r.cpus.map(function (c) { return { breed: Core.breed(c.cpu.breed), ghost: true, name: cpuName(c.cpu) }; });
-      } else if (save.settings.ghost) {
+      } else if (save.settings.ghost && std) {
         var sb = save.best[resort + "/slope"];
         if (sb && sb.rec && sb.piste === sp && sb.seed === sseed) {
           try {
@@ -340,23 +433,23 @@
       vopts.piste = sp; vopts.feats = r.run.feats; vopts.finish = r.run.finish; vopts.terrain = r.run.terrain;
     } else if (ev === "cross") {
       var cp = info.cross ? info.cross.piste : info.gs.piste;
-      var cseed = Core.raceSeed(resort, whenKey());
-      var cfield = Core.cpuField(cseed, D.CROSS.riders - 1);
+      var cseed = opts.seed !== undefined ? opts.seed : Core.raceSeed(resort, whenKey());
+      var cfield = opts.field || Core.cpuField(cseed, D.CROSS.riders - 1);
       var dogs = [dog].concat(cfield.map(function (c) { return Core.breed(c.breed); }));
-      r.cross = CX.newCross(terrain, { piste: cp, seed: cseed, snow: "groomed", dogs: dogs });
+      r.cross = CX.newCross(terrain, { piste: cp, seed: cseed, snow: "groomed", dogs: dogs, cond: useCond });
       r.ctls = CX.controllers(r.cross, cseed, 0);
       r.autoCtl = CX.cpuController(0, 11);
       r.cpus = cfield;
       vopts.others = cfield.map(function (c) { return { breed: Core.breed(c.breed), ghost: false, name: cpuName(c), scarf: 0x2a6fd6 }; });
-      vopts.piste = cp; vopts.feats = r.cross.feats; vopts.finish = r.cross.finish; vopts.terrain = r.cross.terrain;
+      vopts.piste = cp; vopts.feats = r.cross.feats; vopts.finish = r.cross.finish; vopts.terrain = r.cross.terrain; vopts.cuts = r.cross.cuts;
     } else {
       var world = worldOf(resort, terrain);
       var got = save.free[resort] || { bones: [], spots: [], stamps: [] };
       var lift = save.settings.lift | 0;
       if (lift >= world.lifts.length) lift = 0;
       r.world = world;
-      r.run = FR.newFree(terrain, world, { dog: dog, snow: "groomed", lift: lift }, got);
-      vopts.world = world; vopts.got = got;
+      r.run = FR.newFree(terrain, world, { dog: dog, snow: "groomed", lift: lift, cond: useCond }, got);
+      vopts.world = world; vopts.got = got; vopts.cuts = world.cuts;
       r.phase = "count"; r.countLeft = 1.5;
     }
     S.screen = "race";
@@ -375,22 +468,26 @@
     if (r.kind === "cross") { r.oprev = r.cross.riders.slice(1).map(function (x) { return Core.frameOf(x.st); }); r.ocur = r.oprev; }
     S.race = r;
     bindRaceHud(r);
+    if (KINDS[r.kind] && KINDS[r.kind].bind) KINDS[r.kind].bind(r);
     if (r.kind === "free") { drawMinimapBase(r); banner(t("inu_event_free"), "is-go"); } else banner("3");
+    if (!std) setTimeout(function () { if (S.race === r) toastText(condLabel(cond), "is-blue"); }, 400);
     setTimeout(function () { var h = document.getElementById("inu-help"); if (h) h.classList.add("is-fade"); }, 6000);
     r.last = performance.now();
     S.loop = requestAnimationFrame(frame);
   }
 
-  function playerSt(r) { return r.kind === "cross" ? r.cross.riders[0].st : r.run.st; }
+  function playerSt(r) { return KINDS[r.kind] && KINDS[r.kind].st ? KINDS[r.kind].st(r) : r.kind === "cross" ? r.cross.riders[0].st : r.run.st; }
 
   function raceHtml(r) {
     var k = r.kind;
-    var h = '<div class="inu-race inu-race-' + k + (k === "gs" && r.mode !== "race" ? " inu-nozoom" : "") + '"><div class="inu-stage" id="inu-stage"></div>'
+    var K = KINDS[k];
+    var h = '<div class="inu-race inu-race-' + k + (k === "gs" && r.mode === "practice" ? " inu-nozoom" : "") + (r.coach ? " inu-coachmode" : "") + (K && K.noZoom ? " inu-nozoom" : "") + (r.cond && r.cond.night ? " is-night" : "") + '"><div class="inu-stage" id="inu-stage"></div>'
       + '<div class="inu-speedlines" id="inu-speedlines" aria-hidden="true"></div><div class="inu-zoomfx" id="inu-zoomfx" aria-hidden="true"></div>'
       + '<div class="inu-hud"><div class="inu-hud-top"><span class="inu-hud-ev">' + ICON[k] + '<span class="inu-hud-run">'
-      + esc(k === "gs" ? (r.mode === "race" ? t("inu_mode_race") : t("inu_run_n", { n: r.runNo + 1 })) : k === "slope" ? (r.mode === "race" ? t("inu_mode_race") : t("inu_run_n", { n: r.runNo + 1 })) : t("inu_event_" + k))
+      + esc(r.opts.label ? r.opts.label : k === "gs" || k === "slope" ? (r.mode !== "practice" ? t("inu_mode_" + r.mode) : t("inu_run_n", { n: r.runNo + 1 })) : t("inu_event_" + k))
       + '</span></span><span class="inu-hud-time" id="inu-time">' + (k === "free" ? "" : "0:00.00") + '</span>'
-      + '<span class="inu-hud-sub" id="inu-sub"></span></div>'
+      + '<span class="inu-hud-sub" id="inu-sub"></span>'
+      + (r.cond && !r.std ? '<span class="inu-hud-wx" id="inu-wx">' + esc(condLabel(r.cond)) + "</span>" : "") + "</div>"
       + '<div class="inu-progress" id="inu-progress"><i id="inu-progress-bar"></i></div>'
       + '<div class="inu-hud-right"><button type="button" class="inu-chip" id="btn-inu-camera">' + esc(t("inu_cam")) + '</button><button type="button" class="inu-chip" id="btn-inu-pause">' + esc(t("inu_pause")) + "</button>"
       + (k === "free" ? '<button type="button" class="inu-chip inu-chip-end" id="btn-inu-end">' + esc(t("inu_free_end")) + "</button>" : "") + "</div>"
@@ -399,8 +496,12 @@
       + '<button type="button" class="inu-zoombtn" id="btn-inu-zoom" aria-label="' + esc(t("inu_zoom")) + '"><span class="inu-zoombone" aria-hidden="true"></span><i id="inu-zoom-fill"></i></button>'
       + (k === "slope" ? '<button type="button" class="inu-actbtn inu-grabbtn" id="btn-inu-grab">' + esc(t("inu_grab")) + '<small id="inu-grab-kind">' + esc(t("inu_grab_1")) + '</small></button><button type="button" class="inu-actbtn inu-barkbtn" id="btn-inu-bark">' + esc(t("inu_bark")) + "</button>" : "")
       + (k === "free" ? '<canvas class="inu-minimap" id="inu-minimap" width="160" height="160"></canvas><button type="button" class="inu-liftbtn" id="btn-inu-lift" hidden>🚡 ' + esc(t("inu_lift_ride")) + "</button>" : "")
+      + (k === "cross" || k === "free" ? '<div class="inu-scent" id="inu-scent" title="' + esc(t("inu_scent")) + '"><span class="inu-scent-nose" aria-hidden="true"></span><span class="inu-scent-bar"><i id="inu-scent-fill"></i></span><small>' + esc(t("inu_scent")) + "</small></div>" : "")
+      + (k === "gs" ? '<div class="inu-fogarrow" id="inu-fogarrow" hidden aria-hidden="true"><i></i></div>' : "")
+      + (r.coach ? '<div class="inu-coachcmds"><button type="button" class="inu-cmd inu-cmd-dash" id="btn-inu-dash"><b>' + esc(t("inu_cmd_dash")) + "</b><small>" + esc(t("inu_cmd_dash_d")) + '</small></button><button type="button" class="inu-cmd inu-cmd-calm" id="btn-inu-calm"><b>' + esc(t("inu_cmd_calm")) + "</b><small>" + esc(t("inu_cmd_calm_d")) + "</small></button></div>" : "")
+      + (K && K.html ? K.html(r) : "")
       + '<div class="inu-banner" id="inu-banner"></div><div class="inu-chain" id="inu-chain"></div><div class="inu-trick" id="inu-trick"></div>'
-      + '<p class="inu-hud-help" id="inu-help">' + esc((k === "gs" ? "" : t("inu_help_" + k) + "　") + t(save.settings.control === "tilt" ? "inu_help_tilt" : "inu_help_drag")) + "</p></div>"
+      + '<p class="inu-hud-help" id="inu-help">' + esc(r.coach ? t("inu_help_coach") : K && K.help ? K.help(r) : (k === "gs" ? "" : t("inu_help_" + k) + "　") + t(save.settings.control === "tilt" ? "inu_help_tilt" : "inu_help_drag")) + "</p></div>"
       + '<div class="inu-liftride" id="inu-liftride" hidden><div class="inu-liftride-cable"></div><div class="inu-liftride-chair"><span></span></div><p>' + esc(t("inu_lift_riding")) + "</p></div>"
       + '<div class="inu-pausebox" id="inu-pausebox" hidden><div class="inu-pausecard"><h3>' + esc(t("inu_pause")) + '</h3><button type="button" class="inu-primary" id="btn-inu-resume">' + esc(t("inu_resume")) + '</button><button type="button" class="inu-secondary" id="btn-inu-quit">' + esc(t("inu_quit")) + "</button></div></div></div>";
     return h;
@@ -437,6 +538,20 @@
     }
     var bark = document.getElementById("btn-inu-bark");
     if (bark) bark.addEventListener("pointerdown", function (e) { e.stopPropagation(); Input.bark(); });
+    // 教練模式的指令（設計 §18.2）：各 1 次，生效比送出晚 90 步
+    var cmd = function (a, id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!r.coach || r.phase !== "run" || b.disabled) return;
+        var run = r.run;
+        r.coach.cmds.push({ k: run.steps + D.COACH.lead, a: a });
+        b.disabled = true; b.classList.add("is-sent");
+        toastText(t(a === "dash" ? "inu_cmd_dash_sent" : "inu_cmd_calm_sent"), a === "dash" ? "is-gold" : "is-blue");
+      });
+    };
+    cmd("dash", "btn-inu-dash"); cmd("calm", "btn-inu-calm");
   }
 
   var CAMS = ["chase", "tv", "air", "pov"];
@@ -450,6 +565,7 @@
   function togglePause(force) {
     var r = S.race;
     if (!r || r.phase === "done") return;
+    if (KINDS[r.kind] && KINDS[r.kind].noPause) return;      // 房間比賽不能暫停（別人那邊會判斷線）
     r.paused = force === undefined ? !r.paused : !!force;
     var box = document.getElementById("inu-pausebox");
     if (box) box.hidden = !r.paused;
@@ -503,14 +619,15 @@
   var STEP_MS = 1000 / D.PHYS.hz;
   function stepOnce(r) {
     var auto = S.autopilot;
+    if (KINDS[r.kind]) { KINDS[r.kind].step(r, auto); return; }
     if (r.kind === "gs") {
-      var inp = auto ? Core.autopilot(r.run, 0.5) : Input.sample();
+      var inp = r.coach ? r.autoCtl(r.run) : auto ? Core.autopilot(r.run, 0.5) : Input.sample();
       // 練習模式不發動興奮度：紀錄與第 1 階段的最佳紀錄、幽靈、分享碼保持可以比較（設計 §0.5）
-      if (r.mode !== "race") delete inp.z;
+      if (r.mode === "practice") delete inp.z;
       r.lastInput = inp;
       Core.stepRun(r.run, inp);
     } else if (r.kind === "slope") {
-      var si = auto ? r.autoCtl(r.run) : Input.sample();
+      var si = auto || r.coach ? r.autoCtl(r.run) : Input.sample();
       r.lastInput = si;
       SLP.stepSlope(r.run, si);
     } else if (r.kind === "cross") {
@@ -532,11 +649,23 @@
     return { s: SLP.steerTo(st, st.p[0] + dx / l * 20, st.p[2] + dz / l * 20, Phys.speed(st)), c: 1, j: 0, g: 0 };
   }
   function playerDone(r) {
+    if (KINDS[r.kind]) return KINDS[r.kind].done(r);
     if (r.kind === "cross") return r.cross.riders[0].done || r.cross.status !== "run";
     if (r.kind === "free") return false;
     return r.run.status !== "run";
   }
-  function eventsOf(r) { return r.kind === "cross" ? r.cross.events : r.run.events; }
+  function eventsOf(r) { return KINDS[r.kind] && KINDS[r.kind].events ? KINDS[r.kind].events(r) : r.kind === "cross" ? r.cross.events : r.run.events; }
+  function stepsOf(r) { return KINDS[r.kind] && KINDS[r.kind].steps ? KINDS[r.kind].steps(r) : r.kind === "cross" ? r.cross.steps : r.run.steps; }
+  // G5：比賽中天候變化（設計 §18.5）；畫面 5 秒內切換
+  function checkWeather(r) {
+    var ch = r.cond && r.cond.change;
+    if (!ch || !ch.happen || r.wxChanged || stepsOf(r) < ch.at) return;
+    r.wxChanged = true;
+    if (S.view && S.view.setWeather) S.view.setWeather(ch.to, r.cond.night, D.ENV.changeFade);
+    banner(t("inu_wx_change", { w: L(D.WEATHER[ch.to].name) }), "is-warn");
+    var wx = document.getElementById("inu-wx");
+    if (wx) wx.textContent = (WX_ICON[ch.to] || "") + " " + L(D.WEATHER[ch.to].name);
+  }
 
   function frame(now) {
     var r = S.race;
@@ -564,6 +693,7 @@
           r.cur = Core.frameOf(playerSt(r));
           if (r.kind === "cross") r.ocur = r.cross.riders.slice(1).map(function (x) { return Core.frameOf(x.st); });
           handleEvents(r, fxInfo);
+          checkWeather(r);
         }
         if (playerDone(r)) endRun(r);
       } else if (r.phase === "end" && now >= r.endAt) {
@@ -577,9 +707,11 @@
     var a = r.phase === "run" ? Math.min(1, r.acc / STEP_MS) : 1;
     var f = lerpFrame(r.prev, r.cur, a);
     var st = playerSt(r);
-    var steps2 = r.kind === "cross" ? r.cross.steps : r.run.steps;
+    var steps2 = stepsOf(r);
     var oth = null;
-    if (r.kind === "cross") {
+    if (KINDS[r.kind] && KINDS[r.kind].others) {
+      oth = KINDS[r.kind].others(r, a, f);
+    } else if (r.kind === "cross") {
       oth = r.ocur.map(function (c2, i) { return lerpFrame(r.oprev[i], c2, a); });
       fxInfo.others = r.cross.riders.slice(1).map(function (x) { return { fall: x.st.fall > 0, zoom: x.st.zoomT > 0 }; });
     } else if (r.cpus && r.cpus[0] && r.cpus[0].frames) {
@@ -606,6 +738,8 @@
     fxInfo.shake = r.shakeT > 0;
     fxInfo.fall = st.fall > 0;
     fxInfo.zoom = st.zoomT > 0;
+    fxInfo.scent = st.scentShow > 0;
+    if (KINDS[r.kind] && KINDS[r.kind].fx) KINDS[r.kind].fx(r, fxInfo);
     if (S.view) S.view.render(f, st.v, oth, dtMs / 1000, fxInfo);
     updateHud(r, st);
   }
@@ -625,6 +759,9 @@
         continue;
       }
       var st = playerSt(r);
+      if (KINDS[r.kind] && KINDS[r.kind].event && KINDS[r.kind].event(r, e, fxInfo)) continue;
+      if (e.e === "scent") { toastText(t("inu_scent_ready"), "is-gold"); vibrate(30); continue; }
+      if (e.e === "shortcut") { banner(t("inu_shortcut"), "is-zoom"); continue; }
       if (e.e === "perfect") { toastText(e.n > 1 ? t("inu_perfect_chain", { n: e.n }) : t("inu_perfect"), "is-gold"); if (S.view) S.view.gatePassed(r.run.next - 1, true); }
       else if (e.e === "gate") { if (S.view) S.view.gatePassed(r.run.next - 1, false); }
       else if (e.e === "fall") { banner(t("inu_fall"), "is-warn"); if (S.view) S.view.fx("fall"); vibrate(60); }
@@ -663,10 +800,14 @@
   function updateHud(r, st) {
     var tm = document.getElementById("inu-time");
     if (!tm) return;
-    var steps = r.kind === "cross" ? r.cross.steps : r.run.steps;
+    var steps = stepsOf(r);
     var sp = Phys.speed(st) * 3.6;
-    var sub = "", prog = 0;
-    if (r.kind === "gs") {
+    var sub = "", prog = 0, K = KINDS[r.kind];
+    if (K) {
+      var ho = K.hud(r, st);
+      if (ho.time !== undefined) tm.textContent = ho.time;
+      sub = ho.sub || ""; prog = ho.prog || 0;
+    } else if (r.kind === "gs") {
       tm.textContent = fmtTime(r.run.status === "finish" ? r.run.time : steps / D.PHYS.hz);
       sub = t("inu_gate", { n: Math.min(r.run.next, r.run.gates.length), max: r.run.gates.length });
       prog = r.run.gates.length ? r.run.next / r.run.gates.length : 0;
@@ -698,6 +839,25 @@
       drawMinimap(r);
     }
     if (r.hud.sub !== sub) { r.hud.sub = sub; document.getElementById("inu-sub").textContent = sub; }
+    // G2 嗅覺量表
+    var sc = document.getElementById("inu-scent-fill");
+    if (sc) {
+      var sv = Math.round(st.scent || 0);
+      if (r.hud.scent !== sv) { r.hud.scent = sv; sc.style.width = sv + "%"; }
+      var sb2 = document.getElementById("inu-scent");
+      if (sb2) { sb2.classList.toggle("is-full", st.scentShow > 0); sb2.classList.toggle("is-in", st.scentIn >= 0); }
+    }
+    // 濃霧中看不到下一座旗門：箭頭（設計 §18.3）
+    var fa = document.getElementById("inu-fogarrow");
+    if (fa && r.run && r.cond) {
+      var g2 = r.run.gates[r.run.next], fog = Env && Env.weatherAt(r.cond, steps) === "fog";
+      fa.hidden = !(fog && g2 && r.phase === "run");
+      if (!fa.hidden) {
+        var dx2 = g2.ix - st.p[0], dz2 = g2.iz - st.p[2];
+        var ang = Math.atan2(dx2 * st.h[1] - dz2 * st.h[0], dx2 * st.h[0] + dz2 * st.h[1]);
+        fa.style.transform = "translateX(-50%) rotate(" + (-ang * 180 / Math.PI).toFixed(0) + "deg)";
+      }
+    }
     var bar = document.getElementById("inu-progress-bar");
     if (bar && r.kind !== "free") bar.style.width = (prog * 100).toFixed(1) + "%";
     var spd = Math.round(sp);
@@ -799,6 +959,7 @@
   function endRun(r) {
     r.phase = "end";
     r.endAt = performance.now() + 1700;
+    if (KINDS[r.kind] && KINDS[r.kind].end) { KINDS[r.kind].end(r); return; }
     var ok = r.run ? r.run.status === "finish" : true;
     if (r.kind === "cross") {
       // 玩家完賽後，其他選手用模擬一口氣跑完
@@ -838,6 +999,8 @@
   }
 
   function showResult(r) {
+    if (r.opts.after && r.opts.after(r) === true) return;
+    if (KINDS[r.kind]) return KINDS[r.kind].result(r);
     if (r.kind === "slope") return showSlopeResult(r);
     if (r.kind === "cross") return showCrossResult(r);
     if (r.kind === "free") return showFreeResult(r);
@@ -846,8 +1009,8 @@
     var newBest = false, diff = null;
     var rec = Core.encode(run.inputs);
     var key = bestKey(r.resort, r.runNo);
-    var race = r.mode === "race";
-    if (run.status === "finish" && !race) {
+    var race = r.mode !== "practice";
+    if (run.status === "finish" && !race && r.std) {
       times.push(run.time);
       var b = save.best[key];
       if (b) diff = run.time - b.time;
@@ -859,7 +1022,7 @@
     var totalRuns = race ? 1 : (r.opts.runs || 1);
     var isLast = r.runNo + 1 >= totalRuns || run.status !== "finish";
     var total = null;
-    if (!race && isLast && run.status === "finish" && totalRuns === 2 && times.length === 2) {
+    if (!race && r.std && isLast && run.status === "finish" && totalRuns === 2 && times.length === 2) {
       total = times[0] + times[1];
       var tk = r.resort + "/gs/total";
       if (!save.best[tk] || total < save.best[tk].time) save.best[tk] = { time: total, at: Date.now() };
@@ -877,7 +1040,7 @@
         if (x.me) place = x.place;
       });
       table = standingsTable({ col: t("inu_time"), list: list });
-      if (place) {
+      if (place && r.mode === "race") {
         var bk = r.resort + "/gsrace";
         if (!save.best[bk] || place < save.best[bk].place) save.best[bk] = { place: place, time: run.time, at: Date.now() };
       }
@@ -886,7 +1049,8 @@
     S.screen = "result";
     S.lastRun = { r: r, rec: rec };
     var good = run.status === "finish" && (race ? place && place <= 3 : true);
-    var html = '<div class="inu-page inu-result inu-anim-in">' + (good ? confettiHtml() : "") + '<h2 class="inu-h2">' + ICON.gs + esc(t("inu_result")) + "　<small>" + esc(L(info.name)) + "・" + esc(race ? t("inu_mode_race") : t("inu_run_n", { n: r.runNo + 1 })) + "</small></h2>";
+    var html = '<div class="inu-page inu-result inu-anim-in">' + (good ? confettiHtml() : "") + '<h2 class="inu-h2">' + ICON.gs + esc(t("inu_result")) + "　<small>" + esc(L(info.name)) + "・" + esc(race ? t("inu_mode_" + r.mode) : t("inu_run_n", { n: r.runNo + 1 })) + "</small></h2>";
+    if (!r.std) html += '<p class="inu-condline">' + esc(condLabel(r.cond)) + (race ? "" : "　" + esc(t("inu_cond_nobest"))) + "</p>";
     if (run.status === "finish") {
       if (race) html += '<p class="inu-place-big">' + medal(place) + esc(t("inu_place", { n: place })) + "</p>";
       html += '<p class="inu-bigtime" id="inu-bigtime">' + esc(fmtTime(0)) + "</p>";
@@ -903,7 +1067,9 @@
     if (!isLast) html += '<button type="button" class="inu-primary" data-act="next">' + esc(t("inu_next_run")) + "</button>";
     html += '<button type="button" class="' + (isLast ? "inu-primary" : "inu-secondary") + '" data-act="retry">' + esc(t("inu_retry")) + "</button>";
     html += '<button type="button" class="inu-secondary" data-act="replay">' + esc(t("inu_replay")) + "</button>";
-    if (run.status === "finish" && !race) html += '<button type="button" class="inu-secondary" data-act="share">' + esc(t("inu_share")) + "</button>";
+    if (HOOKS.highlight && !r.opts.after) html += '<button type="button" class="inu-secondary inu-hlbtn" data-act="hl">✨ ' + esc(t("inu_highlight")) + "</button>";
+    if (run.status === "finish" && !race && r.std) html += '<button type="button" class="inu-secondary" data-act="share">' + esc(t("inu_share")) + "</button>";
+    if (run.status === "finish" && !race && r.std && HOOKS.shareClip) html += '<button type="button" class="inu-secondary" data-act="shareclip">' + esc(t("inu_hl_share")) + "</button>";
     html += '<button type="button" class="inu-secondary" data-act="setup">' + esc(t("inu_to_setup")) + '</button><button type="button" class="inu-secondary" data-act="resorts">' + esc(t("inu_to_resorts")) + "</button></div></div>";
     app.innerHTML = html;
     if (run.status === "finish") countUp(document.getElementById("inu-bigtime"), run.time, fmtTime, 900);
@@ -911,6 +1077,14 @@
     on("next", function () { startRace(r.resort, { event: "gs", mode: "practice", runs: totalRuns, runNo: r.runNo + 1, prevTimes: times }); });
     on("retry", function () { startRace(r.resort, { event: "gs", mode: r.mode, runs: totalRuns }); });
     on("replay", function () { startReplay(r); });
+    on("hl", function () { HOOKS.highlight(r); });
+    on("shareclip", function () {
+      var code = HOOKS.shareClip(r);
+      if (!code) return;
+      var done = function () { var bt = app.querySelector('[data-act="shareclip"]'); if (bt) bt.textContent = t("inu_share_done"); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, function () { window.prompt(t("inu_hl_share"), code); });
+      else window.prompt(t("inu_hl_share"), code);
+    });
     on("setup", function () { show("setup"); });
     on("resorts", function () { show("resorts"); });
     on("share", function () {
@@ -922,7 +1096,7 @@
   }
 
   function showSlopeResult(r) {
-    var run = r.run, info = resortInfo(r.resort), race = r.mode === "race";
+    var run = r.run, info = resortInfo(r.resort), race = r.mode !== "practice";
     var rec = Core.encode(run.inputs);
     var scores = (r.opts.prevScores || []).slice();
     scores.push(run.final);
@@ -930,7 +1104,7 @@
     var isLast = r.runNo + 1 >= totalRuns;
     var bestOf = Math.max.apply(null, scores);
     var newBest = false;
-    if (!race && run.status !== "dsq") {
+    if (!race && r.std && run.status !== "dsq") {
       var b = save.best[r.resort + "/slope"];
       if (!b || run.final > b.score) {
         save.best[r.resort + "/slope"] = { score: run.final, rec: rec, breed: save.dog.breed, seed: run.opts.seed, piste: run.opts.piste, runNo: run.opts.runNo || 0, at: Date.now() };
@@ -945,12 +1119,13 @@
       list.forEach(function (x, i) { x.place = i + 1; x.val = fmtScore(x.score); if (x.me) place = x.place; });
       table = standingsTable({ col: t("inu_score"), list: list });
       var bk = r.resort + "/sloperace";
-      if (!save.best[bk] || place < save.best[bk].place) save.best[bk] = { place: place, score: run.final, at: Date.now() };
+      if (r.mode === "race" && (!save.best[bk] || place < save.best[bk].place)) save.best[bk] = { place: place, score: run.final, at: Date.now() };
     }
     persist();
     S.screen = "result";
     var good = run.status !== "dsq" && (race ? place <= 3 : run.final >= 40);
-    var html = '<div class="inu-page inu-result inu-anim-in">' + (good ? confettiHtml() : "") + '<h2 class="inu-h2">' + ICON.slope + esc(t("inu_result")) + "　<small>" + esc(L(info.name)) + "・" + esc(t("inu_event_slope")) + "・" + esc(race ? t("inu_mode_race") : t("inu_run_n", { n: r.runNo + 1 })) + "</small></h2>";
+    var html = '<div class="inu-page inu-result inu-anim-in">' + (good ? confettiHtml() : "") + '<h2 class="inu-h2">' + ICON.slope + esc(t("inu_result")) + "　<small>" + esc(L(info.name)) + "・" + esc(t("inu_event_slope")) + "・" + esc(race ? t("inu_mode_" + r.mode) : t("inu_run_n", { n: r.runNo + 1 })) + "</small></h2>";
+    if (!r.std) html += '<p class="inu-condline">' + esc(condLabel(r.cond)) + "</p>";
     if (race) html += '<p class="inu-place-big">' + medal(place) + esc(t("inu_place", { n: place })) + "</p>";
     if (run.status === "dsq") html += '<p class="inu-bigtime is-dsq">' + esc(t("inu_dsq")) + '</p><p class="inu-muted">' + esc(t("inu_dsq_off")) + "</p>";
     else html += '<p class="inu-bigscore"><span id="inu-bigscore">0.0</span><small>' + esc(t("inu_points")) + "</small></p>";
@@ -972,10 +1147,12 @@
     html += '<div class="inu-actions">';
     if (!isLast) html += '<button type="button" class="inu-primary" data-act="next">' + esc(t("inu_next_run")) + "</button>";
     html += '<button type="button" class="' + (isLast ? "inu-primary" : "inu-secondary") + '" data-act="retry">' + esc(t("inu_retry")) + '</button><button type="button" class="inu-secondary" data-act="replay">' + esc(t("inu_replay")) + "</button>"
+      + (HOOKS.highlight && !r.opts.after ? '<button type="button" class="inu-secondary inu-hlbtn" data-act="hl">✨ ' + esc(t("inu_highlight")) + "</button>" : "")
       + '<button type="button" class="inu-secondary" data-act="setup">' + esc(t("inu_to_setup")) + '</button><button type="button" class="inu-secondary" data-act="resorts">' + esc(t("inu_to_resorts")) + "</button></div></div>";
     app.innerHTML = html;
     if (run.status !== "dsq") countUp(document.getElementById("inu-bigscore"), run.final, function (v) { return v.toFixed(1); }, 1100);
     var on = function (act, fn) { var bt = app.querySelector('[data-act="' + act + '"]'); if (bt) bt.addEventListener("click", fn); };
+    on("hl", function () { HOOKS.highlight(r); });
     on("next", function () { startRace(r.resort, { event: "slope", mode: "practice", runs: totalRuns, runNo: r.runNo + 1, prevScores: scores }); });
     on("retry", function () { startRace(r.resort, { event: "slope", mode: r.mode, runs: totalRuns }); });
     on("replay", function () { startReplay(r); });
@@ -1002,9 +1179,12 @@
       return x ? '<div class="inu-podium-step inu-podium-' + (i + 1) + (x.me ? " is-me" : "") + '">' + dogFace(x.breed) + "<span>" + esc(x.name) + "</span><b>" + (i + 1) + "</b></div>" : "";
     }).join("") + "</div>";
     html += '<h3 class="inu-h3">' + esc(t("inu_ranking")) + "</h3>" + standingsTable({ col: t("inu_time"), list: list });
-    html += '<div class="inu-actions"><button type="button" class="inu-primary" data-act="retry">' + esc(t("inu_retry")) + '</button><button type="button" class="inu-secondary" data-act="setup">' + esc(t("inu_to_setup")) + '</button><button type="button" class="inu-secondary" data-act="resorts">' + esc(t("inu_to_resorts")) + "</button></div></div>";
+    html += '<div class="inu-actions"><button type="button" class="inu-primary" data-act="retry">' + esc(t("inu_retry")) + "</button>"
+      + (HOOKS.highlight ? '<button type="button" class="inu-secondary inu-hlbtn" data-act="hl">✨ ' + esc(t("inu_highlight")) + "</button>" : "")
+      + '<button type="button" class="inu-secondary" data-act="setup">' + esc(t("inu_to_setup")) + '</button><button type="button" class="inu-secondary" data-act="resorts">' + esc(t("inu_to_resorts")) + "</button></div></div>";
     app.innerHTML = html;
     var on = function (act, fn) { var bt = app.querySelector('[data-act="' + act + '"]'); if (bt) bt.addEventListener("click", fn); };
+    on("hl", function () { HOOKS.highlight(r); });
     on("retry", function () { startRace(r.resort, { event: "cross" }); });
     on("setup", function () { show("setup"); });
     on("resorts", function () { show("resorts"); });
@@ -1078,10 +1258,30 @@
   function render() {
     if (S.screen === "resorts") renderResorts();
     else if (S.screen === "setup") renderSetup();
+    else if (SCREENS[S.screen]) SCREENS[S.screen]();
   }
 
   window.addEventListener("resize", function () { if (S.view) S.view.resize(); });
-  window.addEventListener("i18n:change", function () { if (S.screen === "resorts" || S.screen === "setup") render(); });
+  window.addEventListener("i18n:change", function () { if (S.screen === "resorts" || S.screen === "setup" || SCREENS[S.screen]) render(); });
+
+  // P3：外掛畫面（inusnow_ui3.js 等，在本檔之前載入）用的介面
+  var UI = {
+    S: S, save: function () { return save; }, persist: persist, t: t, L: L, esc: esc, fmtTime: fmtTime, fmtDiff: fmtDiff, fmtScore: fmtScore,
+    ICON: ICON, dogFace: dogFace, opt: opt, banner: banner, toastText: toastText, trickPopup: trickPopup, standingsTable: standingsTable,
+    medal: medal, confettiHtml: confettiHtml, countUp: countUp, startRace: startRace, show: show, render: render, loadTerrain: loadTerrain,
+    worldOf: worldOf, resortInfo: resortInfo, cpuName: cpuName, stopLoop: stopLoop, lerpFrame: lerpFrame, vibrate: vibrate, aboutHtml: aboutHtml,
+    condFor: condFor, condLabel: condLabel, jstDate: jstDate, whenKey: whenKey, showResult: showResult, playerSt: playerSt, tabsHtml: tabsHtml, bindTabs: bindTabs,
+    step: function () { return STEP_MS; }, R3: R3, Input: Input, app: app, WX_ICON: WX_ICON,
+    kind: function (id, def) { KINDS[id] = def; if (def.icon) ICON[id] = def.icon; },
+    hook: function (id, fn) { HOOKS[id] = fn; },
+    screen: function (id, fn) { SCREENS[id] = fn; },
+    tab: function (def) { TABS.push(def); },
+  };
+  (window.PriTestInusnowExt || []).forEach(function (fn) { try { fn(UI); } catch (e) { if (window.console) console.error(e); } });
+  if (Core.migrate && save) {
+    var Bt = window.PriTestInusnowBet;
+    if (Bt && Bt.refill(save, jstDate())) persist();
+  }
 
   setupNav();
   render();
@@ -1100,6 +1300,9 @@
         if (r && r.run && r.kind === "free") { o.bones = r.run.got.bones.length; o.liftNear = r.run.liftNear; o.lifts = r.world.lifts.length; }
         if (r && r.cross) { o.status = r.cross.status; o.steps = r.cross.steps; o.place = r.cross.riders[0].place; o.done = r.cross.riders[0].done; }
         if (r && r.cpus) o.cpus = r.cpus.length;
+        if (r) { o.cond = r.cond; o.std = r.std; o.coach = r.coach ? r.coach.cmds.length : null; }
+        if (r && KINDS[r.kind] && KINDS[r.kind].debug) { var ko = KINDS[r.kind].debug(r); for (var kk in ko) if (Object.prototype.hasOwnProperty.call(ko, kk)) o[kk] = ko[kk]; }
+        o.coins = save.coins;
         return o;
       },
       autopilot: function (on) { S.autopilot = !!on; },
@@ -1107,8 +1310,9 @@
         opts = opts || {};
         if (opts.breed) save.dog.breed = opts.breed;
         if (opts.ghost !== undefined) save.settings.ghost = !!opts.ghost;
+        if (opts.condSet) save.settings.cond = opts.condSet;
         S.resort = resort;
-        startRace(resort, { event: opts.event || "gs", mode: opts.mode || "practice", runs: opts.runs || 1 });
+        startRace(resort, { event: opts.event || "gs", mode: opts.mode || "practice", runs: opts.runs || 1, cond: opts.cond });
       },
       // 自由滑行：把選手移到纜車山腳站附近（測試坐纜車）
       toLift: function (i) {
@@ -1122,6 +1326,9 @@
       fastLift: function (on) { S.fastLift = !!on; },
       sample: function () { return Input.sample(); },
       speedUp: function (k) { STEP_MS = 1000 / D.PHYS.hz / (k || 1); },
+      save: function () { return save; },
+      setSave: function (o) { for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) save[k] = o[k]; persist(); },
+      tab: function (id) { S.tab = id; show("resorts"); },
     },
   };
 })();

@@ -1,6 +1,6 @@
 # イヌスノー（inusnow）遊戲設計
 
-> 狀態：**設計定稿 v2（2026-11-20）**。第 1 階段完成（v2.82.0）、第 2 階段完成（v2.83.0，G2 嗅覺捷徑除外，見 §0.5）；第 3～6 階段的規格寫在 §18～§21。
+> 狀態：**設計定稿 v2（2026-11-20）**。第 1 階段完成（v2.82.0）、第 2 階段完成（v2.83.0）、第 3、4 階段完成（v2.85.0，2026-11-21）；第 5、6 階段的規格寫在 §20、§21。
 > 中文名「狗雪」、日文名「イヌスノー」、英文 Inu Snow。前綴：JS `window.PriTestInusnow*`、i18n `inu_`、CSS `inu-`
 > （不用 `is-`：會和全站共用的 `.is-active` 等狀態 class 撞名）。
 > 先在 PriTest 以純前端試作，最終移植到 RMD。
@@ -18,8 +18,8 @@
 |---|---|---|
 | P1 單板大曲道（8 個真實雪場、物理、旗門、紀錄與幽靈、3D、操作） | **完成** | v2.82.0（2026-11-20） |
 | P2 Slopestyle、CPU、Snowboard Cross、興奮度、溝痕、自由滑行、犬種 24 種；畫面特效與 UIUX 全面升級 | **完成**（G2 嗅覺捷徑延到 P3 開頭，§0.5） | v2.83.0（2026-11-21） |
-| P3 G2 嗅覺捷徑（P2 留下）、競猜、教練模式、雪質天氣夜間、救難犬、世界盃、雪崩逃脫、每日雪況 | 未開始：規格見 §17.7、§18 | |
-| P4 即時同場、4 人平行大曲道、雪橇犬接力、精彩重播 | 未開始：規格見 §19 | |
+| P3 G2 嗅覺捷徑（P2 留下）、競猜、教練模式、雪質天氣夜間、救難犬、世界盃、雪崩逃脫、每日雪況；首頁分頁（雪場／競猜／世界盃／今日雪況） | **完成**（實作差異見 §0.6） | v2.85.0（2026-11-21，和 P4 一起推送） |
+| P4 即時同場（4 人平行大曲道、8 人 Slopestyle、房間接力、觀戰者單勝彩池）、雪橇犬接力（單人）、精彩重播與分享片段；首頁「連線」分頁 | **完成**（實作差異見 §0.7） | v2.85.0（2026-11-21） |
 | P5 成長、裝備、打蠟、解鎖、收集章、主人好感、主場、換裝、公園編輯器、季節、溫泉美食、雙板 | 未開始：規格見 §20 | |
 | P6 RMD 移植準備 | 未開始：規格見 §21 | |
 
@@ -37,9 +37,11 @@
 ```bash
 py -3 generate.py
 node --check static_src/inusnow_*.js
-node tools/inusnow_check/core_check.js            # 規則（Node）：確定性掃描、地形、物理、旗門、重播、8 個雪場 × 2 趟完賽；P2：附加物、興奮度、CPU、溝痕、Slopestyle、Cross、自由滑行
+node tools/inusnow_check/core_check.js            # 規則（Node）：確定性掃描、地形、物理、旗門、重播、8 個雪場 × 2 趟完賽；P2：附加物、興奮度、CPU、溝痕、Slopestyle、Cross、自由滑行；P3（p3_check.js）：雪況、嗅覺捷徑、競猜、教練、救難犬、雪崩、世界盃、每日雪況
 py -3 -m http.server 8975 --directory dist
 node tools/inusnow_check/ui_check.js              # 畫面（Playwright）：手機／桌機完賽、存檔與幽靈、2 趟、重播、拖曳、8 個雪場；P2：4 種賽事、HUD 按鈕、自由滑行
+node tools/inusnow_check/ui_p3_check.js           # 畫面（P3）：分頁、雪況設定、教練指令、濃霧箭頭、嗅覺量表、救難犬、雪崩、競猜（買票→觀戰→結算）、世界盃第 1 站、今日挑戰
+node tools/inusnow_check/ui_p4_check.js           # 畫面（P4）：單人接力、精彩重播；3 個瀏覽器的房間（假 Firebase）：建房→加入→觀戰下注→同時出發→名次一致→派彩
 node tools/inusnow_data/add_events.js             # （改選段規則時）Slopestyle／Cross 的雪道選段，離線、可重複執行
 py -3 tools/split_css.py --check
 ```
@@ -145,6 +147,54 @@ py -3 tools/inusnow_data/fetch.py --fallback appi # 替補雪場
 | 溝痕的光柵化 | 半徑 0.4 m | 1 m 格，只記軌跡經過的那一格 | 1 m 格時半徑 0.4 m 幾乎就是同一格 |
 | Cross CPU 的路線 | 依名次選內外線 | 每隻固定一條偏好的線（seed）＋超車時偏 2 m | 簡化；名次變化仍來自超車與碰撞 |
 | **G2 嗅覺捷徑** | P2 | **延到 P3 開頭**（尚未實作） | 樹林中的捷徑路線與腳印標示需要另外設計路徑產生，這次先完成其他項目 |
+
+### 0.6 實作中確定的變更（2026-11-21，第 3 階段）
+
+| 項目 | 原設計 | 實作 | 理由 |
+|---|---|---|---|
+| 賠率的模擬次數 | 100 次 | **40 次**（`BET.oddsSims`），出賽表畫面分批計算並顯示進度 | 大曲道 1 次＝8 隻 × 2 趟，100 次在手機上要等十幾秒 |
+| 雪況的預設 | 隨機 | 設定畫面「雪況」：**標準（預設）**／隨機／指定；練習模式的最佳紀錄、幽靈只在標準雪況記錄 | 第 1、2 階段的紀錄與分享碼保持可以比較 |
+| 救難犬的挖掘 | 3 m 內停下（< 1 m/s）按住 2 秒 | 8 m 內按住挖掘鍵＝煞停；4 m 內、速度 < 1 m/s 時累積 2 秒 | 坡上很難剛好停在 3 m 內 |
+| 救難犬的雪崩區 | 雪道外 200×200 m | 從某條雪道旁沿最陡下坡畫出約 250 m 的路線，被埋者在路線兩側 ±25 m；路線 ±40 m 的樹被沖走 | 隨機方塊常落在平地或山脊外，滑不進去 |
+| B2 練習滑行 | 可看重播 | 顯示練習的時間（大曲道）或分數（Slopestyle）；Cross 沒有練習 | 先把出賽表的資訊做齊；重播在 P4 精彩重播一起做 |
+| B5 即時勝率 | 所有賽事 | 大曲道、Cross 即時；Slopestyle 顯示賽前勝率 | Slopestyle 的分數在落地才確定，用剩餘距離估計沒有意義 |
+| 觀戰的大曲道 | 2 趟 | 只播第 2 趟（決勝），勝率估計＝第 1 趟時間＋第 2 趟估計 | 觀看時間減半 |
+| 競猜的比賽 | 未定 | 每 2 小時（日本時間）3 場，seed＝`hash("betslot|日期|時段|n")`；按「出發」時就結算，觀戰只是播放；結算過的比賽可以再看、不能再買 | 同一場比賽的結果是固定的，不能看完再買 |
+| 世界盃的大曲道站 | 未定 | 比賽模式 1 趟（23 隻 CPU） | 和比賽模式相同的流程 |
+| 世界盃的 Cross 站 | 4 組各 6 隻 | 決賽組＝玩家＋積分最高的 5 隻 CPU（親自滑）；其他 18 隻分 3 組模擬，名次 7～24 依各組名次再依時間 | U3 的簡化 |
+| 每日挑戰的旗門 | `hash("dailygs|日期")` | `pickGsSeed(…, "daily|日期", 柴犬)` | 避開讓自動駕駛停住的旗門配置；用固定犬種讓所有人同一組 |
+| 教練模式的狗 | 未定 | 用 CPU 的 AI（等級 3、標準風格）；Slopestyle 的目標難度選 360／540／720／1080 | P5 有技術等級後再接上 |
+| 雪崩逃脫的雪道 | 未定 | 該雪場的大曲道雪道；滑到終點＝逃脫（+500 分） | 長度與落差最適合 |
+| 自由滑行的嗅覺捷徑 | 1～2 條 | 每個雪場 6 條（隨機的長雪道），捷徑通道內原本的樹清掉 | 整個雪場範圍大，1～2 條很難遇到 |
+
+- 2026-11-21 QA 後追加：教練的「衝！」改由比賽物件依 `opts.cmds` 的步數套用（`Core.applyDash`），重播一致；教練的興奮度時機只留「直線段（＝自動）／最後 200 m」；
+  教練模式只在大曲道、Slopestyle；過了時段還沒出發的票自動退款；未完賽的選手不算進複勝、三連；世界盃的大曲道站用 `pickGsSeed("cup|季|站")`、其他組的 Cross 用同一雪況。
+  世界盃中途離開不記成績（可以重來），救難犬、雪崩、Cross 的最佳成績不分雪況，都是刻意的。
+
+### 0.7 實作中確定的變更（2026-11-21，第 4 階段）
+
+| 項目 | 原設計 | 實作 | 理由 |
+|---|---|---|---|
+| 房間的賽事 | 平行大曲道（4 人）；Slopestyle 與觀戰 8 人 | 平行大曲道（≤ 4）、Slopestyle（≤ 8，各自滑、互不碰撞）、接力（每人一棒，空棒由 CPU 隊友跑）；Cross 不開放 | Cross 有碰撞，各裝置用外插位置算碰撞會不一致 |
+| 出發 | 依 `startAt` 同時出發 | 房主「發佈出賽表」（`status: card`，觀戰者下注）→「出發」才寫 `startAt`（＋5 秒） | 給觀戰者下注的時間（比照 saigo） |
+| 房間競猜 | §18.1 的票種 | 觀戰者只押單勝，彩池制（總額 × 80% 依押中金額分配）；房間狗幣 `bal/<pid>` 初始 1000 | 有真人選手時無法用模擬算固定賠率 |
+| 結算 | 重算一致後派彩 | 每台裝置用完整紀錄重算（`Room.recompute`）排名；派彩由各自的裝置寫入自己的房間狗幣（`localStorage` 記號防止重複） | 不需要伺服器 |
+| 平行大曲道的旗門 | 側向偏移 × 賽道寬／雪道寬 | 同上，另外旗門寬＝賽道寬 × 0.6（`ROOM.gateW`），`gate.w` 只在賽道模式出現 | 原本 8 m 寬的旗門會跨進隔壁賽道 |
+| 第 2 趟 | 換賽道、合計 | 房主在成績畫面按「下一趟」：同一個 seed、賽道 1↔4、2↔3，出賽表帶第 1 趟時間（`prev`） | |
+| 接力（房間） | 下一棒在上一棒完成時出發 | 每台裝置依序處理：空棒直接模擬；輪到某人時他出發，其他人看他的紀錄（收到第一段時開始計時） | 不需要時鐘同步 |
+| 接力的失格 | 未定 | 失格／未完賽的棒＝已滑時間＋30 秒（`RELAY.dsqPenalty`） | 一棒失格整隊就沒成績太嚴 |
+| 接力（單人） | 其他棒由 CPU | 設定畫面選自己跑第幾棒，隊友與對手 3 隊 CPU 都由 seed 決定 | |
+| 精彩重播的分享 | 分享碼＋片段 | 只有大曲道練習（標準雪況）可以分享片段；匯入含片段的分享碼會直接播放那一段 | 其他賽事沒有分享碼 |
+| 精彩片段 | 4 種 | 最快 10 秒（每 6 步取樣）、最大的一跳（滯空 ≥ 20 步、離地 ≥ 1 m）、最高分技巧（前 2.5 秒～後 1 秒）、Cross 最後一次超車；跳躍與技巧以 0.5 倍速播放 | |
+| 連線分頁的測試 | Firebase emulator | `ui_p4_check.js` 用 Node 端的假 Firebase（`window.PriTestInusnowFakeGS`，比照 zombie） | 不用另外啟動 emulator |
+| 斷線（結算） | 3 秒沒有新紀錄 | 畫面上的「⚠」：紀錄落後伺服器時鐘 3 秒；結算時的未完賽：牆上時鐘 **10 秒**沒有收到新的一段（`ROOM.dnfSec`，從出發時起算；接力的棒主一直沒出發也一樣） | 載入較慢、切到背景的人不會在別人那邊被提早判 DNF，各裝置的結果才一致 |
+| 換房主 | 比賽中不換 | 房主連續 3 秒不在線就由最早加入的人接手（比賽中也一樣，只換 host） | 比賽中房主離開時沒人能回大廳；剛加入時資料分批到，房主會暫時看起來不在線 |
+| 房間比賽的暫停 | 未定 | 不能暫停（隱藏暫停鍵、☰ 不會自動暫停） | 暫停會被別人判斷線 |
+| 彩池沒人押中 | 未定 | 沒人押中冠軍（含全員未完賽）＝全額退還；出賽表發佈後沒有出發的注不退 | |
+| 換場 | 未定 | 紀錄與完成寫到「自己那一場」的路徑；結算用自己那一場的紀錄與下注快照 | 房主提早按「下一趟」時舊場紀錄不會混進新場 |
+| 平行大曲道的 CPU 路線 | — | CPU、自動駕駛的瞄準點也用賽道的旗門寬（`gate.w`） | 用 8 m 會瞄到旗門外，部分雪場的賽道幾乎跑不完 |
+
+- 已知限制（P6 處理）：房間狗幣與下注任何客戶端都能寫（沒有帳號）；過期退款時，玩家可以先在別的瀏覽器看結果再決定要不要出發（狗幣只是遊戲內點數）。
 
 ### 0.4 待確認事項（下次開工前可問；沒有回答就用「預設」）
 
@@ -480,6 +530,24 @@ normalAt(x, z) = 格網的解析梯度 ＋ Σ feature 的解析梯度（2026-11-
 | `static_src/inusnow_fx.js` | （P2，只有畫面）`PriTestInusnowFx`：`Particles`、`Snowfall`、`Trail`、`Sky`、`nameTag`、`bannerTex`、各種貼圖 |
 
 - P2 追加的 `Core`：`normInput`、`spinDeg`、`zoomTick`、`zoomGain`、`raceSeed`、`pickGsSeed`、`cpuField`、`cpuGsController`、`simCpuGs`、`simGsField`、`newRut`、`rutAdd`。
+- P3 追加的檔案：
+  - `static_src/inusnow_env.js`（`PriTestInusnowEnv`）：`standard`、`isStandard`、`conditions(seed, resort, month, ov)`、`weatherAt`、`make(cond, {piste, seed, dog, cuts}) → {env(step)}`、`makeShortcuts`、`inShortcut`、`scentTick`、`treeHit`。
+  - `static_src/inusnow_bet.js`（`PriTestInusnowBet`）：`makeCard`、`variant`、`simulate(terrain, card, seed, keep)`、`practice`、`oddsInit`／`oddsStep`／`odds`、`expand`、`buy`、`settle`、`timePay`、`refill`、`winProb`。
+  - `static_src/inusnow_mission.js`（`PriTestInusnowMission`）：`newRescue`／`stepRescue`／`pulse`／`rescueAuto`、`newAvalanche`／`stepAvalanche`。
+  - `static_src/inusnow_season.js`（`PriTestInusnowSeason`）：`newSeason`、`stages`、`field`、`applyStage`、`standings`、`recent`、`daily(date)`。
+  - `static_src/inusnow_ui3.js`：救難犬、雪崩、觀戰（賽事種類）與競猜、世界盃、今日雪況（首頁分頁）的畫面。在 `inusnow.js` 之前載入，推進 `window.PriTestInusnowExt`；
+    `inusnow.js` 啟動時傳入共用介面 `UI`（`kind(id, def)` 登記賽事種類：`begin／step／st／done／events／steps／hud／event／fx／end／result／html／bind／others`；`tab(def)`、`screen(id, fn)`）。
+  - 物理環境（`Phys.step` 的 env）追加：`surf(x, z)`、`grip`、`muAdd`、`wind`、`cold`、`brake`；選手狀態追加 `zoomHalf`、`scent`、`scentShow`、`scentIn`。
+  - 比賽的 opts 追加 `cond`（雪況）、`cmds`（教練指令）；`cpuGsController(cpu, seed, coach)`。
+  - `tools/inusnow_check/p3_check.js`（由 `core_check.js` 呼叫）、`tools/inusnow_check/ui_p3_check.js`。
+- P4 追加的檔案：
+  - `static_src/inusnow_relay.js`（`PriTestInusnowRelay`）：`newLeg(terrain, k, seed, dog, cond)`、`stepLeg`、`legDone`、`legTime`、`cpuCtl`、`simLeg`、`cpuTeams`、`simTeam`。
+  - `static_src/inusnow_highlight.js`（`PriTestInusnowHighlight`）：`find({frames, terrain, events, tricks, kind})`、`withClip`、`clipOf`、`stripClip`。
+  - `static_src/inusnow_room.js`（`PriTestInusnowRoom`）：`makeCard`、`newRider`、`newRemote`／`addSeg`／`advance`／`frameAt`／`stale`、`recompute`、`rank`、`poolPays`、`poolOdds`。
+  - `static_src/inusnow_net.js`（`PriTestInusnowNet`）：`open({roomId, name, breed, cfg, onChange})`、`roomFromUrl`；協定見檔案開頭（路徑 `inu/...`）。
+  - `static_src/inusnow_ui4.js`：連線分頁、大廳、房間比賽（賽事種類 `room`）、房間成績、單人接力（賽事種類 `relay`）、精彩重播（`UI.hook("highlight"／"shareClip"／"playShared")`）。
+  - Core：`laneW(pi)`；`newRun` 的 `opts.lane`／`laneW`（平行大曲道）、`opts.from`／`to`（接力的半段）、`opts.cmds`（教練）；`finish.s`；`parseShare` 接受 `|h:a-b`。
+  - `tools/inusnow_check/p4_check.js`（由 `core_check.js` 呼叫）、`tools/inusnow_check/ui_p4_check.js`。
 - P2 追加的 `Terrain`：`withFeatures`、`featLocal`、`featOffset`、`offsetOf`、`prepFeat`、`rutAt`、`gridHeight`；`Phys.knock`；`env.spinMul`、`env.rut`、`env.grip`。
 - `Inusnow3D.create(container, terrain, opts)` 的 opts（P2）：`{mode, terrain（附加物包裝）, piste, gates, finish, feats, breed, others: [{breed, ghost, name}], ruts, world, got, camera}`；
   `render(frame, vel, othersFrames, dt, info)`、`gatePassed(n, perfect)`、`fx(kind, at)`、`hideBone`、`teleported`、`setSnow`。

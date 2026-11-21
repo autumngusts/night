@@ -27,6 +27,7 @@
     landSketchy: 0.5,      // ≥ 0.5（60°）＝不穩；更小＝摔倒
     sketchyKeep: 0.6,      // 不穩落地保留的速度
     fallSteps: 90,         // 摔倒停頓（步）
+    fallStepsPowder: 60,   // 粉雪、深雪時（設計 §6）
     fallKeep: 0.2,         // 摔倒保留的速度
     startSpeed: 6,         // 出發的初速（m/s，從出發門蹬出去）
     blurPasses: 2,         // 地形載入時 3×3 平均模糊的次數（壓雪後的平順坡面）
@@ -193,6 +194,78 @@
     stampStart: 50, stampEnd: 50, stampOn: 0.8, stampMinLen: 150,   // 150 m 以下的連絡道不發雪道章（2026-11-21）
     treeR: 0.8, treeMax: 2600, treeBand: 200, treeCell: 20, knockSpeed: 3,
   };
+
+  // ================= 第 3 階段（設計 §17.7、§18） =================
+  // 深雪（嗅覺捷徑的路面；設計 §17.7）
+  D.SNOW.deep = { mu: 0.09, grip: 0.8, name: C("深雪", "深雪", "Deep snow") };
+
+  // 天氣（設計 §18.3）：fog＝霧的距離（m，null＝沒有霧）、grip 抓地倍率、muRate 每分鐘 μ 增加、wind 側風（m/s²）
+  D.WEATHER = {
+    clear: { fog: null, grip: 1, muRate: 0, wind: 0, flakes: 0, name: C("晴れ", "晴", "Clear") },
+    cloudy: { fog: 1200, grip: 1, muRate: 0, wind: 0, flakes: 0, name: C("くもり", "陰", "Cloudy") },
+    snow: { fog: 400, grip: 0.95, muRate: 0.004, wind: 0, flakes: 0.8, name: C("降雪", "降雪", "Snowfall") },
+    blizzard: { fog: 120, grip: 0.95, muRate: 0.004, wind: 0.6, flakes: 1, cold: 60, name: C("吹雪", "暴風雪", "Blizzard") },
+    fog: { fog: 80, grip: 1, muRate: 0, wind: 0, flakes: 0, name: C("濃霧", "濃霧", "Dense fog") },
+  };
+  D.WEATHER_ORDER = ["clear", "cloudy", "snow", "blizzard", "fog"];
+  D.SNOW_ORDER = ["groomed", "powder", "ice", "spring"];
+  D.ENV = {
+    windEvery: 120,         // 側風每 2 秒換一次方向
+    coldK: 0.0015,          // 耐寒 < 60：每秒速度 ×(1 − coldK ×(60 − 耐寒))
+    freshCenter: 0.3,       // G3：降雪或粉雪時，雪道中心 ±30% 寬度是壓雪，外側是新雪
+    changeChance: 0.3,      // G5：比賽中天候變化的機率
+    changeFrom: 20, changeTo: 60,   // 發生的時間（秒）
+    changeFade: 5,          // 畫面在 5 秒內切換
+    nightChance: 0.2,
+    lampEvery: 40,
+  };
+  // 地區（設計 §18.3）：雪質與天氣的權重
+  D.REGION = { happo: "nagano", yakebitai: "nagano", nozawa: "nagano", naeba: "niigata", zao: "tohoku", teine: "hokkaido", hirafu: "hokkaido", rusutsu: "hokkaido" };
+  D.REGION_SNOW = {
+    hokkaido: { groomed: 40, powder: 40, ice: 15, spring: 5 },
+    tohoku: { groomed: 50, powder: 25, ice: 15, spring: 10 },
+    nagano: { groomed: 55, powder: 20, ice: 15, spring: 10 },
+    niigata: { groomed: 45, powder: 20, ice: 10, spring: 25 },
+  };
+  D.REGION_WEATHER = {
+    hokkaido: { clear: 30, cloudy: 25, snow: 30, blizzard: 8, fog: 7 },
+    tohoku: { clear: 35, cloudy: 25, snow: 25, blizzard: 7, fog: 8 },
+    nagano: { clear: 45, cloudy: 25, snow: 18, blizzard: 5, fog: 7 },
+    niigata: { clear: 35, cloudy: 30, snow: 22, blizzard: 5, fog: 8 },
+  };
+
+  // G2 嗅覺捷徑（設計 §17.7）
+  D.SCENT = { rate: 5, crouchMul: 1.5, max: 100, showSteps: 600, halfW: 2.5, treeGap: 4, treeOff: [2.5, 6], save: [0.05, 0.15], count: [1, 2], freeCount: 6, corridor: 3 };
+
+  // 競猜（設計 §18.1）
+  D.BET = {
+    coinsStart: 1000, coinsFloor: 300, minStake: 10, maxStake: 500,
+    payback: 0.8, minOdds: 1.1, maxOdds: 999.9,
+    oddsSims: 40,           // 原設計 100 次；瀏覽器上 40 次（約數秒），分批執行（設計 §0.6）
+    condAggr: 0.02,         // 調子 1～5：aggr ±(調子 − 3)×0.02（最多 ±0.04）
+    condMiss: [1.3, 1.15, 1, 0.85, 0.7],
+    timeHit: [[0.2, 12], [0.5, 5]],
+    softTemp: 1.5,
+    types: ["win", "place", "exacta", "quinella", "trifecta", "trio"],
+  };
+  // 教練模式（設計 §18.2）
+  D.COACH = { routes: { safe: 0.4, std: 0.5, attack: 0.62 }, lead: 90, dashMin: 50, dashSteps: 120, calmSteps: 300, calmAggr: 0.15 };
+  // M1 救難犬（設計 §18.6）
+  D.RESCUE = { victims: [3, 5], sec: 180, dig: 120, digR: 4, brakeR: 8,   // 2026-11-21：原設計「3 m 內停下」在坡上很難停，改成 8 m 內按住挖掘鍵就煞停、4 m 內累積
+    senseMin: 5, senseMax: 80, pulseMin: 0.1, pulseMax: 1.5, per: 1000, perSec: 10, pathStep: 5, pathLen: 50, lateral: 25 };
+  // M5 雪崩逃脫（設計 §18.8）
+  D.AVALANCHE = { behind: 40, v0: 8, acc: 0.6, vMax: 25, finishBonus: 500 };
+  // M3 世界盃（設計 §18.7）
+  D.CUP = { stages: 8, field: 23, points: [100, 80, 60, 50, 45, 40, 36, 32, 29, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6], events: ["gs", "slope", "cross"] };
+
+  // ================= 第 4 階段（設計 §19） =================
+  // 房間（§19.1、§19.2）：每段 30 步、外插最多 1.5 秒、3 秒沒有新紀錄＝斷線
+  // dnfSec：結算時 10 秒沒有收到新的一段＝未完賽（staleSec 只用在畫面的「⚠」）
+  D.ROOM = { pgsMax: 4, slopeMax: 8, seg: 30, extrapSec: 1.5, staleSec: 3, dnfSec: 10, startDelay: 5000, coins: 1000, poolBack: 0.8, laneMax: 9, gateW: 0.6 };
+  // M6 接力（§19.3）：失格／未完賽的棒＝已滑時間＋30 秒（§0.7）
+  D.RELAY = { dsqPenalty: 30, slopeK: 0.1, teams: 3, maxSteps: 60 * 300 };
+  // R5 精彩重播（§19.4）
+  D.HIGHLIGHT = { fastSec: 10, jumpMinSteps: 20, jumpMinH: 1, before: 90, after: 60, trickBefore: 150, passBefore: 180 };
 
   // 第一批雪場（設計 §2.2；資料在 static/inusnow/data/<id>.json）
   D.RESORTS = ["happo", "yakebitai", "teine", "hirafu", "zao", "nozawa", "naeba", "rusutsu"];

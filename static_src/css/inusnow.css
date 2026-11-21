@@ -733,3 +733,304 @@ body.inu-body.inu-nav-open > .site-header { transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
   .inu-hero-snow, .inu-hero-dog, .inu-speedlines, .inu-primary.inu-go, .inu-zoombtn.is-ready { animation: none; }
 }
+
+/* ===================== 第 3 階段（2026-11-21）：分頁、雪況、教練、嗅覺、救難犬、雪崩、競猜、世界盃、今日雪況 ===================== */
+.inu-tabs { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: .3rem; margin: -.4rem 0 1rem; padding: .45rem .5rem; border-radius: 18px; background: rgba(255, 255, 255, .72); backdrop-filter: blur(10px); box-shadow: 0 4px 18px rgba(20, 50, 90, .12); overflow-x: auto; scrollbar-width: none; }
+.inu-tabs::-webkit-scrollbar { display: none; }
+.inu-tab { position: relative; display: inline-flex; align-items: center; gap: .35rem; flex: none; padding: .5rem .95rem; border: 0; border-radius: 13px; background: transparent; color: var(--inu-sub); font: inherit; font-weight: bold; cursor: pointer; transition: background .2s, color .2s, transform .15s; }
+.inu-tab:hover { background: rgba(42, 111, 214, .08); }
+.inu-tab:active { transform: scale(.95); }
+.inu-tab.is-on { background: linear-gradient(180deg, #3d8bf0, #1f62c4); color: #fff; box-shadow: 0 4px 12px rgba(31, 98, 196, .35); }
+.inu-tab-ico { font-size: 1.05rem; }
+.inu-coins { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .75rem; border-radius: 999px; background: linear-gradient(180deg, #fff6d6, #ffe59a); color: #7a5200; font-weight: 900; font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 1px rgba(200, 140, 0, .35); }
+.inu-coins i, .inu-bethead-coins i { position: relative; display: inline-block; width: 1.05rem; height: 1.05rem; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #ffc531 45%, #d99200); box-shadow: 0 1px 2px rgba(120, 80, 0, .4); }
+.inu-coins i::after, .inu-bethead-coins i::after { content: ""; position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 50% 50% 45% 45%; background: rgba(122, 82, 0, .55); }
+.inu-tabbody { animation: inu-card-in .45s ease both; }
+.inu-help-tight { margin: .2rem 0 .6rem; font-size: .8rem; }
+.inu-field-mini { display: inline-grid; gap: .15rem; margin: 0 .4rem .4rem 0; font-size: .8rem; }
+.inu-field-mini select, .inu-field-mini input { padding: .35rem .5rem; border: 1px solid #b8c8da; border-radius: 10px; font: inherit; background: #fff; min-width: 6rem; }
+.inu-condpick { display: flex; flex-wrap: wrap; margin: -.2rem 0 .6rem; }
+.inu-condline { margin: .1rem 0 .6rem; color: var(--inu-blue2); font-weight: bold; }
+.inu-coachbox { margin: .4rem 0 .8rem; padding: .7rem .8rem .4rem; border-radius: 16px; background: linear-gradient(135deg, rgba(255, 197, 49, .16), rgba(42, 111, 214, .08)); border: 1px solid rgba(255, 170, 40, .35); }
+.inu-coach-note { margin: 0 0 .5rem; font-size: .84rem; color: #6a4a00; }
+
+/* HUD：天氣、嗅覺量表、濃霧箭頭、教練指令 */
+.inu-hud-wx { font-size: .78rem; padding: .12rem .55rem; border-radius: 999px; background: rgba(255, 255, 255, .18); }
+.inu-race.is-night .inu-hud-top { background: linear-gradient(90deg, rgba(20, 20, 60, .7), rgba(20, 20, 60, .3)); }
+.inu-scent { position: absolute; left: 50%; bottom: .9rem; transform: translateX(-50%); display: flex; align-items: center; gap: .4rem; padding: .3rem .7rem .3rem .35rem; border-radius: 999px; background: rgba(10, 30, 60, .45); backdrop-filter: blur(4px); font-size: .72rem; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); transition: box-shadow .3s; }
+.inu-scent-nose { width: 1.5rem; height: 1.1rem; border-radius: 50% 50% 45% 45%; background: radial-gradient(circle at 30% 55%, #000 0 18%, transparent 20%), radial-gradient(circle at 70% 55%, #000 0 18%, transparent 20%), #2b2b2b; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .25); }
+.inu-scent-bar { width: 6rem; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .25); overflow: hidden; }
+.inu-scent-bar i { display: block; height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, #ffd23f, #ff8a2a); transition: width .2s; }
+.inu-scent.is-full { box-shadow: 0 0 0 2px #ffd23f, 0 0 18px rgba(255, 210, 63, .8); animation: inu-sniff .5s ease-in-out infinite alternate; }
+.inu-scent.is-in .inu-scent-bar i { background: linear-gradient(90deg, #7fd0ff, #fff); }
+@keyframes inu-sniff { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.06); } }
+.inu-race-free .inu-scent { left: auto; right: 6rem; transform: none; bottom: 1.2rem; animation: none; }
+.inu-fogarrow { position: absolute; left: 50%; top: 22%; width: 3.4rem; height: 3.4rem; transform: translateX(-50%); transition: transform .15s linear; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
+.inu-fogarrow[hidden] { display: none; }
+.inu-fogarrow i { position: absolute; inset: 0; clip-path: polygon(50% 0, 100% 70%, 62% 58%, 62% 100%, 38% 100%, 38% 58%, 0 70%); background: linear-gradient(180deg, #ffd23f, #ff6a1a); animation: inu-fogpulse 1s ease-in-out infinite; }
+@keyframes inu-fogpulse { 50% { opacity: .55; } }
+.inu-coachmode .inu-zoombtn { display: none; }
+.inu-coachcmds { position: absolute; right: .8rem; bottom: .8rem; display: grid; gap: .5rem; }
+.inu-cmd { display: grid; justify-items: center; gap: .1rem; min-width: 7.2rem; padding: .6rem .8rem; border: 2px solid rgba(255, 255, 255, .8); border-radius: 18px; color: #fff; font: inherit; cursor: pointer; backdrop-filter: blur(4px); transition: transform .15s, opacity .3s, filter .3s; }
+.inu-cmd b { font-size: 1.25rem; font-weight: 900; letter-spacing: .05em; }
+.inu-cmd small { font-size: .62rem; opacity: .92; max-width: 8rem; }
+.inu-cmd-dash { background: linear-gradient(180deg, rgba(255, 138, 42, .92), rgba(226, 69, 60, .92)); box-shadow: 0 4px 14px rgba(226, 69, 60, .45); }
+.inu-cmd-calm { background: linear-gradient(180deg, rgba(61, 139, 240, .92), rgba(27, 79, 158, .92)); box-shadow: 0 4px 14px rgba(27, 79, 158, .45); }
+.inu-cmd:active { transform: scale(.94); }
+.inu-cmd.is-sent { opacity: .45; filter: grayscale(.6); cursor: default; }
+
+/* 救難犬：鼻子的脈動、挖掘鍵 */
+.inu-nose { position: absolute; left: 50%; top: 4.6rem; width: 4.6rem; height: 4.6rem; transform: translateX(-50%); display: grid; place-items: center; }
+.inu-nose > * { grid-area: 1 / 1; }
+.inu-nose-ico { position: relative; width: 2.8rem; height: 2rem; border-radius: 50% 50% 45% 45%; background: radial-gradient(circle at 32% 58%, #000 0 17%, transparent 19%), radial-gradient(circle at 68% 58%, #000 0 17%, transparent 19%), linear-gradient(180deg, #4a4a4a, #1d1d1d); box-shadow: inset 0 3px 0 rgba(255, 255, 255, .25), 0 3px 10px rgba(0, 0, 0, .35); }
+.inu-nose-ring { width: 100%; height: 100%; border-radius: 50%; border: 3px solid #ff8a2a; opacity: 0; }
+.inu-nose.is-beat .inu-nose-ico { animation: inu-nosebeat .28s ease; }
+.inu-nose.is-beat .inu-nose-ring { animation: inu-ring .7s ease-out; }
+.inu-nose.is-beat .inu-nose-ring + .inu-nose-ring { animation-delay: .12s; }
+.inu-nose.is-far .inu-nose-ico { filter: grayscale(1) opacity(.6); }
+@keyframes inu-nosebeat { 40% { transform: scale(1.25); } }
+@keyframes inu-ring { from { transform: scale(.55); opacity: .95; } to { transform: scale(1.5); opacity: 0; } }
+.inu-nose-text { position: absolute; left: 50%; top: 9.4rem; transform: translateX(-50%); margin: 0; padding: .15rem .7rem; border-radius: 999px; background: rgba(10, 30, 60, .45); font-size: .8rem; font-weight: bold; white-space: nowrap; }
+.inu-nose-text.inu_nose_hot { background: rgba(226, 69, 60, .85); }
+.inu-nose-text.inu_nose_warm { background: rgba(255, 138, 42, .8); }
+.inu-digbtn { right: .9rem; bottom: .9rem; width: 4.8rem; height: 4.8rem; font-size: 1.05rem; background: rgba(120, 70, 30, .6); }
+.inu-digring { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); transform: rotate(-90deg); pointer-events: none; }
+.inu-digring circle { fill: none; stroke-width: 3; }
+.inu-digring circle:first-child { stroke: rgba(255, 255, 255, .25); }
+#inu-dig-arc { stroke: #3ed47a; stroke-dasharray: 94.2; stroke-dashoffset: 94.2; stroke-linecap: round; transition: stroke-dashoffset .1s linear; }
+
+/* 雪崩：距離表、危險的紅框 */
+.inu-avgap { position: absolute; left: 50%; top: 4.4rem; transform: translateX(-50%); display: flex; align-items: baseline; gap: .3rem; padding: .3rem .9rem; border-radius: 14px; background: rgba(10, 30, 60, .5); backdrop-filter: blur(4px); font-variant-numeric: tabular-nums; transition: background .3s; }
+.inu-avgap b { font-size: 1.6rem; font-weight: 900; }
+.inu-avgap-ico { align-self: center; width: 1.6rem; height: 1rem; border-radius: 50% 50% 0 0; background: linear-gradient(180deg, #fff, #c9dff2); box-shadow: 0 0 8px #fff; }
+.inu-avgap.is-close { background: rgba(226, 69, 60, .85); animation: inu-avpulse .5s ease-in-out infinite; }
+@keyframes inu-avpulse { 50% { transform: translateX(-50%) scale(1.08); } }
+.inu-danger { position: absolute; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 110px 30px rgba(226, 40, 40, .65); transition: opacity .25s; }
+
+/* 觀戰 */
+.inu-race-watch .inu-gauge { opacity: .7; }
+.inu-watch-tag { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); padding: .3rem .9rem; border-radius: 999px; background: rgba(255, 106, 26, .8); font-size: .8rem; font-weight: bold; }
+.inu-chip-skip { position: absolute; right: .5rem; bottom: 1rem; }
+.inu-standings li em { margin-left: auto; padding-left: .5rem; font-style: normal; font-weight: 900; color: #ffe07a; font-variant-numeric: tabular-nums; }
+.inu-loading-bar { width: min(60vw, 260px); height: 6px; margin: 0; border-radius: 3px; background: rgba(42, 111, 214, .15); overflow: hidden; }
+.inu-loading-bar i { display: block; width: 30%; height: 100%; background: linear-gradient(90deg, transparent, #3d8bf0, transparent); animation: inu-loadbar 1s linear infinite; }
+@keyframes inu-loadbar { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+
+/* 競猜 */
+.inu-bethead { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: 1rem 1.1rem; border-radius: 20px; background: linear-gradient(135deg, #fff7da, #ffe9a8 60%, #ffd98a); box-shadow: 0 6px 20px rgba(200, 140, 0, .18); }
+.inu-bethead p { flex: 1 1 14rem; margin: 0; font-size: .8rem; color: #6a4a00; }
+.inu-bethead-coins { display: flex; align-items: center; gap: .45rem; }
+.inu-bethead-coins i { width: 2rem; height: 2rem; }
+.inu-bethead-coins b { font-size: 2rem; font-weight: 900; color: #7a5200; font-variant-numeric: tabular-nums; }
+.inu-bethead-coins small { color: #7a5200; }
+.inu-betslots { display: grid; gap: .6rem; }
+.inu-betslot { display: grid; grid-template-columns: 3.2rem 1fr auto; align-items: center; gap: .8rem; padding: .8rem 1rem; border: 1px solid var(--inu-line); border-radius: 18px; background: var(--inu-card); color: inherit; font: inherit; text-align: left; cursor: pointer; box-shadow: 0 3px 12px rgba(20, 50, 90, .08); animation: inu-card-in .45s ease both; animation-delay: var(--d); transition: transform .15s, box-shadow .2s; }
+.inu-betslot:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20, 50, 90, .14); }
+.inu-betslot-ev svg { width: 3rem; height: 3rem; color: var(--inu-blue2); }
+.inu-betslot-main { display: grid; gap: .1rem; }
+.inu-betslot-main span { font-size: .85rem; color: var(--inu-sub); }
+.inu-betslot-main .inu-betslot-cond { font-size: .75rem; color: var(--inu-blue2); }
+.inu-betslot-state { padding: .3rem .7rem; border-radius: 999px; background: rgba(62, 212, 122, .16); color: #157a42; font-size: .78rem; font-weight: bold; white-space: nowrap; }
+.inu-betslot-state.is-pend { background: rgba(255, 197, 49, .25); color: #7a5200; }
+.inu-betslot-state.is-done { background: rgba(120, 130, 145, .15); color: #556; }
+.inu-betlog { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.inu-betlog li { display: flex; justify-content: space-between; padding: .4rem .8rem; border-radius: 10px; background: var(--inu-card); font-size: .85rem; }
+.inu-betlog b { font-variant-numeric: tabular-nums; color: #a33; }
+.inu-betlog b.is-plus { color: #157a42; }
+.inu-cardhead { display: flex; align-items: center; gap: .8rem; margin: .4rem 0 .6rem; }
+.inu-cardhead-ev svg { width: 3.4rem; height: 3.4rem; color: var(--inu-blue2); }
+.inu-cardhead .inu-h2 { margin: 0; }
+.inu-cardcond { margin: .15rem 0 0; color: var(--inu-blue2); font-size: .88rem; font-weight: bold; }
+.inu-odds-prog { display: flex; align-items: center; gap: .6rem; margin: 0 0 .7rem; font-size: .8rem; color: var(--inu-sub); }
+.inu-odds-prog i { flex: 1; height: 6px; border-radius: 3px; background: rgba(42, 111, 214, .14); overflow: hidden; }
+.inu-odds-prog b { display: block; height: 100%; background: linear-gradient(90deg, #7fd0ff, #2a6fd6); transition: width .2s; }
+.inu-odds-prog.is-done i { display: none; }
+.inu-entries { display: grid; gap: 4px; margin-bottom: 1rem; }
+.inu-entry { display: grid; grid-template-columns: 1.8rem 2.6rem minmax(7rem, 1.6fr) 2.2rem 4.6rem 4.4rem 3.6rem 3.2rem; align-items: center; gap: .3rem; padding: .35rem .5rem; border: 2px solid transparent; border-radius: 12px; background: var(--inu-card); color: inherit; font: inherit; font-size: .84rem; text-align: left; cursor: pointer; font-variant-numeric: tabular-nums; animation: inu-card-in .35s ease both; animation-delay: var(--d); transition: border-color .15s, background .15s, transform .12s; }
+.inu-entry:active { transform: scale(.99); }
+.inu-betcard.is-static .inu-entry, .inu-betcard.is-static .inu-lines li { animation: none; }
+.inu-entry-head { background: transparent; color: var(--inu-sub); font-size: .7rem; cursor: default; animation: none; }
+.inu-entry .inu-face.is-mini { width: 2.2rem; height: 2rem; }
+.inu-entry-no { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 6px; background: #1b4f9e; color: #fff; font-weight: 900; font-size: .78rem; }
+.inu-entry-name { display: grid; line-height: 1.15; }
+.inu-entry-name small { color: var(--inu-sub); font-size: .68rem; }
+.inu-entry.is-pick { border-color: #ff8a2a; background: #fff4e6; }
+.inu-entry.is-axis { border-color: #e2453c; background: #ffe8e4; }
+.inu-entry.is-axis .inu-entry-no { background: #e2453c; }
+.inu-form { font-weight: 900; font-size: 1.1rem; text-align: center; }
+.inu-form-1 { color: #4a6aa0; }
+.inu-form-2 { color: #6a8ab0; }
+.inu-form-3 { color: #888; }
+.inu-form-4 { color: #e07a20; }
+.inu-form-5 { color: #e2453c; }
+.inu-apt { color: #e8a400; letter-spacing: -.05em; font-size: .78rem; }
+.inu-recent { color: var(--inu-sub); font-size: .75rem; }
+.inu-entry-odds { font-weight: 900; color: #b0362b; text-align: right; }
+.inu-ticket { padding: .8rem 1rem; border-radius: 18px; background: var(--inu-card); box-shadow: 0 3px 12px rgba(20, 50, 90, .08); }
+.inu-ticket .inu-h3 { margin-top: 0; }
+.inu-ticket .inu-seg { flex-wrap: wrap; margin: 0 .4rem .5rem 0; }
+.inu-ticket-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem; margin-top: .3rem; }
+.inu-ticket-sum { margin-bottom: .55rem; font-size: .85rem; color: var(--inu-sub); }
+.inu-ticket-row .inu-primary, .inu-ticket-row .inu-secondary { margin-bottom: .4rem; }
+.inu-timebet { padding-top: .5rem; border-top: 1px dashed var(--inu-line); }
+.inu-primary[disabled], .inu-secondary[disabled] { opacity: .45; cursor: default; box-shadow: none; animation: none; }
+.inu-lines { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 4px; }
+.inu-lines li { display: grid; grid-template-columns: 1fr auto 4.2rem; gap: .6rem; align-items: center; padding: .45rem .8rem; border-radius: 10px; background: linear-gradient(90deg, #fffaf0, #fff); border-left: 4px solid #ffc531; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.inu-lines li b { text-align: right; }
+.inu-lines.is-settled li { opacity: .6; border-left-color: #c0c8d2; }
+.inu-lines.is-settled li.is-hit { opacity: 1; border-left-color: #3ed47a; background: linear-gradient(90deg, #eafff1, #fff); animation: inu-card-in .5s ease both; }
+.inu-lines.is-settled li.is-hit b { color: #157a42; }
+.inu-payout { display: grid; justify-items: center; margin: .6rem auto 1rem; padding: .8rem 1.6rem; width: fit-content; border-radius: 20px; background: var(--inu-card); box-shadow: 0 6px 20px rgba(20, 50, 90, .12); }
+.inu-payout span { font-size: .8rem; color: var(--inu-sub); }
+.inu-payout b { font-size: 2.6rem; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--inu-ink); }
+.inu-payout em { font-style: normal; font-weight: bold; color: var(--inu-sub); }
+.inu-payout.is-win { background: linear-gradient(135deg, #fff7da, #ffe59a); box-shadow: 0 0 0 3px rgba(255, 197, 49, .6), 0 10px 30px rgba(200, 140, 0, .3); }
+.inu-payout.is-win b { color: #9a6400; }
+
+/* 世界盃 */
+.inu-cupintro { display: grid; justify-items: center; gap: .6rem; padding: 2rem 1rem; text-align: center; border-radius: 24px; background: radial-gradient(circle at 50% 0, #fff6d6, transparent 70%), var(--inu-card); }
+.inu-cup-trophy { position: relative; width: 5rem; height: 5.6rem; animation: inu-float 3s ease-in-out infinite; }
+.inu-cup-trophy::before { content: ""; position: absolute; left: .7rem; right: .7rem; top: 0; height: 3.4rem; border-radius: 0 0 2rem 2rem; background: linear-gradient(90deg, #e8a400, #ffe27a 40%, #e8a400); box-shadow: -1rem .4rem 0 -.6rem #e8a400, 1rem .4rem 0 -.6rem #e8a400; }
+.inu-cup-trophy::after { content: ""; position: absolute; left: 1.4rem; right: 1.4rem; bottom: 0; height: 2.2rem; background: linear-gradient(180deg, #e8a400 0 40%, #7a5200 40% 100%); clip-path: polygon(35% 0, 65% 0, 65% 40%, 100% 60%, 100% 100%, 0 100%, 0 60%, 35% 40%); }
+@keyframes inu-float { 50% { transform: translateY(-6px); } }
+.inu-cuphead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.inu-cuphead .inu-h2 { margin: 0; }
+.inu-cup-rank { display: grid; justify-items: center; padding: .5rem 1.1rem; border-radius: 18px; background: linear-gradient(180deg, #3d8bf0, #1f62c4); color: #fff; box-shadow: 0 6px 16px rgba(31, 98, 196, .35); }
+.inu-cup-rank small { font-size: .7rem; opacity: .9; }
+.inu-cup-rank b { font-size: 2rem; line-height: 1; font-weight: 900; }
+.inu-cup-rank span { font-size: .8rem; font-variant-numeric: tabular-nums; }
+.inu-stages { list-style: none; margin: 1rem 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .5rem; }
+.inu-stage-card { display: grid; grid-template-columns: 1.6rem 2.2rem 1fr auto; align-items: center; gap: .5rem; padding: .55rem .7rem; border-radius: 14px; background: var(--inu-card); border: 2px solid transparent; animation: inu-card-in .4s ease both; animation-delay: var(--d); }
+.inu-stage-card svg { width: 2.1rem; height: 2.1rem; color: var(--inu-blue2); }
+.inu-stage-no { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #c8d6e6; font-weight: 900; font-size: .8rem; }
+.inu-stage-name { display: grid; font-weight: bold; font-size: .88rem; }
+.inu-stage-name small { font-weight: normal; color: var(--inu-sub); }
+.inu-stage-res { display: grid; justify-items: end; font-weight: 900; font-size: .85rem; }
+.inu-stage-res small { color: #157a42; }
+.inu-stage-card.is-done { opacity: .85; }
+.inu-stage-card.is-done .inu-stage-no { background: #3ed47a; color: #fff; }
+.inu-stage-card.is-next { border-color: #ff8a2a; box-shadow: 0 0 0 4px rgba(255, 138, 42, .15); }
+.inu-stage-card.is-next .inu-stage-no { background: #ff8a2a; color: #fff; animation: inu-ready 1s ease-in-out infinite; }
+.inu-cup-final { margin: 1rem 0; padding: 1rem; border-radius: 18px; text-align: center; font-size: 1.2rem; font-weight: 900; background: var(--inu-card); }
+.inu-cup-final.is-podium { background: linear-gradient(135deg, #fff7da, #ffd23f); box-shadow: 0 8px 24px rgba(232, 164, 0, .35); }
+.inu-cup-gain { margin: .2rem 0 1rem; text-align: center; font-weight: 900; color: #157a42; font-size: 1.15rem; }
+.inu-cuptable td:last-child { text-align: right; font-weight: bold; }
+
+/* 今日雪況 */
+.inu-dailyhead { text-align: center; }
+.inu-daily-date { margin: 0; font-size: .85rem; letter-spacing: .15em; color: var(--inu-sub); }
+.inu-challenge { position: relative; display: grid; justify-items: center; gap: .3rem; margin: .6rem 0 1.2rem; padding: 1.3rem 1rem 1.1rem; border-radius: 24px; text-align: center; color: #fff; background: radial-gradient(circle at 20% 0, rgba(255, 255, 255, .35), transparent 50%), linear-gradient(135deg, #1f62c4, #2a8fe0 50%, #7fd0ff); box-shadow: 0 10px 30px rgba(31, 98, 196, .35); overflow: hidden; }
+.inu-challenge::after { content: ""; position: absolute; inset: auto -10% -40% -10%; height: 70%; background: linear-gradient(170deg, transparent 40%, rgba(255, 255, 255, .5) 41%, #fff); pointer-events: none; }
+.inu-challenge > * { position: relative; z-index: 1; }
+.inu-challenge h3 { margin: 0; font-size: 1.35rem; text-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.inu-challenge .inu-cardcond { color: #e8f6ff; }
+.inu-challenge-badge { padding: .2rem .8rem; border-radius: 999px; background: #ffc531; color: #5a3c00; font-weight: 900; font-size: .78rem; }
+.inu-challenge-best { margin: 0 0 .5rem; font-weight: bold; }
+.inu-wxgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .5rem; }
+.inu-wxcard { position: relative; display: grid; gap: .15rem; padding: .7rem .8rem; border-radius: 16px; overflow: hidden; color: #13263d; background: linear-gradient(160deg, #fdfdf7, #e3f0fb); box-shadow: 0 3px 10px rgba(20, 50, 90, .1); animation: inu-card-in .4s ease both; animation-delay: var(--d); }
+.inu-wxcard b { font-size: .92rem; }
+.inu-wxcard span { font-size: .76rem; color: var(--inu-sub); }
+.inu-wxcard .inu-wxcard-ico { position: absolute; right: .5rem; top: .3rem; font-size: 1.7rem; opacity: .9; }
+.inu-wx-clear { background: linear-gradient(160deg, #fff7d6, #e3f0fb); }
+.inu-wx-cloudy { background: linear-gradient(160deg, #eef1f5, #d6dde6); }
+.inu-wx-snow { background: linear-gradient(160deg, #f4f9ff, #cfe3f6); }
+.inu-wx-blizzard { background: linear-gradient(160deg, #d6dee8, #a9b8c9); }
+.inu-wx-fog { background: linear-gradient(160deg, #eceff2, #c7ced6); }
+.inu-wxcard.is-night { color: #e8f0ff; background: linear-gradient(160deg, #2a3b66, #0f1a33); }
+.inu-wxcard.is-night span { color: #b8c8e8; }
+
+@media (max-width: 760px) {
+  .inu-entry { grid-template-columns: 1.6rem 2.3rem 1fr 1.8rem 3.8rem 3.2rem; }
+  .inu-entry > :nth-child(6), .inu-entry > :nth-child(7) { display: none; }
+}
+@media (max-width: 560px) {
+  .inu-tab { padding: .45rem .65rem; font-size: .85rem; }
+  .inu-tab-ico { display: none; }
+  .inu-betslot { grid-template-columns: 2.4rem 1fr; }
+  .inu-betslot-state { grid-column: 2; justify-self: start; }
+  .inu-betslot-ev svg { width: 2.3rem; height: 2.3rem; }
+  .inu-entry { grid-template-columns: 1.5rem 2.1rem 1fr 1.6rem 3rem; font-size: .78rem; }
+  .inu-entry > :nth-child(5) { display: none; }
+  .inu-cmd { min-width: 5.8rem; padding: .45rem .6rem; }
+  .inu-cmd b { font-size: 1.05rem; }
+  .inu-scent-bar { width: 4rem; }
+  .inu-nose { top: 4rem; }
+  .inu-cuphead { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inu-scent.is-full, .inu-fogarrow i, .inu-avgap.is-close, .inu-cup-trophy, .inu-stage-card.is-next .inu-stage-no { animation: none; }
+}
+
+/* ===================== 第 4 階段（2026-11-21）：即時同場、接力、精彩重播 ===================== */
+.inu-chip-light { background: #fff; color: var(--inu-blue2); border-color: #b8c8da; backdrop-filter: none; }
+.inu-roomintro { display: grid; justify-items: center; gap: .5rem; padding: 1.8rem 1rem; border-radius: 24px; text-align: center; background: radial-gradient(circle at 50% 0, #dff0ff, transparent 70%), var(--inu-card); }
+.inu-roomintro p { max-width: 34rem; margin: 0; color: var(--inu-sub); }
+.inu-roomintro-art svg { width: 4.5rem; height: 4.5rem; color: var(--inu-blue2); animation: inu-float 3s ease-in-out infinite; }
+.inu-joinrow { display: flex; gap: .4rem; width: min(100%, 26rem); }
+.inu-joinrow input { flex: 1; min-width: 0; padding: .55rem .7rem; border: 1px solid #b8c8da; border-radius: 12px; font: inherit; }
+.inu-roomhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .8rem; }
+.inu-roomid { padding: .3rem .8rem; border-radius: 999px; background: linear-gradient(180deg, #3d8bf0, #1f62c4); color: #fff; font-weight: 900; letter-spacing: .08em; }
+.inu-roomhead .inu-coins { margin-left: auto; }
+.inu-roombox { margin-bottom: .8rem; padding: .8rem 1rem; border-radius: 18px; background: var(--inu-card); box-shadow: 0 3px 12px rgba(20, 50, 90, .08); animation: inu-card-in .4s ease both; }
+.inu-roombox .inu-h3 { margin-top: 0; }
+.inu-roomme { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .4rem .8rem; }
+.inu-members, .inu-lanes { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.inu-members li, .inu-lanes li { display: grid; grid-template-columns: 2.4rem 1fr auto auto; align-items: center; gap: .5rem; padding: .35rem .6rem; border-radius: 12px; background: #f5f9fd; animation: inu-card-in .35s ease both; animation-delay: var(--d); }
+.inu-members li.is-me, .inu-lanes li.is-me { background: #fff4e6; box-shadow: inset 0 0 0 2px #ffb46b; }
+.inu-member-name { display: grid; font-weight: bold; }
+.inu-member-name small { font-weight: normal; color: var(--inu-sub); font-size: .72rem; }
+.inu-member-role { padding: .15rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: bold; background: rgba(42, 111, 214, .12); color: var(--inu-blue2); }
+.inu-member-role.is-watch { background: rgba(120, 130, 145, .15); color: #556; }
+.inu-member-ready { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border-radius: 50%; background: #e3e9f0; color: #889; font-weight: 900; }
+.inu-member-ready.is-on { background: #3ed47a; color: #fff; animation: inu-card-in .3s ease; }
+.inu-lanes li { grid-template-columns: 3.6rem 2.4rem 1fr auto auto; }
+.inu-lane-no { font-weight: 900; color: var(--inu-blue2); font-size: .8rem; }
+.inu-pool-odds { font-weight: 900; color: #b0362b; font-variant-numeric: tabular-nums; }
+.inu-betctl { display: inline-flex; align-items: center; gap: .3rem; }
+.inu-betctl em { min-width: 2.4rem; font-style: normal; font-weight: bold; text-align: right; font-variant-numeric: tabular-nums; }
+.inu-relaybar { position: absolute; left: 50%; top: 4.2rem; transform: translateX(-50%); display: flex; gap: .3rem; }
+.inu-relaybar i { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: rgba(10, 30, 60, .45); font-style: normal; font-weight: 900; font-size: .8rem; }
+.inu-relaybar i.is-done { background: rgba(62, 212, 122, .85); }
+.inu-relaybar i.is-now { background: rgba(255, 106, 26, .9); box-shadow: 0 0 0 3px rgba(255, 255, 255, .7); animation: inu-ready 1s ease-in-out infinite; }
+.inu-legs { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0; padding: 0; counter-reset: leg; }
+.inu-legs li { display: flex; align-items: center; gap: .3rem; padding: .3rem .7rem .3rem .4rem; border-radius: 999px; background: #eef4fa; font-size: .8rem; }
+.inu-legs li svg { width: 1.4rem; height: 1.4rem; }
+.inu-legs li.is-me { background: #ffe9d2; box-shadow: inset 0 0 0 2px #ff8a2a; }
+.inu-legtable { list-style: none; margin: .8rem auto; padding: 0; display: grid; gap: 5px; max-width: 620px; }
+.inu-legtable li { display: grid; grid-template-columns: 1.6rem 2.2rem 1fr auto; align-items: center; gap: .5rem; padding: .45rem .7rem; border-radius: 12px; background: var(--inu-card); animation: inu-card-in .45s ease both; animation-delay: var(--d); }
+.inu-legtable li.is-me { background: #fff4e6; box-shadow: inset 0 0 0 2px #ffb46b; }
+.inu-legtable li svg { width: 2rem; height: 2rem; color: var(--inu-blue2); }
+.inu-legtable li b { font-variant-numeric: tabular-nums; }
+.inu-legtable li em { grid-column: 3 / 5; font-style: normal; font-size: .75rem; color: var(--inu-sub); }
+.inu-legtable li em.is-dsq { color: #c0392b; }
+.inu-leg-no { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #1b4f9e; color: #fff; font-weight: 900; font-size: .78rem; }
+.inu-leg-name { display: grid; font-weight: bold; }
+.inu-leg-name small { display: flex; align-items: center; gap: .3rem; font-weight: normal; color: var(--inu-sub); }
+.inu-leg-name .inu-face.is-mini { width: 1.6rem; height: 1.5rem; }
+/* 精彩重播：電影黑邊、片段標題、進度點 */
+.inu-hlbtn { border-color: #ffc531; background: linear-gradient(180deg, #fffbe9, #fff1c2); color: #7a5200; }
+.inu-hl-bars { position: absolute; inset: 0; pointer-events: none; }
+.inu-hl-bars::before, .inu-hl-bars::after { content: ""; position: absolute; left: 0; right: 0; height: 9vh; background: #000; animation: inu-bars .6s ease both; }
+.inu-hl-bars::before { top: 0; }
+.inu-hl-bars::after { bottom: 0; }
+@keyframes inu-bars { from { height: 0; } }
+.inu-hlplay .inu-hud { z-index: 2; }
+.inu-hl-title { position: absolute; left: 50%; bottom: 12vh; transform: translateX(-50%); padding: .5rem 1.4rem; border-radius: 12px; background: linear-gradient(90deg, rgba(255, 106, 26, .92), rgba(255, 197, 49, .92)); font-size: 1.15rem; font-weight: 900; white-space: nowrap; opacity: 0; text-shadow: 0 1px 3px rgba(120, 40, 0, .4); }
+.inu-hl-title.is-show { animation: inu-hltitle 2.6s ease both; }
+@keyframes inu-hltitle { 0% { opacity: 0; transform: translate(-50%, 20px) scale(.9); } 12%, 80% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -10px); } }
+.inu-hl-dots { position: absolute; left: 50%; bottom: calc(9vh + .5rem); transform: translateX(-50%); display: flex; gap: .35rem; }
+.inu-hl-dots i { width: .55rem; height: .55rem; border-radius: 50%; background: rgba(255, 255, 255, .45); transition: background .3s, transform .3s; }
+.inu-hl-dots i.is-on { background: #ffc531; transform: scale(1.4); }
+.inu-hlplay .inu-hud-top { top: calc(9vh + .3rem); }
+.inu-hlplay .inu-hud-right { top: calc(9vh + .3rem); }
+@media (max-width: 560px) {
+  .inu-lanes li { grid-template-columns: 2.8rem 2rem 1fr auto; }
+  .inu-lanes li .inu-pool-odds { display: none; }
+  .inu-hl-title { font-size: .95rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inu-relaybar i.is-now, .inu-roomintro-art svg { animation: none; }
+}
+.inu-roompage.is-static .inu-roombox, .inu-roompage.is-static .inu-members li, .inu-roompage.is-static .inu-lanes li { animation: none; }
+.inu-race-room #btn-inu-pause { display: none; }
+.inu-hlplay .inu-replay-badge { bottom: auto; top: calc(9vh + 3.6rem); }

@@ -7,6 +7,8 @@
 → inusnow_core.js（旗門、比賽、紀錄、重播、CPU）→ inusnow_slope.js／inusnow_cross.js／inusnow_free.js（第 2 階段的賽事）
 → inusnow_input.js（拖曳、陀螺儀、鍵盤、HUD 按鈕）→ inusnow_fx.js（畫面特效）
 → inusnow_3d.js（three.js 畫面，第一次用到才載入 vendor/three.min.js）→ inusnow.js（畫面流程與存檔）。
+第 3 階段（2026-11-21）：inusnow_env.js（雪況天氣、嗅覺捷徑）、inusnow_bet.js（競猜）、inusnow_mission.js（救難犬、雪崩）、
+inusnow_season.js（世界盃、每日雪況）放在 core 之後；inusnow_ui3.js（這些的畫面）放在 inusnow.js 之前，由 inusnow.js 啟動時接上。
 2026-11-20 依使用者需求新增；放在首頁「付款」分頁（page_shell(paid=True)）。
 """
 
@@ -19,12 +21,24 @@ INUSNOW_SCRIPTS: tuple[str, ...] = (
     "inusnow_terrain.js",
     "inusnow_phys.js",
     "inusnow_core.js",
+    "inusnow_env.js",
     "inusnow_slope.js",
     "inusnow_cross.js",
     "inusnow_free.js",
+    "inusnow_bet.js",
+    "inusnow_mission.js",
+    "inusnow_season.js",
+    "inusnow_relay.js",
+    "inusnow_highlight.js",
+    "inusnow_room.js",
+    "firebase_config.js",
+    "game_storage.js",
+    "inusnow_net.js",
     "inusnow_input.js",
     "inusnow_fx.js",
     "inusnow_3d.js",
+    "inusnow_ui3.js",
+    "inusnow_ui4.js",
     "inusnow.js",
 )
 

@@ -396,7 +396,8 @@
     scene.background = fogCol;
     scene.fog = new THREE.Fog(fogCol, 280, 2600);
     var camera = new THREE.PerspectiveCamera(62, 1, 0.3, 9000);
-    scene.add(new THREE.HemisphereLight(0xe6f1ff, 0x5f7088, 0.62));
+    var hemi = new THREE.HemisphereLight(0xe6f1ff, 0x5f7088, 0.62);
+    scene.add(hemi);
     var sun = new THREE.DirectionalLight(0xfff4e2, 0.85);
     sun.position.set(-0.5, 0.55, -0.65);
     scene.add(sun);
@@ -648,9 +649,105 @@
       tr.bulk(list);
     });
 
+    // ---------------- P3：嗅覺捷徑（樹＋腳印）、救難犬的被埋者、雪崩前緣、夜間照明 ----------------
+    var footGroup = new THREE.Group();
+    footGroup.visible = false;
+    scene.add(footGroup);
+    (opts.cuts || []).forEach(function (c) {
+      if (c.trees && c.trees.length) {
+        var tg = new THREE.ConeGeometry(2.0, 6.5, 7).translate(0, 3.6, 0);
+        var ti = new THREE.InstancedMesh(tg, new THREE.MeshLambertMaterial({ color: 0x2a5236 }), c.trees.length);
+        var m4 = new THREE.Matrix4();
+        c.trees.forEach(function (tr, i) { m4.makeScale(tr[2], tr[2], tr[2]); m4.setPosition(tr[0], T.height(terrain, tr[0], tr[1]) - 0.3, tr[1]); ti.setMatrixAt(i, m4); });
+        scene.add(ti);
+      }
+      // 腳印：嗅覺量表滿了才顯示 10 秒
+      var dx = c.bx - c.ax, dz = c.bz - c.az, len = Math.sqrt(dx * dx + dz * dz), tx = dx / len, tz = dz / len;
+      var pawMat = new THREE.MeshBasicMaterial({ color: 0xffb02e, transparent: true, opacity: 0.85, depthWrite: false });
+      for (var u = 2, sd = 1; u < len; u += 1.6, sd = -sd) {
+        var px = c.ax + tx * u + (-tz) * sd * 0.25, pz = c.az + tz * u + tx * sd * 0.25;
+        var paw = new THREE.Mesh(new THREE.CircleGeometry(0.16, 8), pawMat);
+        paw.rotation.x = -Math.PI / 2;
+        paw.position.set(px, T.height(tw, px, pz) + 0.05, pz);
+        footGroup.add(paw);
+      }
+    });
+    var victimObjs = [];
+    (opts.victims || []).forEach(function (v) {
+      var g = new THREE.Group();
+      var mound = new THREE.Mesh(new THREE.SphereGeometry(1.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xf2f7fc }));
+      mound.scale.y = 0.45;
+      g.add(mound);
+      var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.4, 5), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+      pole.position.set(0.4, 0.5, 0); pole.rotation.z = 0.35;
+      g.add(pole);
+      var flag = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.35), new THREE.MeshLambertMaterial({ color: 0x2ecc71, side: THREE.DoubleSide }));
+      flag.position.set(0.55, 1.2, 0); flag.visible = false;
+      g.add(flag);
+      g.position.set(v.x, T.height(terrain, v.x, v.z) - 0.1, v.z);
+      scene.add(g);
+      victimObjs.push({ g: g, flag: flag });
+    });
+    var avWall = null;
+    if (opts.avalanche && pi) {
+      avWall = new THREE.Mesh(new THREE.BoxGeometry(pi.width + 60, 14, 6), new THREE.MeshLambertMaterial({ color: 0xf4f8fc, transparent: true, opacity: 0.88 }));
+      scene.add(avWall);
+    }
+    var lamps = null;
+    if (pi) {
+      lamps = new THREE.Group();
+      var lampMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
+      var glowMat = new THREE.SpriteMaterial({ map: FX.dotTex(THREE), color: 0xffe7a0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      for (var ls = 0; ls < pi.len; ls += D.ENV.lampEvery) {
+        var la = T.at(pi, ls);
+        for (var lsd = -1; lsd <= 1; lsd += 2) {
+          var lx = la.x + (-la.tz) * lsd * (pi.width / 2 + 3), lz = la.z + la.tx * lsd * (pi.width / 2 + 3), ly = T.height(terrain, lx, lz);
+          var post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 7, 5), new THREE.MeshLambertMaterial({ color: 0x555b63 }));
+          post.position.set(lx, ly + 3.5, lz); lamps.add(post);
+          var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 6, 4), lampMat); bulb.position.set(lx, ly + 7, lz); lamps.add(bulb);
+          var glow = new THREE.Sprite(glowMat); glow.scale.set(5, 5, 1); glow.position.set(lx, ly + 7, lz); lamps.add(glow);
+        }
+      }
+      lamps.visible = false;
+      scene.add(lamps);
+    }
+    // 天氣：霧的距離、降雪量、夜間（設計 §18.3）；換天氣時 5 秒內漸變
+    var wx = { cur: null, from: null, to: null, t: 1, night: false };
+    function wxParams(key, night) {
+      var W = D.WEATHER[key] || D.WEATHER.clear;
+      var far = W.fog ? W.fog : 2600, near = W.fog ? Math.max(5, W.fog * 0.15) : 280;
+      return { near: near, far: far, flakes: W.flakes, col: night ? [0.05, 0.08, 0.16] : W.fog && W.fog < 500 ? [0.86, 0.89, 0.93] : [0.87, 0.91, 0.96], night: night };
+    }
+    function applyWx(p) {
+      scene.fog.near = p.near; scene.fog.far = p.far;
+      scene.fog.color.setRGB(p.col[0], p.col[1], p.col[2]);
+      scene.background = scene.fog.color;
+      snowDensity = p.flakes;
+      sky.mesh.visible = p.far > 600 && !p.night;
+      hemi.intensity = p.night ? 0.32 : 0.62; sun.intensity = p.night ? 0.25 : 0.85;
+      hemi.color.setHex(p.night ? 0x8fa6d8 : 0xe6f1ff);
+      if (lamps) lamps.visible = p.night;
+    }
+    function setWeather(key, night, fade) {
+      var to = wxParams(key, night);
+      if (!wx.cur || !fade) { wx.cur = to; wx.t = 1; applyWx(to); return; }
+      wx.from = wx.cur; wx.to = to; wx.t = 0; wx.fade = fade;
+    }
+    function stepWx(dt) {
+      if (wx.t >= 1 || !wx.to) return;
+      wx.t = Math.min(1, wx.t + dt / wx.fade);
+      var a = wx.from, b = wx.to, k = wx.t;
+      var p = { near: a.near + (b.near - a.near) * k, far: a.far + (b.far - a.far) * k, flakes: a.flakes + (b.flakes - a.flakes) * k,
+        col: [a.col[0] + (b.col[0] - a.col[0]) * k, a.col[1] + (b.col[1] - a.col[1]) * k, a.col[2] + (b.col[2] - a.col[2]) * k], night: b.night };
+      applyWx(p);
+      if (wx.t >= 1) wx.cur = b;
+    }
+
     var particles = FX.Particles(THREE, scene, 1800);
     var snowfall = FX.Snowfall(THREE, scene, 900, 70);
     var snowDensity = opts.snow === undefined ? 0.6 : opts.snow;
+    setWeather(opts.weather ? opts.weather.weather : "clear", !!(opts.weather && opts.weather.night), 0);
+    if (!opts.weather) snowDensity = 0.6;
 
     var up = new THREE.Vector3(0, 1, 0), nrm = new THREE.Vector3(), qTilt = new THREE.Quaternion(), qYaw = new THREE.Quaternion(), qLean = new THREE.Quaternion(), qSpin = new THREE.Quaternion();
     var fwd = new THREE.Vector3(0, 0, 1);
@@ -814,6 +911,17 @@
         for (var w = 0; w < waving.length; w++) waving[w].rotation.x = Math.sin(clock * 5 + w) * 0.18;
         for (var b in boneObjs) if (boneObjs[b].visible) { boneObjs[b].rotation.y = clock * 1.8; boneObjs[b].position.y += Math.sin(clock * 3 + (+b)) * 0.004; }
         for (var lr = 0; lr < liftRings.length; lr++) liftRings[lr].material.opacity = 0.25 + Math.sin(clock * 3) * 0.12;
+        footGroup.visible = !!info.scent;
+        stepWx(dt);
+        if (avWall && info.front !== undefined) {
+          var fa = T.at(pi, Math.max(0, info.front));
+          avWall.position.set(fa.x, T.height(terrain, fa.x, fa.z) + 4, fa.z);
+          avWall.rotation.y = Math.atan2(fa.tx, fa.tz);
+          for (var ap = 0; ap < 6; ap++) particles.emit({ x: fa.x + (-fa.tz) * (Math.random() - 0.5) * (pi.width + 50), y: T.height(terrain, fa.x, fa.z) + Math.random() * 10, z: fa.z + fa.tx * (Math.random() - 0.5) * (pi.width + 50), vx: fa.tx * 8, vy: 3 + Math.random() * 4, vz: fa.tz * 8, life: 1.6, size: 1.2 + Math.random(), r: 1, g: 1, b: 1, a: 0.8, grav: 0.2, grow: 1.5 });
+          var fdx = fa.x - fr[0], fdz = fa.z - fr[2];
+          if (fdx * fdx + fdz * fdz < 3600) trauma = Math.min(1, trauma + dt * 1.5);
+        }
+        if (info.victims) info.victims.forEach(function (v, i) { if (victimObjs[i]) victimObjs[i].flag.visible = v.found; });
         updateCamera(fr, vel, dt, speed);
         sky.follow(camera);
         particles.update(dt, renderer.domElement.height);
@@ -856,6 +964,7 @@
       hideBone: function (id) { if (boneObjs[id]) boneObjs[id].visible = false; },
       teleported: function () { camInit = false; if (player.trail) player.trail.reset(); player.prev = null; player.prevAir = 0; },
       setSnow: function (d) { snowDensity = d; },
+      setWeather: setWeather,
       setCamera: function (m) { camMode = m; camInit = false; },
       resize: resize,
       dispose: function () {

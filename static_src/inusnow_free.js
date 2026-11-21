@@ -8,7 +8,8 @@
   var T = root.PriTestInusnowTerrain || (typeof require === "function" ? require("./inusnow_terrain.js") : null);
   var Phys = root.PriTestInusnowPhys || (typeof require === "function" ? require("./inusnow_phys.js") : null);
   var Core = root.PriTestInusnowCore || (typeof require === "function" ? require("./inusnow_core.js") : null);
-  var F = D.FREE, P = D.PHYS;
+  var F = D.FREE, P = D.PHYS, SC = D.SCENT;
+  function EnvM() { return root.PriTestInusnowEnv || (typeof require === "function" ? require("./inusnow_env.js") : null); }
 
   function isEventPiste(id) { var n = id.length; return id.charAt(n - 2) + id.charAt(n - 1) === "gs" || id.charAt(n - 2) + id.charAt(n - 1) === "sl" || id.charAt(n - 2) + id.charAt(n - 1) === "cx"; }
 
@@ -117,10 +118,35 @@
   }
 
   // 自由滑行的世界（每個雪場算一次）
+  // G2 嗅覺捷徑（自由滑行）：隨機幾條雪道的彎道內側；捷徑通道內的樹林清掉
+  function freeCuts(terrain, trees) {
+    var rng = Core.makeRng(Core.hash("freecuts|" + terrain.id));
+    var list = (terrain.json.pistes || []).filter(function (p) { return !isEventPiste(p.id) && T.piste(terrain, p.id).len > 300; });
+    var cuts = [];
+    for (var tries = 0; tries < 40 && cuts.length < SC.freeCount && list.length; tries++) {
+      var p = list[Math.floor(rng() * list.length)];
+      var got = EnvM().makeShortcuts(terrain, T.piste(terrain, p.id), rng, 1);
+      if (got.length && cuts.every(function (c) { return c.piste !== got[0].piste; })) cuts.push(got[0]);
+    }
+    if (cuts.length) {
+      var keep = [];
+      trees.list.forEach(function (tr) { if (EnvM().inShortcut(cuts, tr[0], tr[1], 1.5) < 0) keep.push(tr); });
+      trees.list = keep;
+      trees.grid = {};
+      for (var q = 0; q < keep.length; q++) {
+        var key = Math.floor(keep[q][0] / F.treeCell) * 4096 + Math.floor(keep[q][1] / F.treeCell);
+        (trees.grid[key] || (trees.grid[key] = [])).push(q);
+      }
+    }
+    return cuts;
+  }
+
   function makeWorld(terrain) {
     var mask = pisteMask(terrain);
     var c = collectibles(terrain, mask);
-    return { mask: mask, trees: makeTrees(terrain, mask), lifts: lifts(terrain), bones: c.bones, spots: c.spots,
+    var trees = makeTrees(terrain, mask);
+    var cuts = freeCuts(terrain, trees);
+    return { mask: mask, trees: trees, cuts: cuts, lifts: lifts(terrain), bones: c.bones, spots: c.spots,
       pistes: (terrain.json.pistes || []).filter(function (p) { return !isEventPiste(p.id) && p.pts.length > 1 && T.piste(terrain, p.id).len >= F.stampMinLen; }).map(function (p) { return p.id; }) };
   }
 
@@ -141,6 +167,7 @@
       kind: "free", terrain: terrain, world: world, opts: opts, st: st, steps: 0, status: "run", inputs: [], events: [], gates: [],
       got: { bones: (got && got.bones || []).slice(), spots: (got && got.spots || []).slice(), stamps: (got && got.stamps || []).slice() },
       newGot: { bones: 0, spots: 0, stamps: 0 }, liftNear: -1, track: {}, still: 0, dist: 0, maxSpeed: 0,
+      E: EnvM().make(opts.cond || EnvM().standard(), { seed: Core.hash("free|" + terrain.id), dog: opts.dog, cuts: world.cuts }),
     };
   }
 
@@ -164,9 +191,11 @@
     run.inputs.push(inp);
     var st = run.st, t = run.terrain, w = run.world;
     var ax = st.p[0], az = st.p[2];
-    var ev = Phys.step(st, inp, { terrain: t, snow: run.opts.snow });
+    var ev = Phys.step(st, inp, Core.mergeEnv({ terrain: t, snow: run.opts.snow }, run.E, run.steps));
     run.steps += 1;
     Core.zoomTick(st, ev);
+    EnvM().scentTick(st, inp, run.opts.dog.nose, w.cuts, ev);
+    if (EnvM().treeHit(st, w.cuts, t, Phys)) ev.push("tree");
     for (var e = 0; e < ev.length; e++) run.events.push({ k: run.steps, e: ev[e] });
     var x = st.p[0], z = st.p[2];
     // 格網邊界：反彈

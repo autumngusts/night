@@ -8,7 +8,8 @@
   var T = root.PriTestInusnowTerrain || (typeof require === "function" ? require("./inusnow_terrain.js") : null);
   var Phys = root.PriTestInusnowPhys || (typeof require === "function" ? require("./inusnow_phys.js") : null);
   var Core = root.PriTestInusnowCore || (typeof require === "function" ? require("./inusnow_core.js") : null);
-  var CR = D.CROSS, P = D.PHYS, Z = D.ZOOM, SL = D.SLOPE;
+  var CR = D.CROSS, P = D.PHYS, Z = D.ZOOM, SL = D.SLOPE, SC = D.SCENT;
+  function EnvM() { return root.PriTestInusnowEnv || (typeof require === "function" ? require("./inusnow_env.js") : null); }
   var DT = 1 / P.hz;
 
   function between(rng, a) { return a[0] + (a[1] - a[0]) * rng(); }
@@ -109,7 +110,12 @@
       ins.push([]);
     }
     var fs = pi.len - CR.finishMargin, fin = T.at(pi, fs);
+    // G2 嗅覺捷徑：彎道內側穿過樹林的弦（1～2 條）
+    var crng = Core.makeRng((opts.seed ^ Core.hash("cuts")) >>> 0);
+    var cuts = EnvM().makeShortcuts(terrain, pi, crng, SC.count[0] + Math.floor(crng() * (SC.count[1] - SC.count[0] + 1)));
+    var Es = opts.dogs.map(function (dg) { return EnvM().make(opts.cond || EnvM().standard(), { piste: pi, seed: opts.seed, dog: dg, cuts: cuts }); });
     return {
+      cuts: cuts, Es: Es,
       kind: "cross", terrain: tw, base: terrain, opts: opts, piste: pi, feats: feats, gates: [],
       finish: { x: fin.x, z: fin.z, tx: fin.tx, tz: fin.tz, s: fs },
       riders: riders, inputs: ins, events: [], steps: 0, status: "run", finished: 0, touch: {},
@@ -127,14 +133,16 @@
       if (r.done) continue;
       var inp = Core.normInput(inputs[k] || {});
       race.inputs[k].push(inp);
-      var ev = Phys.step(st, inp, { terrain: race.terrain, snow: race.opts.snow });
+      var ev = Phys.step(st, inp, Core.mergeEnv({ terrain: race.terrain, snow: race.opts.snow }, race.Es[k], race.steps));
       Core.zoomTick(st, ev);
+      EnvM().scentTick(st, inp, race.opts.dogs[k].nose, race.cuts, ev);
+      if (EnvM().treeHit(st, race.cuts, race.terrain, Phys)) ev.push("fall");
       for (var e = 0; e < ev.length; e++) race.events.push({ k: race.steps, e: ev[e], r: k });
       // 軟牆：雪道寬度外 2 m 起，每超出 1 m 側向推回 4 m/s²、每步減速 2%
       r.near = T.nearest(pi, st.p[0], st.p[2], r.near ? r.near.i : null);
       r.s = r.near.s;
       var ex = Math.abs(r.near.d) - (pi.width / 2 + CR.softMargin);
-      if (ex > 0 && !st.air) {
+      if (ex > 0 && !st.air && EnvM().inShortcut(race.cuts, st.p[0], st.p[2], SC.corridor) < 0) {
         var sg = r.near.d > 0 ? -1 : 1;
         st.v[0] += sg * (-r.near.tz) * CR.softPush * ex * DT;
         st.v[2] += sg * r.near.tx * CR.softPush * ex * DT;
