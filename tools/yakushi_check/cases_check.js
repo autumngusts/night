@@ -85,6 +85,27 @@ defs.forEach(function (d) {
     });
   });
 
+  test(d.id + "：劇情與獨語每一行的 who 都是 null 或人物 id", function () {
+    var groups = [["story.intro", (d.story || {}).intro], ["story.truth", (d.story || {}).truth], ["story.outro", (d.story || {}).outro], ["monologue", d.monologue]];
+    if (d.deep) {
+      groups.push(["deep.none", d.deep.none]);
+      d.deep.options.forEach(function (o) { groups.push(["deep." + o.key, o.monologue]); });
+    }
+    groups.forEach(function (g) {
+      (g[1] || []).forEach(function (ln, i) {
+        assert.ok(ln.who === null || (typeof ln.who === "string" && Cast.get(ln.who)), d.id + " " + g[0] + "[" + i + "] who 不是 null 或人物 id：" + ln.who);
+      });
+    });
+  });
+
+  // 警告（不算失敗）：某一輪辯解的 accepts 裡沒有任何推理板正解的卡 → 玩家推理板全對仍可能缺這張卡
+  var solCards = Core.SLOTS.map(function (s) { return d.solution[s]; });
+  d.rebuttals.forEach(function (r, i) {
+    if (!r.accepts.some(function (c) { return solCards.indexOf(c) >= 0; })) {
+      console.log("WARNING - " + d.id + "：第 " + (i + 1) + " 輪辯解的 accepts 沒有正解卡（" + r.accepts.join(", ") + "）");
+    }
+  });
+
   test(d.id + "：辯解為 2～3 輪", function () {
     assert.ok(d.rebuttals.length >= 2 && d.rebuttals.length <= 3, d.id + "：辯解 2～3 輪，實際 " + d.rebuttals.length);
   });

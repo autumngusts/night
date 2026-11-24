@@ -15,11 +15,16 @@
   function load() {
     var s;
     try { s = Core.normalizeSave(JSON.parse(localStorage.getItem(KEY))); } catch (e) { return Core.newSave(); }
-    Object.keys(s.cases).forEach(function (id) {
-      var c = s.cases[id];
-      if (!c || typeof c !== "object") { delete s.cases[id]; return; }
-      if (c.run != null && !validRun(id, c.run)) delete c.run;
-    });
+    try {
+      Object.keys(s.cases).forEach(function (id) {
+        var c = s.cases[id];
+        if (!c || typeof c !== "object") { delete s.cases[id]; return; }
+        if (c.run == null) return;
+        var ok = false;
+        try { ok = validRun(id, c.run) && !!Core.normalizeRun(Core.getCase(id), c.run); } catch (e) { ok = false; }
+        if (!ok) delete c.run;
+      });
+    } catch (e) { return Core.newSave(); }
     return s;
   }
   // 壞檔／手改檔的 run 一律丟棄，避免畫面整個壞掉
@@ -69,12 +74,14 @@
       var def = Core.getCase(id);
       if (!def) return;
       var unlocked = state.unlocked.indexOf(id) >= 0;
-      var hasRun = state.cases[id] && state.cases[id].run && state.cases[id].run.phase !== "done";
+      var run = state.cases[id] && state.cases[id].run;   // phase "done"＝結局播到一半離開，也算「繼續」
+      var hasRun = !!run, canRestart = unlocked && !!run && run.phase !== "done";
       var best = bestOf(id);
       h += '<div class="ys-case-row"><button type="button" class="ys-btn ys-btn-main" data-ys-case="' + esc(id) + '"' + (unlocked ? "" : " disabled") + ">" +
         '<span class="ys-case-name">' + esc(def.title) + "</span>" +
         '<span class="ys-case-sub">' + esc(unlocked ? t(hasRun ? "ys_continue" : "ys_new") : t("ys_case_locked")) + "</span></button>" +
-        (best ? '<span class="ys-best">' + esc(t("ys_best", { r: best })) + "</span>" : "") + "</div>";
+        (best ? '<span class="ys-best">' + esc(t("ys_best", { r: best })) + "</span>" : "") +
+        (canRestart ? '<button type="button" class="ys-btn ys-btn-quiet ys-restart" data-ys-restart="' + esc(id) + '">' + esc(t("ys_restart")) + "</button>" : "") + "</div>";
     });
     h += '</div><div class="ys-row">' +
       '<button type="button" class="ys-btn" id="ys-open-book">' + esc(t("ys_book")) + "</button>" +
@@ -88,8 +95,10 @@
   function screenStory() {
     var s = ui.story; if (!s) return "";
     var ln = s.lines[s.i] || {};
-    var who = ln.who ? (Cast.get(ln.who) ? Cast.get(ln.who).name : ln.who) : t("ys_narrator");
-    return '<div class="ys-story-box"><div id="ys-story"><span class="ys-who' + (ln.who ? "" : " ys-who-narr") + '">' + esc(who) + "</span>" +
+    // ln.name：顯示名稱（例如以卡片名稱稱呼的犯人）；否則用人物名；都沒有就是旁白，絕不外露 id
+    var named = ln.name || (ln.who && Cast.get(ln.who) ? Cast.get(ln.who).name : "");
+    var who = named || t("ys_narrator");
+    return '<div class="ys-story-box"><div id="ys-story"><span class="ys-who' + (named ? "" : " ys-who-narr") + '">' + esc(who) + "</span>" +
       '<p class="ys-line">' + esc(ln.text) + "</p></div>" +
       '<div class="ys-row"><button type="button" class="ys-btn ys-btn-main" id="ys-story-next">' + esc(t("ys_next")) + "</button>" +
       '<button type="button" class="ys-btn ys-btn-quiet" id="ys-story-skip">' + esc(t("ys_skip")) + "</button></div></div>";
@@ -154,7 +163,8 @@
     });
     h += '</div><p id="ys-board-feedback" class="ys-spot-text">' + esc(ui.boardFeedback) + "</p>" +
       '<div class="ys-row"><button type="button" class="ys-btn ys-btn-main" id="ys-submit">' + esc(t("ys_submit")) + "</button>" +
-      (run.phase === "investigate" ? '<button type="button" class="ys-btn" id="ys-board-back">' + esc(t("ys_board_back")) + "</button>" : "") +
+      (run.phase === "board" && run.hours > 0 ? '<button type="button" class="ys-btn" id="ys-board-back">' + esc(t("ys_board_back")) + "</button>" : "") +
+      '<button type="button" class="ys-btn ys-btn-quiet" id="ys-restart">' + esc(t("ys_restart")) + "</button>" +
       '<button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div></div>";
     return h;
   }
@@ -175,6 +185,8 @@
       });
       h += '<button type="button" class="ys-btn ys-btn-quiet' + (run.board.deep ? "" : " ys-selected") + '" data-ys-deep-pick="">' + esc(t("ys_deep_none")) + "</button></div>";
     }
+    h += '<div class="ys-row"><button type="button" class="ys-btn ys-btn-quiet" id="ys-restart">' + esc(t("ys_restart")) + "</button>" +
+      '<button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div>";
     return h + "</div>";
   }
   function boardClick(d, run, def) {
@@ -195,7 +207,7 @@
         ui.accuseReply = res.reply || "";
         if (res.done) {
           save();
-          startEnding(res.reply ? [{ who: r && Cast.get(r.who) ? r.who : null, text: res.reply }] : []);
+          startEnding(res.reply ? [{ who: r && Cast.get(r.who) ? r.who : null, name: r ? whoName(def, r.who) : "", text: res.reply }] : []);
           return true;
         }
       } else ui.accuseReply = t(res.reset ? "ys_accuse_reset" : "ys_present_miss");
@@ -441,15 +453,34 @@
     ui.selCard = null; ui.boardFeedback = ""; ui.accuseReply = ""; ui.ending = null;
     if (run && run.phase === "done") { startEnding([]); return; }   // 結案中途離開：回來接著播
     if (run && run.phase !== "done") {
-      ui.hoursOutShown = true;
+      ui.hoursOutShown = run.phase !== "investigate";   // 調查中讀檔：之後時辰用完仍要顯示提示
       ui.screen = run.phase === "investigate" ? "investigate" : "board";
       render(); return;
     }
-    run = Core.startCase(state, id);
+    beginCase(id);
+  }
+  function beginCase(id) {
+    var run = Core.startCase(state, id);
     if (run.error) return;
     save();
     var def = Core.getCase(id);
     playLines((def.story && def.story.intro) || [], function () { ui.screen = "investigate"; done(); });
+  }
+  // 重新調查此案：清掉這一案的 run，從頭開始（推理板／指認卡住時的出口）
+  function restartCase(id) {
+    if (!id || !Core.getCase(id) || !window.confirm(t("ys_restart_confirm"))) return;
+    ui.caseId = id; ui.spotText = ""; ui.hoursOutShown = false;
+    resetLabUi();
+    ui.selCard = null; ui.boardFeedback = ""; ui.accuseReply = ""; ui.ending = null;
+    beginCase(id);
+  }
+  // 工作台行動用掉最後一個時辰：先讓玩家看到結果，再顯示「時辰到了」
+  function labLastHour(run, text) {
+    if (!run || run.phase !== "board" || run.hours !== 0) return false;
+    save();
+    var lines = (Array.isArray(text) ? text : [text]).map(function (x) { return { who: null, text: x }; });
+    playLines(lines, function () { ui.screen = "lab"; render(); });
+    return true;
   }
 
   // data-ys-act 處理器（Task 11、12 在此追加）
@@ -473,6 +504,7 @@
     if (d.ysTest && ui.evidence) {
       var r = Core.runTest(run, ui.evidence, d.ysTest);
       ui.testResult = r.ok ? { ev: ui.evidence, text: r.text, collapsed: r.collapsed } : null;
+      if (r.ok && !r.repeat && labLastHour(run, [r.text == null ? t("ys_no_reaction") : r.text].concat(r.collapsed ? [t("ys_collapse")] : []))) return true;
       done(); return true;
     }
     if (d.ysPatient) { ui.patient = d.ysPatient; ui.remedyResult = ""; render(); return true; }
@@ -494,6 +526,7 @@
     if (!el || !appEl.contains(el) || el.disabled) return;
     var d = el.dataset, run = curRun();
     if (d.ysCase) { openCase(d.ysCase); return; }
+    if (d.ysRestart) { restartCase(d.ysRestart); return; }
     if (d.ysPlace && run) { Core.move(run, d.ysPlace); ui.spotText = ""; done(); return; }
     if (d.ysSpot && run) {
       var r = Core.visit(run, d.ysSpot);
@@ -519,18 +552,32 @@
         ui.bookFrom = ui.screen === "lab" ? "lab" : "title"; ui.screen = "book"; render(); break;
       case "ys-book-close": ui.screen = ui.bookFrom === "lab" && curRun() ? "lab" : "title"; render(); break;
       case "ys-identify-confirm":
-        if (run && ui.evidence && ui.pickHerb && Core.identify(run, ui.evidence, ui.pickHerb).ok) ui.pickHerb = null;
+        if (run && ui.evidence && ui.pickHerb) {
+          var picked = ui.pickHerb;
+          if (Core.identify(run, ui.evidence, picked).ok) {
+            ui.pickHerb = null;
+            if (labLastHour(run, t("ys_identified", { name: herbName(picked) }))) break;
+          }
+        }
         done(); break;
       case "ys-remedy-give":
         if (run && ui.patient) {
           var rr = Core.giveRemedy(run, ui.patient, ui.meds.slice());
-          if (rr.ok) { ui.remedyResult = t(rr.cured ? "ys_cured" : rr.lost ? "ys_lost" : "ys_worse"); ui.meds = []; }
+          if (rr.ok) {
+            ui.remedyResult = t(rr.cured ? "ys_cured" : rr.lost ? "ys_lost" : "ys_worse"); ui.meds = [];
+            if (labLastHour(run, ui.remedyResult)) break;
+          }
         }
         done(); break;
       case "ys-to-board":
         if (run && window.confirm(t("ys_to_board_confirm"))) { Core.toBoard(run); ui.hoursOutShown = true; ui.screen = "board"; done(); }
         break;
-      case "ys-board-back": if (run && run.phase === "investigate") { ui.screen = "investigate"; render(); } break;
+      case "ys-board-back":
+        if (run && Core.backToInvestigate(run).ok) {
+          ui.screen = "investigate"; ui.selCard = null; ui.boardFeedback = ""; ui.hoursOutShown = false; done();
+        }
+        break;
+      case "ys-restart": restartCase(ui.caseId); break;
       case "ys-submit":
         if (run) {
           var sr = Core.submit(run);

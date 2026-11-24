@@ -13,9 +13,12 @@
   var CASE_ORDER = ["case0", "case1", "case2", "case3"];
   var SLOTS = ["who", "what", "how", "why"];
 
-  var cases = {};
+  // 用沒有原型的物件，"__proto__"、"toString" 之類的鍵永遠查不到東西
+  var cases = Object.create(null);
+  function own(o, k) { return !!o && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k); }
   function registerCase(def) { cases[def.id] = def; }
-  function getCase(id) { return cases[id] || null; }
+  function getCase(id) { return (typeof id === "string" && cases[id]) || null; }
+  function cardDef(def, id) { return def && own(def.cards, id) ? def.cards[id] : null; }
 
   function newSave() { return { v: 1, unlocked: ["case0"], cases: {}, herbsSeen: {}, monologues: {}, castSeen: {} }; }
   function normalizeSave(raw) {
@@ -68,7 +71,7 @@
       var h = H().get(id.slice(5));
       return h ? { id: id, kind: "herb", name: h.name, text: h.lore, tags: H().tagsOf(h), of: null, herb: h.id } : null;
     }
-    var c = def.cards[id];
+    var c = cardDef(def, id);
     if (!c) return null;
     return { id: id, kind: c.kind, name: c.name, text: c.text || "", tags: c.tags || [], of: c.of || null, herb: c.herb || null };
   }
@@ -94,14 +97,23 @@
     return { ok: true, text: f.spot.text, gives: f.spot.gives.slice() };
   }
   function toBoard(run) { if (run.phase === "investigate") run.phase = "board"; }
+  // backToInvestigate(run) → {ok:true}|{error:"phase"|"hours"}
+  //   自願進推理板（phase "board"）且時辰還沒用完（hours>0）才能回去調查；時辰用完、指認中、結案都不行。
+  function backToInvestigate(run) {
+    if (run.phase !== "board") return { error: "phase" };
+    if (!(run.hours > 0)) return { error: "hours" };
+    run.phase = "investigate";
+    return { ok: true };
+  }
 
   // ---- 鑑定、試藥、調藥（Task 6） ----
   function evidenceTags(run, evidenceId) {
     var def = getCase(run.caseId), out = [];
     function push(tags) { (tags || []).forEach(function (t) { if (out.indexOf(t) < 0) out.push(t); }); }
-    if (def.cards[evidenceId]) push(def.cards[evidenceId].tags);
+    var ev = cardDef(def, evidenceId);
+    if (ev) push(ev.tags);
     run.cards.forEach(function (cid) {
-      var c = def.cards[cid];
+      var c = cardDef(def, cid);
       if (c && c.of === evidenceId) push(c.tags);
     });
     return out;
@@ -110,7 +122,7 @@
 
   function identify(run, evidenceId, herbId) {
     if (run.phase !== "investigate") return { error: "phase" };
-    var c = getCase(run.caseId).cards[evidenceId];
+    var c = cardDef(getCase(run.caseId), evidenceId);
     if (!c || !c.herb) return { error: "evidence" };
     if (!has(run, evidenceId)) return { error: "missing" };
     if (!H().get(herbId)) return { error: "herb" };
@@ -121,14 +133,14 @@
       if (!still) run.cards = run.cards.filter(function (x) { return x !== "herb:" + prev; });
     }
     addCard(run, "herb:" + herbId);
-    if (herbId !== c.herb) spend(run, 1);     // §5.1：錯誤不公開，只多扣 1 時辰
+    if (herbId !== c.herb && prev !== herbId) spend(run, 1);     // §5.1：錯誤不公開，只多扣 1 時辰（重選同一味不再扣）
     return { ok: true };
   }
 
   function runTest(run, evidenceId, method) {
     if (run.phase !== "investigate") return { error: "phase" };
     if (H().METHODS.indexOf(method) < 0) return { error: "method" };
-    var def = getCase(run.caseId), c = def.cards[evidenceId];
+    var def = getCase(run.caseId), c = cardDef(def, evidenceId);
     if (!c || !c.herb) return { error: "evidence" };
     if (!has(run, evidenceId)) return { error: "missing" };
     var key = evidenceId + "|" + method;
@@ -224,7 +236,7 @@
     if (!entry.best || order.indexOf(r) < order.indexOf(entry.best)) entry.best = r;
     entry.cleared = true;
     Object.keys(run.identified).forEach(function (e) {
-      var c = def.cards[e];
+      var c = cardDef(def, e);
       if (c && c.herb === run.identified[e]) save.herbsSeen[c.herb] = true;
     });
     var monos = [run.caseId + ":main"];
@@ -241,10 +253,29 @@
   }
 
 
+  // normalizeRun(def, run) → run|null
+  //   讀檔時把 run 與案件資料對齊：caseId 不符（或不是物件）→ null（丟棄）；
+  //   缺少或欄位不全的病人補成 {level:0,cured:false,lost:false}；推理板補齊 who/what/how/why/deep。
+  //   形狀檢查（cards 是陣列、phase 合法等）仍由畫面端 validRun() 負責。
+  function normalizeRun(def, run) {
+    if (!def || !run || typeof run !== "object" || Array.isArray(run) || run.caseId !== def.id) return null;
+    if (!run.patients || typeof run.patients !== "object" || Array.isArray(run.patients)) run.patients = {};
+    (def.patients || []).forEach(function (p) {
+      var st = own(run.patients, p.id) ? run.patients[p.id] : null;
+      if (!st || typeof st !== "object" || Array.isArray(st)) { run.patients[p.id] = { level: 0, cured: false, lost: false }; return; }
+      if (typeof st.level !== "number" || !(st.level >= 0)) st.level = 0;
+      st.cured = st.cured === true; st.lost = st.lost === true;
+    });
+    if (!run.board || typeof run.board !== "object" || Array.isArray(run.board)) run.board = {};
+    SLOTS.concat(["deep"]).forEach(function (k) { if (!own(run.board, k) || run.board[k] === undefined) run.board[k] = null; });
+    return run;
+  }
+
   var api = {
     CASE_ORDER: CASE_ORDER, SLOTS: SLOTS,
     registerCase: registerCase, getCase: getCase, newSave: newSave, normalizeSave: normalizeSave,
-    startCase: startCase, cardInfo: cardInfo, spotOpen: spotOpen, move: move, visit: visit, toBoard: toBoard,
+    startCase: startCase, normalizeRun: normalizeRun, cardInfo: cardInfo, spotOpen: spotOpen, move: move, visit: visit,
+    toBoard: toBoard, backToInvestigate: backToInvestigate,
     evidenceTags: evidenceTags, candidates: candidates, identify: identify, runTest: runTest, giveRemedy: giveRemedy,
     placeCard: placeCard, submit: submit, currentRebuttal: currentRebuttal, present: present,
     rating: rating, deepOption: deepOption, finish: finish

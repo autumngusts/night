@@ -254,4 +254,50 @@ test("finish：記評價、解鎖下一案、記圖鑑與獨語與人物", funct
   assert.strictEqual(s.castSeen.maomao, true);
 });
 
+// ===== 最終審查修正（2026-11-24）=====
+test("backToInvestigate：自願進推理板、時辰有剩才能返回調查", function () {
+  var r = Core.startCase(Core.newSave(), "case0");
+  assert.deepStrictEqual(Core.backToInvestigate(r), { error: "phase" });   // 還在調查
+  Core.toBoard(r);
+  assert.deepStrictEqual(Core.backToInvestigate(r), { ok: true });
+  assert.strictEqual(r.phase, "investigate");
+  r.hours = 1; Core.visit(r, "s_sick");                                     // 時辰用完 → 強制推理板
+  assert.strictEqual(r.phase, "board");
+  assert.deepStrictEqual(Core.backToInvestigate(r), { error: "hours" });
+  assert.strictEqual(r.phase, "board");
+  var a = atAccuse();
+  assert.deepStrictEqual(Core.backToInvestigate(a), { error: "phase" });
+});
+test("normalizeRun：案件不符丟棄、補齊病人與推理板欄位", function () {
+  assert.strictEqual(Core.normalizeRun(TCASE, null), null);
+  var r = Core.startCase(Core.newSave(), "case0");
+  assert.strictEqual(Core.normalizeRun(TCASE, Object.assign({}, r, { caseId: "case1" })), null);
+  delete r.patients.pt; delete r.board.deep; delete r.board.why;
+  var n = Core.normalizeRun(TCASE, r);
+  assert.strictEqual(n, r);
+  assert.deepStrictEqual(r.patients.pt, { level: 0, cured: false, lost: false });
+  assert.ok("deep" in r.board && "why" in r.board);
+  assert.strictEqual(r.board.deep, null);
+  r.patients.pt = {};
+  Core.normalizeRun(TCASE, r);
+  assert.deepStrictEqual(r.patients.pt, { level: 0, cured: false, lost: false });
+  r.board = "x";
+  Core.normalizeRun(TCASE, r);
+  assert.deepStrictEqual(r.board, { who: null, what: null, how: null, why: null, deep: null });
+});
+test("identify：重選同一味藥材不再扣時辰", function () {
+  var r = ready(), h0 = r.hours;
+  Core.identify(r, "ev_tu", "tiannanxing");
+  assert.strictEqual(r.hours, h0 - 1);
+  assert.deepStrictEqual(Core.identify(r, "ev_tu", "tiannanxing"), { ok: true });
+  assert.strictEqual(r.hours, h0 - 1);
+});
+test("原型鍵（__proto__ 等）不會被當成案件、藥材或卡片", function () {
+  ["__proto__", "constructor", "toString", "hasOwnProperty"].forEach(function (k) {
+    assert.strictEqual(Core.getCase(k), null, "getCase " + k);
+    assert.strictEqual(Herbs.get(k), null, "Herbs.get " + k);
+    assert.strictEqual(Core.cardInfo(TCASE, k), null, "cardInfo " + k);
+  });
+});
+
 console.log("\n" + passed + " passed");

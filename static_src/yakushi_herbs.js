@@ -2,14 +2,15 @@
 (function () {
   "use strict";
   var root = typeof window !== "undefined" ? window : globalThis;
-  var byId = {}, order = [];
+  // 沒有原型的物件："__proto__"、"toString" 之類的 id 永遠查不到
+  var byId = Object.create(null), order = [];
   function register(list) {
     list.forEach(function (h) {
       if (byId[h.id]) throw new Error("yakushi: 藥材 id 重複 " + h.id);
       byId[h.id] = h; order.push(h.id);
     });
   }
-  function get(id) { return byId[id] || null; }
+  function get(id) { return (typeof id === "string" && byId[id]) || null; }
   function list() { return order.map(get); }
   function byCat(cat) { return list().filter(function (h) { return h.cat === cat; }); }
   function byGroup(g) { return list().filter(function (h) { return h.group === g; }); }
@@ -31,7 +32,7 @@
       return h.name.indexOf(q) >= 0 || (h.alias || []).some(function (a) { return a.indexOf(q) >= 0; });
     });
   }
-  function _reset() { byId = {}; order = []; }
+  function _reset() { byId = Object.create(null); order = []; }
   var api = {
     CATS: ["poison", "mineral", "animal", "tonic", "clear", "boudoir"],
     METHODS: ["look", "smell", "taste", "silver", "water", "heat", "animal"],

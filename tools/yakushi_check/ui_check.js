@@ -79,7 +79,21 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   r = await run();
   assert.strictEqual(r.patients.pt_roommate.cured, true);
   assert.ok(r.cards.indexOf("tes_roommate") >= 0);
-  await tap("#ys-lab-close");
+  assert.strictEqual(r.hours, 1);
+
+  // 最後一個時辰用在試藥：先看到結果，再顯示「時辰到了」，再進推理板
+  await tap('[data-ys-lab="test"]');
+  await tap('[data-ys-evidence="ev_tuber"]');
+  await tap('[data-ys-test="smell"]');
+  r = await run();
+  assert.strictEqual(r.hours, 0); assert.strictEqual(r.phase, "board");
+  var lastLine = await page.textContent("#ys-story");
+  assert.ok(lastLine.indexOf("時辰到") < 0 && lastLine.indexOf("沒有明顯的反應") >= 0, "最後一次試藥的結果被蓋掉：" + lastLine);
+  await tap("#ys-story-next");
+  assert.ok((await page.textContent("#ys-story")).indexOf("時辰到") >= 0);
+  await tap("#ys-story-next");
+  assert.strictEqual(await page.locator("#ys-board").count(), 1);
+  assert.strictEqual(await page.locator("#ys-board-back").count(), 0, "時辰用完不能回去調查");
 
   // 圖鑑：未見過顯示剪影
   await tap("#ys-back-title");
@@ -92,9 +106,7 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   await tap("#ys-book-close");
   await tap('[data-ys-case="case0"]');
 
-  // 推理板：故意錯一次（2 格對）→ 改對 → 指認（錯一次）→ 結案
-  await tap("#ys-to-board");      // 有 confirm
-  // 註：在檔頭 page.on("dialog") 自動 accept
+  // 推理板：故意錯一次（2 格對）→ 改對 → 指認（錯一次）→ 結案（時辰已用完，直接回到推理板）
   r = await run();
   assert.strictEqual(r.phase, "board");
   async function put(card, slot) { await tap('[data-ys-board-card="' + card + '"]'); await tap('[data-ys-slot="' + slot + '"]'); }
@@ -130,6 +142,38 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   await tap("#ys-story-skip");
   await tap("#ys-to-board");
   assert.strictEqual(await page.locator('[data-ys-slot="deep"]').count(), 1);
+
+  // 自願進推理板、時辰有剩 → 可以回去調查
+  assert.strictEqual(await page.locator("#ys-board-back").count(), 1);
+  await tap("#ys-board-back");
+  r = await run();
+  assert.strictEqual(r.phase, "investigate"); assert.strictEqual(r.hours, 12);
+  assert.strictEqual(await page.locator("#ys-to-board").count(), 1);
+  await tap('[data-ys-spot="pa_censer"]');
+  r = await run(); assert.strictEqual(r.hours, 11); assert.ok(r.cards.length > 0);
+
+  // 卡住的推理板（例：時辰用完、手上沒卡）→ 重新調查此案
+  await page.evaluate(function () { var x = window.PriTestYakushi._debugRun(); x.hours = 1; });
+  await tap('[data-ys-place="quarters"]');          // 用掉最後一個時辰 → 時辰到了 → 推理板
+  await tap("#ys-story-next");
+  r = await run(); assert.strictEqual(r.phase, "board"); assert.strictEqual(r.hours, 0);
+  assert.strictEqual(await page.locator("#ys-board-back").count(), 0);
+  await tap("#ys-restart");                          // confirm 由 dialog handler accept
+  await tap("#ys-story-skip");
+  r = await run();
+  assert.strictEqual(r.phase, "investigate"); assert.strictEqual(r.hours, 12); assert.deepStrictEqual(r.cards, []);
+  assert.strictEqual(await page.locator("#ys-to-board").count(), 1);
+
+  // 標題的「重新調查此案」：有進行中的 run 才出現；顯示「繼續」
+  await tap('[data-ys-spot="pa_censer"]');
+  await tap("#ys-back-title");
+  assert.ok((await page.textContent('[data-ys-case="case1"]')).indexOf("繼續") >= 0);
+  assert.strictEqual(await page.locator('[data-ys-restart="case0"]').count(), 0, "已結案的案件不該有重新調查");
+  await tap('[data-ys-restart="case1"]');
+  await tap("#ys-story-skip");
+  r = await run();
+  assert.strictEqual(r.phase, "investigate"); assert.strictEqual(r.hours, 12); assert.deepStrictEqual(r.cards, []);
+  await tap("#ys-to-board");
 
   // 壞檔不可讓畫面整個空白
   await page.evaluate(function () {
