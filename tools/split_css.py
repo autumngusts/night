@@ -57,6 +57,7 @@ GAMES: dict[str, tuple[str, ...]] = {
     "kyuka": ("ky-",),
     "shedan": ("sd-",),
     "inusnow": ("inu-",),
+    "yakushi": ("ys-",),
     "atelier": ("at-",),
 }
 

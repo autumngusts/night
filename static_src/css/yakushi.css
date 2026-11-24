@@ -1,0 +1,8 @@
+/* 少女藥師的獨語（yakushi）。所有 class／id 用 ys- 前綴。 */
+#ys-app { --ys-paper: #f4ecd8; --ys-ink: #2b2420; --ys-red: #a8322d; --ys-gold: #b8892f; --ys-jade: #4f7a64;
+  --ys-line: #cdbf9f; background: var(--ys-paper); color: var(--ys-ink); min-height: 70vh; padding: 12px;
+  font-family: "Noto Serif TC", "Songti TC", serif; box-sizing: border-box; max-width: 100%; overflow-x: hidden; }
+@media (prefers-color-scheme: dark) {
+  #ys-app { --ys-paper: #1f1b17; --ys-ink: #eadfc8; --ys-line: #4a4036; }
+}
+.ys-loading { text-align: center; opacity: .7; }

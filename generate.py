@@ -51,6 +51,7 @@ from site_src.tama_page import TAMA_SCRIPTS, build_tama_html
 from site_src.kyuka_page import KYUKA_SCRIPTS, build_kyuka_html
 from site_src.shedan_page import SHEDAN_SCRIPTS, build_shedan_html
 from site_src.inusnow_page import INUSNOW_SCRIPTS, build_inusnow_html
+from site_src.yakushi_page import YAKUSHI_SCRIPTS, build_yakushi_html
 from site_src.atelier_page import ATELIER_SCRIPTS, build_atelier_html
 
 ROOT = Path(__file__).parent
@@ -94,6 +95,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "shedan": ("sd_",),
     "atelier": ("at_",),
     "inusnow": ("inu_",),
+    "yakushi": ("ys_",),
 }
 
 
@@ -211,6 +213,7 @@ def build_static_assets() -> None:
         *SHEDAN_SCRIPTS,
         *ATELIER_SCRIPTS,
         *INUSNOW_SCRIPTS,
+        *YAKUSHI_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -408,10 +411,14 @@ def build_pages() -> None:
     inusnow_dir.mkdir(parents=True, exist_ok=True)
     (inusnow_dir / "index.html").write_text(build_inusnow_html(), encoding="utf-8")
 
+    yakushi_dir = DIST_DIR / "yakushi"
+    yakushi_dir.mkdir(parents=True, exist_ok=True)
+    (yakushi_dir / "index.html").write_text(build_yakushi_html(), encoding="utf-8")
+
 
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "shutter", "nest", "maou", "isle", "phone", "ennichi", "tama", "kyuka", "shedan", "atelier", "inusnow", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "saigo", "wanren", "reiwa", "jikan", "jomon", "zombie", "denshi", "yukimura", "mahou", "izakaya", "yoi", "champ", "sennyu", "natsu", "tour", "shutter", "nest", "maou", "isle", "phone", "ennichi", "tama", "kyuka", "shedan", "atelier", "inusnow", "yakushi", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
