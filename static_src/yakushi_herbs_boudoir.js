@@ -70,7 +70,7 @@
       lore: "常見的香草，夏天用來泡茶、做點心，也被用於清涼香氣的妝品與熏香。" },
 
     { id: "chenxiang", name: "沉香", alias: ["沉水香", "伽楠"], cat: "boudoir", group: "fragrant_wood", danger: 0,
-      traits: { form: ["香木塊", "深褐色木塊", "黑褐色油脂紋"], smell: ["濃烈特殊香氣"], taste: [],
+      traits: { form: ["香木塊", "深褐色木塊", "黑褐色油脂紋", "入水下沉"], smell: ["濃烈特殊香氣"], taste: [],
         symptom: [], onset: null },
       tests: T("深褐色的木塊，有黑褐色的油脂斑紋，質地緻密沉重", "香氣深沉濃郁，點燃時香味有變化", null, "放入水中會沉到水底", null, null),
       distinguish: "與檀香同屬香木；沉香色深、質重、入水下沉、點燃時香氣有變化；檀香質較輕、入水浮起、氣味偏甜潤。常有人用檀香冒充沉香。",
@@ -78,7 +78,7 @@
       lore: "樹木受傷後凝結油脂而成的香木，因為入水下沉而稱「沉香」，是宮廷最貴重的香料之一。市面上常見以其他木材冒充的假貨。" },
 
     { id: "tanxiang", name: "檀香", alias: ["白檀", "旃檀"], cat: "boudoir", group: "fragrant_wood", danger: 0,
-      traits: { form: ["香木塊", "淡黃褐色木塊", "黃褐色細緻木紋"], smell: ["氣味甜潤"], taste: [],
+      traits: { form: ["香木塊", "淡黃褐色木塊", "黃褐色細緻木紋", "入水浮起"], smell: ["氣味甜潤"], taste: [],
         symptom: [], onset: null },
       tests: T("淡黃褐色的木塊，木紋細緻，質地比沉香輕", "香氣甜潤持久", null, "放入水中會浮在水面", null, null),
       distinguish: "與沉香同屬香木；檀香色淺、質較輕、入水浮起、氣味偏甜潤；沉香質重、入水下沉、點燃時香氣有變化。若有人拿檀香當沉香賣，一泡水就能識破。",
