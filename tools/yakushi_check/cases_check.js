@@ -1,7 +1,7 @@
 // 少女藥師的獨語（yakushi）案件資料完整性與可破關檢查。規則依據 docs/yakushi_game_design.md §11。
 // 執行：node tools/yakushi_check/cases_check.js
 "use strict";
-var path = require("path"), assert = require("assert"), fs = require("fs");
+var path = require("path"), assert = require("assert");
 var SRC = path.join(__dirname, "..", "..", "static_src");
 var Herbs = require(path.join(SRC, "yakushi_herbs.js"));
 global.PriTestYakushiHerbs = Herbs;
@@ -74,43 +74,84 @@ defs.forEach(function (d) {
       assert.ok(r.accepts.some(function (c) { return got[c]; }), d.id + " 第 " + (i + 1) + " 輪辯解沒有可出示的卡");
     });
     if (d.deep) d.deep.options.forEach(function (o) { assert.ok(got[o.card], d.id + " 深層 " + o.key + " 拿不到"); });
-    assert.ok(d.rebuttals.length >= 2 && d.rebuttals.length <= 3, "辯解 2～3 輪");
   });
 
-  test(d.id + "：鑑定用的證物，真藥材一定在候選裡且候選停在群組", function () {
+  test(d.id + "：辯解為 2～3 輪", function () {
+    assert.ok(d.rebuttals.length >= 2 && d.rebuttals.length <= 3, d.id + "：辯解 2～3 輪，實際 " + d.rebuttals.length);
+  });
+
+  test(d.id + "：鑑定用的證物，真藥材可由取得的線索唯一鎖定，且證物本身只能縮到群組", function () {
     Object.keys(d.cards).forEach(function (id) {
       var c = d.cards[id];
       if (!c.herb) return;
       var tags = (c.tags || []).slice();
-      Object.keys(d.cards).forEach(function (k) { if (d.cards[k].of === id) tags = tags.concat(d.cards[k].tags || []); });
-      var cand = Herbs.filter(tags).map(function (h) { return h.id; });
-      assert.ok(cand.indexOf(c.herb) >= 0, id + "：全部線索標籤下真藥材 " + c.herb + " 不在候選（缺標籤）");
+      Object.keys(d.cards).forEach(function (k) { if (d.cards[k].of === id && got[k]) tags = tags.concat(d.cards[k].tags || []); });
+      var all = Herbs.filter(tags).map(function (h) { return h.id; });
+      assert.deepStrictEqual(all, [c.herb], d.id + "：" + id + " 用全部可取得的線索標籤後候選應只剩 " + c.herb + "，實際 [" + all.join(",") + "]");
       var only = Herbs.filter(c.tags || []).map(function (h) { return h.id; });
-      assert.ok(only.length >= 2, id + "：只靠證物本身就鎖定了，沒有易混的樂趣");
+      assert.ok(only.length >= 2, d.id + "：" + id + "：只靠證物本身就鎖定了，沒有易混的樂趣");
+      var herb = Herbs.get(c.herb);
+      if (herb.group) Herbs.byGroup(herb.group).forEach(function (h) {
+        assert.ok(only.indexOf(h.id) >= 0, d.id + "：" + id + " 證物本身標籤沒有涵蓋同群組的 " + h.id + "（候選未停在群組）");
+      });
     });
   });
 
   test(d.id + "：必要行動不超過時辰", function () {
-    // 必要行動＝提供正解／辯解第一張可用卡的查看點成本 + 起點以外要去的場所數 + 必要的試藥數
-    var needCards = {};
-    Core.SLOTS.forEach(function (s) { needCards[d.solution[s]] = true; });
-    d.rebuttals.forEach(function (r) { var c = r.accepts.filter(function (x) { return got[x]; })[0]; needCards[c] = true; });
-    var spots = {}, places = {};
-    function need(cid) {
-      if (cid.indexOf("herb:") === 0) {
-        var ev = Object.keys(d.cards).filter(function (k) { return "herb:" + d.cards[k].herb === cid; })[0];
-        return need(ev);
-      }
-      d.places.forEach(function (p) { p.spots.forEach(function (s) {
-        if (s.gives.indexOf(cid) >= 0 && !spots[s.id]) {
-          spots[s.id] = s.cost == null ? 1 : s.cost; places[p.id] = true;
-          (s.requires || []).forEach(need);
-        }
-      }); });
+    // 估計：每張必要的卡取最便宜的來源（查看點含 requires、試藥、調藥免費、起始卡免費）；
+    // 辯解每輪取最便宜的可出示卡；herb: 卡另算證物與其可取得的 of 線索卡。
+    // 仍忽略：猜錯鑑定、多餘試藥、體力（stamina）消耗等，實際遊玩會比估計多。
+    function evOf(herbId) {
+      var ev = Object.keys(d.cards).filter(function (k) { return d.cards[k].herb === herbId && got[k]; })[0];
+      assert.ok(ev, d.id + "：herb:" + herbId + " 沒有可取得的證物卡");
+      return ev;
     }
-    Object.keys(needCards).forEach(need);
-    var tests = (d.tests || []).filter(function (t) { return needCards[t.gives]; }).length;
-    var cost = Object.keys(spots).reduce(function (a, k) { return a + spots[k]; }, 0) + Object.keys(places).filter(function (p) { return p !== d.startPlace; }).length + tests;
+    function sources(cid) {
+      var out = [];
+      if ((d.startCards || []).indexOf(cid) >= 0) out.push({ t: "free", needs: [] });
+      d.places.forEach(function (p) { p.spots.forEach(function (sp) {
+        if (sp.gives.indexOf(cid) >= 0) out.push({ t: "spot", sp: sp, place: p.id, cost: sp.cost == null ? 1 : sp.cost, needs: sp.requires || [] });
+      }); });
+      (d.tests || []).forEach(function (t) { if (t.gives === cid) out.push({ t: "test", test: t, cost: 1, needs: [t.evidence] }); });
+      (d.patients || []).forEach(function (pt) { if (pt.gives === cid) out.push({ t: "free", needs: [] }); });
+      return out;
+    }
+    function deps(cid) {   // herb: 卡 → 證物＋其可取得的 of 線索卡
+      var ev = evOf(cid.slice(5)), r = [ev];
+      Object.keys(d.cards).forEach(function (k) { if (d.cards[k].of === ev && got[k]) r.push(k); });
+      return r;
+    }
+    function pick(cid, seen) {   // 回傳最便宜來源與其估計成本
+      var sn = Object.assign({}, seen); sn[cid] = true;
+      var best = null, bc = Infinity;
+      sources(cid).forEach(function (src) {
+        var c = (src.cost || 0) + src.needs.reduce(function (a, x) { return a + est(x, sn); }, 0);
+        if (c < bc) { bc = c; best = src; }
+      });
+      return { src: best, cost: bc, seen: sn };
+    }
+    function est(cid, seen) {
+      if (seen[cid]) return Infinity;
+      if (cid.indexOf("herb:") === 0) return deps(cid).reduce(function (a, x) { return a + est(x, seen); }, 0);
+      return pick(cid, seen).cost;
+    }
+    var spots = {}, places = {}, tests = {};
+    function add(cid, seen) {
+      if (cid.indexOf("herb:") === 0) return deps(cid).forEach(function (x) { add(x, seen); });
+      var pk = pick(cid, seen), best = pk.src;
+      assert.ok(best, d.id + "：卡 " + cid + " 沒有任何來源");
+      if (best.t === "spot") { spots[best.sp.id] = best.cost; places[best.place] = true; }
+      if (best.t === "test") tests[best.test.evidence + "|" + best.test.method] = 1;
+      best.needs.forEach(function (x) { add(x, pk.seen); });
+    }
+    Core.SLOTS.forEach(function (sl) { add(d.solution[sl], {}); });
+    d.rebuttals.forEach(function (r) {
+      var opts = r.accepts.filter(function (x) { return got[x]; });
+      opts.sort(function (a, b) { return est(a, {}) - est(b, {}); });
+      add(opts[0], {});
+    });
+    var sum = function (o) { return Object.keys(o).reduce(function (a, k) { return a + o[k]; }, 0); };
+    var cost = sum(spots) + sum(tests) + Object.keys(places).filter(function (p) { return p !== d.startPlace; }).length;
     assert.ok(cost <= d.hours, d.id + "：必要行動 " + cost + " 超過時辰 " + d.hours);
   });
 });
