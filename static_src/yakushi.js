@@ -38,7 +38,8 @@
   // screen: title | story | investigate | board | lab | book
   var ui = { screen: "title", caseId: null, story: null, spotText: "", hoursOutShown: false,
     lab: "identify", evidence: null, tagsOff: {}, pickHerb: null, testResult: null, patient: null, meds: [], remedyResult: "",
-    bookCat: "poison", bookQ: "", bookHerb: null, bookFrom: "title" };
+    bookCat: "poison", bookQ: "", bookHerb: null, bookFrom: "title",
+    selCard: null, boardFeedback: "", accuseReply: "", ending: null };
   var appEl = null;
 
   function curRun() { return ui.caseId && state.cases[ui.caseId] ? state.cases[ui.caseId].run || null : null; }
@@ -125,9 +126,144 @@
     return h;
   }
 
-  // Task 12 會取代這個暫時的推理板
+  // ===== 推理板／指認 =====
+  var SLOT_KEYS = ["who", "what", "how", "why"];
+  function cardName(def, id) { var i = id && Core.cardInfo(def, id); return i ? i.name : ""; }
+  function whoName(def, who) {   // who 可能是人物 id 或卡片 id；都不是就不顯示，絕不外露 id
+    if (!who) return "";
+    var c = Cast.get(who);
+    return c ? c.name : cardName(def, who);
+  }
+  function slotHtml(def, run, slot, label) {
+    var id = run.board[slot];
+    return '<button type="button" class="ys-btn ys-slot' + (id ? " ys-filled" : "") + '" data-ys-slot="' + slot + '"><span class="ys-slot-label">' + esc(label) + "</span>" +
+      '<b class="ys-slot-card">' + esc(id ? cardName(def, id) : "＋") + "</b></button>";
+  }
   function screenBoard() {
-    return '<div id="ys-board"><p>' + esc(t("ys_board_soon")) + '</p><div class="ys-row"><button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div></div>";
+    var run = curRun(), def = curDef();
+    if (!run || !def || run.phase === "done") { ui.screen = "title"; return screenTitle(); }
+    if (run.phase === "accuse") return screenAccuse(run, def);
+    var h = '<div id="ys-board"><div class="ys-bar"><span id="ys-hours">' + esc(t("ys_hours", { n: run.hours })) + "</span></div>" +
+      '<div class="ys-slots">';
+    SLOT_KEYS.forEach(function (k) { h += slotHtml(def, run, k, t("ys_slot_" + k)); });
+    if (def.deep) h += slotHtml(def, run, "deep", def.deep.label + " " + t("ys_deep_hint"));
+    h += '</div><h3 class="ys-sub">' + esc(t("ys_cards")) + '</h3><div class="ys-tabs">';
+    run.cards.forEach(function (c) {
+      var used = SLOT_KEYS.concat(["deep"]).some(function (k) { return run.board[k] === c; });
+      h += '<button type="button" class="ys-btn ys-board-card' + (ui.selCard === c ? " ys-selected" : "") + (used ? " ys-used" : "") + '" data-ys-board-card="' + esc(c) + '">' + esc(cardName(def, c)) + "</button>";
+    });
+    h += '</div><p id="ys-board-feedback" class="ys-spot-text">' + esc(ui.boardFeedback) + "</p>" +
+      '<div class="ys-row"><button type="button" class="ys-btn ys-btn-main" id="ys-submit">' + esc(t("ys_submit")) + "</button>" +
+      (run.phase === "investigate" ? '<button type="button" class="ys-btn" id="ys-board-back">' + esc(t("ys_board_back")) + "</button>" : "") +
+      '<button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div></div>";
+    return h;
+  }
+  function screenAccuse(run, def) {
+    var r = Core.currentRebuttal(run), who = r ? whoName(def, r.who) : "";
+    var h = '<div id="ys-accuse"><h2 class="ys-sub">' + esc(t("ys_accuse")) + '</h2><p id="ys-accuse-claim" class="ys-spot-text">' +
+      (who ? "<b>" + esc(who) + "</b>　" : "") + esc(r ? r.claim : "") + '</p><p id="ys-trust" class="ys-note">' + esc(t("ys_trust", { n: run.trust })) +
+      '</p><p id="ys-accuse-reply" class="ys-note">' + esc(ui.accuseReply) + '</p><h3 class="ys-sub">' + esc(t("ys_present")) + '</h3><div class="ys-tabs">';
+    run.cards.forEach(function (c) {
+      h += '<button type="button" class="ys-btn ys-board-card" data-ys-present="' + esc(c) + '">' + esc(cardName(def, c)) + "</button>";
+    });
+    h += "</div>";
+    if (def.deep) {
+      h += '<h3 class="ys-sub">' + esc(def.deep.label) + ' <small class="ys-small">' + esc(t("ys_deep_hint")) + '</small></h3><div class="ys-tabs">';
+      def.deep.options.forEach(function (o) {
+        if (run.cards.indexOf(o.card) < 0) return;
+        h += '<button type="button" class="ys-btn ys-board-card' + (run.board.deep === o.card ? " ys-selected" : "") + '" data-ys-deep-pick="' + esc(o.card) + '">' + esc(cardName(def, o.card)) + "</button>";
+      });
+      h += '<button type="button" class="ys-btn ys-btn-quiet' + (run.board.deep ? "" : " ys-selected") + '" data-ys-deep-pick="">' + esc(t("ys_deep_none")) + "</button></div>";
+    }
+    return h + "</div>";
+  }
+  function boardClick(d, run, def) {
+    if (!run || !def) return false;
+    if (d.ysBoardCard !== undefined) { ui.selCard = ui.selCard === d.ysBoardCard ? null : d.ysBoardCard; render(); return true; }
+    if (d.ysSlot) {
+      if (ui.selCard && run.cards.indexOf(ui.selCard) >= 0) {
+        if (d.ysSlot !== "deep") SLOT_KEYS.forEach(function (k) { if (k !== d.ysSlot && run.board[k] === ui.selCard) Core.placeCard(run, k, null); });
+        Core.placeCard(run, d.ysSlot, ui.selCard); ui.selCard = null;
+      } else Core.placeCard(run, d.ysSlot, null);
+      done(); return true;
+    }
+    if (d.ysDeepPick !== undefined) { Core.placeCard(run, "deep", d.ysDeepPick || null); done(); return true; }
+    if (d.ysPresent) {
+      var r = Core.currentRebuttal(run), res = Core.present(run, d.ysPresent);
+      if (!res.ok) return true;
+      if (res.hit) {
+        ui.accuseReply = res.reply || "";
+        if (res.done) {
+          save();
+          startEnding(res.reply ? [{ who: r && Cast.get(r.who) ? r.who : null, text: res.reply }] : []);
+          return true;
+        }
+      } else ui.accuseReply = t(res.reset ? "ys_accuse_reset" : "ys_present_miss");
+      done(); return true;
+    }
+    return false;
+  }
+
+  // ===== 結案 =====
+  function startEnding(prefix) {
+    var def = curDef(), run = curRun(); if (!def || !run) return;
+    var st = def.story || {}, opt = Core.deepOption(def, run);
+    var lines = (prefix || []).concat(st.truth || [], opt ? opt.monologue || [] : [], st.outro || [], def.monologue || []);
+    ui.ending = { rating: null };
+    playLines(lines, finishEnding);
+  }
+  function finishEnding() {
+    var run = curRun();
+    if (!run || run.phase !== "done" || !ui.ending || ui.ending.rating) return;   // 只結算一次
+    var res = Core.finish(state, run);
+    if (res.error) return;
+    ui.ending.rating = res.rating;
+    ui.screen = "ending"; done();
+  }
+  function screenEnding() {
+    if (!ui.ending || !ui.ending.rating) { ui.screen = "title"; return screenTitle(); }
+    return '<div class="ys-head"><h2 class="ys-title">' + esc(curDef() ? curDef().title : "") + '</h2></div><p id="ys-rating" class="ys-rating">' +
+      esc(t("ys_rating", { r: ui.ending.rating })) + '</p><div class="ys-row"><button type="button" class="ys-btn ys-btn-main" id="ys-ending-back">' + esc(t("ys_ending_back")) + "</button></div>";
+  }
+
+  // ===== 獨語帖／人物圖鑑 =====
+  function linesHtml(lines) {
+    return (lines || []).map(function (ln) {
+      var who = ln.who && Cast.get(ln.who) ? Cast.get(ln.who).name : "";
+      return '<p class="ys-line">' + (who ? '<span class="ys-who">' + esc(who) + "</span>　" : "") + esc(ln.text) + "</p>";
+    }).join("");
+  }
+  function screenJournal() {
+    var h = '<h2 class="ys-sub">' + esc(t("ys_journal")) + '</h2><div id="ys-journal">', any = false;
+    Core.CASE_ORDER.forEach(function (cid) {
+      var def = Core.getCase(cid); if (!def) return;
+      var body = "";
+      Object.keys(state.monologues).forEach(function (k) {
+        if (k.indexOf(cid + ":") !== 0) return;
+        var sub = k.slice(cid.length + 1), lines = null;
+        if (sub === "main") lines = def.monologue;
+        else if (def.deep) {
+          if (sub === "none") lines = def.deep.none;
+          else def.deep.options.forEach(function (o) { if (o.key === sub) lines = o.monologue; });
+        }
+        if (lines && lines.length) body += '<div class="ys-mono">' + linesHtml(lines) + "</div>";
+      });
+      if (body) { any = true; h += '<h3 class="ys-sub">' + esc(def.title) + "</h3>" + body; }
+    });
+    if (!any) h += '<p class="ys-note">' + esc(t("ys_journal_empty")) + "</p>";
+    return h + '</div><div class="ys-row"><button type="button" class="ys-btn" id="ys-journal-close">' + esc(t("ys_close")) + "</button></div>";
+  }
+  function screenCast() {
+    var h = '<h2 class="ys-sub">' + esc(t("ys_cast")) + '</h2><div id="ys-cast" class="ys-cast">';
+    Cast.list().forEach(function (c) {
+      if (!state.castSeen[c.id]) { h += '<div class="ys-cast-item ys-silhouette"><b>' + esc(t("ys_unknown")) + "</b></div>"; return; }
+      h += '<div class="ys-cast-item"><b>' + esc(c.name) + '</b> <small class="ys-small">' + esc(c.role) + '</small><p class="ys-note">' + esc(c.desc) + "</p>";
+      (c.notes || []).forEach(function (n) {
+        if (n.after == null || (state.cases[n.after] && state.cases[n.after].cleared)) h += '<p class="ys-note ys-cast-note">' + esc(n.text) + "</p>";
+      });
+      h += "</div>";
+    });
+    return h + '</div><div class="ys-row"><button type="button" class="ys-btn" id="ys-cast-close">' + esc(t("ys_close")) + "</button></div>";
   }
   // ===== 工作台（鑑定／試藥／調藥）=====
   var Herbs = window.PriTestYakushiHerbs;
@@ -265,7 +401,8 @@
     return h;
   }
 
-  var SCREENS = { title: screenTitle, story: screenStory, investigate: screenInvestigate, board: screenBoard, lab: screenLab, book: screenBook };
+  var SCREENS = { title: screenTitle, story: screenStory, investigate: screenInvestigate, board: screenBoard, lab: screenLab, book: screenBook,
+    ending: screenEnding, journal: screenJournal, cast: screenCast };
 
   function render() {
     if (!appEl) return;
@@ -301,6 +438,8 @@
     ui.caseId = id; ui.spotText = ""; ui.hoursOutShown = false;
     resetLabUi();
     var c = state.cases[id], run = c && c.run;
+    ui.selCard = null; ui.boardFeedback = ""; ui.accuseReply = ""; ui.ending = null;
+    if (run && run.phase === "done") { startEnding([]); return; }   // 結案中途離開：回來接著播
     if (run && run.phase !== "done") {
       ui.hoursOutShown = true;
       ui.screen = run.phase === "investigate" ? "investigate" : "board";
@@ -369,6 +508,7 @@
     }
     if (ui.screen === "lab" && labClick(d, run)) return;
     if (ui.screen === "book" && bookClick(d)) return;
+    if (ui.screen === "board" && boardClick(d, run, curDef())) return;
     if (d.ysAct && ACTIONS[d.ysAct]) { ACTIONS[d.ysAct](el); return; }
     switch (el.id) {
       case "ys-story-next": storyAdvance(); break;
@@ -387,12 +527,26 @@
           if (rr.ok) { ui.remedyResult = t(rr.cured ? "ys_cured" : rr.lost ? "ys_lost" : "ys_worse"); ui.meds = []; }
         }
         done(); break;
-      case "ys-to-board": if (run) { Core.toBoard(run); ui.hoursOutShown = true; ui.screen = "board"; done(); } break;
+      case "ys-to-board":
+        if (run && window.confirm(t("ys_to_board_confirm"))) { Core.toBoard(run); ui.hoursOutShown = true; ui.screen = "board"; done(); }
+        break;
+      case "ys-board-back": if (run && run.phase === "investigate") { ui.screen = "investigate"; render(); } break;
+      case "ys-submit":
+        if (run) {
+          var sr = Core.submit(run);
+          ui.boardFeedback = sr.error ? t("ys_board_empty") : t("ys_board_result", { n: sr.correct });
+          if (!sr.error && sr.correct === 4) ui.accuseReply = "";
+        }
+        done(); break;
+      case "ys-ending-back": ui.ending = null; ui.screen = "title"; render(); break;
+      case "ys-open-journal": ui.screen = "journal"; render(); break;
+      case "ys-open-cast": ui.screen = "cast"; render(); break;
+      case "ys-journal-close": case "ys-cast-close": ui.screen = "title"; render(); break;
       case "ys-back-title": ui.screen = "title"; ui.story = null; render(); break;
       case "ys-reset":
-        if (window.confirm(t("ys_reset_confirm"))) { state = Core.newSave(); ui.caseId = null; resetLabUi(); ui.bookHerb = null; ui.bookQ = ""; save(); render(); }
+        if (window.confirm(t("ys_reset_confirm"))) { state = Core.newSave(); ui.caseId = null; ui.ending = null; resetLabUi(); ui.bookHerb = null; ui.bookQ = ""; save(); render(); }
         break;
-      default: break; // ys-open-journal / cast 由 Task 12 接上
+      default: break;
     }
   }
 

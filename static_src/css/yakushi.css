@@ -61,3 +61,15 @@
 .ys-book-item.ys-on { border-color: var(--ys-red); color: var(--ys-red); }
 .ys-silhouette { opacity: .5; letter-spacing: .2em; }
 #ys-lab, #ys-book-detail { overflow-wrap: anywhere; }
+.ys-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.ys-slot { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 64px; text-align: left; border-style: dashed; overflow-wrap: anywhere; }
+.ys-slot.ys-filled { border-style: solid; }
+.ys-slot-label { font-size: .75rem; opacity: .7; }
+.ys-board-card.ys-selected { border-color: var(--ys-red); color: var(--ys-red); font-weight: bold; box-shadow: inset 0 0 0 2px var(--ys-red); }
+.ys-board-card.ys-used { opacity: .6; }
+.ys-rating { text-align: center; font-size: 1.6rem; color: var(--ys-gold); margin: 24px 0; }
+.ys-mono { margin: 6px 0 12px; padding: 8px 10px; border-left: 3px solid var(--ys-red); }
+.ys-cast { display: flex; flex-direction: column; gap: 8px; }
+.ys-cast-item { padding: 8px 10px; border: 1px solid var(--ys-line); overflow-wrap: anywhere; }
+.ys-cast-note { font-size: .85rem; opacity: .85; }
+#ys-board, #ys-accuse, #ys-journal { overflow-wrap: anywhere; }

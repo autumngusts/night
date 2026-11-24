@@ -13,6 +13,7 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   await page.addInitScript(function () { try { localStorage.setItem("pritest-pay-unlocked", "1"); } catch (e) {} });
   page.on("pageerror", function (e) { errors.push(String(e)); });
   page.on("console", function (m) { if (m.type() === "error") errors.push(m.text()); });
+  page.on("dialog", function (d) { d.accept(); });
   async function tap(sel) { await page.dispatchEvent(sel, "click"); }
   async function run() { return page.evaluate(function () { return JSON.parse(JSON.stringify(window.PriTestYakushi._debugRun())); }); }
   async function st() { return page.evaluate(function () { return JSON.parse(JSON.stringify(window.PriTestYakushi._debugState())); }); }
@@ -91,15 +92,54 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   await tap("#ys-book-close");
   await tap('[data-ys-case="case0"]');
 
+  // 推理板：故意錯一次（2 格對）→ 改對 → 指認（錯一次）→ 結案
+  await tap("#ys-to-board");      // 有 confirm
+  // 註：在檔頭 page.on("dialog") 自動 accept
+  r = await run();
+  assert.strictEqual(r.phase, "board");
+  async function put(card, slot) { await tap('[data-ys-board-card="' + card + '"]'); await tap('[data-ys-slot="' + slot + '"]'); }
+  await put("p_eunuch", "who"); await put("herb:banxia", "what"); await put("ev_ledger", "how"); await put("tes_eunuch", "why");
+  await tap("#ys-submit");
+  assert.ok((await page.textContent("#ys-board-feedback")).indexOf("2") >= 0);
+  await put("tes_eunuch", "how"); await put("ev_ledger", "why");
+  await tap("#ys-submit");
+  r = await run();
+  assert.strictEqual(r.phase, "accuse");
+  await tap('[data-ys-present="sym_numb"]');
+  r = await run(); assert.strictEqual(r.trust, 2);
+  await tap('[data-ys-present="re_tuber_look"]');
+  await tap('[data-ys-present="ev_ledger"]');
+  await tap("#ys-story-skip");
+  var s = await st();
+  assert.strictEqual(s.cases.case0.cleared, true);
+  assert.ok(s.unlocked.indexOf("case1") >= 0);
+  assert.ok(s.monologues["case0:main"]);
+  assert.ok((await page.textContent("#ys-rating")).length > 0);
+  await tap("#ys-ending-back");
+  assert.strictEqual(await page.locator('[data-ys-case="case1"]').isDisabled(), false);
+
+  await tap("#ys-open-journal");
+  assert.ok((await page.textContent("#ys-journal")).length > 10);
+  await tap("#ys-journal-close");
+  await tap("#ys-open-cast");
+  assert.ok((await page.textContent("#ys-cast")).indexOf("卯卯") >= 0);
+  await tap("#ys-cast-close");
+
+  // 案 1：有深層格
+  await tap('[data-ys-case="case1"]');
+  await tap("#ys-story-skip");
+  await tap("#ys-to-board");
+  assert.strictEqual(await page.locator('[data-ys-slot="deep"]').count(), 1);
+
   // 壞檔不可讓畫面整個空白
   await page.evaluate(function () {
     var s = JSON.parse(localStorage.getItem("pritest-yakushi-save"));
-    s.cases.case0.run.cards = "x";
+    s.cases.case1.run.cards = "x";
     localStorage.setItem("pritest-yakushi-save", JSON.stringify(s));
   });
   await page.reload();
   assert.strictEqual(await page.locator('[data-ys-case="case0"]').count(), 1);
-  assert.strictEqual(await page.locator('[data-ys-case="case1"]').isDisabled(), true);
+  assert.strictEqual(await page.locator('[data-ys-case="case1"]').isDisabled(), false);   // 案 0 已結案 → 案 1 已解鎖，壞 run 被丟棄
 
   var noScroll = await page.evaluate(function () { return document.documentElement.scrollWidth <= window.innerWidth; });
   assert.ok(noScroll, "手機寬度出現橫向捲動");
