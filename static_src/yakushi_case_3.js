@@ -29,7 +29,7 @@
         { id: "br_sack", kind: "look", label: "查看庫房的白色粉末", gives: ["ev_powder"],
           text: "庫房角落有一袋白色粉末。跟來的周太醫一看就叫了起來：「砒、砒霜！」" },
         { id: "br_ledger", kind: "look", label: "翻酒坊的帳", requires: ["p_brewer"], gives: ["ev_seal_cost"],
-          text: "帳上雄黃的進價低得離譜，賣價卻標著「御用」。省下來的錢，一筆一筆記得清清楚楚。" },
+          text: "帳上雄黃的進價低得離譜，賣價卻標著「御用」。可整本帳裡，找不到任何一筆宮裡的訂單或公文。" },
         { id: "br_handang", kind: "talk", label: "問韓當", requires: ["ev_seal"], gives: ["tes_handang"],
           text: "韓當盯著封印看了很久。「……這種印，不是外頭能刻的。」他沒有再說下去。" }
       ] },
@@ -58,7 +58,7 @@
       tes_zhou: { kind: "testimony", name: "周太醫的診斷", text: "「疫病！得快封街！」" },
       ev_sign: { kind: "evidence", name: "酒攤的布招", text: "「御用雄黃酒・溫熱現賣」，價錢比別家便宜一半。" },
       ev_seal: { kind: "evidence", name: "酒罈上的御用封印", text: "封泥上壓著御用的印，紋路清楚、朱色沉穩，不像仿的。" },
-      ev_seal_cost: { kind: "evidence", name: "酒坊的進料帳", text: "劣質雄黃的低進價、掛「御用」名義的賣價，省下的錢一筆一筆記著。" },
+      ev_seal_cost: { kind: "evidence", name: "酒坊的進料帳", text: "劣質雄黃的低進價、掛「御用」名義的賣價；整本帳裡沒有任何一筆宮裡的訂單或公文——「御用」只是招牌。" },
       tes_handang: { kind: "testimony", name: "韓當的話", text: "「……這種印，不是外頭能刻的。」" },
       tes_xuanshi: { kind: "testimony", name: "玄氏的話", text: "「查到酒坊為止。妳查到的，已經夠了。」" },
       tes_keeper: { kind: "testimony", name: "藥鋪掌櫃的證言", text: "酒坊挑最便宜、成色最差的雄黃買。掌櫃提醒過那種貨溫了喝不得。" },
@@ -74,14 +74,14 @@
     ],
     patients: [
       { id: "pt_slum", name: "輕症的病人", remedy: ["lvdou", "gancao"], gives: "tes_patients",
-        text: "一位腹痛的大嬸，症狀還輕。先別讓她再喝那酒，讓她躺下歇著，再調點能緩和的東西。" }
+        text: "一位腹痛的大嬸，症狀還輕。先別讓她再喝那酒，讓她躺下歇著。藥嘛——民間當解毒食材的那一味，配上人稱「國老」的那一味。" }
     ],
     medicineBox: ["lvdou", "gancao", "jinyinhua", "shengjiang", "bohe", "dazao"],
     solution: { who: "p_brewer", what: "herb:xionghuang", how: "re_heat", why: "ev_seal_cost" },
     rebuttals: [
       { who: "p_brewer", claim: "是疫病！太醫都說了，跟我的酒沒關係！", accepts: ["tes_patients", "herb:xionghuang"],
         reply: "「孩、孩子沒事又怎樣……那、那是巧合！」" },
-      { who: "p_brewer", claim: "雄黃酒端午家家戶戶都喝，怎麼就我的有毒？", accepts: ["re_heat"],
+      { who: "p_brewer", claim: "雄黃酒端午家家戶戶都喝，怎麼就我的有毒？", accepts: ["re_heat", "tes_keeper", "ev_sample", "ev_sign"],
         reply: "「溫、溫熱了才好賣啊……誰知道溫了會……」" },
       { who: "p_brewer", claim: "我是御用酒坊！封印就是證明！", accepts: ["ev_seal_cost"],
         reply: "「……那、那封印是真的！真的！我、我只是……」他看了一眼酒罈上的封印，忽然閉上了嘴。" }

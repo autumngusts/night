@@ -43,7 +43,7 @@
         tags: ["瞳孔放大", "口乾", "譫妄", "onset:mid"], of: "ev_ash" },
       ev_ash: { kind: "evidence", name: "香爐的灰燼", text: "寢殿香爐裡的灰，夾著沒燒盡的花瓣碎屑與細小顆粒。",
         tags: ["茄科草本"], herb: "mantuoluo" },
-      re_seed: { kind: "reaction", name: "細看：灰裡的種子", text: "灰裡的顆粒是扁扁的腎形種子，還有喇叭形白花的碎瓣。",
+      re_seed: { kind: "reaction", name: "細看：灰裡的種子", text: "灰裡的顆粒是扁扁的腎形種子，還有喇叭形白花的碎瓣。蓋著的香爐不會自己飄進種子，是混在香裡燒的。",
         tags: ["扁腎形種子"], of: "ev_ash" },
       ev_incense: { kind: "evidence", name: "素荷送的「沉香」", text: "裝在木盒裡的香木塊，說是素荷家鄉的上好沉香。",
         tags: ["香木塊"], herb: "tanxiang" },
@@ -65,12 +65,12 @@
     tests: [
       { evidence: "ev_incense", method: "water", text: "香木塊丟進水盆——浮在水面上，輕飄飄地轉了半圈。沉香，是會沉的。", gives: "re_float" },
       { evidence: "ev_incense", method: "smell", text: "香氣甜潤，持久不散。好聞是好聞，可沉香點燃時那種層層變化的香氣，一點也沒有。" },
-      { evidence: "ev_ash", method: "look", text: "撥開灰燼細看：扁扁的腎形種子，還有喇叭形白花的碎瓣。不是昭儀院子裡的花。", gives: "re_seed" },
+      { evidence: "ev_ash", method: "look", text: "撥開灰燼細看：扁扁的腎形種子，還有喇叭形白花的碎瓣。香爐蓋得嚴實，花粉或許飄得進來，整顆的種子可不會——是跟著香一起燒進去的。", gives: "re_seed" },
       { evidence: "ev_ash", method: "smell", text: "灰裡有一股焦苦味，被甜甜的香氣蓋住了。單聞香，是聞不出來的。" }
     ],
     patients: [
       { id: "pt_liang", name: "梁昭儀", remedy: ["gancao", "lvdou", "suanzaoren"], gives: "tes_liang",
-        text: "先把香撤掉、開窗通風，讓昭儀在安靜的地方躺好，再調點能讓她平靜下來的東西。" }
+        text: "先把香撤掉、開窗通風，讓昭儀在安靜的地方躺好。藥嘛——民間當解毒食材的、人稱「國老」的，再加一味夜裡安神助眠的。" }
     ],
     medicineBox: ["gancao", "lvdou", "suanzaoren", "bohe", "rougui", "dazao"],
     solution: { who: "p_maid", what: "herb:mantuoluo", how: "ev_fake_incense", why: "tes_lover" },

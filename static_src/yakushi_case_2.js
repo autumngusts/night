@@ -20,10 +20,12 @@
       { id: "kitchen", name: "錦鯉樓・廚房", spots: [
         { id: "ki_bag", kind: "look", label: "查看廚房的杏仁袋", gives: ["ev_bag"],
           text: "袋上寫著「甜杏仁」，廚子說杏仁茶都用這一袋。抓一顆聞，沒什麼氣味。" },
-        { id: "ki_wine", kind: "look", label: "查看收回來的酒壺", gives: ["ev_wine"],
-          text: "宴後收回廚房的酒壺，壺底沉著一層搗碎的果仁渣。酒裡為什麼會有果仁？" },
+        { id: "ki_wine", kind: "look", label: "查看收回來的酒壺", gives: ["ev_wine", "re_wine_taste"],
+          text: "壺底沉著一層搗碎的果仁渣。卯卯忍不住用指尖沾了一點送進嘴裡——極苦，苦得舌根發緊。「……妳！」韓當一把抓住她的手腕，臉色比她還白。" },
         { id: "ki_cook", kind: "talk", label: "問廚子", gives: ["tes_cook"],
-          text: "「那壺酒不是樓裡的，是客人那邊自己帶來的。小蓮那丫頭偷喝了一口剩的，現在還躺著呢。」" }
+          text: "「那壺酒不是樓裡的，是客人那邊自己帶來的。小蓮那丫頭偷喝了一口剩的，現在還躺著呢。」" },
+        { id: "ki_lian", kind: "talk", label: "問廚子小蓮說了什麼", requires: ["tes_cook"], gives: ["tes_maid"],
+          text: "「那丫頭迷迷糊糊地一直念：酒是帳房孫先生交給她的，說是老爺愛喝的家鄉酒，要她送進宴席。」" }
       ] },
       { id: "xroom", name: "雪鵑的房間", spots: [
         { id: "xr_xuejuan", kind: "talk", label: "問雪鵑", gives: ["tes_xuejuan"],
@@ -39,7 +41,8 @@
       ] }
     ],
     cards: {
-      sym_merchant: { kind: "symptom", name: "葉老爺的症狀", text: "宴席中途頭暈、喘不過氣，很快倒下。" },
+      sym_merchant: { kind: "symptom", name: "葉老爺的症狀", text: "喝了酒後不久就頭暈、喘不過氣，很快倒下。",
+        tags: ["眩暈", "呼吸困難", "onset:fast"], of: "ev_wine" },
       ev_tea: { kind: "evidence", name: "剩下的杏仁茶", text: "雪鵑席上的杏仁茶，碗底沉著磨碎的杏仁渣。",
         tags: ["杏仁核仁"], herb: "tianxingren" },
       re_tea_taste: { kind: "reaction", name: "嚐：杏仁茶", text: "微甜，帶一點油香。沒有苦味。",
@@ -63,14 +66,14 @@
     },
     tests: [
       { evidence: "ev_tea", method: "taste", text: "卯卯舀了一小口。微甜，帶一點油香。……這碗茶，是清白的。", gives: "re_tea_taste" },
-      { evidence: "ev_tea", method: "smell", text: "只有淡淡的奶香和杏仁香，沒有什麼刺鼻的味道。" },
+      { evidence: "ev_tea", method: "smell", text: "把碗底的杏仁渣加水搗開，幾乎聞不到什麼氣味。沒有那股苦杏仁味。" },
       { evidence: "ev_wine", method: "smell", text: "把壺底的渣加水搗開——一股明顯的苦杏仁氣味衝上來。", gives: "re_wine_smell" },
-      { evidence: "ev_wine", method: "taste", text: "卯卯用指尖沾了一點壺底的渣送進嘴裡。極苦，苦得舌根發緊。「……妳！」韓當一把抓住她的手腕，臉色比她還白。", gives: "re_wine_taste" },
+      { evidence: "ev_wine", method: "taste", text: "又嚐了一次，還是極苦。韓當在旁邊瞪著，卯卯決定這次就到此為止。" },
       { evidence: "ev_wine", method: "animal", text: "餵了一點給廚房捉來的老鼠，沒過多久，牠就喘得厲害。" }
     ],
     patients: [
-      { id: "pt_lian", name: "試喝剩酒的小蓮", remedy: ["jinyinhua", "gancao"], gives: "tes_maid",
-        text: "小丫頭頭暈想吐，呼吸有點急。先讓她到通風的地方躺好，再調點能緩和的東西。" }
+      { id: "pt_lian", name: "試喝剩酒的小蓮", remedy: ["lvdou", "gancao"], gives: "tes_maid",
+        text: "小丫頭頭暈想吐，呼吸有點急。先讓她到通風的地方躺好。養父常說：吃錯了東西，用民間當解毒食材的那一味，配上人稱「國老」的那一味。" }
     ],
     medicineBox: ["jinyinhua", "gancao", "lvdou", "bohe", "juhua", "rougui"],
     solution: { who: "p_clerk", what: "herb:kuxingren", how: "tes_maid", why: "ev_debt" },

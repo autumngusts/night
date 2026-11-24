@@ -28,7 +28,7 @@ test("人物：12 人，案件 cast 都存在", function () {
 
 defs.forEach(function (d) {
   // 可取得的卡：查看點（依 requires 迭代）、正確鑑定、試藥、調藥
-  function obtainable() {
+  function obtainable(noPatients) {   // noPatients：不算任何病人的 gives（病人被太醫接手、失去證言時）
     var got = {}; (d.startCards || []).forEach(function (c) { got[c] = true; });
     var changed = true;
     while (changed) {
@@ -41,11 +41,12 @@ defs.forEach(function (d) {
         if (c.herb && got[id] && !got["herb:" + c.herb]) { got["herb:" + c.herb] = true; changed = true; }
       });
       (d.tests || []).forEach(function (t) { if (t.gives && got[t.evidence] && !got[t.gives]) { got[t.gives] = true; changed = true; } });
-      (d.patients || []).forEach(function (p) { if (!got[p.gives]) { got[p.gives] = true; changed = true; } });
+      if (!noPatients) (d.patients || []).forEach(function (p) { if (!got[p.gives]) { got[p.gives] = true; changed = true; } });
     }
     return got;
   }
   var got = obtainable();
+  var gotNoPatient = obtainable(true);
 
   test(d.id + "：所有引用的卡、藥材、場所都存在", function () {
     function card(id) { assert.ok(Core.cardInfo(d, id), d.id + " 卡不存在 " + id); }
@@ -74,6 +75,14 @@ defs.forEach(function (d) {
       assert.ok(r.accepts.some(function (c) { return got[c]; }), d.id + " 第 " + (i + 1) + " 輪辯解沒有可出示的卡");
     });
     if (d.deep) d.deep.options.forEach(function (o) { assert.ok(got[o.card], d.id + " 深層 " + o.key + " 拿不到"); });
+  });
+
+  test(d.id + "：病人被太醫接手（失去證言）也不會卡關", function () {
+    // §5.3「不會失敗」：正解與每輪辯解至少一張可出示的卡，都要能不靠任何病人的 gives 取得
+    Core.SLOTS.forEach(function (s) { assert.ok(gotNoPatient[d.solution[s]], d.id + " 正解 " + s + " 只能靠病人取得：" + d.solution[s]); });
+    d.rebuttals.forEach(function (r, i) {
+      assert.ok(r.accepts.some(function (c) { return gotNoPatient[c]; }), d.id + " 第 " + (i + 1) + " 輪辯解只能靠病人的證言反駁");
+    });
   });
 
   test(d.id + "：辯解為 2～3 輪", function () {
