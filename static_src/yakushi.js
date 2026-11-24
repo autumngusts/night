@@ -35,8 +35,10 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 
   // ===== UI 狀態（不存檔）=====
-  // screen: title | story | investigate | board | lab
-  var ui = { screen: "title", caseId: null, story: null, spotText: "", hoursOutShown: false };
+  // screen: title | story | investigate | board | lab | book
+  var ui = { screen: "title", caseId: null, story: null, spotText: "", hoursOutShown: false,
+    lab: "identify", evidence: null, tagsOff: {}, pickHerb: null, testResult: null, patient: null, meds: [], remedyResult: "",
+    bookCat: "poison", bookQ: "", bookHerb: null, bookFrom: "title" };
   var appEl = null;
 
   function curRun() { return ui.caseId && state.cases[ui.caseId] ? state.cases[ui.caseId].run || null : null; }
@@ -127,18 +129,144 @@
   function screenBoard() {
     return '<div id="ys-board"><p>' + esc(t("ys_board_soon")) + '</p><div class="ys-row"><button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div></div>";
   }
-  // Task 11 會取代這個暫時的實驗室
+  // ===== 工作台（鑑定／試藥／調藥）=====
+  var Herbs = window.PriTestYakushiHerbs;
+  function herbName(id) { var h = Herbs && Herbs.get(id); return h ? h.name : id; }
+  function evidenceList() {
+    var run = curRun(), def = curDef(), out = [];
+    if (!run || !def) return out;
+    run.cards.forEach(function (c) { var d = def.cards[c]; if (d && d.herb && d.kind === "evidence") out.push(c); });
+    return out;
+  }
+  function labEvidence() {
+    var list = evidenceList();
+    if (list.indexOf(ui.evidence) < 0) ui.evidence = list[0] || null;
+    return ui.evidence;
+  }
+  function checkedTags(ev) {
+    var run = curRun(), off = ui.tagsOff[ev] || [];
+    return Core.evidenceTags(run, ev).filter(function (x) { return off.indexOf(x) < 0; });
+  }
+  function evidencePicker() {
+    var def = curDef(), cur = labEvidence(), list = evidenceList();
+    if (!list.length) return '<p class="ys-note">' + esc(t("ys_no_evidence")) + "</p>";
+    var h = '<h3 class="ys-sub">' + esc(t("ys_pick_evidence")) + '</h3><div class="ys-tabs">';
+    list.forEach(function (id) {
+      h += '<button type="button" class="ys-tab' + (id === cur ? " ys-on" : "") + '" data-ys-evidence="' + esc(id) + '">' + esc(def.cards[id].name) + "</button>";
+    });
+    return h + "</div>";
+  }
+  function labIdentify() {
+    var run = curRun(), ev = labEvidence(), h = evidencePicker();
+    if (!ev) return h;
+    var tags = Core.evidenceTags(run, ev), on = checkedTags(ev);
+    if (run.identified[ev]) h += '<p id="ys-identified" class="ys-note">' + esc(t("ys_identified", { name: herbName(run.identified[ev]) })) + "</p>";
+    h += '<h3 class="ys-sub">' + esc(t("ys_tags")) + '</h3><div class="ys-tags">';
+    tags.forEach(function (tg) {
+      var c = on.indexOf(tg) >= 0;
+      h += '<button type="button" class="ys-chip' + (c ? " ys-on" : "") + '" aria-pressed="' + c + '" data-ys-tag="' + esc(tg) + '">' + esc(tg.replace(/^onset:/, "")) + "</button>";
+    });
+    var cands = Core.candidates(on);
+    h += '</div><h3 class="ys-sub">' + esc(t("ys_candidates", { n: cands.length })) + "</h3>";
+    var g = cands.length ? cands[0].group : null;
+    if (cands.length >= 2 && g && cands.every(function (x) { return x.group === g; })) h += '<p class="ys-note ys-lookalike">' + esc(t("ys_lookalike")) + "</p>";
+    h += '<div class="ys-tabs">';
+    cands.forEach(function (x) {
+      h += '<button type="button" class="ys-tab' + (ui.pickHerb === x.id ? " ys-on" : "") + '" data-ys-herb="' + esc(x.id) + '">' + esc(x.name) + "</button>";
+    });
+    h += '</div><div class="ys-row"><button type="button" class="ys-btn ys-btn-main" id="ys-identify-confirm"' + (ui.pickHerb && cands.some(function (x) { return x.id === ui.pickHerb; }) ? "" : " disabled") + ">" + esc(t("ys_identify")) + "</button></div>";
+    return h;
+  }
+  function labTest() {
+    var run = curRun(), ev = labEvidence(), h = evidencePicker();
+    if (!ev) return h;
+    h += '<div class="ys-tabs">';
+    Herbs.METHODS.forEach(function (m) {
+      h += '<button type="button" class="ys-btn' + ((ev + "|" + m) in run.tested ? " ys-done" : "") + '" data-ys-test="' + esc(m) + '">' + esc(t("ys_m_" + m)) + "</button>";
+    });
+    h += '</div><div id="ys-test-result" class="ys-spot-text">';
+    var tr = ui.testResult;
+    if (tr && tr.ev === ev) {
+      h += esc(tr.text == null ? t("ys_no_reaction") : tr.text);
+      if (tr.collapsed) h += "<br><b>" + esc(t("ys_collapse")) + "</b>";
+    }
+    return h + "</div>";
+  }
+  function labRemedy() {
+    var run = curRun(), def = curDef(), h = '<h3 class="ys-sub">' + esc(t("ys_patients")) + '</h3><div class="ys-tabs">';
+    (def.patients || []).forEach(function (p) {
+      var st = run.patients[p.id] || { level: 0 };
+      var note = st.cured ? t("ys_patient_cured") : st.lost ? t("ys_patient_lost") : t("ys_patient_state", { lv: st.level });
+      h += '<button type="button" class="ys-tab' + (ui.patient === p.id ? " ys-on" : "") + '" data-ys-patient="' + esc(p.id) + '">' + esc(p.name) +
+        ' <small class="ys-small">' + esc(note) + "</small></button>";
+    });
+    h += '</div><h3 class="ys-sub">' + esc(t("ys_medbox")) + '</h3><div class="ys-tags">';
+    (def.medicineBox || []).forEach(function (id) {
+      var c = ui.meds.indexOf(id) >= 0;
+      h += '<button type="button" class="ys-chip' + (c ? " ys-on" : "") + '" aria-pressed="' + c + '" data-ys-med="' + esc(id) + '">' + esc(herbName(id)) + "</button>";
+    });
+    var st2 = ui.patient && run.patients[ui.patient], can = st2 && !st2.cured && !st2.lost && ui.meds.length >= 1;
+    h += '</div><div class="ys-row"><button type="button" class="ys-btn ys-btn-main" id="ys-remedy-give"' + (can ? "" : " disabled") + ">" + esc(t("ys_remedy_give")) + "</button></div>" +
+      '<p id="ys-remedy-result" class="ys-spot-text">' + esc(ui.remedyResult || "") + "</p>" +
+      '<p class="ys-disclaimer">' + esc(t("ys_disclaimer")) + "</p>";
+    return h;
+  }
   function screenLab() {
-    return '<div id="ys-lab"><p>' + esc(t("ys_lab_soon")) + '</p><div class="ys-row"><button type="button" class="ys-btn" data-ys-act="lab-close">' + esc(t("ys_close")) + "</button></div></div>";
+    var run = curRun();
+    if (!run) { ui.screen = "title"; return screenTitle(); }
+    var h = '<div class="ys-bar"><span id="ys-hours">' + esc(t("ys_hours", { n: run.hours })) + '</span><span id="ys-stamina">' + esc(t("ys_stamina", { n: run.stamina })) + "</span></div>";
+    h += '<div class="ys-tabs">';
+    ["identify", "test", "remedy"].forEach(function (k) {
+      h += '<button type="button" class="ys-tab' + (ui.lab === k ? " ys-on" : "") + '" data-ys-lab="' + k + '">' + esc(t("ys_lab_" + k)) + "</button>";
+    });
+    h += '</div><div id="ys-lab">' + (ui.lab === "test" ? labTest() : ui.lab === "remedy" ? labRemedy() : labIdentify()) +
+      '</div><div class="ys-row"><button type="button" class="ys-btn ys-btn-quiet" id="ys-open-book-lab">' + esc(t("ys_book")) + "</button>" +
+      '<button type="button" class="ys-btn" id="ys-lab-close">' + esc(t("ys_close")) + "</button></div>";
+    return h;
   }
 
-  var SCREENS = { title: screenTitle, story: screenStory, investigate: screenInvestigate, board: screenBoard, lab: screenLab };
+  // ===== 藥材圖鑑 =====
+  function bookList() {
+    var q = (ui.bookQ || "").trim(), herbs = q ? Herbs.search(q) : Herbs.byCat(ui.bookCat), h = "";
+    herbs.forEach(function (x) {
+      var seen = !!state.herbsSeen[x.id];
+      h += '<button type="button" class="ys-btn ys-book-item' + (ui.bookHerb === x.id ? " ys-on" : "") + '" data-ys-book-herb="' + esc(x.id) + '">' +
+        (seen ? esc(x.name) : '<span class="ys-silhouette">' + esc(t("ys_unknown")) + "</span>" + (x.group ? ' <small class="ys-small">' + esc(x.group) + "</small>" : "")) + "</button>";
+    });
+    return h;
+  }
+  function bookDetail() {
+    var x = ui.bookHerb && Herbs.get(ui.bookHerb);
+    if (!x) return "";
+    if (!state.herbsSeen[x.id]) return '<p class="ys-note">' + esc(t("ys_book_unseen")) + (x.group ? " " + esc(x.group) : "") + "</p>";
+    var h = '<h3 class="ys-sub">' + esc(x.name) + "</h3>";
+    if (x.alias && x.alias.length) h += '<p class="ys-note">' + esc(t("ys_book_alias")) + "：" + esc(x.alias.join("、")) + "</p>";
+    if (x.lore) h += '<p class="ys-line">' + esc(x.lore) + "</p>";
+    if (x.distinguish) h += '<p class="ys-note">' + esc(t("ys_book_distinguish")) + "：" + esc(x.distinguish) + "</p>";
+    h += '<ul class="ys-cards">';
+    Herbs.METHODS.forEach(function (m) {
+      if (x.tests && x.tests[m]) h += '<li class="ys-card"><span class="ys-card-kind">' + esc(t("ys_m_" + m)) + '</span><span class="ys-card-text">' + esc(x.tests[m]) + "</span></li>";
+    });
+    return h + "</ul>";
+  }
+  function screenBook() {
+    var h = '<h2 class="ys-sub">' + esc(t("ys_book")) + '</h2><div class="ys-tabs">';
+    Herbs.CATS.forEach(function (c) {
+      h += '<button type="button" class="ys-tab' + (ui.bookCat === c && !ui.bookQ ? " ys-on" : "") + '" data-ys-cat="' + c + '">' + esc(t("ys_cat_" + c)) + "</button>";
+    });
+    h += '</div><input type="search" id="ys-book-search" class="ys-input" placeholder="' + esc(t("ys_search")) + '" value="' + esc(ui.bookQ) + '">' +
+      '<div id="ys-book-list" class="ys-book-list">' + bookList() + '</div><div id="ys-book-detail">' + bookDetail() + "</div>" +
+      '<p class="ys-disclaimer">' + esc(t("ys_disclaimer")) + '</p><div class="ys-row"><button type="button" class="ys-btn" id="ys-book-close">' + esc(t("ys_close")) + "</button></div>";
+    return h;
+  }
+
+  var SCREENS = { title: screenTitle, story: screenStory, investigate: screenInvestigate, board: screenBoard, lab: screenLab, book: screenBook };
 
   function render() {
     if (!appEl) return;
     var run = curRun();
     // 調查中時辰用完 → 先顯示一句再切推理板
-    if (ui.screen === "investigate" && run && run.phase === "board") {
+    if ((ui.screen === "investigate" || ui.screen === "lab") && run && run.phase === "board") {
       if (run.hours === 0 && !ui.hoursOutShown) {
         ui.hoursOutShown = true;
         playLines([{ who: null, text: t("ys_hours_out") }], function () { ui.screen = "board"; render(); });
@@ -180,6 +308,38 @@
     "lab-close": function () { ui.screen = "investigate"; render(); }
   };
 
+  function labClick(d, run) {
+    if (!run) return false;
+    if (d.ysLab) { ui.lab = d.ysLab; render(); return true; }
+    if (d.ysEvidence) {
+      if (ui.evidence !== d.ysEvidence) { delete ui.tagsOff[d.ysEvidence]; ui.pickHerb = null; ui.testResult = null; }
+      ui.evidence = d.ysEvidence; render(); return true;
+    }
+    if (d.ysTag && ui.evidence) {
+      var off = ui.tagsOff[ui.evidence] = ui.tagsOff[ui.evidence] || [], i = off.indexOf(d.ysTag);
+      if (i >= 0) off.splice(i, 1); else off.push(d.ysTag);
+      render(); return true;
+    }
+    if (d.ysHerb) { ui.pickHerb = d.ysHerb; render(); return true; }
+    if (d.ysTest && ui.evidence) {
+      var r = Core.runTest(run, ui.evidence, d.ysTest);
+      if (r.ok) ui.testResult = { ev: ui.evidence, text: r.text, collapsed: r.collapsed };
+      done(); return true;
+    }
+    if (d.ysPatient) { ui.patient = d.ysPatient; ui.remedyResult = ""; render(); return true; }
+    if (d.ysMed) {
+      var j = ui.meds.indexOf(d.ysMed);
+      if (j >= 0) ui.meds.splice(j, 1); else if (ui.meds.length < 3) ui.meds.push(d.ysMed);
+      render(); return true;
+    }
+    return false;
+  }
+  function bookClick(d) {
+    if (d.ysCat) { ui.bookCat = d.ysCat; ui.bookQ = ""; ui.bookHerb = null; render(); return true; }
+    if (d.ysBookHerb) { ui.bookHerb = d.ysBookHerb; render(); return true; }
+    return false;
+  }
+
   function onClick(e) {
     var el = e.target && e.target.closest ? e.target.closest("button, [data-ys-act], [data-ys-card]") : null;
     if (!el || !appEl.contains(el) || el.disabled) return;
@@ -197,17 +357,32 @@
       }
       done(); return;
     }
+    if (ui.screen === "lab" && labClick(d, run)) return;
+    if (ui.screen === "book" && bookClick(d)) return;
     if (d.ysAct && ACTIONS[d.ysAct]) { ACTIONS[d.ysAct](el); return; }
     switch (el.id) {
       case "ys-story-next": storyAdvance(); break;
       case "ys-story-skip": storyFinish(); break;
-      case "ys-open-lab": ui.screen = "lab"; render(); break;
+      case "ys-open-lab": ui.screen = "lab"; ui.remedyResult = ""; render(); break;
+      case "ys-lab-close": ui.screen = "investigate"; render(); break;
+      case "ys-open-book": case "ys-open-book-lab":
+        ui.bookFrom = ui.screen === "lab" ? "lab" : "title"; ui.screen = "book"; render(); break;
+      case "ys-book-close": ui.screen = ui.bookFrom === "lab" && curRun() ? "lab" : "title"; render(); break;
+      case "ys-identify-confirm":
+        if (run && ui.evidence && ui.pickHerb && Core.identify(run, ui.evidence, ui.pickHerb).ok) ui.pickHerb = null;
+        done(); break;
+      case "ys-remedy-give":
+        if (run && ui.patient) {
+          var rr = Core.giveRemedy(run, ui.patient, ui.meds.slice());
+          if (rr.ok) { ui.remedyResult = t(rr.cured ? "ys_cured" : rr.lost ? "ys_lost" : "ys_worse"); ui.meds = []; }
+        }
+        done(); break;
       case "ys-to-board": if (run) { Core.toBoard(run); ui.hoursOutShown = true; ui.screen = "board"; done(); } break;
       case "ys-back-title": ui.screen = "title"; ui.story = null; render(); break;
       case "ys-reset":
         if (window.confirm(t("ys_reset_confirm"))) { state = Core.newSave(); ui.caseId = null; save(); render(); }
         break;
-      default: break; // ys-open-book / journal / cast 由 Task 11、12 接上
+      default: break; // ys-open-journal / cast 由 Task 12 接上
     }
   }
 
@@ -215,6 +390,13 @@
     appEl = document.getElementById("ys-app");
     if (!appEl) return;
     appEl.addEventListener("click", onClick);
+    appEl.addEventListener("input", function (e) {
+      if (!e.target || e.target.id !== "ys-book-search") return;
+      ui.bookQ = e.target.value; ui.bookHerb = null;
+      var l = document.getElementById("ys-book-list"), dt = document.getElementById("ys-book-detail");
+      if (l) l.innerHTML = bookList();
+      if (dt) dt.innerHTML = "";
+    });
     render();
   }
   window.PriTestYakushi = {

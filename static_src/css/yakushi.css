@@ -49,3 +49,15 @@
 .ys-card-reaction { border-left-color: var(--ys-jade); }
 .ys-card-person { border-left-color: #3f6a9a; }
 .ys-card-herb { border-left-color: #6b8e3a; }
+.ys-note { margin: 6px 0; line-height: 1.7; overflow-wrap: anywhere; }
+.ys-lookalike { color: var(--ys-red); }
+.ys-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ys-chip { min-height: 44px; padding: 6px 12px; font: inherit; color: var(--ys-ink); background: transparent; border: 1px dashed var(--ys-line); border-radius: 22px; cursor: pointer; }
+.ys-chip.ys-on { border-style: solid; border-color: var(--ys-jade); color: var(--ys-jade); font-weight: bold; }
+.ys-small { font-size: .72rem; opacity: .75; }
+.ys-btn.ys-done { opacity: .6; border-style: dashed; }
+.ys-input { width: 100%; min-height: 44px; margin: 6px 0; padding: 6px 10px; font: inherit; color: var(--ys-ink); background: transparent; border: 1px solid var(--ys-line); border-radius: 3px; }
+.ys-book-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.ys-book-item.ys-on { border-color: var(--ys-red); color: var(--ys-red); }
+.ys-silhouette { opacity: .5; letter-spacing: .2em; }
+#ys-lab, #ys-book-detail { overflow-wrap: anywhere; }

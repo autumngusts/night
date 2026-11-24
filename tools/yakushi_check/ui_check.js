@@ -45,6 +45,47 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   assert.strictEqual(r.hours, 3); assert.strictEqual(r.place, "kitchen");
 
   // ===== Task 11、12 接在這裡 =====
+  // 工作台：試藥（細看）→ 反應卡；鑑定錯一次再改對；調藥錯一次再調對
+  await tap("#ys-open-lab");
+  await tap('[data-ys-lab="test"]');
+  await tap('[data-ys-evidence="ev_tuber"]');
+  await tap('[data-ys-test="look"]');
+  r = await run();
+  assert.ok(r.cards.indexOf("re_tuber_look") >= 0); assert.strictEqual(r.hours, 2);
+  assert.ok((await page.textContent("#ys-test-result")).length > 0);
+
+  await tap('[data-ys-lab="identify"]');
+  await tap('[data-ys-evidence="ev_tuber"]');
+  assert.strictEqual(await page.locator('[data-ys-herb="tiannanxing"]').count(), 0, "細看後天南星應被篩掉");
+  await tap('[data-ys-tag="小型塊莖"]');              // 取消勾選這兩個 → 天南星回到候選
+  await tap('[data-ys-tag="頂端凹陷莖痕"]');
+  await tap('[data-ys-herb="tiannanxing"]');
+  await tap("#ys-identify-confirm");
+  r = await run();
+  assert.strictEqual(r.identified.ev_tuber, "tiannanxing"); assert.strictEqual(r.hours, 1);
+  await tap('[data-ys-tag="小型塊莖"]');              // 勾回來（勾選狀態在換證物前會保留）
+  await tap('[data-ys-tag="頂端凹陷莖痕"]');
+  await tap('[data-ys-herb="banxia"]');
+  await tap("#ys-identify-confirm");
+  r = await run();
+  assert.strictEqual(r.identified.ev_tuber, "banxia"); assert.strictEqual(r.hours, 1);
+
+  await tap('[data-ys-lab="remedy"]');
+  await tap('[data-ys-patient="pt_roommate"]');
+  await tap('[data-ys-med="shengjiang"]'); await tap('[data-ys-med="gancao"]');
+  await tap("#ys-remedy-give");
+  r = await run();
+  assert.strictEqual(r.patients.pt_roommate.cured, true);
+  assert.ok(r.cards.indexOf("tes_roommate") >= 0);
+  await tap("#ys-lab-close");
+
+  // 圖鑑：未見過顯示剪影
+  await tap("#ys-back-title");
+  await tap("#ys-open-book");
+  await tap('[data-ys-cat="poison"]');
+  assert.ok((await page.textContent('[data-ys-book-herb="gouwen"]')).indexOf("？？？") >= 0);
+  await tap("#ys-book-close");
+  await tap('[data-ys-case="case0"]');
 
   // 壞檔不可讓畫面整個空白
   await page.evaluate(function () {
