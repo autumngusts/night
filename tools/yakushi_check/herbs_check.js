@@ -114,5 +114,10 @@ test("後續案件依賴的標籤（半夏／天南星）", function () {
     assert.ok(t.indexOf(x) < 0, "tiannanxing 不應有 " + x);
   });
 });
+test("6 類全部載入，共 100 種，14 個群組都至少 2 名成員", function () {
+  assert.deepStrictEqual(loaded, FILES);
+  assert.strictEqual(Herbs.list().length, 100);
+  GROUPS.forEach(function (g) { assert.ok(Herbs.byGroup(g).length >= 2, g + " 成員不足 2"); });
+});
 
 console.log("\n" + passed + " passed");
