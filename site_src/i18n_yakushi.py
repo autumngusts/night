@@ -33,6 +33,9 @@ _ROWS: tuple[tuple[str, str], ...] = (
     ("ys_kind_reaction", "反應"),
     ("ys_kind_person", "人物"),
     ("ys_kind_herb", "藥材"),
+    ("ys_board_soon", "推理板稍後開放。"),
+    ("ys_lab_soon", "實驗室稍後開放。"),
+    ("ys_close", "關閉"),
 )
 
 YAKUSHI_ZH: dict[str, str] = {k: zh for k, zh in _ROWS}

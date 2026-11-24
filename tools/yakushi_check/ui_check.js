@@ -46,6 +46,16 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
 
   // ===== Task 11、12 接在這裡 =====
 
+  // 壞檔不可讓畫面整個空白
+  await page.evaluate(function () {
+    var s = JSON.parse(localStorage.getItem("pritest-yakushi-save"));
+    s.cases.case0.run.cards = "x";
+    localStorage.setItem("pritest-yakushi-save", JSON.stringify(s));
+  });
+  await page.reload();
+  assert.strictEqual(await page.locator('[data-ys-case="case0"]').count(), 1);
+  assert.strictEqual(await page.locator('[data-ys-case="case1"]').isDisabled(), true);
+
   var noScroll = await page.evaluate(function () { return document.documentElement.scrollWidth <= window.innerWidth; });
   assert.ok(noScroll, "手機寬度出現橫向捲動");
   assert.deepStrictEqual(errors, []);

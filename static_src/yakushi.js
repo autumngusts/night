@@ -13,7 +13,24 @@
   // ===== 存檔 =====
   var state = load();
   function load() {
-    try { return Core.normalizeSave(JSON.parse(localStorage.getItem(KEY))); } catch (e) { return Core.newSave(); }
+    var s;
+    try { s = Core.normalizeSave(JSON.parse(localStorage.getItem(KEY))); } catch (e) { return Core.newSave(); }
+    Object.keys(s.cases).forEach(function (id) {
+      var c = s.cases[id];
+      if (!c || typeof c !== "object") { delete s.cases[id]; return; }
+      if (c.run != null && !validRun(id, c.run)) delete c.run;
+    });
+    return s;
+  }
+  // 壞檔／手改檔的 run 一律丟棄，避免畫面整個壞掉
+  function isObj(o) { return !!o && typeof o === "object" && !Array.isArray(o); }
+  function validRun(id, r) {
+    var def = Core.getCase(id);
+    if (!def || !isObj(r)) return false;
+    if (!Array.isArray(r.cards) || !isObj(r.done) || !isObj(r.identified) || !isObj(r.tested) || !isObj(r.patients) || !isObj(r.board)) return false;
+    if (typeof r.hours !== "number" || typeof r.stamina !== "number" || typeof r.trust !== "number") return false;
+    if (["investigate", "board", "accuse", "done"].indexOf(r.phase) < 0) return false;
+    return def.places.some(function (p) { return p.id === r.place; });
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 
@@ -108,11 +125,11 @@
 
   // Task 12 會取代這個暫時的推理板
   function screenBoard() {
-    return '<div id="ys-board"><p>推理板稍後開放。</p><div class="ys-row"><button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div></div>";
+    return '<div id="ys-board"><p>' + esc(t("ys_board_soon")) + '</p><div class="ys-row"><button type="button" class="ys-btn ys-btn-quiet" id="ys-back-title">' + esc(t("ys_back_title")) + "</button></div></div>";
   }
   // Task 11 會取代這個暫時的實驗室
   function screenLab() {
-    return '<div id="ys-lab"><p>實驗室稍後開放。</p><div class="ys-row"><button type="button" class="ys-btn" data-ys-act="lab-close">' + esc(t("ys_cards")) + "</button></div></div>";
+    return '<div id="ys-lab"><p>' + esc(t("ys_lab_soon")) + '</p><div class="ys-row"><button type="button" class="ys-btn" data-ys-act="lab-close">' + esc(t("ys_close")) + "</button></div></div>";
   }
 
   var SCREENS = { title: screenTitle, story: screenStory, investigate: screenInvestigate, board: screenBoard, lab: screenLab };
@@ -129,10 +146,20 @@
       }
       ui.screen = "board";
     }
-    appEl.innerHTML = (SCREENS[ui.screen] || screenTitle)();
+    var html;
+    try { html = (SCREENS[ui.screen] || screenTitle)(); } catch (e) {
+      if (window.console && console.warn) console.warn("yakushi render failed", e);
+      ui.screen = "title"; ui.story = null; html = screenTitle();
+    }
+    appEl.innerHTML = html;
   }
 
   // ===== 操作 =====
+  function spotTextOf(spotId) {
+    var def = curDef(), out = "";
+    if (def) def.places.forEach(function (p) { p.spots.forEach(function (sp) { if (sp.id === spotId) out = sp.text; }); });
+    return out;
+  }
   function openCase(id) {
     ui.caseId = id; ui.spotText = ""; ui.hoursOutShown = false;
     var c = state.cases[id], run = c && c.run;
@@ -162,6 +189,12 @@
     if (d.ysSpot && run) {
       var r = Core.visit(run, d.ysSpot);
       if (r.ok) ui.spotText = r.text;
+      else if (r.error === "done") ui.spotText = spotTextOf(d.ysSpot);
+      if (r.ok && run.phase === "board" && run.hours === 0) { // 先看完這一處的描述，再顯示時辰用完
+        save();
+        playLines([{ who: null, text: r.text }], function () { ui.screen = "investigate"; render(); });
+        return;
+      }
       done(); return;
     }
     if (d.ysAct && ACTIONS[d.ysAct]) { ACTIONS[d.ysAct](el); return; }
