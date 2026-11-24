@@ -98,4 +98,75 @@ test("cardInfo：一般卡與 herb: 卡", function () {
   assert.strictEqual(Core.cardInfo(TCASE, "zz"), null);
 });
 
+function ready() {   // 拿到芋頭與病人症狀的 run
+  var r = Core.startCase(Core.newSave(), "case0");
+  Core.visit(r, "s_sick"); Core.move(r, "p2"); Core.visit(r, "s_pot");
+  return r;
+}
+test("evidenceTags：證物本身＋of 指向它的卡", function () {
+  var r = ready();
+  TCASE.cards.sym.tags = ["口舌發麻"];
+  assert.deepStrictEqual(Core.evidenceTags(r, "ev_tu").sort(), ["口舌發麻", "塊莖"].sort());
+  TCASE.cards.sym.tags = [];
+});
+test("candidates：真藥材一定在候選裡", function () {
+  var ids = Core.candidates(["塊莖"]).map(function (h) { return h.id; });
+  assert.ok(ids.indexOf("banxia") >= 0 && ids.indexOf("tiannanxing") >= 0);
+});
+test("identify：對的不扣時辰、錯的扣 1，都不公開對錯；重鑑定會換卡", function () {
+  var r0 = Core.startCase(Core.newSave(), "case0");
+  assert.deepStrictEqual(Core.identify(r0, "ev_tu", "banxia"), { error: "missing" });
+  assert.deepStrictEqual(Core.identify(r0, "ev_led", "banxia"), { error: "evidence" });
+  var r = ready(), h0 = r.hours;
+  assert.deepStrictEqual(Core.identify(r, "ev_tu", "zz"), { error: "herb" });
+  assert.deepStrictEqual(Core.identify(r, "ev_tu", "tiannanxing"), { ok: true });
+  assert.strictEqual(r.hours, h0 - 1);
+  assert.ok(r.cards.indexOf("herb:tiannanxing") >= 0);
+  assert.deepStrictEqual(Core.identify(r, "ev_tu", "banxia"), { ok: true });
+  assert.strictEqual(r.hours, h0 - 1);
+  assert.ok(r.cards.indexOf("herb:banxia") >= 0);
+  assert.ok(r.cards.indexOf("herb:tiannanxing") < 0);
+  assert.strictEqual(r.identified.ev_tu, "banxia");
+});
+test("runTest：案件指定的結果優先，給反應卡；重複不再扣時辰", function () {
+  var r = ready(), h0 = r.hours;
+  var t1 = Core.runTest(r, "ev_tu", "look");
+  assert.strictEqual(t1.text, "小而圓"); assert.strictEqual(t1.gives, "re_look");
+  assert.ok(r.cards.indexOf("re_look") >= 0); assert.strictEqual(r.hours, h0 - 1);
+  var t2 = Core.runTest(r, "ev_tu", "look");
+  assert.strictEqual(t2.repeat, true); assert.strictEqual(r.hours, h0 - 1);
+  assert.deepStrictEqual(Core.runTest(r, "ev_tu", "zz"), { error: "method" });
+});
+test("runTest：沒有指定就用藥材的 tests；沒有就 null", function () {
+  var r = ready();
+  var t = Core.runTest(r, "ev_tu", "silver");
+  assert.strictEqual(t.text, null);
+  var smell = Core.runTest(r, "ev_tu", "smell");
+  assert.strictEqual(smell.text, Herbs.get("banxia").tests.smell);
+});
+test("runTest：嚐 danger≥2 扣體力，歸零休息扣 2 時辰並回滿", function () {
+  var r = ready();
+  r.stamina = 1; r.hours = 8;
+  var t = Core.runTest(r, "ev_tu", "taste");   // 生半夏 danger 2
+  assert.strictEqual(t.collapsed, true);
+  assert.strictEqual(r.stamina, 3);
+  assert.strictEqual(r.hours, 8 - 1 - 2);
+});
+test("giveRemedy：藥箱限制、1～3 味、對了給證言、錯了惡化並扣時辰、到底就 lost", function () {
+  var r = ready();
+  assert.deepStrictEqual(Core.giveRemedy(r, "pt", ["renshen"]), { error: "box" });
+  assert.deepStrictEqual(Core.giveRemedy(r, "pt", []), { error: "count" });
+  var h0 = r.hours;
+  var w = Core.giveRemedy(r, "pt", ["lvdou"]);
+  assert.deepStrictEqual(w, { ok: true, cured: false, lost: false });
+  assert.strictEqual(r.patients.pt.level, 1); assert.strictEqual(r.hours, h0 - 1);
+  var ok = Core.giveRemedy(r, "pt", ["gancao", "shengjiang"]);
+  assert.deepStrictEqual(ok, { ok: true, cured: true, lost: false });
+  assert.ok(r.cards.indexOf("tes_pt") >= 0);
+  assert.deepStrictEqual(Core.giveRemedy(r, "pt", ["gancao"]), { error: "done" });
+  var r2 = ready(); r2.hours = 8;
+  Core.giveRemedy(r2, "pt", ["lvdou"]); Core.giveRemedy(r2, "pt", ["bohe"]);
+  assert.strictEqual(Core.giveRemedy(r2, "pt", ["lvdou", "bohe"]).lost, true);
+});
+
 console.log("\n" + passed + " passed");

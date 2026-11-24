@@ -96,13 +96,87 @@
   function toBoard(run) { if (run.phase === "investigate") run.phase = "board"; }
 
   // ---- 鑑定、試藥、調藥（Task 6） ----
+  function evidenceTags(run, evidenceId) {
+    var def = getCase(run.caseId), out = [];
+    function push(tags) { (tags || []).forEach(function (t) { if (out.indexOf(t) < 0) out.push(t); }); }
+    if (def.cards[evidenceId]) push(def.cards[evidenceId].tags);
+    run.cards.forEach(function (cid) {
+      var c = def.cards[cid];
+      if (c && c.of === evidenceId) push(c.tags);
+    });
+    return out;
+  }
+  function candidates(tags) { return H().filter(tags); }
+
+  function identify(run, evidenceId, herbId) {
+    if (run.phase !== "investigate") return { error: "phase" };
+    var c = getCase(run.caseId).cards[evidenceId];
+    if (!c || !c.herb) return { error: "evidence" };
+    if (!has(run, evidenceId)) return { error: "missing" };
+    if (!H().get(herbId)) return { error: "herb" };
+    var prev = run.identified[evidenceId];
+    run.identified[evidenceId] = herbId;
+    if (prev && prev !== herbId) {
+      var still = Object.keys(run.identified).some(function (e) { return run.identified[e] === prev; });
+      if (!still) run.cards = run.cards.filter(function (x) { return x !== "herb:" + prev; });
+    }
+    addCard(run, "herb:" + herbId);
+    if (herbId !== c.herb) spend(run, 1);     // §5.1：錯誤不公開，只多扣 1 時辰
+    return { ok: true };
+  }
+
+  function runTest(run, evidenceId, method) {
+    if (run.phase !== "investigate") return { error: "phase" };
+    if (H().METHODS.indexOf(method) < 0) return { error: "method" };
+    var def = getCase(run.caseId), c = def.cards[evidenceId];
+    if (!c || !c.herb) return { error: "evidence" };
+    if (!has(run, evidenceId)) return { error: "missing" };
+    var key = evidenceId + "|" + method;
+    if (key in run.tested) return { ok: true, text: run.tested[key], gives: null, collapsed: false, repeat: true };
+    var entry = (def.tests || []).filter(function (t) { return t.evidence === evidenceId && t.method === method; })[0];
+    var herb = H().get(c.herb);
+    var text = entry ? entry.text : (herb && herb.tests && herb.tests[method]) || null;
+    run.tested[key] = text;
+    spend(run, 1);
+    var collapsed = false;
+    if (method === "taste" && herb && herb.danger >= 2) {
+      run.stamina -= 1;
+      if (run.stamina <= 0) { run.stamina = START_STAMINA; spend(run, COLLAPSE_HOURS); collapsed = true; }
+    }
+    var gives = entry && entry.gives ? entry.gives : null;
+    if (gives) addCard(run, gives);
+    return { ok: true, text: text, gives: gives, collapsed: collapsed, repeat: false };
+  }
+
+  function sameSet(a, b) {
+    if (a.length !== b.length) return false;
+    var x = a.slice().sort(), y = b.slice().sort();
+    for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  }
+  function giveRemedy(run, patientId, herbIds) {
+    if (run.phase !== "investigate") return { error: "phase" };
+    var def = getCase(run.caseId);
+    var p = (def.patients || []).filter(function (x) { return x.id === patientId; })[0];
+    if (!p) return { error: "patient" };
+    var st = run.patients[patientId];
+    if (st.cured || st.lost) return { error: "done" };
+    if (!herbIds || herbIds.length < 1 || herbIds.length > 3) return { error: "count" };
+    if (!herbIds.every(function (h) { return def.medicineBox.indexOf(h) >= 0; })) return { error: "box" };
+    if (sameSet(herbIds, p.remedy)) { st.cured = true; addCard(run, p.gives); return { ok: true, cured: true, lost: false }; }
+    st.level += 1;
+    if (st.level >= REMEDY_MAX_LEVEL) st.lost = true;
+    spend(run, 1);
+    return { ok: true, cured: false, lost: st.lost };
+  }
 
   // ---- 推理板、指認、評價、結案（Task 7） ----
 
   var api = {
     CASE_ORDER: CASE_ORDER, SLOTS: SLOTS,
     registerCase: registerCase, getCase: getCase, newSave: newSave, normalizeSave: normalizeSave,
-    startCase: startCase, cardInfo: cardInfo, spotOpen: spotOpen, move: move, visit: visit, toBoard: toBoard
+    startCase: startCase, cardInfo: cardInfo, spotOpen: spotOpen, move: move, visit: visit, toBoard: toBoard,
+    evidenceTags: evidenceTags, candidates: candidates, identify: identify, runTest: runTest, giveRemedy: giveRemedy
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.PriTestYakushiCore = api;
