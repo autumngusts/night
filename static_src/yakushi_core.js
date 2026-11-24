@@ -172,11 +172,82 @@
 
   // ---- 推理板、指認、評價、結案（Task 7） ----
 
+  function placeCard(run, slot, cardId) {
+    if (run.phase !== "board" && !(slot === "deep" && run.phase === "accuse")) return { error: "phase" };
+    if (SLOTS.indexOf(slot) < 0 && slot !== "deep") return { error: "slot" };
+    if (cardId !== null && !has(run, cardId)) return { error: "card" };
+    run.board[slot] = cardId;
+    return { ok: true };
+  }
+  function submit(run) {
+    if (run.phase !== "board") return { error: "phase" };
+    if (SLOTS.some(function (s) { return !run.board[s]; })) return { error: "empty" };
+    var sol = getCase(run.caseId).solution, n = 0;
+    SLOTS.forEach(function (s) { if (run.board[s] === sol[s]) n++; });
+    run.submits += 1;
+    if (n === 4) { run.phase = "accuse"; run.accuseStep = 0; run.trust = START_TRUST; }
+    return { correct: n };
+  }
+  function currentRebuttal(run) {
+    if (run.phase !== "accuse") return null;
+    return getCase(run.caseId).rebuttals[run.accuseStep] || null;
+  }
+  function present(run, cardId) {
+    var r = currentRebuttal(run);
+    if (!r) return { error: "phase" };
+    if (has(run, cardId) && r.accepts.indexOf(cardId) >= 0) {
+      run.accuseStep += 1;
+      if (run.accuseStep >= getCase(run.caseId).rebuttals.length) run.phase = "done";
+      return { ok: true, hit: true, reply: r.reply, done: run.phase === "done", reset: false, trust: run.trust };
+    }
+    run.mispresent += 1; run.trust -= 1;
+    if (run.trust <= 0) {
+      run.accuseFails += 1; run.trust = START_TRUST; run.accuseStep = 0;
+      return { ok: true, hit: false, reply: null, done: false, reset: true, trust: run.trust };
+    }
+    return { ok: true, hit: false, reply: null, done: false, reset: false, trust: run.trust };
+  }
+  function rating(run) {
+    var pts = 10 - Math.max(0, run.submits - 1) - run.mispresent - 2 * run.accuseFails + (run.hours >= 3 ? 1 : 0);
+    return pts >= 10 ? "S" : pts >= 8 ? "A" : pts >= 5 ? "B" : "C";
+  }
+  function deepOption(def, run) {
+    if (!def.deep) return null;
+    var id = run.board.deep;
+    for (var i = 0; i < def.deep.options.length; i++) if (id && def.deep.options[i].card === id) return def.deep.options[i];
+    return { key: "none", card: null, monologue: def.deep.none };
+  }
+  function finish(save, run) {
+    if (run.phase !== "done") return { error: "phase" };
+    var def = getCase(run.caseId), entry = save.cases[run.caseId] || (save.cases[run.caseId] = {});
+    var r = rating(run), order = "SABC";
+    if (!entry.best || order.indexOf(r) < order.indexOf(entry.best)) entry.best = r;
+    entry.cleared = true;
+    Object.keys(run.identified).forEach(function (e) {
+      var c = def.cards[e];
+      if (c && c.herb === run.identified[e]) save.herbsSeen[c.herb] = true;
+    });
+    var monos = [run.caseId + ":main"];
+    var opt = deepOption(def, run);
+    if (opt) monos.push(run.caseId + ":" + opt.key);
+    monos.forEach(function (k) { save.monologues[k] = true; });
+    (def.cast || []).forEach(function (c) { save.castSeen[c] = true; });
+    var next = CASE_ORDER[CASE_ORDER.indexOf(run.caseId) + 1];
+    if (next && save.unlocked.indexOf(next) < 0) save.unlocked.push(next);
+    run.result = { rating: r, monologues: monos };
+    entry.last = run.result;
+    entry.run = null;
+    return run.result;
+  }
+
+
   var api = {
     CASE_ORDER: CASE_ORDER, SLOTS: SLOTS,
     registerCase: registerCase, getCase: getCase, newSave: newSave, normalizeSave: normalizeSave,
     startCase: startCase, cardInfo: cardInfo, spotOpen: spotOpen, move: move, visit: visit, toBoard: toBoard,
-    evidenceTags: evidenceTags, candidates: candidates, identify: identify, runTest: runTest, giveRemedy: giveRemedy
+    evidenceTags: evidenceTags, candidates: candidates, identify: identify, runTest: runTest, giveRemedy: giveRemedy,
+    placeCard: placeCard, submit: submit, currentRebuttal: currentRebuttal, present: present,
+    rating: rating, deepOption: deepOption, finish: finish
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.PriTestYakushiCore = api;

@@ -169,4 +169,89 @@ test("giveRemedy：藥箱限制、1～3 味、對了給證言、錯了惡化並�
   assert.strictEqual(Core.giveRemedy(r2, "pt", ["lvdou", "bohe"]).lost, true);
 });
 
+function atBoard() {
+  var r = ready();
+  Core.move(r, "p2"); Core.visit(r, "s_led"); Core.move(r, "p1"); Core.visit(r, "s_talk");
+  Core.identify(r, "ev_tu", "banxia");
+  Core.toBoard(r);
+  return r;
+}
+test("placeCard：只能放持有的卡、格子要合法", function () {
+  var r = atBoard();
+  assert.deepStrictEqual(Core.placeCard(r, "who", "zz"), { error: "card" });
+  assert.deepStrictEqual(Core.placeCard(r, "when", "p_eu"), { error: "slot" });
+  assert.deepStrictEqual(Core.placeCard(r, "who", "p_eu"), { ok: true });
+  assert.deepStrictEqual(Core.placeCard(r, "who", null), { ok: true });
+  assert.strictEqual(r.board.who, null);
+});
+test("submit：空格不能交；只回饋對幾格；4 格對進入指認", function () {
+  var r = atBoard();
+  assert.deepStrictEqual(Core.submit(r), { error: "empty" });
+  Core.placeCard(r, "who", "p_eu"); Core.placeCard(r, "what", "herb:banxia");
+  Core.placeCard(r, "how", "ev_led"); Core.placeCard(r, "why", "tes_eu");
+  assert.deepStrictEqual(Core.submit(r), { correct: 2 });
+  assert.strictEqual(r.phase, "board");
+  Core.placeCard(r, "how", "tes_eu"); Core.placeCard(r, "why", "ev_led");
+  assert.deepStrictEqual(Core.submit(r), { correct: 4 });
+  assert.strictEqual(r.phase, "accuse"); assert.strictEqual(r.submits, 2);
+});
+function atAccuse() {
+  var r = atBoard();
+  Core.placeCard(r, "who", "p_eu"); Core.placeCard(r, "what", "herb:banxia");
+  Core.placeCard(r, "how", "tes_eu"); Core.placeCard(r, "why", "ev_led");
+  Core.submit(r);
+  return r;
+}
+test("present：對了往下一輪；錯了扣信任；歸零重來", function () {
+  var r = atAccuse();
+  assert.strictEqual(Core.currentRebuttal(r).claim, "那是芋頭");
+  var miss = Core.present(r, "ev_led");
+  assert.strictEqual(miss.hit, false); assert.strictEqual(r.trust, 2); assert.strictEqual(r.mispresent, 1);
+  assert.strictEqual(Core.present(r, "herb:banxia").hit, true);
+  assert.strictEqual(r.accuseStep, 1);
+  Core.present(r, "p_eu"); var last = Core.present(r, "p_eu");
+  assert.strictEqual(last.reset, true);
+  assert.strictEqual(r.accuseStep, 0); assert.strictEqual(r.trust, 3); assert.strictEqual(r.accuseFails, 1);
+  Core.present(r, "herb:banxia");
+  var done = Core.present(r, "ev_led");
+  assert.strictEqual(done.done, true); assert.strictEqual(r.phase, "done");
+});
+test("rating：公式（暫定）", function () {
+  var base = { submits: 1, mispresent: 0, accuseFails: 0, hours: 3 };
+  assert.strictEqual(Core.rating(base), "S");
+  assert.strictEqual(Core.rating({ submits: 1, mispresent: 0, accuseFails: 0, hours: 2 }), "S");
+  assert.strictEqual(Core.rating({ submits: 2, mispresent: 0, accuseFails: 0, hours: 0 }), "A");
+  assert.strictEqual(Core.rating({ submits: 2, mispresent: 1, accuseFails: 1, hours: 0 }), "B");
+  assert.strictEqual(Core.rating({ submits: 4, mispresent: 2, accuseFails: 1, hours: 0 }), "C");
+});
+test("deepOption：放對應卡選該項，沒放選 none", function () {
+  var r = atAccuse();
+  assert.strictEqual(Core.deepOption(TCASE, r).key, "none");
+  Core.placeCard(r, "deep", "tes_eu");
+  assert.strictEqual(Core.deepOption(TCASE, r).key, "none");
+});
+test("finish：記評價、解鎖下一案、記圖鑑與獨語與人物", function () {
+  var s = Core.newSave();
+  var r = Core.startCase(s, "case0");
+  Core.visit(r, "s_sick"); Core.move(r, "p2"); Core.visit(r, "s_pot"); Core.visit(r, "s_led");
+  Core.move(r, "p1"); Core.visit(r, "s_talk");
+  // 病人證言 tes_pt 也拿來放深層臆測
+  Core.giveRemedy(r, "pt", ["shengjiang", "gancao"]);
+  Core.identify(r, "ev_tu", "banxia");
+  assert.deepStrictEqual(Core.finish(s, r), { error: "phase" });
+  Core.toBoard(r);
+  Core.placeCard(r, "who", "p_eu"); Core.placeCard(r, "what", "herb:banxia");
+  Core.placeCard(r, "how", "tes_eu"); Core.placeCard(r, "why", "ev_led"); Core.placeCard(r, "deep", "tes_pt");
+  Core.submit(r); Core.present(r, "re_look") ; Core.present(r, "herb:banxia"); Core.present(r, "ev_led");
+  var res = Core.finish(s, r);
+  assert.strictEqual(res.rating, "A");   // mispresent 1（re_look 沒拿到 → 不持有，算錯）
+  assert.deepStrictEqual(res.monologues, ["case0:main", "case0:a"]);
+  assert.strictEqual(s.cases.case0.best, "A"); assert.strictEqual(s.cases.case0.cleared, true);
+  assert.strictEqual(s.cases.case0.run, null);
+  assert.ok(s.unlocked.indexOf("case1") >= 0);
+  assert.strictEqual(s.herbsSeen.banxia, true);
+  assert.strictEqual(s.monologues["case0:a"], true);
+  assert.strictEqual(s.castSeen.maomao, true);
+});
+
 console.log("\n" + passed + " passed");
