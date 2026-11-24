@@ -121,7 +121,7 @@
       lore: "南方山區的藤狀灌木，全株有毒，古來用於祛風濕，也被用來毒殺蟲害。中毒者除了腹痛腹瀉，日後還可能掉髮。" },
 
     { id: "badou", name: "巴豆", alias: ["巴菽"], cat: "poison", group: null, danger: 3,
-      traits: { form: ["三稜卵形果實", "灰褐色種子", "種子含油"], smell: ["氣微"], taste: [],
+      traits: { form: ["三稜卵形果實", "灰褐色種子", "種子含油"], smell: ["無明顯氣味"], taste: [],
         symptom: ["劇烈腹瀉", "腹痛", "嘔吐", "皮膚紅腫"], onset: "fast" },
       tests: T("果實有三條稜，種子灰褐，剖開裡面是淡黃色、油潤的種仁", "氣味很淡", null, null, null,
         "餵食的鼠類很快腹瀉虛脫"),
