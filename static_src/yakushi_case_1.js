@@ -76,7 +76,7 @@
     solution: { who: "p_maid", what: "herb:mantuoluo", how: "ev_fake_incense", why: "tes_lover" },
     rebuttals: [
       { who: "p_maid", claim: "那是上好的沉香，是我家鄉最好的香！", accepts: ["herb:tanxiang", "re_float"],
-        reply: "「……浮、浮起來了？不可能，那人明明說……」" },
+        reply: "「……浮、浮起來了？不可能，那明明是……」" },
       { who: "p_maid", claim: "香灰裡的花粉？那是娘娘院子裡自己種的花！", accepts: ["herb:mantuoluo", "re_seed"],
         reply: "「……」素荷咬住了嘴唇，再也沒說話。" },
       { who: "p_maid", claim: "我與娘娘情同姊妹，怎麼可能害她？", accepts: ["tes_lover"],
