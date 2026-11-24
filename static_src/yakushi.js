@@ -226,19 +226,24 @@
   }
 
   // ===== 藥材圖鑑 =====
+  function groupName(g) {
+    if (!g) return "";
+    var k = "ys_group_" + g, v = t(k);
+    return v && v !== k ? v : "";   // 沒有名稱就不顯示，絕不外露群組 id
+  }
   function bookList() {
-    var q = (ui.bookQ || "").trim(), herbs = q ? Herbs.search(q) : Herbs.byCat(ui.bookCat), h = "";
+    var q = (ui.bookQ || "").trim(), herbs = q ? Herbs.search(q).filter(function (x) { return state.herbsSeen[x.id]; }) : Herbs.byCat(ui.bookCat), h = "";
     herbs.forEach(function (x) {
       var seen = !!state.herbsSeen[x.id];
       h += '<button type="button" class="ys-btn ys-book-item' + (ui.bookHerb === x.id ? " ys-on" : "") + '" data-ys-book-herb="' + esc(x.id) + '">' +
-        (seen ? esc(x.name) : '<span class="ys-silhouette">' + esc(t("ys_unknown")) + "</span>" + (x.group ? ' <small class="ys-small">' + esc(x.group) + "</small>" : "")) + "</button>";
+        (seen ? esc(x.name) : '<span class="ys-silhouette">' + esc(t("ys_unknown")) + "</span>" + (groupName(x.group) ? ' <small class="ys-small">' + esc(groupName(x.group)) + "</small>" : "")) + "</button>";
     });
     return h;
   }
   function bookDetail() {
     var x = ui.bookHerb && Herbs.get(ui.bookHerb);
     if (!x) return "";
-    if (!state.herbsSeen[x.id]) return '<p class="ys-note">' + esc(t("ys_book_unseen")) + (x.group ? " " + esc(x.group) : "") + "</p>";
+    if (!state.herbsSeen[x.id]) return '<p class="ys-note">' + esc(t("ys_book_unseen")) + (groupName(x.group) ? " " + esc(groupName(x.group)) : "") + "</p>";
     var h = '<h3 class="ys-sub">' + esc(x.name) + "</h3>";
     if (x.alias && x.alias.length) h += '<p class="ys-note">' + esc(t("ys_book_alias")) + "：" + esc(x.alias.join("、")) + "</p>";
     if (x.lore) h += '<p class="ys-line">' + esc(x.lore) + "</p>";
@@ -288,8 +293,13 @@
     if (def) def.places.forEach(function (p) { p.spots.forEach(function (sp) { if (sp.id === spotId) out = sp.text; }); });
     return out;
   }
+  function resetLabUi() {
+    ui.lab = "identify"; ui.evidence = null; ui.tagsOff = {}; ui.pickHerb = null; ui.testResult = null;
+    ui.patient = null; ui.meds = []; ui.remedyResult = "";
+  }
   function openCase(id) {
     ui.caseId = id; ui.spotText = ""; ui.hoursOutShown = false;
+    resetLabUi();
     var c = state.cases[id], run = c && c.run;
     if (run && run.phase !== "done") {
       ui.hoursOutShown = true;
@@ -310,7 +320,7 @@
 
   function labClick(d, run) {
     if (!run) return false;
-    if (d.ysLab) { ui.lab = d.ysLab; render(); return true; }
+    if (d.ysLab) { ui.lab = d.ysLab; ui.remedyResult = ""; render(); return true; }
     if (d.ysEvidence) {
       if (ui.evidence !== d.ysEvidence) { delete ui.tagsOff[d.ysEvidence]; ui.pickHerb = null; ui.testResult = null; }
       ui.evidence = d.ysEvidence; render(); return true;
@@ -323,7 +333,7 @@
     if (d.ysHerb) { ui.pickHerb = d.ysHerb; render(); return true; }
     if (d.ysTest && ui.evidence) {
       var r = Core.runTest(run, ui.evidence, d.ysTest);
-      if (r.ok) ui.testResult = { ev: ui.evidence, text: r.text, collapsed: r.collapsed };
+      ui.testResult = r.ok ? { ev: ui.evidence, text: r.text, collapsed: r.collapsed } : null;
       done(); return true;
     }
     if (d.ysPatient) { ui.patient = d.ysPatient; ui.remedyResult = ""; render(); return true; }
@@ -380,7 +390,7 @@
       case "ys-to-board": if (run) { Core.toBoard(run); ui.hoursOutShown = true; ui.screen = "board"; done(); } break;
       case "ys-back-title": ui.screen = "title"; ui.story = null; render(); break;
       case "ys-reset":
-        if (window.confirm(t("ys_reset_confirm"))) { state = Core.newSave(); ui.caseId = null; save(); render(); }
+        if (window.confirm(t("ys_reset_confirm"))) { state = Core.newSave(); ui.caseId = null; resetLabUi(); ui.bookHerb = null; ui.bookQ = ""; save(); render(); }
         break;
       default: break; // ys-open-journal / cast 由 Task 12 接上
     }

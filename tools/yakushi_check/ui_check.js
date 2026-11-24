@@ -59,6 +59,7 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   assert.strictEqual(await page.locator('[data-ys-herb="tiannanxing"]').count(), 0, "細看後天南星應被篩掉");
   await tap('[data-ys-tag="小型塊莖"]');              // 取消勾選這兩個 → 天南星回到候選
   await tap('[data-ys-tag="頂端凹陷莖痕"]');
+  assert.strictEqual(await page.locator(".ys-lookalike").count(), 1, "同群組候選 ≥2 應顯示 ys_lookalike");
   await tap('[data-ys-herb="tiannanxing"]');
   await tap("#ys-identify-confirm");
   r = await run();
@@ -83,7 +84,10 @@ var BASE = (process.env.YAKUSHI_ROOT || "http://localhost:8974/") + "yakushi/ind
   await tap("#ys-back-title");
   await tap("#ys-open-book");
   await tap('[data-ys-cat="poison"]');
-  assert.ok((await page.textContent('[data-ys-book-herb="gouwen"]')).indexOf("？？？") >= 0);
+  var sil = await page.textContent('[data-ys-book-herb="gouwen"]');
+  assert.ok(sil.indexOf("？？？") >= 0);
+  assert.ok(!/[a-z_]{3,}/.test(sil), "剪影不可外露群組 id：" + sil);
+  assert.ok((await page.textContent("#ys-app")).indexOf("非醫療建議") >= 0, "圖鑑要顯示免責聲明");
   await tap("#ys-book-close");
   await tap('[data-ys-case="case0"]');
 

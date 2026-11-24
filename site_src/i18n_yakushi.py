@@ -74,6 +74,20 @@ _ROWS: tuple[tuple[str, str], ...] = (
     ("ys_book_alias", "別名"),
     ("ys_book_distinguish", "辨別"),
     ("ys_book_unseen", "尚未確認過這味藥。"),
+    ("ys_group_aconite", "烏頭類塊根"),
+    ("ys_group_yellow_vine", "黃花藤本"),
+    ("ys_group_nightshade", "茄科草本"),
+    ("ys_group_umbel", "繖形科野菜"),
+    ("ys_group_human_root", "人形根"),
+    ("ys_group_pink_leaf", "粉花長葉"),
+    ("ys_group_almond", "杏仁類"),
+    ("ys_group_white_powder", "白色粉末"),
+    ("ys_group_red_mineral", "紅色礦物"),
+    ("ys_group_red_flower", "紅色花類"),
+    ("ys_group_numb_poison", "致麻毒物"),
+    ("ys_group_fragrant_wood", "香木"),
+    ("ys_group_raw_tuber", "生塊莖"),
+    ("ys_group_mad_honey", "蜂蜜與蜜源"),
 )
 
 YAKUSHI_ZH: dict[str, str] = {k: zh for k, zh in _ROWS}
