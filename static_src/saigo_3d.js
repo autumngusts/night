@@ -81,22 +81,95 @@
 
   // ---------------- 狗的模型 ----------------
   // 模型朝 +X，原點在地面。回傳 { root, parts }，parts 給動畫用
+  // ---------------- 狗的模型 ----------------
+  // 2026-11-26 改版（使用者指定「狗的動作更真實」第一步）：
+  //   身體分成前半（胸）與後半（腰臀，loin 群組）兩段，脊椎可以彎曲／伸展；
+  //   腳改成三節：前腳＝上臂／前臂／掌骨，後腳＝大腿／小腿／蹠骨（有飛節），腳掌另有一個關節保持貼地。
+  //   各節長度依「站姿時腳掌剛好落地」反推，所以犬種的腿長參數（m.leg）照舊有效。
+  // 腳的關節靜止角度（rotation.z，正＝往前擺）；前腳前臂接近垂直，後腳大腿往前、小腿往後、蹠骨近乎垂直
+  var LEG_REST = { fore: [-0.25, 0.3, -0.03], hind: [0.45, -1.0, 0.62] };
+  var LEG_PROP = { fore: [0.42, 0.42, 0.16], hind: [0.36, 0.42, 0.26] };
+  var LEG_THICK = { fore: [[0.05, 0.04], [0.036, 0.03], [0.03, 0.027]], hind: [[0.078, 0.046], [0.04, 0.03], [0.03, 0.027]] };
+
+  // ---------------- 狗的模型 ----------------
+  // 2026-11-26 改版（使用者指定「狗的動作更真實」第一步）：
+  //   身體分成前半（胸）與後半（腰臀，loin 群組）兩段，脊椎可以彎曲／伸展；
+  //   腳改成三節：前腳＝上臂／前臂／掌骨，後腳＝大腿／小腿／蹠骨（有飛節），腳掌另有一個關節保持貼地。
+  //   各節長度依「站姿時腳掌剛好落地」反推，所以犬種的腿長參數（m.leg）照舊有效。
+  // 腳的關節靜止角度（rotation.z，正＝往前擺）；前腳前臂接近垂直，後腳大腿往前、小腿往後、蹠骨近乎垂直
+  var LEG_REST = { fore: [-0.25, 0.3, -0.03], hind: [0.45, -1.0, 0.62] };
+  var LEG_PROP = { fore: [0.42, 0.42, 0.16], hind: [0.36, 0.42, 0.26] };
+  var LEG_THICK = { fore: [[0.05, 0.04], [0.036, 0.03], [0.03, 0.027]], hind: [[0.078, 0.046], [0.04, 0.03], [0.03, 0.027]] };
+
+  // ---------------- 狗的模型 ----------------
+  // 2026-11-26 改版（使用者指定「狗的動作更真實」第一步）：
+  //   身體分成前半（胸）與後半（腰臀，loin 群組）兩段，脊椎可以彎曲／伸展；
+  //   腳改成三節：前腳＝上臂／前臂／掌骨，後腳＝大腿／小腿／蹠骨（有飛節），腳掌另有一個關節保持貼地。
+  //   各節長度依「站姿時腳掌剛好落地」反推，所以犬種的腿長參數（m.leg）照舊有效。
+  // 腳的關節靜止角度（rotation.z，正＝往前擺）；前腳前臂接近垂直，後腳大腿往前、小腿往後、蹠骨近乎垂直
+  var LEG_REST = { fore: [-0.25, 0.3, -0.03], hind: [0.45, -1.0, 0.62] };
+  var LEG_PROP = { fore: [0.42, 0.42, 0.16], hind: [0.36, 0.42, 0.26] };
+  var LEG_THICK = { fore: [[0.05, 0.04], [0.036, 0.03], [0.03, 0.027]], hind: [[0.078, 0.046], [0.04, 0.03], [0.03, 0.027]] };
+
+  // ---------------- 狗的模型 ----------------
+  // 2026-11-26 改版（使用者指定「狗的動作更真實」第一步）：
+  //   身體分成前半（胸）與後半（腰臀，loin 群組）兩段，脊椎可以彎曲／伸展；
+  //   腳改成三節：前腳＝上臂／前臂／掌骨，後腳＝大腿／小腿／蹠骨（有飛節），腳掌另有一個關節保持貼地。
+  //   各節長度依「站姿時腳掌剛好落地」反推，所以犬種的腿長參數（m.leg）照舊有效。
+  // 腳的關節靜止角度（rotation.z，正＝往前擺）；前腳前臂接近垂直，後腳大腿往前、小腿往後、蹠骨近乎垂直
+  var LEG_REST = { fore: [-0.25, 0.3, -0.03], hind: [0.45, -1.0, 0.62] };
+  var LEG_PROP = { fore: [0.42, 0.42, 0.16], hind: [0.36, 0.42, 0.26] };
+  var LEG_THICK = { fore: [[0.05, 0.04], [0.036, 0.03], [0.03, 0.027]], hind: [[0.078, 0.046], [0.04, 0.03], [0.03, 0.027]] };
+
+  // ---------------- 狗的模型 ----------------
+  // 2026-11-26 改版（使用者指定「狗的動作更真實」第一步）：
+  //   身體分成前半（胸）與後半（腰臀，loin 群組）兩段，脊椎可以彎曲／伸展；
+  //   腳改成三節：前腳＝上臂／前臂／掌骨，後腳＝大腿／小腿／蹠骨（有飛節），腳掌另有一個關節保持貼地。
+  //   各節長度依「站姿時腳掌剛好落地」反推，所以犬種的腿長參數（m.leg）照舊有效。
+  // 腳的關節靜止角度（rotation.z，正＝往前擺）；前腳前臂接近垂直，後腳大腿往前、小腿往後、蹠骨近乎垂直
+  var LEG_REST = { fore: [-0.25, 0.3, -0.03], hind: [0.45, -1.0, 0.62] };
+  var LEG_PROP = { fore: [0.42, 0.42, 0.16], hind: [0.36, 0.42, 0.26] };
+  var LEG_THICK = { fore: [[0.05, 0.04], [0.036, 0.03], [0.03, 0.027]], hind: [[0.078, 0.046], [0.04, 0.03], [0.03, 0.027]] };
+
+  // ---------------- 狗的模型 ----------------
+  // 2026-11-26 改版（使用者指定「狗的動作更真實」第一步）：
+  //   身體分成前半（胸）與後半（腰臀，loin 群組）兩段，脊椎可以彎曲／伸展；
+  //   腳改成三節：前腳＝上臂／前臂／掌骨，後腳＝大腿／小腿／蹠骨（有飛節），腳掌另有一個關節保持貼地。
+  //   各節長度依「站姿時腳掌剛好落地」反推，所以犬種的腿長參數（m.leg）照舊有效。
+  // 腳的關節靜止角度（rotation.z，正＝往前擺）；前腳前臂接近垂直，後腳大腿往前、小腿往後、蹠骨近乎垂直
+  var LEG_REST = { fore: [-0.25, 0.3, -0.03], hind: [0.45, -1.0, 0.62] };
+  var LEG_PROP = { fore: [0.42, 0.42, 0.16], hind: [0.36, 0.42, 0.26] };
+  var LEG_THICK = { fore: [[0.05, 0.04], [0.036, 0.03], [0.03, 0.027]], hind: [[0.078, 0.046], [0.04, 0.03], [0.03, 0.027]] };
+
   function buildDog(T, breedId, gate) {
     var b = D.BREED_BY_ID[breedId] || D.BREEDS[0], m = b.model;
     var S = SIZE_SCALE[b.size];
     var c1 = mat(T, m.c1), c2 = mat(T, m.c2), dark = mat(T, "#1a1512"), nose = mat(T, "#111");
     var root = new T.Group(), body = new T.Group();
     root.add(body);
-    var legLen = 0.5 * m.leg, bodyY = legLen + 0.18, bl = m.body;
+    var legLen = 0.5 * m.leg, bodyY = legLen + 0.16, bl = m.body;
     body.position.y = bodyY;
-    var torso = mesh(T, new T.SphereGeometry(1, 12, 8), c1, true); torso.scale.set(0.45 * bl, 0.2, 0.19); body.add(torso);
-    var chest = mesh(T, new T.SphereGeometry(1, 10, 8), m.pat === 1 || m.pat === 4 ? c2 : c1, true); chest.scale.set(0.2, 0.22, 0.2); chest.position.set(0.25 * bl, 0.02, 0); body.add(chest);
-    if (m.pat === 1) { var belly = mesh(T, new T.SphereGeometry(1, 10, 6), c2); belly.scale.set(0.36 * bl, 0.13, 0.15); belly.position.y = -0.08; body.add(belly); }
-    if (m.pat === 3) { var saddle = mesh(T, new T.SphereGeometry(1, 10, 6), c2); saddle.scale.set(0.3 * bl, 0.1, 0.175); saddle.position.set(-0.05 * bl, 0.11, 0); body.add(saddle); }
+    // 後半身（腰＋臀）：繞背中央的軸轉動＝脊椎彎曲
+    var loinX = -0.02 * bl, loinY = 0.04;
+    var loin = new T.Group(); loin.position.set(loinX, loinY, 0); body.add(loin);
+    // 放到身體上：x 在背中央之後的部位改掛在後半身（花紋跟著脊椎動）
+    function put(o, x, y, z) {
+      if (x < loinX - 0.06 * bl) { o.position.set(x - loinX, y - loinY, z); loin.add(o); }
+      else { o.position.set(x, y, z); body.add(o); }
+      return o;
+    }
+    var chestC = m.pat === 1 || m.pat === 4 ? c2 : c1;
+    var fore = mesh(T, new T.SphereGeometry(1, 12, 8), c1, true); fore.scale.set(0.3 * bl, 0.205, 0.19); fore.position.set(0.1 * bl, 0, 0); body.add(fore);
+    var chest = mesh(T, new T.SphereGeometry(1, 10, 8), chestC, true); chest.scale.set(0.2, 0.22, 0.2); chest.position.set(0.25 * bl, 0.0, 0); body.add(chest);
+    // 腰（比胸細、往上收）與臀
+    var waist = mesh(T, new T.SphereGeometry(1, 12, 8), c1, true); waist.scale.set(0.27 * bl, 0.15, 0.16); waist.position.set(-0.17 * bl, 0.0, 0); loin.add(waist);
+    var rump = mesh(T, new T.SphereGeometry(1, 10, 8), c1, true); rump.scale.set(0.15 * bl, 0.155, 0.17); rump.position.set(-0.34 * bl, -0.02, 0); loin.add(rump);
+    if (m.pat === 1) { var belly = mesh(T, new T.SphereGeometry(1, 10, 6), c2); belly.scale.set(0.26 * bl, 0.13, 0.15); put(belly, 0.08 * bl, -0.08, 0); }
+    if (m.pat === 3) { var saddle = mesh(T, new T.SphereGeometry(1, 10, 6), c2); saddle.scale.set(0.3 * bl, 0.1, 0.175); put(saddle, -0.12 * bl, 0.1, 0); }
     if (m.pat === 2) {
       var sp = new T.SphereGeometry(0.035, 6, 4);
-      [[0.2, 0.12, 0.12], [-0.1, 0.16, 0.08], [-0.3, 0.1, -0.1], [0.05, 0.05, -0.17], [-0.2, -0.02, 0.17], [0.3, 0.1, -0.12], [-0.38, 0.0, 0.1], [0.12, 0.18, -0.04]].forEach(function (q) {
-        var s2 = mesh(T, sp, c2); s2.position.set(q[0] * bl, q[1], q[2]); body.add(s2);
+      [[0.2, 0.12, 0.12], [-0.1, 0.12, 0.08], [-0.3, 0.06, -0.1], [0.05, 0.05, -0.17], [-0.2, -0.02, 0.14], [0.3, 0.1, -0.12], [-0.38, 0.0, 0.1], [0.12, 0.18, -0.04]].forEach(function (q) {
+        put(mesh(T, sp, c2), q[0] * bl, q[1], q[2]);
       });
     }
     // 號碼布：背上兩側
@@ -107,13 +180,15 @@
     });
     var strip = mesh(T, new T.BoxGeometry(0.26, 0.02, 0.4), mat(T, D.GATE_COLORS[gate])); strip.position.set(-0.04 * bl, 0.19, 0); body.add(strip);
 
-    // 頭
-    var neck = new T.Group(); neck.position.set(0.36 * bl, 0.12, 0); body.add(neck);
-    var head = new T.Group(); head.position.set(0.1, 0.12, 0); neck.add(head);
+    // 頸與頭
+    var neck = new T.Group(); neck.position.set(0.33 * bl, 0.1, 0); body.add(neck);
+    var neckM = mesh(T, new T.CylinderGeometry(0.075, 0.1, 0.2, 8), c1, true); neckM.position.set(0.05, 0.07, 0); neckM.rotation.z = -0.75; neck.add(neckM);
+    var head = new T.Group(); head.position.set(0.1, 0.14, 0); neck.add(head);
     var skull = mesh(T, new T.SphereGeometry(0.15, 10, 8), c1, true); skull.scale.set(1.05, 0.95, 0.9); head.add(skull);
     var snoutLen = 0.2 * m.snout + 0.03;
     var snout = mesh(T, new T.BoxGeometry(snoutLen, 0.09, 0.1), m.pat === 4 || m.pat === 1 ? c2 : c1, true); snout.position.set(0.1 + snoutLen / 2, -0.04, 0); head.add(snout);
     var nz = mesh(T, new T.SphereGeometry(0.028, 6, 4), nose); nz.position.set(0.1 + snoutLen, -0.01, 0); head.add(nz);
+    var ears = [];
     [-1, 1].forEach(function (sz) {
       var eye = mesh(T, new T.SphereGeometry(0.021, 6, 4), dark); eye.position.set(0.11, 0.04, 0.065 * sz); head.add(eye);
       if (m.pat === 4) { var brow = mesh(T, new T.SphereGeometry(0.02, 5, 4), c2); brow.position.set(0.11, 0.08, 0.06 * sz); head.add(brow); }
@@ -126,92 +201,227 @@
       } else {
         ear = mesh(T, new T.BoxGeometry(0.07, 0.17, 0.035), m.pat === 3 ? c2 : c1, true); ear.position.set(-0.02, -0.02, 0.135 * sz); ear.rotation.x = 0.15 * sz;
       }
-      head.add(ear);
+      ear.userData.rz = ear.rotation.z;
+      head.add(ear); ears.push(ear);
     });
-    // 腿
-    function leg(x, z) {
-      var hip = new T.Group(); hip.position.set(x, -0.05, z); body.add(hip);
-      var up = mesh(T, new T.CylinderGeometry(0.048, 0.04, legLen / 2, 6), c1, true); up.position.y = -legLen / 4; hip.add(up);
-      var knee = new T.Group(); knee.position.y = -legLen / 2; hip.add(knee);
-      var lo = mesh(T, new T.CylinderGeometry(0.036, 0.032, legLen / 2, 6), m.pat === 1 ? c2 : c1, true); lo.position.y = -legLen / 4; knee.add(lo);
-      var paw = mesh(T, new T.SphereGeometry(0.042, 6, 4), m.pat === 1 ? c2 : c1); paw.position.set(0.02, -legLen / 2, 0); paw.scale.set(1.3, 0.7, 1); knee.add(paw);
-      return { hip: hip, knee: knee };
+
+    // 腿：三節＋腳掌。各節長度依靜止角度反推，讓站姿時腳掌中心落在離地 0.025 的位置
+    var hipY = -0.05, reach = bodyY + hipY - 0.025;
+    function leg(kind, x, z) {
+      var rest = LEG_REST[kind], prop = LEG_PROP[kind], th = LEG_THICK[kind];
+      var cum = 0, v = 0;
+      prop.forEach(function (q, n) { cum += rest[n]; v += q * Math.cos(cum); });
+      var k = reach / v, lens = prop.map(function (q) { return q * k; });
+      var parent = kind === "hind" ? loin : body;
+      var hip = new T.Group();
+      if (kind === "hind") hip.position.set(x - loinX, hipY - loinY, z); else hip.position.set(x, hipY, z);
+      parent.add(hip);
+      var joints = [hip], j = hip;
+      // 大腿／上臂另外加一塊肌肉，看起來比較有份量
+      if (kind === "hind") { var ham = mesh(T, new T.SphereGeometry(1, 10, 8), c1, true); ham.scale.set(0.075, lens[0] * 0.5, 0.055); ham.position.set(-0.005, -lens[0] * 0.32, 0); hip.add(ham); }
+      else { var sh = mesh(T, new T.SphereGeometry(1, 10, 8), c1, true); sh.scale.set(0.06, lens[0] * 0.45, 0.05); sh.position.set(0.0, -lens[0] * 0.28, 0); hip.add(sh); }
+      for (var n = 0; n < 3; n++) {
+        var lowC = n > 0 && m.pat === 1 ? c2 : c1;
+        var seg = mesh(T, new T.CylinderGeometry(th[n][0], th[n][1], lens[n], 6), lowC, true); seg.position.y = -lens[n] / 2; j.add(seg);
+        var nj = new T.Group(); nj.position.y = -lens[n]; j.add(nj);
+        joints.push(nj); j = nj;
+      }
+      var paw = mesh(T, new T.SphereGeometry(0.04, 6, 4), m.pat === 1 ? c2 : c1); paw.position.set(0.022, -0.005, 0); paw.scale.set(1.45, 0.62, 1); j.add(paw);
+      joints.forEach(function (q, n) { if (n < 3) q.rotation.z = rest[n]; });
+      return { kind: kind, hip: joints[0], knee: joints[1], ankle: joints[2], paw: joints[3], rest: rest, lens: lens, hx: hip.position.x, hy: hip.position.y };
     }
-    var legs = [leg(0.28 * bl, 0.1), leg(0.28 * bl, -0.1), leg(-0.3 * bl, 0.1), leg(-0.3 * bl, -0.1)];
-    // 尾巴
-    var tail = new T.Group(); tail.position.set(-0.44 * bl, 0.08, 0); body.add(tail);
+    // 0／1＝前腳（z＋／z－），2／3＝後腳（z＋／z－）
+    var legs = [leg("fore", 0.27 * bl, 0.095), leg("fore", 0.27 * bl, -0.095), leg("hind", -0.3 * bl, 0.1), leg("hind", -0.3 * bl, -0.1)];
+    // 尾巴（掛在後半身）
+    var tail = new T.Group(); tail.position.set(-0.46 * bl - loinX, 0.06 - loinY, 0); loin.add(tail);
     if (m.tail === "curl") { var tc = mesh(T, new T.TorusGeometry(0.085, 0.035, 5, 10, Math.PI * 1.6), c1, true); tc.position.set(0.04, 0.1, 0); tc.rotation.y = Math.PI / 2; tc.rotation.x = Math.PI / 2; tail.add(tc); }
     else if (m.tail === "bob") { tail.add(mesh(T, new T.SphereGeometry(0.05, 6, 4), c1)); }
     else if (m.tail === "plume") { var pl = mesh(T, new T.ConeGeometry(0.07, 0.36, 6), m.pat === 4 ? c2 : c1, true); pl.position.y = 0.17; tail.add(pl); tail.rotation.z = 1.0; }
     else { var ts = mesh(T, new T.CylinderGeometry(0.018, 0.03, 0.32, 5), c1, true); ts.position.y = 0.16; tail.add(ts); tail.rotation.z = 1.2; }
+    // 捲尾、短尾跑起來不會往後拉直
+    var tailSwing = m.tail === "curl" || m.tail === "bob" ? 0 : 1;
 
     root.scale.setScalar(S);
-    return { root: root, body: body, head: head, neck: neck, legs: legs, tail: tail, S: S, legLen: legLen, bodyY: bodyY, phase: gate * 1.3 };
+    return {
+      root: root, body: body, loin: loin, loinX: loinX, head: head, neck: neck, ears: ears, legs: legs, tail: tail,
+      tailRz: tail.rotation.z, tailSwing: tailSwing, S: S, legLen: legLen, bodyY: bodyY, phase: gate * 1.3
+    };
+  }
+
+  // ---------------- 狗的動作 ----------------
+  // 跑步（2026-11-26 改版）：
+  //   慢速＝快步（trot，對角兩腳同時著地）；高速＝旋轉式奔馳（rotary gallop，賽狗、灰狗的跑法）。
+  //   奔馳一個步態週期（u＝0〜1）：後腳兩腳先後著地 → 伸展騰空（四腳前後拉直、脊椎伸展）
+  //   → 前腳兩腳先後著地 → 收縮騰空（四腳收在腹下、脊椎拱起）。速度在兩種步態間平滑混合。
+  var GAIT = {
+    // 各腳著地時刻（相位偏移）、著地比例（duty）、關節擺幅：td＝著地時往前、lo＝離地時往後、f2／f3＝擺盪期第 2／3 節的收折量
+    trot: { off: [0.5, 0.0, 0.0, 0.5], duty: 0.58, fore: { td: 0.32, lo: -0.32, f2: 0.7, f3: 0.8 }, hind: { td: 0.3, lo: -0.38, f2: 0.5, f3: 0.6 } },
+    gallop: { off: [0.56, 0.46, 0.0, 0.09], duty: 0.27, fore: { td: 0.55, lo: -0.55, f2: 1.35, f3: 1.7 }, hind: { td: 0.6, lo: -0.68, f2: 0.95, f3: 1.1 } }
+  };
+  var TAU = Math.PI * 2;
+  function frac(x) { return x - Math.floor(x); }
+  function smooth(x) { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+  // 在 peak 處為 1、兩端為 0 的平滑山形
+  function bump(s, peak) {
+    var x = s < peak ? s / peak : 1 - (s - peak) / (1 - peak);
+    return smooth(x);
+  }
+  // 著地權重：著地期 1，離著地越遠（相位距離）越小
+  function contactW(u, duty) {
+    if (u < duty) return 1;
+    var dd = Math.min(u - duty, 1 - u) / 0.07;
+    return Math.exp(-dd * dd) + 1e-4;
+  }
+  // 單腳在自己的相位 u（0＝著地）下的三個關節偏移（加在靜止角度上）
+  function legPose(kind, u, duty, A, flexMul) {
+    var j1, j2, j3, s;
+    if (u < duty) {
+      // 著地期：腳掌固定在地上，身體往前移，所以整隻腳從前往後線性擺動
+      s = u / duty;
+      var mid = Math.sin(Math.PI * s);
+      j1 = A.td + (A.lo - A.td) * s;
+      if (kind === "fore") { j2 = -0.08 * mid; j3 = 0.28 * mid; }
+      else { j2 = -0.22 * mid + 0.55 * s * s; j3 = 0.24 * mid - 0.6 * s * s; }   // 中段承重微彎、離地前蹬直
+    } else {
+      // 擺盪期：腳收起來往前送，最後伸直準備著地
+      s = (u - duty) / (1 - duty);
+      if (kind === "fore") {
+        j1 = A.lo + (A.td - A.lo) * smooth(s * 1.1 - 0.05);
+        j2 = A.f2 * flexMul * bump(s, 0.42) + 0.12 * bump(s, 0.85);
+        j3 = -A.f3 * flexMul * bump(s, 0.3);
+      } else {
+        j1 = A.lo + (A.td - A.lo) * smooth(s * 1.15 - 0.08);
+        j2 = -A.f2 * flexMul * bump(s, 0.4);
+        j3 = A.f3 * flexMul * bump(s, 0.42);
+      }
+    }
+    return [j1, j2, j3];
+  }
+
+  // 在身體座標（不含身體高度）下算各腳掌位置，決定身體高度：
+  //   以「著地中的腳剛好踩在地上」為準（w＝各腳的著地權重，騰空期依離著地的相位距離平滑內插），
+  //   擺盪中的腳最多只會略低於地面一點。
+  function groundY(d, J, spine, pitch, w) {
+    var hi = -1e9, sw = 0, sy = 0, cs = Math.cos(spine), sn = Math.sin(spine), cp = Math.cos(pitch), spn = Math.sin(pitch);
+    for (var k = 0; k < 4; k++) {
+      var L = d.legs[k], x = L.hx, y = L.hy, th = k >= 2 ? spine : 0;
+      if (k >= 2) { var x0 = x, y0 = y; x = d.loinX + x0 * cs - y0 * sn; y = d.loin.position.y + x0 * sn + y0 * cs; }
+      for (var n = 0; n < 3; n++) { th += L.rest[n] + J[k][n]; x += L.lens[n] * Math.sin(th); y -= L.lens[n] * Math.cos(th); }
+      var need = 0.025 - (x * spn + y * cp);
+      if (need > hi) hi = need;
+      sw += w[k]; sy += w[k] * need;
+    }
+    // 擺盪中往前伸的腳可能比地面低一點點：容許 0.03 的誤差，超過才把身體抬高
+    return Math.max(hi - 0.03, sw > 0 ? sy / sw : hi);
   }
 
   // 動畫：st＝{ v, mode }，span＝目前動作區段 { t0, t1, ev }，extra＝{ jumpH, climbPitch }
   function animateDog(d, v, mode, sp, t, dt) {
-    var body = d.body, legs = d.legs;
-    var stride = 1.5 * d.S;
-    d.phase += (v / Math.max(0.4, stride)) * Math.PI * 2 * dt * 0.5;
-    var ph = d.phase, amp = 0.7 * clamp(v / 6, 0.15, 1);
-    var y = d.bodyY, pitch = 0, headPitch = 0, headY = 0.12, roll = 0;
-    var swing = [Math.sin(ph), Math.sin(ph + 0.5), Math.sin(ph + Math.PI), Math.sin(ph + Math.PI + 0.5)];
-    var knees = [0, 0, 0, 0], hips = [0, 0, 0, 0], k;
-    for (k = 0; k < 4; k++) { hips[k] = swing[k] * amp * (k < 2 ? -1 : 1); knees[k] = (k < 2 ? 1 : -1) * Math.max(0, Math.sin(ph + k * 0.5 + (k < 2 ? 0.8 : Math.PI + 0.8))) * amp * 1.1; }
-    y += Math.abs(Math.sin(ph)) * 0.05 * clamp(v / 6, 0, 1);
-    pitch = Math.sin(ph * 2) * 0.06 * clamp(v / 6, 0, 1);
-    if (v < 0.3 && mode === M.run) { for (k = 0; k < 4; k++) { hips[k] = 0; knees[k] = 0; } }
+    var body = d.body, legs = d.legs, k, n;
+    var vv = Math.max(0, v);
+    // 步態混合：g＝0 快步、1 奔馳；a＝動作幅度（停下來時收回站姿）
+    var g = smooth((vv - 3.5) / 3.5), a = smooth(vv / 1.6);
+    var freq = ((1 - g) * (1.3 + 0.32 * vv) + g * (1.5 + 0.16 * vv)) / Math.sqrt(Math.max(0.35, d.S));
+    d.phase += TAU * clamp(freq, 0.6, 6.5) * dt;
+    var ph = d.phase, u = frac(ph / TAU);
+    var flexMul = mode === M.mud ? 1.35 : 1;
+    var y = d.bodyY, pitch = 0, headPitch = 0, headY = 0.14, roll = 0;
+    var J = [], W = [], hips = [0, 0, 0, 0], knees = [0, 0, 0, 0];
+    for (k = 0; k < 4; k++) {
+      var kind = k < 2 ? "fore" : "hind";
+      var pt = legPose(kind, frac(u - GAIT.trot.off[k]), GAIT.trot.duty, GAIT.trot[kind], flexMul);
+      var pg = legPose(kind, frac(u - GAIT.gallop.off[k]), GAIT.gallop.duty, GAIT.gallop[kind], flexMul);
+      J.push([0, 1, 2].map(function (q) { return a * ((1 - g) * pt[q] + g * pg[q]); }));
+      W.push((1 - g) * contactW(frac(u - GAIT.trot.off[k]), GAIT.trot.duty) + g * contactW(frac(u - GAIT.gallop.off[k]), GAIT.gallop.duty));
+    }
+    // 脊椎：收縮騰空（u≈0.92）時拱起、伸展騰空（u≈0.42）時拉直
+    var flex = Math.cos(TAU * (u - 0.92));
+    var spine = a * (g * 0.24 * flex + (1 - g) * 0.02 * Math.sin(TAU * u * 2));
+    // 騰空：奔馳時兩次騰空（u≈0.4、0.9）身體再往上一點
+    var lift = a * g * 0.022 * d.legLen * 2 * Math.max(0, Math.cos(2 * TAU * (u - 0.4)));
+    pitch = a * g * (0.045 * Math.sin(TAU * (u - 0.2)) - 0.03 * flex);
+    // 頭：跑越快越往前伸低，並抵銷身體的俯仰讓頭比較穩
+    headPitch = -pitch * 0.8 - a * (0.08 + 0.14 * g) + a * g * 0.05 * Math.cos(TAU * (u - 0.6));
+    var tailExtra = d.tailSwing * a * (0.15 + 0.35 * g + g * 0.12 * flex);
+    var custom = null;   // 進階動作：回傳舊式的 hips／knees（加在站姿上），覆寫跑步姿勢
+
     if (mode === M.wade) {
       // 涉水：抬高腳步
-      for (k = 0; k < 4; k++) { hips[k] *= 0.8; knees[k] = (k < 2 ? 1 : -1) * (0.6 + Math.max(0, Math.sin(ph + k)) * 0.9); }
-      y += 0.04;
+      custom = [];
+      for (k = 0; k < 4; k++) { hips[k] = Math.sin(ph + k * 1.6) * 0.45; knees[k] = (k < 2 ? 1 : -1) * (0.6 + Math.max(0, Math.sin(ph + k)) * 0.9); }
+      y = d.bodyY + 0.04; spine = 0;
     } else if (mode === M.jump || mode === M.dive) {
+      custom = [];
       for (k = 0; k < 4; k++) { hips[k] = k < 2 ? -0.9 : 0.9; knees[k] = k < 2 ? 0.3 : -0.3; }
-      pitch = sp ? (0.5 - sp.p) * 0.5 : 0;
+      pitch = sp ? (0.5 - sp.p) * 0.5 : 0; spine = -0.12; y = d.bodyY;
     } else if (mode === M.crawl) {
-      y = d.bodyY * 0.62; for (k = 0; k < 4; k++) { hips[k] *= 0.6; knees[k] = (k < 2 ? 1 : -1) * 0.9; }
-      headY = 0.06; headPitch = -0.15;
+      custom = [];
+      y = d.bodyY * 0.62; for (k = 0; k < 4; k++) { hips[k] = Math.sin(ph + k * 1.6) * 0.3; knees[k] = (k < 2 ? 1 : -1) * 0.9; }
+      headY = 0.08; headPitch = -0.15; spine = 0; pitch = 0;
     } else if (mode === M.swim) {
+      custom = [];
       y = ((d.wt || WATER_TOP) - 0.06) / d.S; for (k = 0; k < 4; k++) hips[k] = Math.sin(ph * 1.6 + k * 1.5) * 0.7;
-      headPitch = 0.35; pitch = -0.1;
+      headPitch = 0.35; pitch = -0.1; spine = 0;
     } else if (mode === M.catch) {
-      for (k = 0; k < 4; k++) { hips[k] = 0; knees[k] = 0; }
+      custom = [];
       var p = sp ? sp.p : 0;
-      headPitch = 0.4 + 0.4 * Math.sin(Math.PI * p);
+      headPitch = 0.4 + 0.4 * Math.sin(Math.PI * p); y = d.bodyY; spine = 0; pitch = 0;
       if (sp && sp.ev !== "catchMiss" && p > 0.55 && p < 0.85) y += Math.sin((p - 0.55) / 0.3 * Math.PI) * 0.35;
     } else if (mode === M.eat) {
-      for (k = 0; k < 4; k++) { hips[k] = 0; knees[k] = 0; }
-      headPitch = -1.0; headY = 0.0; pitch = -0.12;
+      custom = [];
+      headPitch = -1.0; headY = 0.02; pitch = -0.12; y = d.bodyY; spine = 0;
     } else if (mode === M.sit) {
-      hips = [0.1, 0.1, -1.1, -1.1]; knees = [0, 0, 2.1, 2.1];
-      pitch = 0.5; y = d.bodyY * 0.72; headPitch = 0.25;
+      custom = [];
+      // 三節腿：後腳大腿往前平放、小腿往後收在臀下
+      hips = [0.1, 0.1, 0.35, 0.35]; knees = [0, 0, -1.3, -1.3];
+      pitch = 0.5; y = d.bodyY * 0.72; headPitch = 0.25; spine = 0.1;
     } else if (mode === M.stun) {
       roll = Math.sin(t * 18) * 0.15; pitch = -0.15;
-    } else if (mode === M.mud) {
-      for (k = 0; k < 4; k++) knees[k] *= 1.4;
     } else if (mode === M.wait) {
       // 停下來觀望：四腳站好、左右張望
-      for (k = 0; k < 4; k++) { hips[k] = 0; knees[k] = 0; }
-      headPitch = 0.15; roll = Math.sin(t * 2.4) * 0.05;
+      custom = [];
+      headPitch = 0.15; roll = Math.sin(t * 2.4) * 0.05; y = d.bodyY; spine = 0; pitch = 0;
     } else if (mode === M.ride) {
       // 站在板子上：腳張開微蹲、身體左右平衡
+      custom = [];
       hips = [-0.25, -0.25, 0.3, 0.3]; knees = [0.35, 0.35, -0.45, -0.45];
-      y = d.bodyY * 0.9; roll = Math.sin(t * 3.1 + d.phase) * 0.12; headPitch = 0.1;
+      y = d.bodyY * 0.9; roll = Math.sin(t * 3.1 + d.phase) * 0.12; headPitch = 0.1; spine = 0; pitch = 0;
     } else if (mode === M.slide) {
       // 溜滑梯：前腳伸直、後腳收起
+      custom = [];
       hips = [-0.7, -0.7, 1.0, 1.0]; knees = [0.2, 0.2, 1.4, 1.4];
-      y = d.bodyY * 0.78; headPitch = 0.2;
-    } else if (mode === M.fin) {
-      // 衝過終點後慢慢停下
+      y = d.bodyY * 0.78; headPitch = 0.2; spine = 0; pitch = 0;
     }
-    for (k = 0; k < 4; k++) { legs[k].hip.rotation.z = hips[k]; legs[k].knee.rotation.z = knees[k]; }
+    // 其餘（run、fin、mud、weave、climb、loop…）都用上面算好的跑步姿勢：
+    //   身體高度＝讓最低的那隻腳剛好貼地（正向運動學），所以著地的腳不會浮空或陷進地面
+    if (!custom && mode !== M.stun) y = groundY(d, J, spine, pitch, W) + lift;
+    if (custom) {
+      tailExtra = 0;
+      for (k = 0; k < 4; k++) {
+        // 舊式兩節的 hips／knees 換算到三節：第 3 節反向補償，讓腳掌大致朝下
+        J[k] = k < 2 ? [hips[k], knees[k], -knees[k] * 0.5] : [hips[k], knees[k], -knees[k] * 0.75];
+      }
+      // 地面上的動作：腳不能穿到地面下（游泳、跳躍、接飛盤在空中或水裡，不檢查）
+      if (mode !== M.swim && mode !== M.jump && mode !== M.dive && mode !== M.catch) y = Math.max(y, groundY(d, J, spine, pitch, [0, 0, 0, 0]) + 0.03);
+    }
+    for (k = 0; k < 4; k++) {
+      var L = legs[k], r = L.rest, cum = 0;
+      var js = [L.hip, L.knee, L.ankle];
+      for (n = 0; n < 3; n++) { js[n].rotation.z = r[n] + J[k][n]; cum += r[n] + J[k][n]; }
+      // 腳掌：著地時保持水平，後腳的角度另外加上後半身的轉動
+      L.paw.rotation.z = -(cum + (k >= 2 ? spine : 0) + pitch) * 0.9;
+    }
+    d.loin.rotation.z = spine;
+    d.loin.position.x = d.loinX + 0.03 * Math.max(0, spine) / 0.24 * (d.legLen * 2);
     body.position.y = y;
     body.rotation.z = pitch;
     body.rotation.x = roll;
     d.neck.rotation.z = headPitch;
     d.head.position.y = headY;
-    d.tail.rotation.x = Math.sin(t * 9 + d.phase) * 0.35;
+    // 跑越快耳朵越往後貼
+    d.ears.forEach(function (e) { e.rotation.z = e.userData.rz + a * g * 0.5; });
+    d.tail.rotation.z = d.tailRz + tailExtra;
+    d.tail.rotation.x = Math.sin(t * 9 + d.phase) * 0.35 * (1 - 0.7 * g * a);
   }
 
   // ---------------- 場景 ----------------
